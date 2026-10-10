@@ -5,13 +5,17 @@ videos get studied, see the style and the skill it became, drop a video. Stdlib 
 Claude stays the brain. The page only queues jobs; Claude takes each one with `wait`, runs the skill
 for it, and reports back with `status`:
 
-    python3 home.py serve [--root DIR] [--no-open]   serve the page and open it (run in the background)
+    python3 home.py serve [--root DIR] [--no-open]   serve the page and open it (run in the background);
+                                                 DIR defaults to the library (library.py), wherever this runs
     python3 home.py wait                         block until the page queues a job, print it as one line,
                                                  exit (run in the background, again after each job):
         JOB teardown @handle platform=tiktok take=captions,pace root=DIR
         JOB teardown @name urls=DIR/creator-teardowns/name/picks.txt take= root=DIR
         JOB skill @handle take=captions,pace,graphics root=DIR
-        JOB video /path/take.mov as=@handle aspect=9:16 root=DIR      (as=defaults: no creator)
+        JOB video /path/take.mov as=@handle aspect=9:16 edit=DIR/edits/take root=DIR
+                                                 (as=mine: the saved style; as=defaults: no creator)
+        JOB video takes=DIR/edits/a/takes.txt as=mine aspect=9:16 edit=DIR/edits/a root=DIR
+                                                 (several clips as one video: join them in the listed order)
         JOB modal                                 the user pressed "Log in with your browser"
         JOB cancel teardown                       the user pressed Cancel
         ALREADY ...                               another wait is running: nothing to do
@@ -28,8 +32,10 @@ Numbers on the page come from the teardown's own style.json and videos.json, rea
 Claude's `--result` adds words only (the skill, prompts, what not to copy). Nothing is made up: a part
 not measured yet shows as empty.
 
-The server listens on 127.0.0.1 only and every request needs the random token in the URL it prints
-(then a SameSite cookie), as review.py does.
+The server listens on 127.0.0.1 only and every request needs the token in the URL it prints (then a
+SameSite cookie), as review.py does. The address stays the same: port 47821 (the next free one if that is
+taken, remembered in state.json) and one random token per install ($AI_EDITOR_HOME/home/token, 0600), so
+the launcher and a bookmark always open the same page.
 """
 import argparse
 import glob
@@ -38,6 +44,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 import threading
@@ -48,10 +55,12 @@ import webbrowser
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlsplit
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import keys  # noqa: E402
+import library  # noqa: E402
 import links  # noqa: E402
 from review import load, now, save  # noqa: E402  (atomic write; review.py's server owns the rest)
 
@@ -67,6 +76,8 @@ TOOLS = {"python": ("Python", "runs the editor"), "ffmpeg": ("ffmpeg", "cuts and
          "transcription model": ("Transcription model", "500 MB, runs offline"),
          "renderer": ("The renderer", "700 MB"), "free disk": ("Free disk", "3 GB or more")}
 TOP, CONTROL = 5, 2       # creator-teardown quick mode: 5 most viewed + 2 closest to the median
+PORT = 47821              # the fixed address; the next free one up to PORT + 19 when it is taken
+REVIEW = Path(__file__).with_name("review.py")
 
 
 def home():
@@ -81,7 +92,7 @@ def read():
     try:
         return load(state_path())
     except (OSError, ValueError):
-        return {"root": str(Path.cwd()), "jobs": []}
+        return {"root": str(library.path()), "jobs": []}
 
 
 class _Lock:
@@ -243,6 +254,54 @@ def measured(root, handle):
             "report": (Path(root) / "creator-teardowns" / handle / "teardown.html").exists()}
 
 
+# ---------------------------------------------------------------- styles: the "Pick a style" cards
+def facts(s):
+    """[[label, value]] measured in a style.json, at most three. A part not measured is left out."""
+    p, z, c = (s.get(k) or {} for k in ("pace", "zoom", "captions"))
+    out = []
+    if p.get("median_shot_s") is not None:
+        out.append(["Cut every", num(p["median_shot_s"], " s")])
+    if z.get("kind"):
+        out.append(["Zooms", z["kind"].capitalize() + (f", {num(z['per_min'])} a minute" if z.get("per_min") else "")])
+    if c.get("present") is False:
+        out.append(["Captions", "None"])
+    elif c.get("words_per_caption") is not None:
+        out.append(["Captions", f"{num(c['words_per_caption'])} word{'' if c['words_per_caption'] == 1 else 's'} at a time"])
+    m = ((s.get("sound") or {}).get("music") or {}).get("present_pct")
+    if m is not None and len(out) < 3:
+        out.append(["Music", f"In {num(m)}% of videos"])
+    return out[:3]
+
+
+def look(s):
+    """How the caption sample on a card is drawn: only what the style.json says."""
+    c = s.get("captions") or {}
+    if c.get("present") is False:
+        return None
+    return {k: c.get(k) for k in ("color", "box", "box_color", "case", "weight", "y_pct", "stroke")}
+
+
+def style_cards(root):
+    """My style first (the saved profile: its first copied creator, else the default style), then every
+    creator studied in the library."""
+    try:
+        prof = json.loads((home().parent / "profile.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        prof = {}
+    have = dict(library.styles(root))
+    base = next((c["handle"] for c in prof.get("creators") or [] if c.get("handle") in have), None)
+    sys.path.insert(1, str(Path(__file__).resolve().parents[1]))
+    from ai_editor.profile import DEFAULT_STYLE   # "profile" alone is also a stdlib module
+    src = have[base] if base else DEFAULT_STYLE
+    cap = (prof.get("captions") or {})
+    mine = {"id": "mine", "name": "My style", "facts": facts(src), "look": look(src),
+            "line": f"Your saved style. Started from @{base}." if base else "The default style. Change it any time.",
+            "captions_off": cap.get("on") is False}
+    return [mine] + [{"id": "@" + h, "name": "@" + h, "facts": facts(st), "look": look(st), "videos": st.get("videos"),
+                      "line": f"Measured from {st['videos']} of their videos." if st.get("videos") else "Studied by the editor."}
+                     for h, st in have.items()]
+
+
 # ---------------------------------------------------------------- setup checks
 def doctor_rows(text):
     """setup.py doctor's lines -> [{id, ok, name, what, detail}] for the tools only (keys are their own rows)."""
@@ -290,7 +349,8 @@ def job_line(j, root):
     if j["type"] == "skill":
         return f"JOB skill @{a['handle']} take={','.join(a.get('take') or [])} root={root}"
     if j["type"] == "video":
-        return f"JOB video {a['path']} as={a['as']} aspect={a['aspect']} root={root}"
+        src = f"takes={a['takes']}" if a.get("takes") else a["path"]
+        return f"JOB video {src} as={a['as']} aspect={a['aspect']}" + (f" edit={a['edit']}" if a.get("edit") else "") + f" root={root}"
     return f"JOB {j['type']}"
 
 
@@ -407,6 +467,56 @@ def make_handler(token):
                     td["measured"] = measured(d["root"], td["args"]["handle"])
                     td["listing"] = listing(d["root"], td["args"]["handle"])
                 return self.send(200, d)
+            q = parse_qs(urlsplit(self.path).query)
+            if path == "/library":
+                root = read()["root"]
+                vids = [dict(e, thumb=e["video"] and "/thumb?p=" + quote(e["video"])) for e in library.entries()]
+                cards = style_cards(root)
+                for j in read()["jobs"]:   # a creator still being studied: a card the user can already pick
+                    h = j["args"].get("handle")
+                    if j["type"] == "teardown" and j["state"] in ("queued", "taken") and "@" + str(h) not in [c["id"] for c in cards]:
+                        cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True,
+                                      "line": "Being studied now. Your cut starts first; the style waits for the study."})
+                return self.send(200, {"path": root, "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
+                                       "videos": vids, "styles": cards})
+            if path == "/recent":
+                st = read()
+                rs = library.recent(st.get("picked") or [], bool(st.get("scan_home")))
+                with ThreadPoolExecutor(8) as ex:
+                    ms = list(ex.map(lambda r: library.meta(r["path"]), rs))
+                return self.send(200, {"scan_home": bool(st.get("scan_home")), "videos": [
+                    dict(r, duration=m["duration"], vertical=bool(m["h"] and m["w"] and m["h"] > m["w"]),
+                         thumb="/thumb?p=" + quote(r["path"])) for r, m in zip(rs, ms)]})
+            if path == "/thumb":
+                f = Path(q.get("p", [""])[0])
+                t = library.thumb(f) if f.suffix.lower() in links.VIDEO_EXT and f.is_file() else None
+                return self.send(200, t.read_bytes(), "image/jpeg") if t else self.send(404, {})
+            if path == "/media":   # a library video's file, to watch or download
+                f = Path(q.get("p", [""])[0]).resolve()
+                if not any(d in f.parents for d in library.edit_dirs()) or not f.is_file() or f.suffix.lower() not in links.VIDEO_EXT:
+                    return self.send(404, {})
+                self.send_response(200)
+                self.send_header("Content-Type", "video/mp4")
+                self.send_header("Content-Length", str(f.stat().st_size))
+                self.send_header("Content-Disposition", f'attachment; filename="{quote(f.name)}"')
+                self.end_headers()
+                with open(f, "rb") as fh:
+                    shutil.copyfileobj(fh, self.wfile)
+                return
+            if path == "/disk":
+                return self.send(200, library.disk())
+            if path == "/review":   # a library video's review page: its own server, started if it is not running
+                d = Path(q.get("dir", [""])[0]).resolve()
+                if d not in library.edit_dirs() or not (d / "review.json").exists():
+                    return self.send(404, {"error": "no review page for that video yet"})
+                url = review_url(d)
+                if not url:
+                    return self.send(500, {"error": "the review page did not start"})
+                self.send_response(302)
+                self.send_header("Location", url)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             m = re.match(r"^/td/([a-z0-9._-]+)/(.+)$", path)   # the teardown page and its own files
             if m:
                 base = (Path(read()["root"]) / "creator-teardowns" / m[1]).resolve()
@@ -450,6 +560,27 @@ def make_handler(token):
                 return self.send(200, probe(body.get("path") or ""))
             if path == "/job":
                 return self.job(body)
+            if path == "/reveal":   # Show in Finder / Explorer: the library or one of its videos only
+                p = Path(str(body.get("dir") or read()["root"])).resolve()
+                if p != Path(read()["root"]).resolve() and p not in library.edit_dirs():
+                    return self.send(400, {})
+                subprocess.Popen(library.reveal_cmd(p), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return self.send(200, {})
+            if path == "/clean":   # the page asks first; without yes it only counts
+                fs, n = library.clean(yes=body.get("yes") is True)
+                return self.send(200, {"files": len(fs), "bytes": n, "deleted": body.get("yes") is True})
+            if path == "/scanhome":   # the one-time opt-in: recent clips from Movies, Desktop and Downloads
+                update(lambda d: d.__setitem__("scan_home", body.get("on") is True))
+                return self.send(200, {})
+            if path == "/setlib":
+                if os.environ.get("AI_EDITOR_LIBRARY", "").strip():
+                    return self.send(409, {"msg": "AI_EDITOR_LIBRARY is set, so the folder comes from there."})
+                try:
+                    p = library.set_path(str(body.get("path") or ""))
+                except OSError as e:
+                    return self.send(400, {"msg": f"Could not use that folder: {e.strerror or e}"})
+                update(lambda d: d.__setitem__("root", str(p)))
+                return self.send(200, {"path": str(p)})
             if path == "/cancel":
                 def c(d):
                     j = latest(d, body.get("type") or "teardown")
@@ -509,19 +640,48 @@ def make_handler(token):
                     return self.send(409, {"error": "the study is not finished"})
                 args = {"handle": td["args"]["handle"], "take": take}
             elif kind == "video":
-                p = probe(b.get("path") or "")
-                if not p.get("ok"):
-                    return self.send(400, p)
-                td = latest(d, "teardown")
-                use = b.get("as") != "defaults" and td and td["state"] == "done"
-                args = {"path": p["path"], "as": f"@{td['args']['handle']}" if use else "defaults",
-                        "aspect": "16:9" if b.get("aspect") == "16:9" else "9:16"}
+                return self.videos(b, d)
             elif kind == "modal":
                 args = {}
             else:
                 return self.send(400, {"error": "unknown job"})
             j = update(lambda d: queue(d, kind, args))
             return self.send(200, {"id": j["id"]})
+
+        def videos(self, b, d):
+            """One clip, several joined into one video (takes), or several separate videos: one JOB each."""
+            ps = [probe(x) for x in (b.get("paths") or [b.get("path") or ""])[:20]]
+            bad = next((p for p in ps if not p.get("ok")), None)
+            if bad:
+                return self.send(400, bad)
+            want, td = str(b.get("as") or "creator"), latest(d, "teardown")
+            if want.startswith("@"):
+                h = re.sub(r"[^a-z0-9._-]", "", want[1:].lower())
+                studying = any(j["type"] == "teardown" and j["args"].get("handle") == h and j["state"] in ("queued", "taken")
+                               for j in d["jobs"])   # the cut starts now; the styled pass waits for the study
+                if not studying and not (Path(d["root"]) / "creator-teardowns" / h / "style.json").exists():
+                    return self.send(400, {"ok": False, "msg": f"@{h} has not been studied yet."})
+                style = "@" + h
+            elif want in ("mine", "defaults"):
+                style = want
+            else:   # the first-run page: its creator once the study is done
+                style = f"@{td['args']['handle']}" if td and td["state"] == "done" else "defaults"
+            aspect = "16:9" if b.get("aspect") == "16:9" else "9:16"
+            groups = [ps] if b.get("join") and len(ps) > 1 else [[p] for p in ps]
+            ids = []
+
+            def remember(d):
+                d["picked"] = list(dict.fromkeys([p["path"] for p in ps] + (d.get("picked") or [])))[:60]
+            update(remember)
+            for g in groups:
+                edit = new_edit(Path(d["root"]), g[0]["name"])
+                args = {"path": g[0]["path"], "as": style, "aspect": aspect, "edit": str(edit)}
+                if len(g) > 1:
+                    t = edit / "takes.txt"
+                    t.write_text("\n".join(p["path"] for p in g) + "\n", encoding="utf-8")
+                    args["takes"] = str(t)
+                ids.append(update(lambda d: queue(d, "video", args))["id"])
+            return self.send(200, {"id": ids[0], "ids": ids})
 
         def upload(self):
             """A dropped video: streamed to <root>/videos/<name>, never held in memory."""
@@ -546,6 +706,18 @@ def make_handler(token):
             os.replace(tmp, out)
             return self.send(200, probe(str(out)))
     return H
+
+
+def new_edit(root, name):
+    """<root>/edits/<slug of the file name>, -2, -3 ... when taken; made now and listed in the library."""
+    slug = links._slug(Path(name).stem)
+    edit, n = root / "edits" / slug, 1
+    while edit.exists():
+        n += 1
+        edit = root / "edits" / f"{slug}-{n}"
+    edit.mkdir(parents=True)
+    library.record(edit)
+    return edit
 
 
 def probe(path):
@@ -576,6 +748,23 @@ def probe(path):
             "vertical": h > w, "label": f"{int(dur // 60)}:{int(dur % 60):02d} · {'vertical' if h > w else 'wide'} {res} · {gb}"}
 
 
+_spawned = []   # review servers this page started (the demo stops its own)
+
+
+def review_url(d):
+    """The URL of review.py's page for edit folder d, starting its server (detached) when none answers."""
+    sys.path.insert(0, str(REVIEW.parent))
+    import review
+    url = review.running(d)
+    if url:
+        return url
+    p = subprocess.Popen([sys.executable, str(REVIEW), str(d), "serve", "--no-open"], stdout=subprocess.PIPE,
+                         stderr=subprocess.DEVNULL, text=True, encoding="utf-8", start_new_session=True)
+    _spawned.append(p)
+    line = p.stdout.readline().strip()
+    return line if line.startswith("http") else None
+
+
 def running():
     try:
         url = (home() / ".server").read_text(encoding="utf-8").strip()
@@ -585,16 +774,52 @@ def running():
         return None
 
 
-def serve(root, port=0, open_browser=True):
-    """(server, url). A server already running is reused: (None, its url), with the root moved to this one."""
-    update(lambda d: d.__setitem__("root", str(Path(root).resolve())))
+def stable_token():
+    """One random token per install, kept 0600 beside state.json, so the address never changes."""
+    p = home() / "token"
+    try:
+        t = p.read_text(encoding="utf-8").strip()
+    except OSError:
+        t = ""
+    if not t:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        t = secrets.token_urlsafe(32)
+        with os.fdopen(os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
+            f.write(t)
+    try:
+        os.chmod(p, 0o600)
+    except OSError:
+        pass
+    return t
+
+
+def bind(handler, port=None):
+    """PORT, or the port remembered from last time, else the next free one. port=0: any free port (tests)."""
+    if port == 0:
+        return ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    first = port or read().get("port") or PORT
+    for p in dict.fromkeys([first] + list(range(PORT, PORT + 20))):
+        try:
+            return ThreadingHTTPServer(("127.0.0.1", p), handler)
+        except OSError:
+            continue
+    return ThreadingHTTPServer(("127.0.0.1", 0), handler)
+
+
+def serve(root=None, port=None, open_browser=True):
+    """(server, url). A server already running is reused: (None, its url), with the root moved to this one.
+    root defaults to the library, so the page works on the same videos wherever Claude Code was started."""
+    root = Path(root or library.path()).resolve()
+    update(lambda d: d.__setitem__("root", str(root)))
     url = running()
     if url:
         if open_browser:
             webbrowser.open(url)
         return None, url
-    token = secrets.token_urlsafe(32)
-    srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(token))
+    token = stable_token()
+    srv = bind(make_handler(token), port)
+    if port != 0:
+        update(lambda d: d.__setitem__("port", srv.server_address[1]))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
     (home() / ".server").write_text(url, encoding="utf-8")
     threading.Thread(target=run_doctor, daemon=True).start()
@@ -614,6 +839,8 @@ def demo():
     for v in keys.VARS.values():
         os.environ.pop(v, None)
     root = tmp / "work"
+    os.environ["AI_EDITOR_LIBRARY"] = str(root)          # never the real ~/Movies
+    os.environ["AI_EDITOR_SCAN_DIRS"] = str(tmp / "Desktop")
     td = root / "creator-teardowns" / "sample.creator"
     td.mkdir(parents=True)
     vids = [{"id": str(i), "title": f"v{i}", "view_count": v, "duration": 30, "thumbnail": f"https://x/{i}.jpg"}
@@ -738,7 +965,9 @@ def demo():
     r = urllib.request.urlopen(urllib.request.Request(base + "/upload?name=drop.mp4&t=" + tok, vid.read_bytes(), method="POST"))
     assert json.loads(r.read())["ok"] and (root / "videos" / "drop.mp4").stat().st_size == vid.stat().st_size
     post("/job", {"type": "video", "path": str(vid), "aspect": "9:16"})
-    assert out(cmd_wait, 0.01) == f"JOB video {vid.resolve()} as=@sample.creator aspect=9:16 root={root.resolve()}"
+    ed = root.resolve() / "edits" / "take"
+    assert out(cmd_wait, 0.01) == f"JOB video {vid.resolve()} as=@sample.creator aspect=9:16 edit={ed} root={root.resolve()}"
+    assert ed.is_dir() and str(ed) in json.loads((tmp / "home" / "library.json").read_text(encoding="utf-8"))["edits"]
     (home() / ".listening").touch()
     assert out(cmd_wait, 0.01).startswith("ALREADY")
     (home() / ".listening").unlink()
@@ -748,8 +977,126 @@ def demo():
     post("/cancel", {"type": "teardown"})
     assert out(cmd_wait, 0.01) == "JOB cancel teardown" and latest(read(), "teardown")["state"] == "cancelled"
     assert running() == url and serve(root, 0, open_browser=False) == (None, url)
+
+    # New video: several picked clips as one video -> one JOB with the takes file, in the order picked
+    (tmp / "Desktop").mkdir()
+    clips = []
+    for i, n in enumerate(("b.mov", "a.mov", "c.mp4")):
+        c = tmp / "Desktop" / n
+        shutil.copyfile(vid, c)
+        os.utime(c, (1000 + i, 1000 + i))
+        clips.append(c)
+    rec = get("/recent")
+    assert not rec["scan_home"] and [r["name"] for r in rec["videos"]] == ["drop.mp4", "take.mp4"], rec   # videos/ and picked before
+    post("/scanhome", {"on": True})
+    rec = get("/recent")["videos"]
+    assert [r["name"] for r in rec] == ["drop.mp4", "take.mp4", "c.mp4", "a.mov", "b.mov"] and rec[2]["duration"] == 2.0 and rec[2]["vertical"], rec
+    assert urllib.request.urlopen(base + rec[0]["thumb"] + "&t=" + tok).read()[:2] == b"\xff\xd8", "thumbnail is a jpeg"
+    order = [str(clips[1]), str(clips[0]), str(clips[2])]
+    r = post("/job", {"type": "video", "paths": order, "join": True, "as": "mine", "aspect": "16:9"})
+    assert len(r["ids"]) == 1
+    ea = root.resolve() / "edits" / "a"
+    assert out(cmd_wait, 0.01) == f"JOB video takes={ea / 'takes.txt'} as=mine aspect=16:9 edit={ea} root={root.resolve()}"
+    assert (ea / "takes.txt").read_text(encoding="utf-8").split() == [str(Path(x).resolve()) for x in order]
+    # ...or separate videos: one JOB each, each with its own edit folder
+    r = post("/job", {"type": "video", "paths": order, "join": False, "as": "@sample.creator", "aspect": "9:16"})
+    assert len(r["ids"]) == 3
+    lines = [out(cmd_wait, 0.01) for _ in range(3)]
+    assert [ln.split(" edit=")[1].split()[0] for ln in lines] == [str(root.resolve() / "edits" / n) for n in ("a-2", "b", "c")], lines
+    assert all("takes=" not in ln and "as=@sample.creator" in ln for ln in lines)
+    try:   # a creator not studied is refused
+        post("/job", {"type": "video", "paths": order[:1], "as": "@nobody"})
+        raise AssertionError("an unstudied creator was queued")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    # Copy a creator does not block: while @newbie is studied, a video in that style can already be queued
+    post("/job", {"type": "teardown", "handle": "newbie", "platform": "tiktok"})
+    assert out(cmd_wait, 0.01).startswith("JOB teardown @newbie")
+    assert {"id": "@newbie", "studying": True}.items() <= next(c for c in get("/library")["styles"] if c["id"] == "@newbie").items()
+    post("/job", {"type": "video", "paths": order[:1], "as": "@newbie"})
+    assert " as=@newbie " in out(cmd_wait, 0.01)
+    post("/scanhome", {"on": False})   # picked files stay listed without the opt-in
+    assert {r["name"] for r in get("/recent")["videos"]} == {"a.mov", "b.mov", "c.mp4", "drop.mp4", "take.mp4"}
+
+    # the library: an edit made from another folder (A) is listed when the page serves the library (B)
+    other = tmp / "folderA" / "edits" / "away"
+    subprocess.run([sys.executable, str(REVIEW), str(other), "start", "--video", str(vid), "--stage", "cut"],
+                   check=True, capture_output=True, cwd=tmp / "Desktop")
+    lib = get("/library")
+    names = {v["name"]: v for v in lib["videos"]}
+    assert names["away"]["status"] == "ready" and names["away"]["dir"] == str(other.resolve()), names
+    assert names["a"]["status"] == "cutting" and names["a"]["thumb"], names["a"]
+    assert lib["path"] == str(root.resolve())
+    # its review page: started on demand, the home page redirects to it; a folder outside the library is refused
+    rq = urllib.request.Request(base + "/review?dir=" + quote(str(other)) + "&t=" + tok)
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a):
+            return None
+    try:
+        urllib.request.build_opener(NoRedirect).open(rq)
+        raise AssertionError("no redirect")
+    except urllib.error.HTTPError as e:
+        assert e.code == 302 and e.headers["Location"].startswith("http://127.0.0.1:"), e.code
+        rurl = e.headers["Location"]
+    assert json.loads(urllib.request.urlopen(rurl.replace("/?t=", "/state?t=")).read())["folder"] == str(other.resolve())
+    try:
+        urllib.request.urlopen(base + "/review?dir=" + quote(str(tmp)) + "&t=" + tok)
+        raise AssertionError("a folder outside the library")
+    except urllib.error.HTTPError as e:
+        assert e.code == 404
+    # style cards: My style (the default style until a creator is saved), then each studied creator, measured only
+    st = {c["id"]: c for c in lib["styles"]}
+    assert list(st) == ["mine", "@sample.creator", "@newbie"], list(st)
+    assert st["@sample.creator"]["facts"] == [["Cut every", "1.9 s"], ["Zooms", "Punch, 6 a minute"], ["Captions", "2 words at a time"]]
+    assert st["@sample.creator"]["look"]["box_color"] == "#000000" and st["mine"]["line"].startswith("The default")
+    (tmp / "home" / "profile.json").write_text(json.dumps({"creators": [{"handle": "sample.creator"}]}), encoding="utf-8")
+    mine = get("/library")["styles"][0]
+    assert mine["line"] == "Your saved style. Started from @sample.creator." and mine["facts"][0] == ["Cut every", "1.9 s"]
+    # clear working files: counted first, then deleted; the cut, the render and review.json stay
+    (other / "chunks").mkdir()
+    (other / "chunks" / "chunk-0.mkv").write_bytes(b"x" * 2000)
+    shutil.copyfile(vid, other / "cut.mp4")
+    c = post("/clean", {})
+    assert c["files"] == 1 and c["bytes"] == 2000 and not c["deleted"] and (other / "chunks" / "chunk-0.mkv").exists()
+    c = post("/clean", {"yes": True})
+    assert c["deleted"] and not (other / "chunks").exists()
+    assert (other / "cut.mp4").exists() and (other / "review.json").exists() and vid.exists()
+    assert get("/disk")["library"] > 0
+    assert urllib.request.urlopen(base + "/media?p=" + quote(str(other / "cut.mp4")) + "&t=" + tok).read() == vid.read_bytes()
+    try:
+        urllib.request.urlopen(base + "/media?p=" + quote(str(vid)) + "&t=" + tok)
+        raise AssertionError("served a file outside the library's videos")
+    except urllib.error.HTTPError as e:
+        assert e.code == 404
+    try:   # Show in Finder only opens the library or one of its videos
+        post("/reveal", {"dir": str(tmp)})
+        raise AssertionError("revealed a folder outside the library")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    for pr in _spawned:
+        pr.terminate()
+        pr.wait()
     srv.shutdown()
     srv.server_close()
+
+    # same address every time: the fixed port (the next one when taken, then remembered) and a stable token
+    import socket
+    global PORT
+    with socket.socket() as sk:
+        sk.bind(("127.0.0.1", 0))
+        PORT = sk.getsockname()[1]
+    (home() / ".server").unlink()
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", PORT))
+        busy.listen()
+        s1, u1 = serve(root, open_browser=False)
+    assert s1.server_address[1] != PORT and read()["port"] == s1.server_address[1], (PORT, s1.server_address)
+    s1.server_close()
+    s2, u2 = serve(tmp / "Desktop", open_browser=False)   # started from another folder: same address
+    assert u2 == u1 and u1.split("?t=")[1] == (home() / "token").read_text(encoding="utf-8").strip()
+    if os.name != "nt":
+        assert (home() / "token").stat().st_mode & 0o777 == 0o600
+    s2.server_close()
     shutil.rmtree(tmp, ignore_errors=True)
     print("home demo ok")
 
@@ -760,8 +1107,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
     s = sp.add_parser("serve")
-    s.add_argument("--root", default=".", help="the folder creator-teardowns/ and edits/ live in (default: here)")
-    s.add_argument("--port", type=int, default=0)
+    s.add_argument("--root", help="the folder creator-teardowns/ and edits/ live in (default: the library)")
+    s.add_argument("--port", type=int, help=f"default {PORT}, or the port it had last time")
     s.add_argument("--no-open", action="store_true")
     sp.add_parser("wait")
     s = sp.add_parser("status")

@@ -610,6 +610,12 @@ def cmd_start(a, folder):
     d["data"] = round_data(folder, d["video"], d["stage"], d["round"], d["plan"])
     log_round(d)
     save(rj, d)
+    try:   # the home page's library lists this edit wherever it was made
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import library
+        library.record(folder)
+    except (OSError, ValueError, ImportError):
+        pass
     print(f"{rj}: {stage_name(d['stage'])}, round {d['round']}")
 
 
@@ -808,6 +814,7 @@ def demo():
     import io
     import tempfile
     tmp = Path(tempfile.mkdtemp(prefix="review_demo_"))
+    os.environ["AI_EDITOR_HOME"] = str(tmp / "home")   # start records the folder in the library index there
     vid = tmp / "v.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30:duration=6",
                     "-f", "lavfi", "-i", "sine=duration=6", "-shortest", "-pix_fmt", "yuv420p", str(vid)], check=True)
@@ -821,6 +828,7 @@ def demo():
     folder = tmp / "edits" / "demo"
     ns = argparse.Namespace
     cmd_start(ns(video=str(vid), stage="cut", transcript=str(tr), plan=None, note=None, name=None), folder)
+    assert str(folder.resolve()) in load(tmp / "home" / "library.json")["edits"], "start lists the edit in the library"
     assert load(folder / "review.json")["vertical"] is False
     srv, url = serve(folder, 0, open_browser=False)
     threading.Thread(target=srv.serve_forever, daemon=True).start()

@@ -24,6 +24,9 @@ What got installed is recorded in ~/.ai-video-editor/env.json. AI_EDITOR_HOME mo
   python3 setup.py matte      download the person-matting model (15 MB) for cards behind the speaker
   python3 setup.py later <step>   save an optional step for later (typesafe gemini elevenlabs style modal matte)
   python3 setup.py todo       every optional step not done yet ("finish setup")
+  python3 setup.py install-launcher     put the `nextwork-editor` command on the PATH (a user folder, no sudo;
+                              idempotent). It opens the editor's window with Claude Code behind it.
+  python3 setup.py uninstall-launcher   take it off again (and the PATH line, if install added one)
   python3 setup.py demo       self-check
 
 Exit codes: 0 ready or done, 1 something to fix, 2 usage.
@@ -700,6 +703,110 @@ def step_matte(force=False):
     return "installed" if fresh or force else "up to date"
 
 
+LAUNCHER = PLUGIN / "lib" / "ai_editor" / "launcher.py"
+MARK = "installed by ai-editor setup.py install-launcher"
+RC_LINE = 'export PATH="$HOME/.local/bin:$PATH"  # added by ai-editor setup.py install-launcher'
+
+
+def launcher_text(os_name=OS, launcher=LAUNCHER, py=sys.executable):
+    if os_name == "Windows":
+        return (f"@echo off\r\nrem nextwork-editor: opens the AI editor. {MARK}; remove with setup.py uninstall-launcher\r\n"
+                f'set "L={launcher}"\r\nset "PY={py}"\r\nif not exist "%PY%" set "PY=py"\r\n'
+                'if not exist "%L%" (echo The AI editor moved, maybe an update. In Claude Code, say "set up the editor" to fix this command. & exit /b 1)\r\n'
+                '"%PY%" "%L%" %*\r\n')
+    return (f"#!/bin/sh\n# nextwork-editor: opens the AI editor. {MARK}; remove with setup.py uninstall-launcher\n"
+            f"L='{launcher}'\nPY='{py}'\n[ -x \"$PY\" ] || PY=python3\n"
+            'if [ ! -f "$L" ]; then echo "The AI editor moved, maybe an update. In Claude Code, say \"set up the editor\" to fix this command."; exit 1; fi\n'
+            'exec "$PY" "$L" "$@"\n')
+
+
+def bin_dirs(os_name=OS, path_env=None, home=None):
+    """(user-writable folders already on the PATH, the folder to make and add when none is)."""
+    home = Path(home or Path.home())
+    on_path = [Path(p) for p in (os.environ.get("PATH", "") if path_env is None else path_env).split(os.pathsep) if p]
+    if os_name == "Windows":   # on the PATH for every user, and theirs to write
+        cands = [Path(os.environ.get("LOCALAPPDATA", home / "AppData/Local")) / "Microsoft" / "WindowsApps"]
+    else:
+        cands = [home / ".local" / "bin", home / "bin", Path("/opt/homebrew/bin"), Path("/usr/local/bin")]
+    ok = [c for c in cands if c in on_path and c.is_dir() and os.access(c, os.W_OK)]
+    return ok, cands[0]
+
+
+def install_launcher(os_name=OS, path_env=None, home=None):
+    name = "nextwork-editor.cmd" if os_name == "Windows" else "nextwork-editor"
+    ok, fallback = bin_dirs(os_name, path_env, home)
+    d = ok[0] if ok else fallback
+    rc = None
+    if not ok and os_name != "Windows":   # ~/.local/bin is not on the PATH yet: add it in the shell's startup file
+        rc = Path(home or Path.home()) / (".zprofile" if "zsh" in os.environ.get("SHELL", "zsh") else ".bashrc")
+        text = rc.read_text(encoding="utf-8") if rc.exists() else ""
+        if RC_LINE not in text:
+            rc.write_text(text + ("" if text.endswith("\n") or not text else "\n") + RC_LINE + "\n", encoding="utf-8")
+    d.mkdir(parents=True, exist_ok=True)
+    f, want = d / name, launcher_text(os_name)
+    old = f.read_text(encoding="utf-8") if f.exists() else None
+    if old is not None and MARK not in old:
+        print(f"FIX  {f} is another program's file; not replaced")
+        return 1
+    if old != want:
+        with open(f, "w", encoding="utf-8", newline="") as fh:
+            fh.write(want)
+        f.chmod(0o755)
+    print(f"ok   nextwork-editor   {'already installed' if old == want else 'installed'} at {f}"
+          + (f"\n     open a new terminal first (the PATH line is in {rc})" if rc else ""))
+    return 0
+
+
+def uninstall_launcher(os_name=OS, path_env=None, home=None):
+    home = Path(home or Path.home())
+    ok, fallback = bin_dirs(os_name, path_env, home)
+    gone = []
+    for d in dict.fromkeys(ok + [fallback]):
+        for f in (d / "nextwork-editor", d / "nextwork-editor.cmd"):
+            if f.is_file() and MARK in f.read_text(encoding="utf-8", errors="ignore"):
+                f.unlink()
+                gone.append(str(f))
+    for rc in (home / ".zprofile", home / ".bashrc"):
+        if rc.exists() and RC_LINE in rc.read_text(encoding="utf-8"):
+            rc.write_text(rc.read_text(encoding="utf-8").replace(RC_LINE + "\n", "").replace(RC_LINE, ""), encoding="utf-8")
+            gone.append(f"the PATH line in {rc}")
+    print("removed " + ", ".join(gone) if gone else "nextwork-editor was not installed")
+    return 0
+
+
+def demo_launcher():
+    import tempfile
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        b = t / "bin"
+        b.mkdir()
+        assert install_launcher("Linux", str(b), t) == 0
+        f = b / "nextwork-editor"
+        assert MARK in f.read_text(encoding="utf-8") and str(LAUNCHER) in f.read_text(encoding="utf-8") and os.access(f, os.X_OK)
+        before = f.stat().st_mtime_ns
+        assert install_launcher("Linux", str(b), t) == 0 and f.stat().st_mtime_ns == before, "a second install changes nothing"
+        r = subprocess.run([str(f), "--dry-run"], capture_output=True, text=True,
+                           env=dict(os.environ, AI_EDITOR_HOME=str(t / "h"), AI_EDITOR_LIBRARY=str(t / "lib")))
+        assert r.returncode == 0 and "/ai-editor:start open the home page" in r.stdout, (r.stdout, r.stderr)
+        assert uninstall_launcher("Linux", str(b), t) == 0 and not f.exists()
+        assert uninstall_launcher("Linux", str(b), t) == 0
+        f.write_text("#!/bin/sh\necho someone else's\n", encoding="utf-8")   # not ours: never replaced or removed
+        assert install_launcher("Linux", str(b), t) == 1
+        uninstall_launcher("Linux", str(b), t)
+        assert f.exists()
+        f.unlink()
+        # no user folder on the PATH: ~/.local/bin is made and one PATH line added, once; uninstall takes both away
+        os.environ["SHELL"] = "/bin/zsh"
+        (t / ".zprofile").write_text("export A=1\n", encoding="utf-8")
+        install_launcher("Darwin", "/usr/bin", t)
+        install_launcher("Darwin", "/usr/bin", t)
+        assert (t / ".local/bin/nextwork-editor").exists() and (t / ".zprofile").read_text(encoding="utf-8").count(RC_LINE) == 1
+        uninstall_launcher("Darwin", "/usr/bin", t)
+        assert not (t / ".local/bin/nextwork-editor").exists() and (t / ".zprofile").read_text(encoding="utf-8") == "export A=1\n"
+        w = launcher_text("Windows", Path("C:/x/launcher.py"), "C:/py/python.exe")
+        assert w.startswith("@echo off\r\n") and '"%PY%" "%L%" %*' in w and MARK in w
+
+
 def demo():
     import contextlib
     import io
@@ -825,6 +932,7 @@ def demo():
         env_save(**good)
         assert ENV.stat().st_mtime_ns == before and env_load() == good
     ENV = keep_env
+    demo_launcher()
     print("demo ok")
 
 
@@ -832,7 +940,8 @@ if __name__ == "__main__":
     cmds = {"doctor": doctor, "venv": step_venv, "model": step_model, "remotion": step_remotion,
             "bootstrap": bootstrap, "repair": repair, "awskey": save_aws_key,
             "lambda": check_lambda, "modal": install_modal, "modal-check": check_modal, "matte": step_matte,
-            "demo": demo, "keys": test_keys, "todo": todo, "crisper": install_crisper}
+            "demo": demo, "keys": test_keys, "todo": todo, "crisper": install_crisper,
+            "install-launcher": install_launcher, "uninstall-launcher": uninstall_launcher}
     if sys.argv[1:] == ["doctor", "--quiet"]:
         sys.exit(doctor_quiet())
     if sys.argv[1:] == ["bootstrap", "--matte"]:

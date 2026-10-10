@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """The user's own taste: every correction they give, kept so they never give it twice.
 
-    python3 taste.py add <section> "<rule>" [--set key.path=value] [--video edits/NAME] [--edit edits/NAME]
+    python3 taste.py add <section> "<rule>" [--set key.path=value] [--video edits/NAME] [--style <style.json|edits/NAME>]
+                                  [--edit edits/NAME]
                                   a correction as a rule. Same rule again = the old one is edited, never a
                                   second copy. --set: the setting the scripts read. --video: only this video
-                                  (default: every video). --edit: the edit it was said on (for the report).
+                                  (default: every video). --style: only that creator's style (the one the edit
+                                  used): style.overrides.json and its edit-like-<slug> skill (styleskill.py).
+                                  --edit: the edit it was said on (for the report).
     python3 taste.py report       every rule: times applied, times corrected, the last edit where the user
                                   had to correct it again after it was applied (a regression)
     python3 taste.py show [--edit edits/NAME]   taste.md + taste.json; with --edit, also that video's own
@@ -28,12 +31,13 @@ Files in ~/.ai-video-editor/ (AI_EDITOR_HOME overrides; outside the plugin, so u
               {"cut": {"max_pause": 0.2}, "captions": {"size_pct": 7}, "zoom": {"per_min": 4},
                "sfx": false, "layout": {"mode": "split"}}
   rules.json  the same rules with their history: [{"id", "section", "rule", "setting", "value", "scope"
-              ("all" | "video:<name>"), "corrections": [{"edit", "at", "rule", "value"}], "applied",
+              ("all" | "video:<name>" | "style:<slug>", with "style": its style.json), "corrections": [{"edit", "at", "rule", "value"}], "applied",
               "applied_in": [edit names], "since_fix", "regressions": [{"edit", "at"}]}]
   suggestions.jsonl  corrections the user said would help everyone: {"at", "what", "rule", "owner", "example"}
 
 How a rule is applied: plan.py, build_timeline.py and retakes.py call load_json() (their only hook). It returns
-taste.json plus the "this video only" settings of the edit being worked on, and counts every setting
+taste.json, then the style.overrides.json of the creator style the edit used, then the "this video only"
+settings of the edit being worked on (each wins over the one before), and counts every setting
 rule it hands over as applied to that edit. Word rules are counted by `show --edit`.
 Stdlib only. Exit codes: 0 ok, 1 error, 2 usage
 """
@@ -204,10 +208,15 @@ def find(rules, section, rule, setting, scope):
     return None
 
 
-def add(section, rule, setting=None, value=None, scope="all", edit=None, source=None):
+def add(section, rule, setting=None, value=None, scope="all", edit=None, source=None, style=None):
     """Capture one correction. Returns (status, rule): 'added', 'updated', or 'regression' (the rule
     was applied at least once since it was last corrected, and the user had to say it again).
-    source="review": it came from a review-page note (review.py learn); report says so."""
+    source="review": it came from a review-page note (review.py learn); report says so.
+    scope "style:<slug>" (style= its style.json): the setting goes to that style's overrides file.
+    "all" and "style:" also rebuild the skill of that style (my-style / edit-like-<slug>)."""
+    from ai_editor import styleskill
+    if scope.startswith("style:") and not style:
+        sys.exit("a this-style rule needs the style.json it is about")
     section = section.strip().title()
     edit = edit_name(edit)
     rules = load_rules()
@@ -220,10 +229,13 @@ def add(section, rule, setting=None, value=None, scope="all", edit=None, source=
         status = "regression" if r["since_fix"] > 0 else "updated"
         if status == "regression":
             r["regressions"].append({"edit": edit, "at": now()})
+        if setting and r.get("setting") not in (None, setting):
+            if scope == "all":
+                save_json(unset_key(read_json(), r["setting"]))
+            elif scope.startswith("style:"):
+                styleskill.set_override(style, r["setting"], drop=True)
         if scope == "all":
             drop_rule(r["section"], r["rule"])
-            if setting and r.get("setting") not in (None, setting):
-                save_json(unset_key(read_json(), r["setting"]))
         r.update(section=section, rule=rule)
         if setting:
             r.update(setting=setting, value=value)
@@ -235,7 +247,13 @@ def add(section, rule, setting=None, value=None, scope="all", edit=None, source=
         add_rule(section, rule)
         if r.get("setting"):
             save_json(set_key(read_json(), r["setting"], r["value"]))
+    if scope.startswith("style:"):
+        r["style"] = str(Path(style).resolve())
+        if r.get("setting"):
+            styleskill.set_override(style, r["setting"], r["value"])
     save_rules(rules)
+    if scope == "all" or scope.startswith("style:"):
+        styleskill.write(r.get("style"))
     return status, r
 
 
@@ -246,10 +264,16 @@ def forget(rule_id):
         return None
     rules.remove(r)
     save_rules(rules)
+    from ai_editor import styleskill
     if r["scope"] == "all":
         drop_rule(r["section"], r["rule"])
         if r.get("setting"):
             save_json(unset_key(read_json(), r["setting"]))
+        styleskill.write()
+    elif r["scope"].startswith("style:") and r.get("style"):
+        if r.get("setting"):
+            styleskill.set_override(r["style"], r["setting"], drop=True)
+        styleskill.write(r["style"])
     return r
 
 
@@ -278,20 +302,34 @@ CALLERS = {"build_timeline.py": lambda k: k == "cut.max_pause", "retakes.py": la
            "plan.py": lambda k: not k.startswith("cut.")}
 
 
-def load_json(edit_dir=None, count=True):
-    """THE HOOK. What plan.py and build_timeline.py read: taste.json, plus the "this video only"
-    settings of the edit being worked on (found from the script's arguments when not passed).
+def style_scope(edit=None, style=None):
+    """("style:<slug>", the overrides) of the one creator style an edit used (style= the style.json plan.py
+    was given, else the edit's own style.json), or (None, {}) for the default style or a several-creator blend."""
+    from ai_editor import styleskill
+    src = styleskill.sources(style) if style else []
+    src = src or (styleskill.sources(edit) if edit else [])
+    if len(src) != 1:
+        return None, {}
+    return styleskill.scope(src[0]), styleskill.load_overrides(src[0])
+
+
+def load_json(edit_dir=None, count=True, style=None):
+    """THE HOOK. What plan.py and build_timeline.py read: taste.json, then the overrides of the creator style
+    the edit used (style_scope), then the "this video only" settings of the edit being worked on (found
+    from the script's arguments when not passed).
     Counts each setting rule it hands over as applied to that edit, except on a --dry-run (nothing is
     built, so nothing was applied, and the next correction would wrongly read as a regression)."""
     data = read_json()
+    edit = Path(edit_dir) if edit_dir else guess_edit(sys.argv[1:])
+    sc, over = style_scope(edit, style)
+    data = merge(data, over)
     if not rules_path().exists():
         return data
-    edit = Path(edit_dir) if edit_dir else guess_edit(sys.argv[1:])
     name = edit.resolve().name if edit else None
     rules = load_rules()
-    mine = [r for r in rules if r.get("setting") and r["scope"] in ("all", f"video:{name}")]
+    mine = [r for r in rules if r.get("setting") and r["scope"] in ("all", f"video:{name}", sc)]
     for r in mine:
-        if r["scope"] != "all":
+        if r["scope"].startswith("video:"):
             data = set_key(data, r["setting"], r["value"])
     if count and "--dry-run" not in sys.argv[1:]:
         # ponytail: caller found by script name; give load_json a key filter if a third caller appears
@@ -312,7 +350,11 @@ def show(edit=None):
         own = [r for r in rules if r["scope"] == f"video:{name}"]
         if own:
             out.append(f"## This video only ({name})\n" + "\n".join(f"- {r['rule']}" for r in own))
-        mark_applied(rules, lambda r: not r.get("setting") and r["scope"] in ("all", f"video:{name}"), name)
+        sc, over = style_scope(Path(edit))
+        st = [r for r in rules if sc and r["scope"] == sc]
+        if st:
+            out.append(f"## This style (@{sc[6:]})\n" + "\n".join(f"- {r['rule']}" for r in st) + "\n" + json.dumps(over))
+        mark_applied(rules, lambda r: not r.get("setting") and r["scope"] in ("all", f"video:{name}", sc), name)
         save_rules(rules)
     return "\n".join(out)
 
@@ -325,7 +367,8 @@ def report():
     lines = []
     for r in sorted(rules, key=order):
         setting = f"  [{r['setting']} = {json.dumps(r['value'])}]" if r.get("setting") else ""
-        scope = ("every video" if r["scope"] == "all" else r["scope"].replace("video:", "only ")) + (
+        scope = ("every video" if r["scope"] == "all" else f"this style (@{r['scope'][6:]})" if r["scope"].startswith("style:")
+                 else r["scope"].replace("video:", "only ")) + (
             ", from a review note" if r.get("from") == "review" else "")
         reg = r["regressions"][-1] if r["regressions"] else None
         lines.append(f"#{r['id']} {r['section']}: {r['rule']}{setting}")
@@ -425,8 +468,10 @@ def issue(yes=False):
 def demo():
     global HOME
     old_argv = sys.argv
+    old_skills = os.environ.get("AI_EDITOR_SKILLS")
     with tempfile.TemporaryDirectory() as d:
         HOME = Path(d) / "home"
+        os.environ["AI_EDITOR_SKILLS"] = str(Path(d) / "skills")   # never the user's real skills folder
         assert add_rule("visuals", "Logos smaller than the captions")[0] == "added"
         assert add_rule("visuals", "Logos smaller than the caption")[0].startswith("replaced")
         assert load_md()["Visuals"] == ["Logos smaller than the caption"]
@@ -496,7 +541,28 @@ def demo():
         assert "Example" not in json.dumps(r) and "example-creator" not in r["what"], r
         assert r["what"] == "<name> logo too big, like <name> does" and r["owner"] == "plan.py", r
         assert r["example"] == "<name> on <name> and <domain>, see style.json", r
+        # "this style": the setting in that creator's overrides (style.json untouched), over taste.json, under
+        # this-video settings; counted as applied to an edit made with it; the report and its skill say so
+        sp = Path(d) / "creator-teardowns" / "alice" / "style.json"
+        sp.parent.mkdir(parents=True)
+        sp.write_text('{"handle": "alice"}', encoding="utf-8")
+        (eb / "style.json").write_text(json.dumps({"source": [str(sp)]}), encoding="utf-8")
+        st, r = add("captions", "Captions smaller in this style", "captions.size_pct", 5, "style:alice", eb, style=sp)
+        assert st == "added" and r["style"] == str(sp.resolve()) and sp.read_text(encoding="utf-8") == '{"handle": "alice"}'
+        assert json.loads((sp.parent / "style.overrides.json").read_text(encoding="utf-8")) == {"captions": {"size_pct": 5}}
+        sys.argv = ["plan.py", str(eb / "style.json"), str(eb / "words.json")]
+        got = load_json()
+        assert read_json()["captions"]["size_pct"] == 7 and got["captions"]["size_pct"] == 5 and got["sfx_db"] == -30, got
+        assert load_json(ed, count=False)["captions"]["size_pct"] == 7     # another edit, another style
+        assert next(x for x in load_rules() if x["id"] == r["id"])["applied_in"] == ["vid-b"]
+        assert "this style (@alice)" in report() and "Captions smaller" in show(eb)
+        assert "Said 1x" in (Path(d) / "skills" / "edit-like-alice" / "SKILL.md").read_text(encoding="utf-8")
+        assert "Captions bigger again" in (Path(d) / "skills" / "my-style" / "SKILL.md").read_text(encoding="utf-8")
     sys.argv = old_argv
+    if old_skills is None:
+        os.environ.pop("AI_EDITOR_SKILLS", None)
+    else:
+        os.environ["AI_EDITOR_SKILLS"] = old_skills
     print("demo ok")
 
 
@@ -520,11 +586,19 @@ def main():
         if flag("--set"):
             setting, _, raw = flag("--set").partition("=")
             value = parse(raw)
-        video = flag("--video")
+        video, style = flag("--video"), flag("--style")
         scope = f"video:{edit_name(video)}" if video else "all"
-        status, r = add(a[1], a[2], setting, value, scope, flag("--edit") or video)
+        if style:
+            from ai_editor import styleskill
+            src = styleskill.sources(style)
+            if len(src) != 1:
+                sys.exit(f"--style {style}: {'no creator style' if not src else 'several creators'} behind it; "
+                         "give one creator-teardowns/<handle>/style.json")
+            style, scope = src[0], styleskill.scope(src[0])
+        status, r = add(a[1], a[2], setting, value, scope, flag("--edit") or video, style=style)
+        where = "this video only" if video else f"this style, skill {styleskill.name(style)}" if style else "every video, skill my-style"
         print(f"{status}: #{r['id']} {r['section']}: {r['rule']}" + (f" [{setting} = {json.dumps(value)}]" if setting else "")
-              + f" ({'this video only' if video else 'every video'}) -> {rules_path()}")
+              + f" ({where}) -> {rules_path()}")
         if status == "regression":
             print(f"note: already applied {r['applied']}x, and it had to be said again. Check why it did not "
                   "hold: a setting no script reads, or a word rule too vague to follow.")

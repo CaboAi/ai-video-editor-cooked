@@ -45,7 +45,9 @@ Review notes flow into the user's taste (memory) and, when marked for everyone, 
 1. Pick the notes that are preferences: "captions too small", "too many zooms". Leave out one-off
    fixes ("cut the 'um' at 0:12"). Write each as a general rule, as the taste skill does.
 2. If any, ask the scope ONCE for the whole batch in the question box: `My style (Recommended)` /
-   `Just this video` / `Would help everyone`.
+   `Just this video` / `Would help everyone`. When `wait`'s LEARN line names a creator's style, put
+   `This style (@handle) (Recommended)` first (`--scope this-style`: that style's overrides and its
+   `edit-like-<handle>` skill).
 3. Run `learn`. One `--rule` per preference note; add `key=value` when a taste setting maps:
 
 ```bash

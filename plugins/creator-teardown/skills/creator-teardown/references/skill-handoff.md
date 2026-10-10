@@ -3,6 +3,13 @@
 The teardown describes what someone else does. A skill has to write scripts the user
 will actually say out loud. That gap is this file.
 
+## The style's own skill comes first
+
+Every study and blend already gets a thin skill, `edit-like-<handle>` (ai-editor's
+`lib/ai_editor/styleskill.py`): it edits footage in the style, and the user's corrections on that
+style land in its "Learned from your feedback" section. The format skill below is extra, built only
+when the gate passes. Link the two: `styleskill.py write creator-teardowns/<handle>-mine/style.json --format <format-name>`.
+
 ## Gate first
 
 Do not build a skill for every teardown. Ask:

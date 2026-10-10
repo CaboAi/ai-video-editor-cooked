@@ -189,7 +189,8 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/editplan.py" blend <handle>-mine --from <ha
 ```
 
 style-edit reads `creator-teardowns/<handle>-mine/style.json`; a part left out uses its
-default.
+default. `report.py build` and `editplan.py blend` print the style's skill (`skill edit-like-<handle> -> <path>`,
+with ai-editor installed): tell the user its name. Feedback on that style edits that skill.
 
 ### Step 3d: Several creators (when the user named more than one)
 
@@ -205,7 +206,7 @@ transcript, beat table with timings, patterns to keep and patterns to reject.
 ### Step 5 (optional): Turn it into a skill
 
 Ask whether the format is worth keeping. If yes, follow
-`${CLAUDE_SKILL_DIR}/references/skill-handoff.md`.
+`${CLAUDE_SKILL_DIR}/references/skill-handoff.md` (the format skill, beside the style's own skill).
 
 ### Step 6 (optional): Plan the user's video in the creator's style
 

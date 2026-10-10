@@ -8,8 +8,12 @@
     python3 profile.py set <key.path> <value>     one answer (the older form)
     python3 profile.py defaults                   "use the defaults": every unanswered style question saved as its
                                                   default, so `missing --style` stops asking them
-    python3 profile.py style <edits/NAME> [--out]  blend the profile's creators into edits/NAME/style.json
-                                                  (no creators: the default style, DEFAULT_STYLE)
+    python3 profile.py style <edits/NAME> [--out F] [--from <style.json>]
+                                                  blend the profile's creators into edits/NAME/style.json
+                                                  (no creators: the default style, DEFAULT_STYLE). --from: that one
+                                                  saved style instead (an edit-like-<handle> skill passes it).
+                                                  "source" records the creator style.json(s) used, so a review note
+                                                  can be saved on that style (styleskill.py)
     python3 profile.py demo                       self-check
 
 File: ~/.ai-video-editor/profile.json (AI_EDITOR_HOME overrides). Shape:
@@ -28,7 +32,8 @@ File: ~/.ai-video-editor/profile.json (AI_EDITOR_HOME overrides). Shape:
    "past_edit": true}                                  learned from a raw take and their posted cut (taste learn.py); false: declined
 
 Look order (plan.py): the profile's brand kit > the copied creators' measured style.json > the
-`editorial` preset. No creator: DEFAULT_STYLE (style-edit references/plan.md "No creator"). Stdlib only.
+`editorial` preset. No creator: DEFAULT_STYLE (style-edit references/plan.md "No creator").
+`set` of a style answer and `defaults` also refresh the my-style skill (styleskill.py). Stdlib only.
 """
 import colorsys
 import json
@@ -302,21 +307,29 @@ def answers(out, prof):
     return out
 
 
-def write_style(edit_dir, root=Path("."), out=None):
+def write_style(edit_dir, root=Path("."), out=None, src=None):
     prof = load()
-    styles = {}
-    for c in prof.get("creators") or []:
+    styles, paths = {}, []
+    for c in [] if src else prof.get("creators") or []:
         p = Path(root) / "creator-teardowns" / c["handle"] / "style.json"
         if p.exists():
             styles[c["handle"]] = json.loads(p.read_text(encoding="utf-8"))
+            paths.append(str(p.resolve()))
         else:
             print(f"warning: no {p}; run creator-teardown on @{c['handle']} first", file=sys.stderr)
-    if not prof.get("creators"):
+    if src:
+        if not Path(src).is_file():
+            sys.exit(f"ERROR: no {src}")
+        style, paths = answers(json.loads(Path(src).read_text(encoding="utf-8")), prof), [str(Path(src).resolve())]
+        style.setdefault("handle", Path(src).resolve().parent.name)
+    elif not prof.get("creators"):
         style = default_style(prof)
     elif not styles:
         sys.exit("ERROR: no creator style.json found for the profile's creators")
     else:
         style = blend(styles, prof["creators"], prof)
+    if paths:
+        style["source"] = paths
     clip = Path(edit_dir) / "clip.json"
     if clip.exists() and json.loads(clip.read_text(encoding="utf-8")).get("audio_only"):   # a podcast clip: the words are the picture
         style["captions"] = {**style.get("captions", {}), "present": True}
@@ -411,10 +424,11 @@ def demo():
     assert lk["preset"] == "neutral" and "font_display" not in lk, lk     # flat ground and a default grotesk refused
     # several answers in one call: one line out, every value in place
     with tempfile.TemporaryDirectory() as d:
-        env = dict(os.environ, AI_EDITOR_HOME=d)
+        env = dict(os.environ, AI_EDITOR_HOME=d, AI_EDITOR_SKILLS=str(Path(d) / "skills"))
         r = subprocess.run([sys.executable, __file__, "set", "platform=youtube", "sound.music=false",
                             'names=["Jev"]', "brand.url=https://x.io/?a=b"], capture_output=True, text=True, env=env)
-        assert r.returncode == 0 and r.stdout.count("\n") == 1, (r.stdout, r.stderr)
+        assert r.returncode == 0 and r.stdout.count("\n") == 2 and "my-style" in r.stdout, (r.stdout, r.stderr)
+        assert "name: my-style" in (Path(d) / "skills" / "my-style" / "SKILL.md").read_text(encoding="utf-8")
         got = json.loads((Path(d) / "profile.json").read_text(encoding="utf-8"))
         assert got["platform"] == "youtube" and got["sound"] == {"music": False} and got["names"] == ["Jev"], got
         assert got["brand"]["url"] == "https://x.io/?a=b", got
@@ -425,7 +439,24 @@ def demo():
         r = subprocess.run([sys.executable, __file__, "set", "goal", "follow", "platform=youtube"], capture_output=True,
                            text=True, env=env)
         assert r.returncode == 1 and "'goal' is not key=value" in r.stderr, r.stderr
+        # --from one saved style (an edit-like skill): its numbers, the profile's answers, and where it came from
+        cs = Path(d) / "creator-teardowns" / "alice" / "style.json"
+        cs.parent.mkdir(parents=True)
+        cs.write_text('{"captions": {"size_pct": 6}}', encoding="utf-8")   # an older study: no "handle"
+        r = subprocess.run([sys.executable, __file__, "style", str(Path(d) / "edits" / "v"), "--from", str(cs)],
+                           capture_output=True, text=True, env=env)
+        st = json.loads((Path(d) / "edits" / "v" / "style.json").read_text(encoding="utf-8"))
+        assert r.returncode == 0 and st["source"] == [str(cs.resolve())] and st["captions"]["size_pct"] == 6, (r.stderr, st)
+        assert st["handle"] == "alice" and f"from {cs.resolve()}" in r.stdout, r.stdout
     print("profile ok")
+
+
+def my_style():
+    """The user saved their own style: write or refresh the my-style skill and say its name."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from ai_editor import styleskill, taste
+    taste.HOME = HOME
+    print(f"your style's skill: my-style -> {styleskill.write()}")
 
 
 def main():
@@ -440,6 +471,7 @@ def main():
     elif a == ["defaults"]:
         new = save_defaults()
         print(f"saved the defaults for {', '.join(new)} -> {path()}" if new else "(all style questions answered)")
+        my_style()
     elif len(a) >= 2 and a[0] == "set":
         pairs = [(a[1], a[2])] if len(a) == 3 and "=" not in a[1] else [x.split("=", 1) for x in a[1:]]
         bad = [x for x, p in zip(a[1:], pairs) if len(p) != 2 or not p[0]]
@@ -448,9 +480,13 @@ def main():
                      "(the `set key value` form takes one answer alone)")
         prof = set_pairs(json.loads(path().read_text(encoding="utf-8")) if path().exists() else {}, pairs)
         print(f"set {', '.join(k for k, _ in pairs)} -> {save(prof)}")
+        if any(k.split(".")[0] in STYLE_QUESTIONS for k, _ in pairs):
+            my_style()
     elif len(a) >= 2 and a[0] == "style":
-        out, style = write_style(a[1], out=a[3] if len(a) > 3 and a[2] == "--out" else None)
-        print(f"{out}: {style['handle']}, " + (f"parts from {style['blend']}" if style.get("blend") else
+        flag = lambda k: a[a.index(k) + 1] if k in a and a.index(k) + 1 < len(a) else None
+        out, style = write_style(a[1], out=flag("--out"), src=flag("--from"))
+        print(f"{out}: {style['handle']}, " + (f"from {style['source'][0]}" if flag("--from") else
+                                              f"parts from {style['blend']}" if style.get("blend") else
                                               "no creator: the default style (smooth zooms, a move at least every 5 s, 3-word captions)"))
     else:
         print(__doc__)

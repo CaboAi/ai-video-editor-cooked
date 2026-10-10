@@ -544,6 +544,8 @@ def cmd_build(a):
     t = style["ai_tells"]
     print(f"AI tells: {t.get('bans', 0)} BAN, {t.get('warns', 0)} WARN" if t.get("ran") else f"AI tells: {t.get('why')}")
     print(f"-> {out}  ({out.stat().st_size // 1024} KB)")
+    from editplan import style_skill
+    style_skill(outdir / "style.json")
 
 
 # ---------- self-check ----------

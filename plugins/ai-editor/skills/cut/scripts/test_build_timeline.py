@@ -129,6 +129,19 @@ def test_no_head_sliver():
     assert B.kept_frames([{"start": 0.5, "end": 1.0}], 30, 2.0) == [[0, 15], [30, 60]]   # a real head stays
 
 
+def test_short_word_span_is_kept():
+    """A house take keeps "30," in a 0.167 s span between two silence cuts. Under MIN_KEPT_S, but a
+    word starts in it, so it stays. A 1-frame span with no word, at the head or between cuts, goes."""
+    w = lambda t, a, b: {"text": t, "start": a, "end": b, "type": "word"}
+    ws = [w("to", 9.74, 9.84), w("30,", 10.02, 10.14), w("35,", 10.3, 10.68)]
+    frames = B.kept_frames([{"start": 9.89, "end": 9.97}, {"start": 10.19, "end": 10.25}], 30, 12.0, words=ws)
+    assert [300, 305] in frames, frames
+    head = [{"start": 0.04, "end": 0.43}, {"start": 3.0, "end": math.inf}]
+    assert B.kept_frames(head, 30, 4.0, words=[w("so", 0.5, 0.7)]) == [[13, 90]]
+    mid = [{"start": 1.0, "end": 1.99}, {"start": 2.04, "end": 2.5}]
+    assert B.kept_frames(mid, 30, 4.0, words=[w("a", 0.2, 0.5), w("b", 2.6, 2.9)]) == [[0, 30], [75, 120]]
+
+
 def test_hidden_repeat_is_listed_and_shown():
     """The sample: Whisper labels "content" 117.07-119.01 s over "and to break down competitor ads and"
     (spoken 117.7-119.4 s). A label holding far more speech than its word is listed, re-transcribed
@@ -189,6 +202,7 @@ if __name__ == "__main__":
     test_stretched_label_is_not_clipped()
     test_label_after_the_previous_words_tail()
     test_no_head_sliver()
+    test_short_word_span_is_kept()
     test_hidden_repeat_is_listed_and_shown()
     test_splice_never_reaches_a_removed_word()
     print("all ok")

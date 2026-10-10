@@ -493,11 +493,12 @@ MIN_KEPT_S = 0.2
 END_TAIL_S = 0.4   # room after the final word, so the video does not stop mid-release
 
 
-def kept_frames(cuts, fps, dur, total=None):
+def kept_frames(cuts, fps, dur, total=None, words=()):
     """Cuts -> kept [start_frame, end_frame) pairs. Cut start floored (a flub's
     onset starts before its label; rounding later re-admits it), cut end ceiled
     but clamped to the frame the next kept word starts in (ceiling into it
-    deletes the word). total: the video stream's real frame count."""
+    deletes the word). total: the video stream's real frame count. words: the
+    kept words; a span under MIN_KEPT_S stays only when one of them starts in it."""
     total = int(round(dur * fps)) if total is None else total
     kept, cursor = [], 0
     for c in cuts:
@@ -508,9 +509,10 @@ def kept_frames(cuts, fps, dur, total=None):
         a = max(a, cursor)
         if b <= a:
             continue
-        # A sliver between two cuts is the tail of a flub the transcriber mislabelled, not a word.
-        # At the head of the take it is a one-frame flash before the first jump.
-        if a - cursor >= MIN_KEPT_S * fps:
+        # A sliver with no word starting in it is the tail of a mislabelled flub or a pause frame
+        # between two cuts (at the head: a one-frame flash before the first jump). A short real
+        # word stays: a house take keeps "30," in a 0.167 s span.
+        if a - cursor >= MIN_KEPT_S * fps or any(cursor <= w["start"] * fps < a for w in words):
             kept.append([cursor, a])
         cursor = b
     if cursor < total:
@@ -668,7 +670,7 @@ def main():
     if kept_words and allcuts and allcuts[-1]["end"] >= dur:   # let the last word ring out
         last = max(w["end"] for w in kept_words)
         allcuts[-1]["start"] = max(allcuts[-1]["start"], min(dur, last + END_TAIL_S))
-    frames = kept_frames(allcuts, fps, dur, nframes)
+    frames = kept_frames(allcuts, fps, dur, nframes, kept_words)
     moved, left = [], []
     if splice_noise is not None:
         removed = [(w["start"], w["end"]) for w in words if covered_by(w, model_cuts)]

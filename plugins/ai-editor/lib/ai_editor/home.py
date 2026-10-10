@@ -974,6 +974,8 @@ def demo():
     import shutil
     import tempfile
     tmp = Path(tempfile.mkdtemp(prefix="home_demo_"))
+    import atexit
+    atexit.register(lambda: [p.terminate() for p in _spawned])   # a failed check leaves no review server behind
     os.environ["AI_EDITOR_HOME"] = str(tmp / "home")
     for v in keys.VARS.values():
         os.environ.pop(v, None)

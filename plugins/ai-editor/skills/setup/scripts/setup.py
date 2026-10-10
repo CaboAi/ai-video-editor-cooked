@@ -712,11 +712,11 @@ def launcher_text(os_name=OS, launcher=LAUNCHER, py=sys.executable):
     if os_name == "Windows":
         return (f"@echo off\r\nrem nextwork-editor: opens the AI editor. {MARK}; remove with setup.py uninstall-launcher\r\n"
                 f'set "L={launcher}"\r\nset "PY={py}"\r\nif not exist "%PY%" set "PY=py"\r\n'
-                'if not exist "%L%" (echo The AI editor moved, maybe an update. In Claude Code, say "set up the editor" to fix this command. & exit /b 1)\r\n'
+                'if not exist "%L%" (echo The AI editor moved, maybe an update. In Claude Code, say: set up the editor. & exit /b 1)\r\n'
                 '"%PY%" "%L%" %*\r\n')
     return (f"#!/bin/sh\n# nextwork-editor: opens the AI editor. {MARK}; remove with setup.py uninstall-launcher\n"
             f"L='{launcher}'\nPY='{py}'\n[ -x \"$PY\" ] || PY=python3\n"
-            'if [ ! -f "$L" ]; then echo "The AI editor moved, maybe an update. In Claude Code, say \"set up the editor\" to fix this command."; exit 1; fi\n'
+            'if [ ! -f "$L" ]; then echo "The AI editor moved, maybe an update. In Claude Code, say: set up the editor."; exit 1; fi\n'
             'exec "$PY" "$L" "$@"\n')
 
 
@@ -788,6 +788,11 @@ def demo_launcher():
         r = subprocess.run([str(f), "--dry-run"], capture_output=True, text=True,
                            env=dict(os.environ, AI_EDITOR_HOME=str(t / "h"), AI_EDITOR_LIBRARY=str(t / "lib")))
         assert r.returncode == 0 and "/ai-editor:start open the home page" in r.stdout, (r.stdout, r.stderr)
+        moved = f.read_text(encoding="utf-8").replace(str(LAUNCHER), str(t / "gone.py"))
+        (b / "moved").write_text(moved, encoding="utf-8")
+        r = subprocess.run(["sh", str(b / "moved")], capture_output=True, text=True)
+        assert r.returncode == 1 and r.stdout == "The AI editor moved, maybe an update. In Claude Code, say: set up the editor.\n", r.stdout
+        (b / "moved").unlink()
         assert uninstall_launcher("Linux", str(b), t) == 0 and not f.exists()
         assert uninstall_launcher("Linux", str(b), t) == 0
         f.write_text("#!/bin/sh\necho someone else's\n", encoding="utf-8")   # not ours: never replaced or removed

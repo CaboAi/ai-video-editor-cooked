@@ -458,6 +458,7 @@ def make_handler(token):
             if path == "/state":
                 d = read()
                 d["listening"], d["keys"] = listening(), key_rows()
+                d["profile"] = (home().parent / "profile.json").exists()   # set up before: a returning user
                 d["key_file"] = str(keys.key_file()).replace(str(Path.home()), "~")
                 lk = d.get("lookup") or {}
                 if lk.get("handle"):
@@ -890,7 +891,7 @@ def demo():
         time.sleep(0.02)
     st = get("/state")
     assert [(x["name"], x["ok"]) for x in st["doctor"]["rows"]] == [("Python 3.12", True), ("The renderer", False)], st["doctor"]
-    assert st["keys"]["gemini"] == {"set": False, "env": False} and not st["listening"]
+    assert st["keys"]["gemini"] == {"set": False, "env": False} and not st["listening"] and st["profile"] is False
     # keys: a wrong prefix is refused before any request; a good one is verified once, saved, never echoed
     sent = []
     real = keys._get

@@ -4,6 +4,20 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- My styles: every saved style (My style and each studied creator) is a card with its real numbers
+  (measured, with that style's corrections) and its skill name. A style's page changes caption size,
+  words and height, zooms, cut and sound effects with a live frame; each change is a correction at
+  that style's scope (`styleskill.learn`: its `style.overrides.json`, or taste.json for My style, and
+  the skill's "Learned from your feedback"). The page lists those rules with counts and a Forget
+  button, opens the skill file, and takes "Tell it what to change" in plain words as
+  `JOB style-change`, which Claude turns into rules at that scope. Test: `home.py demo`.
+- Review page: a **Home** button back to the editor's window at its fixed address (same tab), or a
+  plain line saying to type `nextwork-editor` when it is not running. **Move to playhead** is gone.
+  A note left on the last frame keeps its still (`grab` seeks from the end). Test: `review.py demo`.
+- Home page setup step: real brand marks (Simple Icons, CC0, and TypeSafe's own mark) beside each
+  tool and key, one colour, vendored. The key file path is shortened in the middle, and a stopped
+  editor reads "The editor stopped. Run nextwork-editor to start it again."
+
 - `nextwork-editor`: one command opens the editor's window. `setup.py install-launcher` puts it on the
   PATH in a user folder (no sudo; `uninstall-launcher` takes it and any PATH line off). It starts
   Claude Code in the library with the first prompt `/ai-editor:start open the home page`, or reopens

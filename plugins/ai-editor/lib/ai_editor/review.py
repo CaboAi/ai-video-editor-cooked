@@ -601,7 +601,9 @@ def serve(folder, port=0, open_browser=True):
             webbrowser.open(url)
         return None, url
     token = secrets.token_urlsafe(32)
-    srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(folder, token))
+    # exclusive bind on Windows, where SO_REUSEADDR (HTTPServer's default) lets two servers share a port
+    srv = type("Server", (ThreadingHTTPServer,), {"allow_reuse_address": os.name != "nt"})(("127.0.0.1", port),
+                                                                                      make_handler(folder, token))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
     (folder / "review" / ".server").write_text(url, encoding="utf-8")
     if open_browser:

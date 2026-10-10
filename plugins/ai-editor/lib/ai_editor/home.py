@@ -40,6 +40,7 @@ the launcher and a bookmark always open the same page.
 import argparse
 import glob
 import hmac
+import http.client
 import json
 import os
 import re
@@ -909,7 +910,7 @@ def running():
         url = (home() / ".server").read_text(encoding="utf-8").strip()
         urllib.request.urlopen(url.replace("/?t=", "/state?t="), timeout=2).read()
         return url
-    except (OSError, ValueError):
+    except (OSError, ValueError, http.client.HTTPException):   # a stale port another program answers on
         return None
 
 
@@ -932,17 +933,23 @@ def stable_token():
     return t
 
 
+class Server(ThreadingHTTPServer):
+    # Windows lets a second socket bind a port already in use when SO_REUSEADDR is on (Python's default for
+    # HTTPServer), so two homes could share one address and answer each other's requests: bind exclusively there.
+    allow_reuse_address = os.name != "nt"
+
+
 def bind(handler, port=None):
     """PORT, or the port remembered from last time, else the next free one. port=0: any free port (tests)."""
     if port == 0:
-        return ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        return Server(("127.0.0.1", 0), handler)
     first = port or read().get("port") or PORT
     for p in dict.fromkeys([first] + list(range(PORT, PORT + 20))):
         try:
-            return ThreadingHTTPServer(("127.0.0.1", p), handler)
+            return Server(("127.0.0.1", p), handler)
         except OSError:
             continue
-    return ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    return Server(("127.0.0.1", 0), handler)
 
 
 def serve(root=None, port=None, open_browser=True):

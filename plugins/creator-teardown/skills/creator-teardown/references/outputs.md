@@ -1,6 +1,6 @@
 # What a teardown writes
 
-Everything lands under the folder Claude Code was started in. Claude reads `look.md` and
+Everything lands under the folder Claude Code was started in (the editor's launcher and home page start it in the library, `~/Movies/AI Editor` on a Mac). Claude reads `look.md` and
 `transcripts/<id>.txt`; the JSON files, frames and sheets are for the scripts.
 
 ```

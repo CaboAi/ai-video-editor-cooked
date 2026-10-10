@@ -11,7 +11,7 @@ Paths: `${CLAUDE_SKILL_DIR}` means the folder containing this SKILL.md, and `${C
 
 Read `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` first: the rules every video in this plugin follows.
 
-Every question to the user goes in the question box: call the AskUserQuestion tool (2-4 options, the recommended one first). Only in an agent without that tool, ask numbered questions in text.
+Every question goes in the question box: the AskUserQuestion tool (2-4 options, recommended first). Only in an agent without it, ask numbered questions in text.
 
 ```
 edits/<name>/  transcript.txt (read this, never words.raw.json), spans.json (what to remove, quoted),
@@ -19,8 +19,8 @@ edits/<name>/  transcript.txt (read this, never words.raw.json), spans.json (wha
   transcript), review.json (notes), cut.mp4 + words.json (the render and its words).
 ```
 
-`<name>` is a slug of the file name (`IMG_1234.MOV` -> `img-1234`), relative to the folder Claude Code
-started in. Never modify, move or copy the source file: pass its path.
+`<name>` is a slug of the file name (`IMG_1234.MOV` -> `img-1234`), in the library
+(PRINCIPLES.md "Where"). Never modify, move or copy the source file: pass its path.
 
 `PY="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/run.py"`; `python3 "$PY"` runs the tool venv. On Windows, use
 `py` wherever these commands say `python3`.

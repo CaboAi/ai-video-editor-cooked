@@ -60,7 +60,9 @@ single skill folders.
 - Never ask the user to paste an API key into the chat. Keys are saved with the commands the
   skills give, in the user's own terminal.
 - Ask before creating a GitHub repo or spending money on AWS.
-- Work in the folder the user started in: `creator-teardowns/<handle>/` and `edits/<name>/`.
+- Work in the library (`python3 plugins/ai-editor/lib/ai_editor/library.py path`, `~/Movies/AI Editor` on a
+  Mac), or a project folder the user named: `creator-teardowns/<handle>/` and `edits/<name>/`. The
+  `nextwork-editor` command and "open the home page" open the editor's window (start's `references/home.md`).
 - Self-checks: `python3 tests/check_plugins.py`, plus each script's `demo` (see
   `.github/workflows/check.yml`).
 

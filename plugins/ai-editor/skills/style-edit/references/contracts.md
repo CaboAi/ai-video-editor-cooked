@@ -10,7 +10,7 @@ style-edit        <-  style.json + cut.mp4 + words.json (+ optional images)
                   ->  edits/<name>/plan.json -> stills/ -> render.mp4
 ```
 
-All paths are relative to the folder Claude Code was started in (the user's project folder).
+All paths are relative to the library (`library.py path`), or a project folder the user named.
 
 ## Tool home
 

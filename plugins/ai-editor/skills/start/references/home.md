@@ -1,18 +1,25 @@
 # The home page
 
-The first-run page in the browser: setup checks, optional keys, pick a creator, watch their videos
-get studied, see the style and the skill it became, drop a video. The page only queues jobs. Claude
-does every job with the usual skills and reports back, so the page never decides anything itself.
+The editor's window in the browser. A first run gets setup checks, optional keys, pick a creator, watch
+their videos get studied, see the style and the skill it became, drop a video. After that it opens on
+Home (welcome back), New video (pick clips, then pick a style), Your videos, My style and Settings.
+The page only queues jobs. Claude does every job with the usual skills and reports back, so the page
+never decides anything itself.
+
+The `nextwork-editor` command (`setup.py install-launcher`) starts Claude Code in the library with the
+prompt "/ai-editor:start open the home page", or reopens the page when it is already served. Inside
+Claude Code, `/ai-editor:start` and "open the home page" do the same.
 
 `H="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/home.py"`. `python3` on Mac and Linux, `py` on Windows.
 
 ## Open it
 
-Run both in the background (two Bash calls with `run_in_background`), from the folder the user
-started in (creator studies and edits land there):
+Run both in the background (two Bash calls with `run_in_background`). The page always works in the
+library (`library.py path`, `~/Movies/AI Editor` on a Mac), wherever Claude Code started, and every job
+line names it as `root=`:
 
 ```bash
-python3 "$H" serve          # prints the URL and opens the browser; reuses a running server
+python3 "$H" serve          # same address every time (port 47821, one token per install); reuses a running server
 python3 "$H" wait           # exits with the next job as one line
 ```
 
@@ -88,11 +95,23 @@ A fail sends `{"passed": false, "why": "<which gate question said no>", "prompts
 Five prompts, each one the user can paste into Claude Code as it is. Every number in `what`,
 `check` and `tested` comes from the teardown or the script; leave a field out rather than guess.
 
-### `JOB video <path> as=<@handle|defaults> aspect=<9:16|16:9> root=<dir>`
+### `JOB video <path> as=<mine|@handle|defaults> aspect=<9:16|16:9> edit=<dir> root=<dir>`
+### `JOB video takes=<dir>/takes.txt as=... aspect=... edit=<dir> root=<dir>`
 
-The user dropped a video and pressed "Start the cut". `as=defaults`: `profile.py set creators=[]`.
-`aspect`: `profile.py set aspect=<a>`. Then the start skill from step 2 on, with this file as the
-video. Report `Transcribe every word`, `Cut retakes and pauses`, then the review page's URL:
+The user picked clips and a style and pressed "Make my video" (or "Start the cut" on a first run).
+`edit=` is the edit folder the page already made and listed in the library: use it, never make
+another. `takes=` lists several clips, one path per line, in the order the user set: they are one
+video, so join them first (`cut/references/takes.md`, `join.py <edit>/joined.mp4 <the paths in order>`,
+no question: the page asked it). "Separate videos" arrives as one JOB per clip; take them one by one.
+
+`as=mine`: keep the profile as it is. `as=defaults`: `profile.py set creators=[]`. `as=@handle`:
+`profile.py set 'creators=[{"handle":"<h>","take":["captions","pace","visuals"]}]'`. When
+`creator-teardowns/<h>/style.json` is not there yet, that creator is still being studied: cut now
+(the cut needs no style) and start the styled pass once the teardown job is done.
+`aspect`: `profile.py set aspect=<a>`. Then the start skill from step 2 on, with this file (or
+joined.mp4) as the video. Report these steps, in this order and these words (the page lists the ones
+still to come): `Joined your clips in order` (takes only), `Wrote down every word you said`,
+`Cutting out the mistakes`, then the review page's URL:
 `--result '{"review_url": "<url review.py serve printed>"}'`. The rest happens on the review page.
 
 ### `JOB modal`

@@ -2,6 +2,10 @@
 
 The rules every skill follows. Each names where it is enforced; tests: `docs/feedback-matrix.md`.
 
+## Where
+
+- Work in the library (cd to `lib/ai_editor/library.py path`) or a folder the user names. (`library.py`)
+
 ## Asking
 
 - Every question goes in the question box (AskUserQuestion), recommended option first, free text
@@ -50,9 +54,8 @@ The rules every skill follows. Each names where it is enforced; tests: `docs/fee
   by "not the background colour". (product.py check)
 - Never cover the speaker's face; cards may tuck behind the head only when the cutout is on.
   (plan.py, check.py)
-- Default length is short: about 40 s for a product film with five use cases, scaled to the
-  count, never shortened past the smoothness bar. (product.py, `journey.py`
-  SPEED_BAR)
+- Default length is short: about 40 s for a five-use-case product film, scaled to the count,
+  never shortened past the smoothness bar. (product.py, `journey.py` SPEED_BAR)
 
 ## Safety and privacy
 
@@ -70,7 +73,7 @@ The rules every skill follows. Each names where it is enforced; tests: `docs/fee
 ## Cost
 
 - Code measures; cheap models judge; Claude decides only what is left. Claude never reads raw
-  transcripts or frame-by-frame images when a script can summarise them. (cut `retakes.py`,
+  transcripts or frames when a script can summarise them. (cut `retakes.py`,
   creator-teardown `look.py`, `sheet.py`)
 - Joins land on quiet audio. (`build_timeline.py`)
 
@@ -83,6 +86,6 @@ The rules every skill follows. Each names where it is enforced; tests: `docs/fee
 
 - Every correction becomes a rule for the next video, counted, with regressions shown.
   (`lib/ai_editor/taste.py`; review notes: `review.py learn`)
-- After every correction the question box asks "this video, your style, or would it help
-  everyone?". "Everyone" goes to `suggestions.jsonl` (scrubbed) and, on a yes, a GitHub issue
+- After every correction the question box asks "this video, your style, or everyone?".
+  "Everyone" goes to `suggestions.jsonl` (scrubbed) and, on a yes, a GitHub issue
   (`taste.py suggest`, `issue`). `improve` turns those into a rule, its check and a test.

@@ -435,7 +435,7 @@ def make_handler(token):
             got = c[self.cookie_name()].value if self.cookie_name() in c else ""
             return any(hmac.compare_digest(v.encode(), token.encode()) for v in (q, got) if v)
 
-        def send(self, code, body, ctype="application/json", cookie=False):
+        def send(self, code, body, ctype="application/json", cookie=False, cache="no-store"):
             if isinstance(body, (dict, list)):
                 body = json.dumps(body).encode()
             elif isinstance(body, str):
@@ -445,7 +445,7 @@ def make_handler(token):
                 self.send_header("Set-Cookie", f"{self.cookie_name()}={token}; Path=/; HttpOnly; SameSite=Strict")
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
+            self.send_header("Cache-Control", cache)
             self.end_headers()
             self.wfile.write(body)
 
@@ -470,7 +470,8 @@ def make_handler(token):
             q = parse_qs(urlsplit(self.path).query)
             if path == "/library":
                 root = read()["root"]
-                vids = [dict(e, thumb=e["video"] and "/thumb?p=" + quote(e["video"])) for e in library.entries()]
+                vids = [dict(e, thumb=e["video"] and f"/thumb?p={quote(e['video'])}&u={int(e['updated'])}",
+                             media=e["video"] and "/media?p=" + quote(e["video"])) for e in library.entries()]
                 cards = style_cards(root)
                 for j in read()["jobs"]:   # a creator still being studied: a card the user can already pick
                     h = j["args"].get("handle")
@@ -486,11 +487,11 @@ def make_handler(token):
                     ms = list(ex.map(lambda r: library.meta(r["path"]), rs))
                 return self.send(200, {"scan_home": bool(st.get("scan_home")), "videos": [
                     dict(r, duration=m["duration"], vertical=bool(m["h"] and m["w"] and m["h"] > m["w"]),
-                         thumb="/thumb?p=" + quote(r["path"])) for r, m in zip(rs, ms)]})
+                         thumb=f"/thumb?p={quote(r['path'])}&m={int(r['mtime'])}") for r, m in zip(rs, ms)]})
             if path == "/thumb":
                 f = Path(q.get("p", [""])[0])
                 t = library.thumb(f) if f.suffix.lower() in links.VIDEO_EXT and f.is_file() else None
-                return self.send(200, t.read_bytes(), "image/jpeg") if t else self.send(404, {})
+                return self.send(200, t.read_bytes(), "image/jpeg", cache="private, max-age=86400") if t else self.send(404, {})
             if path == "/media":   # a library video's file, to watch or download
                 f = Path(q.get("p", [""])[0]).resolve()
                 if not any(d in f.parents for d in library.edit_dirs()) or not f.is_file() or f.suffix.lower() not in links.VIDEO_EXT:
@@ -675,7 +676,7 @@ def make_handler(token):
             update(remember)
             for g in groups:
                 edit = new_edit(Path(d["root"]), g[0]["name"])
-                args = {"path": g[0]["path"], "as": style, "aspect": aspect, "edit": str(edit)}
+                args = {"path": g[0]["path"], "paths": [p["path"] for p in g], "as": style, "aspect": aspect, "edit": str(edit)}
                 if len(g) > 1:
                     t = edit / "takes.txt"
                     t.write_text("\n".join(p["path"] for p in g) + "\n", encoding="utf-8")
@@ -691,6 +692,10 @@ def make_handler(token):
                 return self.send(400, {"ok": False, "msg": "Drop a .mov, .mp4 or .mkv video."})
             out = Path(read()["root"]) / "videos" / name
             out.parent.mkdir(parents=True, exist_ok=True)
+            k = 1
+            while out.exists() and out.stat().st_size != n:   # another file with this name: never overwrite it
+                k += 1
+                out = out.with_name(f"{Path(name).stem}-{k}{Path(name).suffix}")
             tmp = out.with_suffix(out.suffix + ".part")
             with open(tmp, "wb") as f:
                 left = n

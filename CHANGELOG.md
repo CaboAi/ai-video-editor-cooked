@@ -4,6 +4,27 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- `nextwork-editor`: one command opens the editor's window. `setup.py install-launcher` puts it on the
+  PATH in a user folder (no sudo; `uninstall-launcher` takes it and any PATH line off). It starts
+  Claude Code in the library with the first prompt `/ai-editor:start open the home page`, or reopens
+  the page when it is already served. Permissions are never bypassed. Test: `launcher.py demo`,
+  `setup.py demo`.
+- The same window every time: the home page serves on port 47821 (the next free one when taken,
+  remembered) with one token per install (`home/token`, 0600), so the address can be bookmarked.
+- One library for every video: `~/Movies/AI Editor` on a Mac, `~/Videos/AI Editor` on Windows and
+  Linux (`AI_EDITOR_LIBRARY`, or Settings, to move it). The page, its jobs and the skills work there
+  unless the user names a project folder. `review.py start` records each edit folder, so edits made
+  elsewhere stay listed. Test: `library.py demo`.
+- Returning users land on Home: their videos with status (being made, ready to review, done), the
+  review page and a download for each, My style and the creators studied. **New video** is two steps:
+  pick clips (the library's videos, files picked before, and, once turned on, recent clips from
+  Movies, Desktop and Downloads; **Choose files...**; drop anywhere), set their order, one video
+  joined or separate videos, tall or wide; then **Pick a style**, each shown on the user's first clip
+  with only measured numbers, or create one by copying a creator (the cut starts while the study
+  runs). **Make my video** queues one JOB (several clips as `takes=`) or one per clip. Settings shows
+  disk use and **Clear working files** (render chunks, sound caches, review copies older than the
+  last two; asks first). Test: `home.py demo`.
+
 - The home page: first run in the browser. `home.py serve` opens it (127.0.0.1 only, a random token
   and a SameSite cookie, as on the review page). Five steps: setup (doctor's tool checks and the
   optional keys), pick a creator, study their videos, your skill, your video. Keys typed on the page

@@ -30,7 +30,8 @@ nextwork-editor
 ```
 
 Your editor opens in the browser, at the same address every time (bookmark it). Drop in your clips
-or click the ones you want, pick a style, press **Make my video**. Inside Claude Code,
+or click the ones you want, pick a style, press **Make my video**. The first time, Claude Code asks
+"Do you trust the files in this folder?": pick **Yes, proceed** (it is your videos folder). Inside Claude Code,
 `/ai-editor:start` does the same. Setup adds the command; `python3 plugins/ai-editor/skills/setup/scripts/setup.py
 uninstall-launcher` removes it.
 

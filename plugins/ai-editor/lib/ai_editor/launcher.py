@@ -64,7 +64,9 @@ def main(argv=None):
     if not shutil.which(cmd[0]) and not Path(cmd[0]).is_file():
         print("Claude Code is not installed yet. Install it from https://claude.com/claude-code, then run this again.")
         return 1
-    print(f"Opening your editor...\n  Your videos: {lib}\n  Claude Code is starting. The window opens in a moment.", flush=True)
+    print(f"Opening your editor...\n  Your videos: {lib}\n  Claude Code is starting. The window opens in a moment.\n"
+          "  If Claude Code asks \"Do you trust the files in this folder?\", pick \"Yes, proceed\": it is your videos folder.",
+          flush=True)
     os.chdir(lib)
     if os_name == "Windows":
         return subprocess.call(cmd)

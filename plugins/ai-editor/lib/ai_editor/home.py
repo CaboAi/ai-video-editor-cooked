@@ -67,7 +67,7 @@ from review import load, now, save  # noqa: E402  (atomic write; review.py's ser
 HTML = Path(__file__).with_name("home.html")
 SETUP = Path(__file__).resolve().parents[2] / "skills" / "setup" / "scripts" / "setup.py"
 BEAT_S = 6
-JOBS = ("teardown", "skill", "video", "modal", "setup")
+JOBS = ("teardown", "skill", "video", "modal", "setup", "style-change")
 TAKE = ("captions", "pace", "graphics", "sound")          # the page's parts; editplan.py --take names
 KEY_NAMES = tuple(keys.VARS)
 TOOLS = {"python": ("Python", "runs the editor"), "ffmpeg": ("ffmpeg", "cuts and joins video"),
@@ -281,25 +281,115 @@ def look(s):
     return {k: c.get(k) for k in ("color", "box", "box_color", "case", "weight", "y_pct", "stroke")}
 
 
-def style_cards(root):
-    """My style first (the saved profile: its first copied creator, else the default style), then every
-    creator studied in the library."""
-    try:
-        prof = json.loads((home().parent / "profile.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        prof = {}
-    have = dict(library.styles(root))
-    base = next((c["handle"] for c in prof.get("creators") or [] if c.get("handle") in have), None)
+def _taste():
+    """taste.py and styleskill.py, imported late so AI_EDITOR_HOME set by a self-check is the one they use."""
     sys.path.insert(1, str(Path(__file__).resolve().parents[1]))
-    from ai_editor.profile import DEFAULT_STYLE   # "profile" alone is also a stdlib module
-    src = have[base] if base else DEFAULT_STYLE
-    cap = (prof.get("captions") or {})
-    mine = {"id": "mine", "name": "My style", "facts": facts(src), "look": look(src),
-            "line": f"Your saved style. Started from @{base}." if base else "The default style. Change it any time.",
-            "captions_off": cap.get("on") is False}
-    return [mine] + [{"id": "@" + h, "name": "@" + h, "facts": facts(st), "look": look(st), "videos": st.get("videos"),
-                      "line": f"Measured from {st['videos']} of their videos." if st.get("videos") else "Studied by the editor."}
-                     for h, st in have.items()]
+    from ai_editor import styleskill, taste
+    return taste, styleskill
+
+
+def _profile():
+    try:
+        return json.loads((home().parent / "profile.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def style_of(root, sid):
+    """(style.json path or None for My style, the style as edits use it: measured < corrections)."""
+    taste, ss = _taste()
+    if sid == "mine":
+        have = dict(library.styles(root))
+        base = next((c["handle"] for c in _profile().get("creators") or [] if c.get("handle") in have), None)
+        from ai_editor.profile import DEFAULT_STYLE
+        return None, taste.merge(have[base] if base else DEFAULT_STYLE, taste.read_json()), base
+    h = re.sub(r"[^a-z0-9._-]", "", str(sid).lstrip("@").lower())
+    p = Path(root) / "creator-teardowns" / h / "style.json"
+    if not h or not p.is_file():
+        raise KeyError(sid)
+    sp = ss.preferred(p)
+    return sp, taste.merge(json.loads(sp.read_text(encoding="utf-8") or "{}"), ss.load_overrides(sp)), h
+
+
+def style_cards(root):
+    """My style first (the profile's first copied creator, else the default style, with the user's
+    corrections), then every creator studied in the library (with that style's corrections). Each card
+    names its skill."""
+    taste, ss = _taste()
+    out = []
+    for sid in ["mine"] + ["@" + h for h, _ in library.styles(root) if not h.endswith("-mine")]:
+        try:
+            sp, st, base = style_of(root, sid)
+        except (KeyError, OSError, ValueError):
+            continue
+        sc = ss.scope(sp)
+        n = sum(1 for r in taste.load_rules() if r["scope"] == sc) if taste.rules_path().exists() else 0
+        if sid == "mine":
+            line = (f"Your saved style. Started from @{base}." if base else "The default style.") + \
+                (f" {n} change{'s' if n != 1 else ''} from your feedback." if n else " Change it any time.")
+        else:
+            line = (f"Measured from {st['videos']} of their videos." if st.get("videos") else "Studied by the editor.") + \
+                (f" {n} change{'s' if n != 1 else ''} from your feedback." if n else "")
+        out.append({"id": sid, "name": "My style" if sid == "mine" else sid, "facts": facts(st), "look": look(st),
+                    "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n,
+                    "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False})
+    return out
+
+
+# The style page's controls: the settings the scripts read (taste skill's table), never a look of their own.
+CONTROLS = {"captions.size_pct": ("captions", float, 2.5, 9), "captions.words_per_caption": ("captions", int, 1, 6),
+            "captions.y_pct": ("captions", float, 40, 85), "zoom.per_min": ("visuals", float, 0, 20),
+            "cut.max_pause": ("cut", float, 0.05, 0.6), "sfx": ("sound", bool, None, None)}
+
+
+def control_rule(key, v):
+    return {"captions.size_pct": f"Captions {v:g}% of the frame tall", "captions.words_per_caption": f"{v} word{'s' if v != 1 else ''} a caption",
+            "captions.y_pct": f"Captions {v:g}% down the frame", "zoom.per_min": "No zooms" if not v else f"About {v:g} zooms a minute",
+            "cut.max_pause": f"Pauses cut down to {v:g} s", "sfx": "Sound effects on" if v else "No sound effects"}[key] + " (set on the style page)"
+
+
+def dig(d, key):
+    for k in key.split("."):
+        d = d.get(k) if isinstance(d, dict) else None
+    return d
+
+
+def style_page(root, sid):
+    """Everything the style page shows: the settings now (measured < corrections), which ones the user
+    changed, what the style copies, its skill and the rules learned at its scope."""
+    taste, ss = _taste()
+    sp, st, base = style_of(root, sid)
+    changed = ss.load_overrides(sp) if sp else taste.read_json()
+    sc = ss.scope(sp)
+    rules = [{"id": r["id"], "rule": r["rule"], "setting": r.get("setting"), "value": r.get("value"),
+              "said": len(r["corrections"]), "last": (r["corrections"][-1]["at"][:10] if r["corrections"] else None),
+              "applied": r.get("applied", 0), "regressions": len(r.get("regressions") or [])}
+             for r in (taste.load_rules() if taste.rules_path().exists() else []) if r["scope"] == sc]
+    md = ss.skills_dir() / ss.name(sp) / "SKILL.md"
+    prof = _profile()
+    vals = {k: dig(st, k) for k in CONTROLS}
+    if vals["cut.max_pause"] is None:
+        vals["cut.max_pause"] = 0.15   # the cut's default (taste skill's table)
+    if vals["sfx"] is None:
+        vals["sfx"] = (prof.get("sound") or {}).get("sfx", True) if sp is None else st.get("sfx", True)
+    copies = ss.copies(st) if sp else [f"@{base}'s style" if base else "the default style", "your corrections"]
+    job = next((j for j in reversed(read()["jobs"]) if j["type"] == "style-change" and j["args"].get("style") == sid), None)
+    return {"id": sid, "name": "My style" if sid == "mine" else sid, "base": base, "values": vals,
+            "changed": [k for k in CONTROLS if dig(changed, k) is not None], "look": look(st), "facts": facts(st),
+            "copies": copies, "rules": rules, "style_path": str(sp) if sp else None,
+            "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job}
+
+
+def set_control(root, sid, key, value):
+    """One change on the style page: a correction at that style's scope, through styleskill/taste, so the
+    overrides file (or taste.json for My style) and the skill's "Learned from your feedback" both update."""
+    taste, ss = _taste()
+    sp, _, _ = style_of(root, sid)
+    section, typ, lo, hi = CONTROLS[key]
+    v = bool(value) if typ is bool else typ(value)
+    if lo is not None and not lo <= v <= hi:
+        raise ValueError(f"{key} must be between {lo} and {hi}")
+    return ss.learn(sp, section, control_rule(key, v), key, v)
 
 
 # ---------------------------------------------------------------- setup checks
@@ -351,6 +441,9 @@ def job_line(j, root):
     if j["type"] == "video":
         src = f"takes={a['takes']}" if a.get("takes") else a["path"]
         return f"JOB video {src} as={a['as']} aspect={a['aspect']}" + (f" edit={a['edit']}" if a.get("edit") else "") + f" root={root}"
+    if j["type"] == "style-change":
+        return f"JOB style-change {'my-style' if a['style'] == 'mine' else a['style']}" + \
+            (f" style={a['path']}" if a.get("path") else "") + f" text={a['text']}"
     return f"JOB {j['type']}"
 
 
@@ -505,6 +598,11 @@ def make_handler(token):
                 with open(f, "rb") as fh:
                     shutil.copyfileobj(fh, self.wfile)
                 return
+            if path == "/style":
+                try:
+                    return self.send(200, style_page(read()["root"], q.get("id", ["mine"])[0]))
+                except KeyError:
+                    return self.send(404, {"error": "no such style"})
             if path == "/disk":
                 return self.send(200, library.disk())
             if path == "/review":   # a library video's review page: its own server, started if it is not running
@@ -571,6 +669,32 @@ def make_handler(token):
             if path == "/clean":   # the page asks first; without yes it only counts
                 fs, n = library.clean(yes=body.get("yes") is True)
                 return self.send(200, {"files": len(fs), "bytes": n, "deleted": body.get("yes") is True})
+            if path in ("/style/set", "/style/forget", "/style/reveal"):
+                root = read()["root"]
+                try:
+                    sid = str(body.get("id") or "mine")
+                    if path == "/style/set":
+                        if body.get("key") not in CONTROLS:
+                            return self.send(400, {"error": "not a setting"})
+                        set_control(root, sid, body["key"], body.get("value"))
+                    elif path == "/style/forget":
+                        taste, ss = _taste()
+                        page = style_page(root, sid)
+                        if int(body.get("rule", -1)) not in [r["id"] for r in page["rules"]]:
+                            return self.send(400, {"error": "not a rule of this style"})
+                        taste.forget(int(body["rule"]))
+                    else:
+                        taste, ss = _taste()
+                        sp, _, _ = style_of(root, sid)
+                        md = ss.skills_dir() / ss.name(sp) / "SKILL.md"
+                        if not md.exists():
+                            ss.write(sp)
+                        subprocess.Popen(library.reveal_cmd(md), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    return self.send(200, style_page(root, sid))
+                except KeyError:
+                    return self.send(404, {"error": "no such style"})
+                except (ValueError, TypeError) as e:
+                    return self.send(400, {"error": str(e)})
             if path == "/scanhome":   # the one-time opt-in: recent clips from Movies, Desktop and Downloads
                 update(lambda d: d.__setitem__("scan_home", body.get("on") is True))
                 return self.send(200, {})
@@ -645,6 +769,15 @@ def make_handler(token):
                 return self.videos(b, d)
             elif kind == "modal":
                 args = {}
+            elif kind == "style-change":   # "Tell it what to change": Claude turns the words into rules at that style's scope
+                text = re.sub(r"\s+", " ", str(b.get("text") or "")).strip()[:400]
+                try:
+                    sp, _, _ = style_of(d["root"], b.get("style") or "mine")
+                except KeyError:
+                    return self.send(400, {"error": "no such style"})
+                if not text:
+                    return self.send(400, {"error": "say what to change"})
+                args = {"style": b.get("style") or "mine", "path": str(sp) if sp else "", "text": text}
             else:
                 return self.send(400, {"error": "unknown job"})
             j = update(lambda d: queue(d, kind, args))
@@ -847,6 +980,7 @@ def demo():
     root = tmp / "work"
     os.environ["AI_EDITOR_LIBRARY"] = str(root)          # never the real ~/Movies
     os.environ["AI_EDITOR_SCAN_DIRS"] = str(tmp / "Desktop")
+    os.environ["AI_EDITOR_SKILLS"] = str(tmp / "skills")   # style skills land here, never in ~/.claude/skills
     td = root / "creator-teardowns" / "sample.creator"
     td.mkdir(parents=True)
     vids = [{"id": str(i), "title": f"v{i}", "view_count": v, "duration": 30, "thumbnail": f"https://x/{i}.jpg"}
@@ -863,7 +997,7 @@ def demo():
     base, tok = url.split("/?t=")
 
     def get(p):
-        return json.loads(urllib.request.urlopen(base + p + "?t=" + tok).read())
+        return json.loads(urllib.request.urlopen(base + p + ("&" if "?" in p else "?") + "t=" + tok).read())
 
     def post(p, b):
         return json.loads(urllib.request.urlopen(urllib.request.Request(
@@ -1057,7 +1191,46 @@ def demo():
     assert st["@sample.creator"]["look"]["box_color"] == "#000000" and st["mine"]["line"].startswith("The default")
     (tmp / "home" / "profile.json").write_text(json.dumps({"creators": [{"handle": "sample.creator"}]}), encoding="utf-8")
     mine = get("/library")["styles"][0]
-    assert mine["line"] == "Your saved style. Started from @sample.creator." and mine["facts"][0] == ["Cut every", "1.9 s"]
+    assert mine["line"].startswith("Your saved style. Started from @sample.creator.") and mine["facts"][0] == ["Cut every", "1.9 s"]
+    assert mine["skill"] == "my-style" and st["@sample.creator"]["skill"] == "edit-like-sample-creator"
+    # My styles: a style's page; a change there is a correction at that style's scope (overrides + its skill)
+    pg = get("/style?id=@sample.creator")
+    assert pg["values"]["captions.words_per_caption"] == 2 and pg["changed"] == [] and pg["rules"] == [], pg
+    assert any(c.startswith("pace (a cut every 1.9 s") for c in pg["copies"]), pg["copies"]
+    pg = post("/style/set", {"id": "@sample.creator", "key": "captions.words_per_caption", "value": 3})
+    ov = json.loads((td / "style.overrides.json").read_text(encoding="utf-8"))
+    assert ov == {"captions": {"words_per_caption": 3}} and pg["values"]["captions.words_per_caption"] == 3, (ov, pg["values"])
+    assert pg["changed"] == ["captions.words_per_caption"] and pg["rules"][0]["said"] == 1 and pg["skill"]["exists"]
+    md = Path(pg["skill"]["path"])
+    assert md == tmp / "skills" / "edit-like-sample-creator" / "SKILL.md" and "3 words a caption (set on the style page)" in md.read_text(encoding="utf-8")
+    assert json.loads((td / "style.json").read_text(encoding="utf-8"))["captions"]["words_per_caption"] == 2, "measured style untouched"
+    assert get("/library")["styles"][1]["facts"][2] == ["Captions", "3 words at a time"]
+    try:
+        post("/style/set", {"id": "@sample.creator", "key": "zoom.per_min", "value": 99})
+        raise AssertionError("out of range accepted")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    pg = post("/style/set", {"id": "mine", "key": "zoom.per_min", "value": 0})   # My style: taste.json, the my-style skill
+    assert json.loads((tmp / "home" / "taste.json").read_text(encoding="utf-8"))["zoom"]["per_min"] == 0 and pg["skill"]["name"] == "my-style"
+    assert "No zooms (set on the style page)" in (tmp / "skills" / "my-style" / "SKILL.md").read_text(encoding="utf-8")
+    # forget from the page: the rule, its override and its skill bullet go; a rule of another style is refused
+    rid = get("/style?id=@sample.creator")["rules"][0]["id"]
+    try:
+        post("/style/forget", {"id": "mine", "rule": rid})
+        raise AssertionError("forgot another style's rule")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    pg = post("/style/forget", {"id": "@sample.creator", "rule": rid})
+    assert pg["rules"] == [] and json.loads((td / "style.overrides.json").read_text(encoding="utf-8")) == {"captions": {}}, (pg["rules"], (td / "style.overrides.json").read_text(encoding="utf-8"))
+    assert "3 words a caption" not in md.read_text(encoding="utf-8")
+    # Tell it what to change: one JOB line for Claude, at that style's scope
+    post("/job", {"type": "style-change", "style": "@sample.creator", "text": "captions a bit bigger,\n fewer zooms"})
+    assert out(cmd_wait, 0.01) == f"JOB style-change @sample.creator style={(td / 'style.json').resolve()} text=captions a bit bigger, fewer zooms"
+    post("/job", {"type": "style-change", "style": "mine", "text": "no whooshes"})
+    assert out(cmd_wait, 0.01) == "JOB style-change my-style text=no whooshes"
+    out(cmd_status, argparse.Namespace(job="style-change", step="Saved: no sound effects", detail=None, progress=None,
+                                       result=json.dumps({"changed": ["No sound effects"]}), done=True, failed=None))
+    assert get("/style?id=mine")["job"]["result"]["changed"] == ["No sound effects"]
     # clear working files: counted first, then deleted; the cut, the render and review.json stay
     (other / "chunks").mkdir()
     (other / "chunks" / "chunk-0.mkv").write_bytes(b"x" * 2000)

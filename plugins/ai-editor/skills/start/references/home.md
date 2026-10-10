@@ -118,6 +118,20 @@ still to come): `Joined your clips in order` (takes only), `Wrote down every wor
 `Cutting out the mistakes`, then the review page's URL:
 `--result '{"review_url": "<url review.py serve printed>"}'`. The rest happens on the review page.
 
+### `JOB style-change <my-style|@handle> [style=<style.json>] text=<the user's words>`
+
+The user typed what to change on a style's page (My styles, "Tell it what to change"). Turn the words
+into corrections at that style's scope, one per thing they asked, with the taste skill's setting table
+(`taste.py add <section> "<rule>" --set <key>=<value>`): `--style <style.json>` for a creator's style
+(its `style.overrides.json` and its `edit-like-<slug>` skill), no `--style` for my-style (taste.json
+and the `my-style` skill). A wish no setting covers is a word rule at the same scope. Do not ask the
+scope question: the page named the style. Report what was saved, in plain words:
+`status style-change --step "Saved: captions 6% tall" --result '{"changed": ["Captions 6% tall", "About 3 zooms a minute"]}' --done`.
+The page shows `changed` and reloads the style's settings and its "Learned from your feedback" list.
+The same change said in the chat goes through the same `taste.py add`, so both land in one skill.
+The page's own controls (sliders, zooms, cut, sound effects) save through `styleskill.learn` directly
+and need no job.
+
 ### `JOB modal`
 
 The user pressed "Log in with your browser". Follow the setup skill's step 6 (Modal), reporting

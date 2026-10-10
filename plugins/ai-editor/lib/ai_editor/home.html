@@ -526,10 +526,10 @@ async function loadRecent(){try{const r=await fetch('/recent');if(r.ok){R=await 
 
 function rheader(){
   const flow=['new','style','making'].includes(rv);
-  const sub={home:'home',new:'new video',style:'pick a style',making:'making your video',videos:'your videos',mystyle:'my style',settings:'settings'}[rv];
+  const sub={home:'home',new:'new video',style:'pick a style',making:'making your video',videos:'your videos',mystyle:'my styles',stylepage:'my styles',settings:'settings'}[rv];
   $('#who').textContent=sub;
   $('#steps').className='tabs';
-  $('#steps').innerHTML=[[flow?'New video':'Home',flow?rv:'home'],['Your videos','videos'],['My style','mystyle']].map(([n,v])=>`<button class="${rv===v?'on':''}" onclick="rgo('${v}')">${n}</button>`).join('');
+  $('#steps').innerHTML=[[flow?'New video':'Home',flow?rv:'home'],['Your videos','videos'],['My styles',rv==='stylepage'?'stylepage':'mystyle']].map(([n,v])=>`<button class="${rv===v?'on':''}" onclick="rgo('${v}')">${n}</button>`).join('');
   $('#bars').innerHTML='';
   const busy=S.jobs.filter(j=>j.state==='queued').length;
   $('#live').className='live';$('#live').style.width='auto';$('#live').style.minWidth='260px';$('#live').style.maxWidth='560px';
@@ -593,10 +593,11 @@ function capSample(lk){
 function styleCard(c,pick){
   const first=nv.sel.length?clipOf(nv.sel[0]):(R&&R.videos[0])||{};
   const on=pick&&nv.style===c.id;
-  return `<div class="scard ${on?'on':''}" ${pick?`onclick="nv.style='${esc(c.id)}';nv.note='';render()"`:''}><div class="pic" style="${first.thumb?`background-image:url('${esc(first.thumb)}')`:''}">${capSample(c.look)}${c.studying?'<div class="studying">Studying their videos now</div>':''}</div>
+  return `<div class="scard ${on?'on':''}" onclick="${pick?`nv.style='${esc(c.id)}';nv.note='';render()`:`openStyle('${esc(c.id)}')`}"><div class="pic" style="${first.thumb?`background-image:url('${esc(first.thumb)}')`:''}">${capSample(c.look)}${c.studying?'<div class="studying">Studying their videos now</div>':''}</div>
     <div class="between" style="align-items:center;margin-top:16px;padding:0 6px"><span style="font-size:18px;font-weight:600">${esc(c.name)}</span>${pick?`<div class="radio ${on?'on':''}"></div>`:''}</div>
     <div class="sub" style="padding:8px 6px 10px;font-size:14px;line-height:21px">${esc(c.line)}</div>
-    <div style="padding:0 6px 4px">${c.facts.map(([k,v])=>`<div class="frow"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}</div></div>`;
+    <div style="padding:0 6px 4px">${c.facts.map(([k,v])=>`<div class="frow"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}</div>
+    ${c.skill?`<div class="between" style="margin-top:auto;padding:12px 6px 2px;border-top:1px solid var(--line)"><span class="mono" style="font-size:12px">${esc(c.skill)}</span><button class="hlink" style="color:var(--ink);font-size:13px" onclick="event.stopPropagation();openStyle('${esc(c.id)}')">Edit style ›</button></div>`:''}</div>`;
 }
 function createCard(){
   const st=ui.study||{};
@@ -680,7 +681,7 @@ function vRow(v){
 }
 function styleSide(){
   const st=L?L.styles:[],me=st[0],first=(L.videos.find(v=>v.thumb)||{}).thumb||(R&&R.videos[0]||{}).thumb;
-  return `<div class="col rv-side" style="width:500px;gap:24px">${me?`<div class="panel"><div class="between" style="padding:22px 28px 0"><span class="h" style="font-size:17px">My style</span><a href="#" onclick="rgo('mystyle');return false">Change</a></div>
+  return `<div class="col rv-side" style="width:500px;gap:24px">${me?`<div class="panel"><div class="between" style="padding:22px 28px 0"><span class="h" style="font-size:17px">My style</span><a href="#" onclick="openStyle('mine');return false">Change</a></div>
     <div class="row" style="gap:28px;padding:18px 28px 22px;align-items:flex-start"><div style="position:relative;width:138px;height:246px;flex-shrink:0;border-radius:14px;overflow:hidden;background:#45403C ${first?`url('${esc(first)}') center/cover`:''}"><div class="capsm">${capSample(me.look)}</div></div><div style="display:flex;flex-direction:column;gap:16px">${me.facts.map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div></div>
     <div class="muted" style="border-top:1px solid var(--line);padding:16px 28px;font-size:14px;color:var(--t2);background:var(--bg)">${esc(me.line)}</div></div>`:''}
     <div class="panel" style="padding:22px 28px"><div class="between"><span class="h" style="font-size:17px">Creators you studied</span><span class="muted">${st.length-1}</span></div>
@@ -702,7 +703,7 @@ function vVideos(){
     <div class="mono" style="font-size:13px">${esc(L.path)}</div><div>${L.videos.map(vRow).join('')||'<div class="muted">No videos yet. Make one from New video.</div>'}</div></div>`;
 }
 function vMyStyle(){
-  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:24px"><div><h1>My style</h1><p class="lede" style="margin-top:10px">Every style you can pick for a video, shown on your newest clip.</p></div>
+  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:24px"><div><h1>My styles</h1><p class="lede" style="margin-top:10px">Every style you can pick for a video, shown on your newest clip. Open one to change it and see its skill.</p></div>
     <div style="display:flex;flex-wrap:wrap;gap:24px">${(L.styles||[]).map(c=>styleCard(c,false)).join('')}${createCard()}</div></div>`;
 }
 function vSettings(){
@@ -722,10 +723,58 @@ async function setLib(){const v=($('#libpath')||{}).value||'';if(!v.trim())retur
 async function loadDisk(){try{ui.disk=await (await fetch('/disk')).json();render()}catch(e){}}
 async function cleanNow(yes){const r=await post('/clean',{yes});ui.clean=yes?r:{...r,ask:true};if(yes)loadDisk();render()}
 
+// ---- a style's page (My styles -> one style): its settings, its skill, what it learned, tell it what to change
+function openStyle(id){ui.sp=id;ui.spage=null;rgo('stylepage');loadStyle()}
+async function loadStyle(){if(!ui.sp)return;try{const r=await fetch('/style?id='+encodeURIComponent(ui.sp));if(r.ok){ui.spage=await r.json();render()}}catch(e){}}
+async function setCtl(key,value){const r=await post('/style/set',{id:ui.sp,key,value});if(r._ok){ui.spage=r;loadLib()}else alert(r.error||'That did not save.');render()}
+async function forgetRule(id){const r=await post('/style/forget',{id:ui.sp,rule:id});if(r._ok){ui.spage=r;loadLib()}render()}
+async function tellChange(){const t=($('#tell')||{}).value||'';if(!t.trim())return;const r=await queue({type:'style-change',style:ui.sp,text:t.trim()});if(r._ok){$('#tell').value='';loadStyle()}}
+const ZOOMS=[[0,'None','Camera stays still'],[3,'A few','About 3 a minute'],[6,'Some','About 6 a minute'],[10,'Lots','About 10 a minute']];
+const CUTS=[[0.25,'Relaxed','Keeps your pauses'],[0.15,'Natural','Short breaths stay'],[0.12,'Tight','Cuts every pause']];
+function preview(P){
+  const first=(nv.sel.length?clipOf(nv.sel[0]):null)||(R&&R.videos[0])||(L.videos.find(v=>v.thumb)||{});
+  const v=P.values,lk=P.look||{},words='here is how your captions look'.split(' ').slice(0,Math.max(1,v['captions.words_per_caption']||3)).join(' ');
+  const txt=lk.case==='upper'?words.toUpperCase():lk.case==='lower'?words.toLowerCase():words;
+  const fs=Math.round((v['captions.size_pct']||4.2)/100*560*1.35);
+  return `<div style="position:relative;width:315px;height:560px;border-radius:20px;overflow:hidden;background:#45403C ${first.thumb?`url('${esc(first.thumb)}') center/cover`:''};flex-shrink:0">
+    ${first.thumb?`<div style="position:absolute;top:12px;left:12px;background:#0C0A09b3;color:#fff;border-radius:8px;padding:3px 9px;font-size:13px">Your video</div>`:''}
+    ${P.look===null?'':`<div class="cap" style="top:${v['captions.y_pct']||66}%;font-size:${fs}px;line-height:${Math.round(fs*1.25)}px"><span style="${lk.box?`background:${esc(lk.box_color||'#000')};`:''}color:${esc(lk.color||'#fff')};font-weight:${+lk.weight||600};${lk.box?'':'text-shadow:0 1px 4px #0008'}">${esc(txt)}</span></div>`}</div>`;
+}
+function vStylePage(){
+  const P=ui.spage;if(!P)return `<div class="col grow"><div class="empty">Loading the style...</div></div>`;
+  const v=P.values,ch=k=>P.changed.includes(k)?'<span class="rec">you changed this</span>':'';
+  const seg=(key,opts)=>`<div class="row" style="gap:10px;flex-wrap:wrap">${opts.map(([val,t,s])=>`<button class="shape ${Math.abs((v[key]??-1)-val)<1e-6?'on':''}" style="flex:1 1 120px;flex-direction:column;align-items:flex-start;gap:2px" onclick="setCtl('${key}',${val})"><b style="font-size:14px">${t}</b><span class="muted" style="font-size:12px">${s}</span></button>`).join('')}</div>`;
+  const job=P.job,jr=job&&job.result||{};
+  const jobLine=!job?'':job.state==='queued'?(S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal.`):job.state==='taken'?`Claude: ${esc((job.steps.at(-1)||{}).text||'working on it')}`:job.state==='done'?`Changed: ${esc((jr.changed||[]).join('; ')||'nothing')}`:job.state==='failed'?esc(job.error):'';
+  return `<div class="col" style="width:340px;gap:18px;padding:12px 14px 0"><button class="hlink" style="font-size:14px;color:var(--t2);align-self:flex-start" onclick="rgo('mystyle')">‹ All your styles</button><div><h1>${esc(P.name)}</h1><p class="lede" style="margin-top:8px">${P.id==='mine'?'How your videos get edited.':'Copied from their videos, with your changes.'} Shown on your own video.</p></div>${preview(P)}</div>
+  <div class="col grow" style="gap:20px;min-width:0">
+    <div class="panel"><div class="sec"><div class="between"><span class="h">Captions</span>${ch('captions.size_pct')||ch('captions.words_per_caption')||ch('captions.y_pct')}</div>
+      <div class="row" style="gap:14px;flex-wrap:wrap"><span class="muted" style="width:120px">Words at a time</span>${[1,2,3,4].map(n=>`<button class="pill ${v['captions.words_per_caption']===n?'on':''}" onclick="setCtl('captions.words_per_caption',${n})">${n}</button>`).join('')}</div>
+      <label class="row" style="gap:14px"><span class="muted" style="width:120px">Size</span><input type="range" min="3" max="8" step="0.2" value="${v['captions.size_pct']||4.2}" style="flex:1;accent-color:#0C0A09" onchange="setCtl('captions.size_pct',+this.value)"><span style="width:110px">${(+(v['captions.size_pct']||4.2)).toFixed(1)}% tall</span></label>
+      <label class="row" style="gap:14px"><span class="muted" style="width:120px">Height on screen</span><input type="range" min="45" max="82" step="1" value="${v['captions.y_pct']||66}" style="flex:1;accent-color:#0C0A09" onchange="setCtl('captions.y_pct',+this.value)"><span style="width:110px">${Math.round(v['captions.y_pct']||66)}% down</span></label></div>
+    <div class="sec"><div class="between"><span class="h">Zooms</span>${ch('zoom.per_min')||(v['zoom.per_min']!=null?`<span class="muted">now ${v['zoom.per_min']} a minute</span>`:'')}</div>${seg('zoom.per_min',ZOOMS)}</div>
+    <div class="sec"><div class="between"><span class="h">Cut</span>${ch('cut.max_pause')||`<span class="muted">pauses up to ${v['cut.max_pause']} s</span>`}</div>${seg('cut.max_pause',CUTS)}</div>
+    <div class="sec"><div class="between"><span class="h">Sound</span>${ch('sfx')}</div><label class="between" style="cursor:pointer"><div><div>Sound effects</div><div class="muted" style="margin-top:2px">A soft whoosh when a card or zoom lands</div></div><input type="checkbox" ${v.sfx?'checked':''} style="width:20px;height:20px;accent-color:#0C0A09" onchange="setCtl('sfx',this.checked)"></label></div>
+    <div class="sec" style="background:var(--bg)"><div class="muted" style="color:var(--t2)">${CHECK} Saved as you go. Your next videos in this style use it. Videos already made stay as they are.</div></div></div>
+    <div class="panel"><div class="sec"><div class="h">Tell it what to change</div><div class="sub" style="margin-top:-4px">Say it in your words. Claude turns it into settings and rules for this style only. The same works in the Claude chat; both land in this style's skill.</div>
+      <div class="row" style="align-items:stretch"><textarea id="tell" class="input" style="height:64px;padding:10px 12px;font:14px/20px system-ui,sans-serif;resize:vertical" placeholder="captions a bit bigger, fewer zooms"></textarea><button class="btn dark" style="height:auto" onclick="tellChange()">Send</button></div>
+      ${jobLine?`<div class="muted" style="color:var(--ink)">${jobLine}</div>`:''}</div></div>
+  </div>
+  <div class="panel rv-side" style="width:400px;flex-shrink:0">
+    <div class="sec"><div class="h">Its skill</div><div style="font:500 18px var(--mono)">${esc(P.skill.name)}</div>
+      <div class="mono" title="${esc(P.skill.path)}">${esc(midEll(P.skill.path,48))}</div>
+      <div class="row"><button class="btn quiet sm" onclick="post('/style/reveal',{id:ui.sp}).then(loadStyle)">Open the skill file</button>${P.skill.exists?'':'<span class="muted">made on first open</span>'}</div>
+      <div class="muted" style="color:var(--t2);line-height:19px">Say "/${esc(P.skill.name)}" in Claude Code to edit a video in this style.</div></div>
+    <div class="sec"><div class="h">It copies</div>${P.copies.map(c=>`<div class="dash">${esc(c)}</div>`).join('')||'<div class="muted">Nothing measured yet.</div>'}</div>
+    <div class="sec" style="flex:1"><div class="between"><span class="h">Learned from your feedback</span><span class="muted">${P.rules.length}</span></div>
+      ${P.rules.map(r=>`<div class="row" style="align-items:flex-start;gap:12px"><div class="grow"><div style="font-size:14px;line-height:20px">${esc(r.rule)}</div><div class="muted" style="margin-top:3px">Said ${r.said}x${r.last?` · last ${esc(r.last)}`:''}${r.applied?` · used ${r.applied}x`:''}${r.regressions?` · came back ${r.regressions}x`:''}</div></div><button class="hlink" onclick="forgetRule(${r.id})">Forget</button></div>`).join('')||'<div class="muted" style="line-height:19px">Nothing yet. Changes here, notes on the review page and corrections in the Claude chat land here.</div>'}</div>
+  </div>`;
+}
+
 function rrender(){
   rheader();
   if(rv==='settings'&&!ui.disk)loadDisk();
-  const h=rv==='new'?vNew():rv==='style'?vStyle():rv==='making'?vMaking():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='settings'?vSettings():vHome();
+  const h=rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='making'?vMaking():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='settings'?vSettings():vHome();
   $('#main').innerHTML=h;
   const o=$('#order');if(o)o.querySelectorAll('[draggable]').forEach(el=>{
     el.ondragstart=e=>{e.dataTransfer.setData('text/plain',el.dataset.i)};el.ondragover=e=>e.preventDefault();
@@ -761,7 +810,9 @@ async function load(){
   if(!ui.look&&lk.handle){ui.look={kind:'creator',handle:lk.handle,platform:lk.platform};if(!ui.paste)ui.paste='@'+lk.handle}
   // typing in a key box: do not redraw under the cursor
   const a=document.activeElement;if(a&&a.id&&a.id.startsWith('k-')&&a.value)return header(view??autoView());
+  if(a&&a.type==='range')return;   // dragging a slider: do not redraw under the hand
   if(!L)await loadLib();
+  if(rv==='stylepage')await loadStyle();
   render();
 }
 window.addEventListener('dragover',e=>e.preventDefault());window.addEventListener('drop',e=>e.preventDefault());

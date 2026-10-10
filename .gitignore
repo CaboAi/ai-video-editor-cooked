@@ -14,3 +14,4 @@ eval-results/
 /*.mov
 /*.MOV
 .claude/settings.local.json
+.context/

@@ -14,6 +14,7 @@
                         pace = pace, zoom, motion; visuals = graphics, face, look, cards)
                         comes from its owner when one is named, else every creator
                         weighted: numbers averaged, words from the heaviest.
+                        With ai-editor installed, also writes the blend's edit-like-<name> skill.
   demo                  self-check.
 
 Usage:
@@ -25,8 +26,11 @@ The events.json and plan.json shapes are in references/edit-plan.md.
 Exit codes: 0 ok - 1 the plan has errors - 2 usage
 """
 import argparse
+import glob
 import json
+import os
 import statistics
+import subprocess
 import sys
 import tempfile
 from collections import Counter, defaultdict
@@ -296,6 +300,18 @@ def cmd_blend(a, root=None):
     return out
 
 
+def style_skill(style_path):
+    """ai-editor's styleskill.py writes the saved style's thin skill (edit-like-<handle>) and prints its name.
+    Found at AI_EDITOR_LIB, beside this plugin in the repo, or beside it in the plugin cache; no ai-editor: nothing."""
+    here = Path(__file__).resolve()
+    cands = [os.environ.get("AI_EDITOR_LIB"), str(here.parents[4] / "ai-editor" / "lib")]
+    cands += sorted(glob.glob(str(here.parents[4] / "ai-editor" / "*" / "lib")), key=os.path.getmtime, reverse=True)
+    py = next((Path(c) / "ai_editor" / "styleskill.py" for c in cands if c and (Path(c) / "ai_editor" / "styleskill.py").is_file()), None)
+    if py:
+        r = subprocess.run([sys.executable, str(py), "write", str(style_path)], capture_output=True, text=True)
+        print((r.stdout or r.stderr).strip())
+
+
 def demo():
     a = {"handle": "a", "videos": 5, "aspect": "9:16", "pace": {"wpm": 200, "median_shot_s": 2.0},
          "captions": {"present": True, "size_pct": 6.0, "color": "#FFFFFF", "words_per_caption": 3},
@@ -400,6 +416,7 @@ def main():
         render(Path(a.plan))
     elif a.cmd == "blend":
         cmd_blend(a)
+        style_skill(Path.cwd() / "creator-teardowns" / a.name / "style.json")
     else:
         demo()
 

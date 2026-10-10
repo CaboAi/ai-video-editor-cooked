@@ -4,6 +4,19 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Every saved style is a skill, and feedback edits that skill. A finished creator study, a blend and
+  the user's own style each get a thin skill in `~/.claude/skills` (a project's `.claude/skills` when
+  it has one): `edit-like-<handle>` or `my-style`, with triggers ("edit my video like @handle",
+  "/edit-like-handle"), how to run the editor with that style (`profile.py style --from`), what it
+  copies, and "## Learned from your feedback". Review notes and taste corrections take a new scope,
+  **This style (@handle)** (`review.py learn --scope this-style`, `taste.py add --style`), offered
+  first when the edit used a creator's style (`edits/<name>/style.json` now records its `source`).
+  The setting goes to `style.overrides.json` beside the creator's style.json, never into the measured
+  file, so a re-study keeps it. Order: measured style < taste.json < this style's overrides < this
+  video. The rule becomes one bullet in that skill with its count, last date and regressions, and
+  still counts in `taste.py report`. The home page shows the style's skill on "Your skill".
+  New `lib/ai_editor/styleskill.py`. Tests: `styleskill.py demo`, `taste.py demo`, `review.py demo`,
+  `plan.py demo`, `profile.py demo`.
 - The home page: first run in the browser. `home.py serve` opens it (127.0.0.1 only, a random token
   and a SameSite cookie, as on the review page). Five steps: setup (doctor's tool checks and the
   optional keys), pick a creator, study their videos, your skill, your video. Keys typed on the page

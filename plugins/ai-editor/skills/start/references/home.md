@@ -56,7 +56,8 @@ Report these steps, in this order and these words (the page lists the ones still
 8. `Writing the style` (report.py build)
 
 The page reads every number itself from `creator-teardowns/<handle>/style.json` and `videos.json`,
-so it fills in as each script writes. Then read `look.md` and end the job with what not to copy,
+so it fills in as each script writes. `report.py build` also prints the style's skill
+(`skill edit-like-<handle> -> <path>`). Then read `look.md` and end the job with what not to copy,
 one plain sentence per BAN-level AI tell and per move the teardown rejects:
 `--result '{"reject": ["..."]}' --done`. Do not open `teardown.html`: the page links it.
 
@@ -68,15 +69,18 @@ The user ticked what to copy and pressed "Build my skill".
 
 1. `--step "Saving your style"`: `profile.py set 'creators=[{"handle":"<h>","take":[...]}]'`, the
    parts mapped `captions`->captions, `pace`->pace, `graphics`->visuals, `sound` kept for the
-   sound answer (`sound.sfx=true`).
+   sound answer (`sound.sfx=true`). Then creator-teardown's
+   `editplan.py blend <h>-mine --from <h> --take <parts>`: it refreshes the style's skill
+   `edit-like-<h>` on the ticked parts and prints its name.
 2. `--step "Checking whether it is a format of its own"`: creator-teardown's
    `references/skill-handoff.md` gate, from the numbers in `look.md` and `videos.json`.
-3. Pass: `--step "Writing the skill"`, build it as that file says, then
-   `--step "Testing it with one script"` (its "Finally"). Fail: no skill; the style is saved.
+3. Pass: `--step "Writing the skill"`, build it as that file says, link it with
+   `python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/styleskill.py" write creator-teardowns/<h>-mine/style.json --format <name>`,
+   then `--step "Testing it with one script"` (its "Finally"). Fail: no format skill; the style and its skill are saved.
 4. `--result` then `--done`, the JSON the page shows:
 
 ```json
-{"passed": true, "check": "5 of 5 top videos use this format, all above their median",
+{"passed": true, "check": "5 of 5 top videos use this format, all above their median", "style_skill": "edit-like-handle",
  "name": "format-name", "what": "one sentence: what it edits and how, with measured numbers",
  "use_for": "...", "not_for": "...", "path": "~/.claude/skills/format-name",
  "prompts": [{"text": "edit my video like @handle", "what": "one line"}],
@@ -84,7 +88,7 @@ The user ticked what to copy and pressed "Build my skill".
  "tested": "Claude wrote one script with it: \"<title>\". 7 beats, 100 words."}
 ```
 
-A fail sends `{"passed": false, "why": "<which gate question said no>", "prompts": [...], "tools": [...]}`.
+A fail sends `{"passed": false, "why": "<which gate question said no>", "style_skill": "edit-like-<h>", "prompts": [...], "tools": [...]}`.
 Five prompts, each one the user can paste into Claude Code as it is. Every number in `what`,
 `check` and `tested` comes from the teardown or the script; leave a field out rather than guess.
 

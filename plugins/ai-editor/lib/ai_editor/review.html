@@ -31,8 +31,11 @@ button:disabled{cursor:default}
 .seg>button.on{background:var(--raise);box-shadow:var(--sh);color:var(--strong);font-weight:600}
 .seg>button small{font-size:13px;line-height:16px;color:var(--muted);font-weight:400}
 
-header{height:64px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 28px}
+header{position:relative;height:64px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 28px}
 .brand{width:260px;display:flex;align-items:baseline;gap:10px;flex-shrink:0;min-width:0}
+.homebtn{display:inline-flex;align-items:center;gap:6px;align-self:center;height:32px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:none;color:var(--ink2);font:inherit;font-size:14px;cursor:pointer;flex-shrink:0}
+.homebtn:hover{border-color:var(--strong)}
+.homemsg{position:absolute;top:56px;left:28px;z-index:30;max-width:340px;white-space:normal!important;background:var(--panel,#fff);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:13px!important;line-height:18px!important;color:var(--ink2)!important;box-shadow:var(--pop)}
 .brand b{font-size:17px;line-height:22px;font-weight:600;letter-spacing:-.01em;color:var(--strong)}
 .brand span{font-size:14px;line-height:18px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #stages{gap:6px}
@@ -294,7 +297,7 @@ aside{width:400px;flex-shrink:0;background:var(--panel);border:1px solid var(--l
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style></head><body>
 <header>
- <div class="brand"><b>review</b><span id="name"></span></div>
+ <div class="brand"><button id="homebtn" class="homebtn" title="Back to your videos"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.2 8 2.5l5.5 4.7V13a.5.5 0 0 1-.5.5H9.8V10H6.2v3.5H3a.5.5 0 0 1-.5-.5z"/></svg>Home</button><b>review</b><span id="name"></span><span id="homemsg" class="homemsg" hidden></span></div>
  <div class="seg" id="stages"><button id="st1" data-go="cut"></button><button id="st2" data-go="edit"></button></div>
  <div class="status" id="statusbox"><i></i><span id="listen"></span><button class="themebtn"></button><button id="howbtn" aria-label="how this works and shortcuts" title="how this works (?)"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="10" r="8.3"/><path d="M7.7 7.6a2.4 2.4 0 1 1 3.3 2.2c-.6.3-1 .8-1 1.5v.4"/><circle cx="10" cy="14.4" r=".4" fill="currentColor"/></svg></button></div>
  <div class="mhead"><b id="mstage"></b><span id="msub"></span></div><button class="themebtn mtheme"></button><button id="mapprove"></button>
@@ -383,6 +386,10 @@ const D=()=>v.duration||data().duration||1;
 
 // Redraw only when the state changed: redrawing every poll replaced the buttons under the pointer.
 let lastRaw='';
+document.getElementById('homebtn').onclick=()=>{
+  if(S&&S.home){location.href=S.home;return}   // the same tab: back to the editor's window at its fixed address
+  const m=document.getElementById('homemsg');m.textContent='The editor\'s home page is not running. Type nextwork-editor in Terminal to open it again.';m.hidden=false;setTimeout(()=>m.hidden=true,6000);
+};
 async function load(force){
   const raw=await (await fetch('/state')).text();
   if(raw===lastRaw&&!force)return;lastRaw=raw;
@@ -561,7 +568,7 @@ function noteHtml(c){
   }
   const acts=[];
   if(old&&live&&!c.checked&&c.status!=='open')acts.push(`<button data-good="${c.id}">Got it</button>`);
-  if(canEdit&&!ed)acts.push(`<button data-edit="${c.id}">Edit</button>`,`<button data-move="${c.id}" title="the note's moment, frame and words move to the playhead">Move to playhead</button>`);
+  if(canEdit&&!ed)acts.push(`<button data-edit="${c.id}">Edit</button>`);
   if(canEdit&&nv)acts.push(`<button data-scope="${c.id}">${c.alt==='*'?'Make it this video only':'Apply to all versions'}</button>`);
   if(canEdit)acts.push(`<button data-del="${c.id}">Delete</button>`);
   if(acts.length)h+=`<div class="acts">${acts.join('')}</div>`;
@@ -643,9 +650,6 @@ $('list').addEventListener('click',async e=>{
   }
   const ed=e.target.closest('[data-edit]');
   if(ed){e.stopPropagation();const c=S.comments.find(c=>c.id===+ed.dataset.edit);editing={id:c.id,text:c.text,images:[...(c.images||[])],focus:true};v.pause();return renderList()}
-  const mv=e.target.closest('[data-move]');
-  if(mv){e.stopPropagation();const r=await fetch('/edit',{method:'POST',body:JSON.stringify({id:+mv.dataset.move,t:v.currentTime})});
-    if(!r.ok)alert((await r.json().catch(()=>({}))).error||'Could not move the note');return load(true)}
   const r=e.target.closest('.rnd');if(r){const[stage,n]=r.dataset.k.split('-');view={stage,round:+n};tab='notes';inT=outT=null;setVideo();render();return}
   const sc=e.target.closest('[data-scope]');
   if(sc){e.stopPropagation();const c=S.comments.find(c=>c.id===+sc.dataset.scope);

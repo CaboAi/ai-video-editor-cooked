@@ -437,6 +437,7 @@ def stream(video, vf, w, h, fps=FPS):
     finally:   # a reader that stops early (the shorter of two videos): stop ffmpeg before its pipe breaks,
         if p.poll() is None:   # or it prints seven "Broken pipe" lines after the check's summary
             p.kill()
+            p.wait()           # dead before the pipe closes: closing first let a write slip in now and then
         p.stdout.close()
         p.wait()
 

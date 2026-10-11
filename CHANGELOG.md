@@ -4,6 +4,9 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Study a creator from links: paste one or more video links (TikTok, YouTube or Instagram) instead of a
+  profile, on the first run and on Pick a style. The window lists the links, names the creator when every
+  link shares one, and says that 5 or more gives a truer style. Test: `home.py demo`.
 - Home page dashboard: **Home** from every page. Returning users get a Home tab beside New video, Your
   videos and My styles (always shown, also during New video, Pick a style and Making). Every first-run
   step has a Home button in the header, and the "ai editor" name goes Home too: the dashboard once set

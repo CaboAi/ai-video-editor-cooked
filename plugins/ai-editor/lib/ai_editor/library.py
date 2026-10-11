@@ -315,7 +315,7 @@ def demo():
                     ({"sent": True, "stage": "edit", "events": [{"type": "approve"}]}, "done")):
         assert status(r) == want, (r, want)
     # clean: chunks, the wav cache, round copies older than the last two (but the current one), never protected files
-    fs = {str(f.relative_to(mine)) for f in working_files([mine])}
+    fs = {f.relative_to(mine).as_posix() for f in working_files([mine])}
     assert fs == {"chunks/chunk-0.mkv", ".sfx/pop.wav", "review/v-cut1.mp4"}, fs
     _, n = clean([mine], yes=True)
     assert n > 1000 and not (mine / "chunks").exists() and (mine / ".sfx" / "kit.json").exists()

@@ -768,7 +768,7 @@ function vSettings(){
   const on=KEYS.filter(k=>(S.keys[k.id]||{}).set).length+(latest('modal')&&latest('modal').state==='done'?1:0);
   return `<div class="row setcols" style="align-items:stretch;gap:24px;flex:1;min-width:0">
     <div class="col rv-side" style="width:380px;gap:24px;padding:12px 14px 0"><div><h1>Settings</h1><p class="lede">Nothing here is needed. Each extra makes your edits faster or better. Skip any of them and the editor still works.</p></div>
-      <div class="panel" style="padding:20px;gap:12px;margin-top:auto"><div class="h">For power users</div><div class="sub">Everything here runs on Claude Code. Type what you want in plain words:</div>
+      <div class="panel" style="padding:20px;gap:12px;margin-top:28px"><div class="h">For power users</div><div class="sub">Everything here runs on Claude Code. Type what you want in plain words:</div>
         ${POWER.map(t=>`<div class="codebox" style="font-size:13px;gap:10px"><span style="min-width:0">${esc(t)}</span><button class="hlink" onclick="copyText(${esc(JSON.stringify(t))},this)">Copy</button></div>`).join('')}
         <div class="muted">Changes you make there show up here.</div></div></div>
     <div class="col grow" style="min-width:0;gap:24px">

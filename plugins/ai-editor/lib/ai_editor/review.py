@@ -231,8 +231,30 @@ def card_at(plan, t):
 
 
 def grab(video, t, out):
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.3f}", "-i", str(video), "-frames:v", "1",
+    """The frame at t as a jpg. At the very end (the playhead on the last frame) `-ss t` lands past the last
+    frame and writes nothing, so a note lost its still: seek from the end instead."""
+    d = duration(video)
+    seek = ["-sseof", "-0.1"] if d and t >= d - 0.05 else ["-ss", f"{t:.3f}"]
+    subprocess.run(["ffmpeg", "-v", "error", "-y", *seek, "-i", str(video), "-frames:v", "1",
                     "-vf", "scale=960:-2", "-q:v", "3", str(out)], check=False)
+
+
+_HOME = {"at": 0.0, "url": None}
+
+
+def home_url():
+    """The home page's address (home.py keeps one fixed address in $AI_EDITOR_HOME/home/.server) when it
+    answers, else None. Checked at most every 10 s."""
+    if time.time() - _HOME["at"] < 10:
+        return _HOME["url"]
+    f = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home" / ".server"
+    try:
+        url = f.read_text(encoding="utf-8").strip()
+        urllib.request.urlopen(url.replace("/?t=", "/state?t="), timeout=1).read()
+    except (OSError, ValueError):
+        url = None
+    _HOME.update(at=time.time(), url=url)
+    return url
 
 
 def listening(folder):
@@ -372,6 +394,7 @@ def make_handler(folder, token):
                 d = load(rj)
                 d["listening"] = listening(folder)
                 d["cutcheck"] = (folder / "cut-check.html").exists()
+                d["home"] = home_url()   # the Home button: back to the editor's window, or how to start it
                 for x in d.get("activity", [])[-1:]:
                     if x.get("log") and not x.get("done"):
                         x["pct"] = log_pct(x["log"])
@@ -578,7 +601,9 @@ def serve(folder, port=0, open_browser=True):
             webbrowser.open(url)
         return None, url
     token = secrets.token_urlsafe(32)
-    srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(folder, token))
+    # exclusive bind on Windows, where SO_REUSEADDR (HTTPServer's default) lets two servers share a port
+    srv = type("Server", (ThreadingHTTPServer,), {"allow_reuse_address": os.name != "nt"})(("127.0.0.1", port),
+                                                                                      make_handler(folder, token))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
     (folder / "review" / ".server").write_text(url, encoding="utf-8")
     if open_browser:
@@ -612,6 +637,12 @@ def cmd_start(a, folder):
     d["data"] = round_data(folder, d["video"], d["stage"], d["round"], d["plan"])
     log_round(d)
     save(rj, d)
+    try:   # the home page's library lists this edit wherever it was made
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import library
+        library.record(folder)
+    except (OSError, ValueError, ImportError):
+        pass
     print(f"{rj}: {stage_name(d['stage'])}, round {d['round']}")
 
 
@@ -834,6 +865,7 @@ def demo():
     import io
     import tempfile
     tmp = Path(tempfile.mkdtemp(prefix="review_demo_"))
+    os.environ["AI_EDITOR_HOME"] = str(tmp / "home")   # start records the folder in the library index there
     vid = tmp / "v.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30:duration=6",
                     "-f", "lavfi", "-i", "sine=duration=6", "-shortest", "-pix_fmt", "yuv420p", str(vid)], check=True)
@@ -847,6 +879,11 @@ def demo():
     folder = tmp / "edits" / "demo"
     ns = argparse.Namespace
     cmd_start(ns(video=str(vid), stage="cut", transcript=str(tr), plan=None, note=None, name=None), folder)
+    assert str(folder.resolve()) in load(tmp / "home" / "library.json")["edits"], "start lists the edit in the library"
+    end = tmp / "end.jpg"   # the playhead on the last frame: -ss there writes nothing, so grab seeks from the end
+    grab(vid, duration(vid), end)
+    assert end.exists() and end.stat().st_size > 1000, "no still at the last frame"
+    assert "Move to playhead" not in HTML.read_text(encoding="utf-8") and 'id="homebtn"' in HTML.read_text(encoding="utf-8")
     assert load(folder / "review.json")["vertical"] is False
     srv, url = serve(folder, 0, open_browser=False)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -905,6 +942,17 @@ def demo():
     post("/delete", {"id": ci["id"]})
     assert [x["id"] for x in load(folder / "review.json")["comments"]] == [c["id"]]
     assert not json.loads(get("/state").read())["listening"]
+    assert json.loads(get("/state").read())["home"] is None   # no home page running: the button says how to start it
+    hs = ThreadingHTTPServer(("127.0.0.1", 0), type("H", (BaseHTTPRequestHandler,), {
+        "do_GET": lambda self: (self.send_response(200), self.end_headers(), self.wfile.write(b"{}")), "log_message": lambda *a: None}))
+    threading.Thread(target=hs.serve_forever, daemon=True).start()
+    hurl = f"http://127.0.0.1:{hs.server_address[1]}/?t=abc"
+    (tmp / "home" / "home").mkdir(parents=True, exist_ok=True)
+    (tmp / "home" / "home" / ".server").write_text(hurl, encoding="utf-8")
+    _HOME["at"] = 0
+    assert json.loads(get("/state").read())["home"] == hurl, "the Home button reads home.py's fixed address"
+    hs.shutdown()
+    hs.server_close()
     # the cut's transcript: kept words on the cut's timeline, the cut word struck, the removed pause a chip
     (folder / "words.raw.json").write_text(json.dumps([
         {"text": "hello", "start": 0.0, "end": 0.4, "type": "word"}, {"text": "um,", "start": 0.5, "end": 0.8, "type": "word"},

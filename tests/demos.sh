@@ -7,11 +7,12 @@ PY=${PY:-python}
 T=plugins/creator-teardown/skills/creator-teardown/scripts
 A=plugins/ai-editor/skills
 L=plugins/ai-editor/lib/ai_editor
+failed=()
 for s in "$T/fetch.py demo" "$T/editplan.py demo" "$T/visual.py demo" "$T/graphics.py demo" "$T/sound.py demo" \
   "$T/report.py demo" "$T/look.py demo" "$T/gemini.py demo" "$T/parallel.py demo" \
   "$A/cut/scripts/test_build_timeline.py" "$A/cut/scripts/test_retakes.py" "$A/cut/scripts/test_media.py" "$A/cut/scripts/verify_cut.py demo" "$A/cut/scripts/hook_check.py demo" "$A/cut/scripts/join.py demo" \
   "$A/cut/scripts/judge_cut.py demo" "$A/cut/scripts/read_cut.py demo" \
-  "$L/keys.py" "$L/jev.py" "$L/profile.py demo" "$L/links.py demo" "$L/lock.py demo" "$L/models.py" "$L/run.py demo" "$L/review.py demo" "$L/styleskill.py demo" "$L/home.py demo" \
+  "$L/keys.py" "$L/jev.py" "$L/profile.py demo" "$L/links.py demo" "$L/lock.py demo" "$L/models.py" "$L/run.py demo" "$L/review.py demo" "$L/styleskill.py demo" "$L/home.py demo" "$L/library.py demo" "$L/launcher.py demo" \
   "$A/style-edit/scripts/plan.py demo" "$A/style-edit/scripts/edit.py demo" "$A/style-edit/scripts/export_nle.py demo" "$A/style-edit/scripts/chapters.py demo" \
   "$A/style-edit/scripts/matte.py demo" "$A/clips/scripts/clips.py demo" "$A/setup/scripts/setup.py demo" \
   "$A/taste/scripts/taste.py demo" "$A/taste/scripts/learn.py demo" "$A/style-edit/scripts/face.py demo" "$A/style-edit/scripts/check.py demo" \
@@ -21,8 +22,9 @@ for s in "$T/fetch.py demo" "$T/editplan.py demo" "$T/visual.py demo" "$T/graphi
   "$A/improve/scripts/improve.py demo" "$A/style-edit/scripts/preview.py demo" "tests/golden.py demo" "tests/fresh_install.py demo"; do
   echo "== $s"
   # shellcheck disable=SC2086
-  "$PY" $s
+  "$PY" $s || failed+=("$s")   # keep going: one CI run lists every failing check, not just the first
 done
 echo "== tests/test_record.mjs"
-node tests/test_record.mjs
+node tests/test_record.mjs || failed+=("tests/test_record.mjs")
+if ((${#failed[@]})); then printf 'FAILED: %s\n' "${failed[@]}"; exit 1; fi
 echo "all demos ok"

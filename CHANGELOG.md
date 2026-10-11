@@ -4,6 +4,41 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- My styles: every saved style (My style and each studied creator) is a card with its real numbers
+  (measured, with that style's corrections) and its skill name. A style's page changes caption size,
+  words and height, zooms, cut and sound effects with a live frame; each change is a correction at
+  that style's scope (`styleskill.learn`: its `style.overrides.json`, or taste.json for My style, and
+  the skill's "Learned from your feedback"). The page lists those rules with counts and a Forget
+  button, opens the skill file, and takes "Tell it what to change" in plain words as
+  `JOB style-change`, which Claude turns into rules at that scope. Test: `home.py demo`.
+- Review page: a **Home** button back to the editor's window at its fixed address (same tab), or a
+  plain line saying to type `nextwork-editor` when it is not running. **Move to playhead** is gone.
+  A note left on the last frame keeps its still (`grab` seeks from the end). Test: `review.py demo`.
+- Home page setup step: real brand marks (Simple Icons, CC0, and TypeSafe's own mark) beside each
+  tool and key, one colour, vendored. The key file path is shortened in the middle, and a stopped
+  editor reads "The editor stopped. Run nextwork-editor to start it again."
+
+- `nextwork-editor`: one command opens the editor's window. `setup.py install-launcher` puts it on the
+  PATH in a user folder (no sudo; `uninstall-launcher` takes it and any PATH line off). It starts
+  Claude Code in the library with the first prompt `/ai-editor:start open the home page`, or reopens
+  the page when it is already served. Permissions are never bypassed. Test: `launcher.py demo`,
+  `setup.py demo`.
+- The same window every time: the home page serves on port 47821 (the next free one when taken,
+  remembered) with one token per install (`home/token`, 0600), so the address can be bookmarked.
+- One library for every video: `~/Movies/AI Editor` on a Mac, `~/Videos/AI Editor` on Windows and
+  Linux (`AI_EDITOR_LIBRARY`, or Settings, to move it). The page, its jobs and the skills work there
+  unless the user names a project folder. `review.py start` records each edit folder, so edits made
+  elsewhere stay listed. Test: `library.py demo`.
+- Returning users land on Home: their videos with status (being made, ready to review, done), the
+  review page and a download for each, My style and the creators studied. **New video** is two steps:
+  pick clips (the library's videos, files picked before, and, once turned on, recent clips from
+  Movies, Desktop and Downloads; **Choose files...**; drop anywhere), set their order, one video
+  joined or separate videos, tall or wide; then **Pick a style**, each shown on the user's first clip
+  with only measured numbers, or create one by copying a creator (the cut starts while the study
+  runs). **Make my video** queues one JOB (several clips as `takes=`) or one per clip. Settings shows
+  disk use and **Clear working files** (render chunks, sound caches, review copies older than the
+  last two; asks first). Test: `home.py demo`.
+
 - Every saved style is a skill, and feedback edits that skill. A finished creator study, a blend and
   the user's own style each get a thin skill in `~/.claude/skills` (a project's `.claude/skills` when
   it has one): `edit-like-<handle>` or `my-style`, with triggers ("edit my video like @handle",

@@ -23,8 +23,24 @@ Built by [NextWork](https://nextwork.ai). Free and open source (MIT). Works on M
 
 ## Start here
 
-You need [Claude Code](https://claude.com/claude-code) and a Claude account (a paid plan or an API
-key). Pick one of three ways.
+After setup, this is how you open the editor every time. In a terminal, type:
+
+```
+nextwork-editor
+```
+
+Your editor opens in the browser, at the same address every time (bookmark it). Drop in your clips
+or click the ones you want, pick a style, press **Make my video**. The first time, Claude Code asks
+"Do you trust the files in this folder?": pick **Yes, proceed** (it is your videos folder). Inside Claude Code,
+`/ai-editor:start` does the same. Setup adds the command; `python3 plugins/ai-editor/skills/setup/scripts/setup.py
+uninstall-launcher` removes it.
+
+Your videos are saved in one folder, wherever you start: `~/Movies/AI Editor` on a Mac,
+`~/Videos/AI Editor` on Windows and Linux. Change it in the editor's Settings (or set
+`AI_EDITOR_LIBRARY`).
+
+The first time, you need [Claude Code](https://claude.com/claude-code) and a Claude account (a paid
+plan or an API key). Pick one of three ways.
 
 ### Way 1: open this folder in Claude Code (easiest)
 
@@ -73,7 +89,7 @@ Inside Claude Code, type these two lines (same on every computer):
 ```
 
 If it asks, type `/reload-plugins`. Then say **edit my video**. `creator-teardown` installs with it.
-Your edits land in whatever folder you started Claude Code in.
+Your edits land in your library folder (above), wherever you started Claude Code.
 
 ### Way 3: other agents (Codex, Cursor, Gemini CLI, Copilot)
 
@@ -113,8 +129,11 @@ single skill folders, clone the whole repo too.
 8. **Say what you'd change** ("captions too small", "fewer zooms"). It is saved to
    `~/.ai-video-editor/taste.md` and used on every video after.
 
-Your files land in the folder you started in: `edits/<name>/`, `clips/<name>/`, `product/<name>/`
-and `creator-teardowns/<handle>/`.
+Your files land in your library folder (`~/Movies/AI Editor` on a Mac, `~/Videos/AI Editor`
+elsewhere), or in a project folder you name: `videos/` (clips you dropped in), `edits/<name>/`,
+`clips/<name>/`, `product/<name>/` and `creator-teardowns/<handle>/`. The editor's **Your videos**
+lists every one, with its review page, **Show in Finder**, and **Clear working files** in Settings
+(it never deletes your clips, a cut, a final video or your notes).
 
 ## What you can say
 

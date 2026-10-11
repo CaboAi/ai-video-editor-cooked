@@ -19,8 +19,8 @@ changed: re-planned, checked, and re-rendered where they changed. Everything els
 the user approved it. This skill writes no renderer code: it changes visuals.json and images.json,
 and style-edit's scripts and Remotion templates do the rest.
 
-Run the scripts with `python3` on Mac and Linux, `py` on Windows. Paths are relative to the folder
-Claude Code was started in. `S="${CLAUDE_PLUGIN_ROOT}/skills/style-edit/scripts"`,
+Run the scripts with `python3` on Mac and Linux, `py` on Windows. Paths are relative to the library
+(PRINCIPLES.md "Where"). `S="${CLAUDE_PLUGIN_ROOT}/skills/style-edit/scripts"`,
 `VPY="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/run.py"`; `python3 "$VPY"` is the venv Python.
 
 ```

@@ -9,15 +9,15 @@ compatibility: Python 3.9+, ffmpeg, Node 20+ and the Remotion renderer the setup
 
 Paths: `${CLAUDE_SKILL_DIR}` means the folder containing this SKILL.md, and `${CLAUDE_PLUGIN_ROOT}` the plugin folder two levels above it.
 
-Read `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` first: the rules every video in this plugin follows (asking, looking real, motion, story and framing, privacy, cost).
+Read `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` first: the rules every video follows (where, asking, looking real, motion, story, privacy, cost).
 
-Every question to the user goes in the question box: call the AskUserQuestion tool (2-4 options, the recommended one first). Only in an agent without that tool, ask numbered questions in text.
+Every question goes in the question box: the AskUserQuestion tool (2-4 options, recommended first). Only in an agent without it, ask numbered questions in text.
 
 An approved cut and a creator's style in. The finished video out: captions, zooms, real captures and
 motion scenes timed to the words, in that creator's look and the user's brand. The user approves
 the stills sheet (step 5) and picks where to render (step 6).
 
-Paths are relative to the folder Claude Code was started in. Run the scripts with `python3` on Mac
+Paths are relative to the library (PRINCIPLES.md). Run the scripts with `python3` on Mac
 and Linux, `py` on Windows. `S="${CLAUDE_SKILL_DIR}/scripts"`,
 `VPY="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/run.py"`; `python3 "$VPY"` is the venv Python.
 

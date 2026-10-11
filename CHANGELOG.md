@@ -67,6 +67,8 @@ What changed for every user, newest first.
   still counts in `taste.py report`. The home page shows the style's skill on "Your skill".
   New `lib/ai_editor/styleskill.py`. Tests: `styleskill.py demo`, `taste.py demo`, `review.py demo`,
   `plan.py demo`, `profile.py demo`.
+- Cut: a kept span under 0.2 s stays when a kept word starts in it (a house take's 0.167 s "30," was
+  being cut). Only a span with no word in it, such as the one-frame head flash, folds into the cut.
 - The home page: first run in the browser. `home.py serve` opens it (127.0.0.1 only, a random token
   and a SameSite cookie, as on the review page). Five steps: setup (doctor's tool checks and the
   optional keys), pick a creator, study their videos, your skill, your video. Keys typed on the page

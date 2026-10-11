@@ -4,6 +4,21 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Home page dashboard: **Home** from every page. Returning users get a Home tab beside New video, Your
+  videos and My styles (always shown, also during New video, Pick a style and Making). Every first-run
+  step has a Home button in the header, and the "ai editor" name goes Home too: the dashboard once set
+  up, else step 1. The header says "Making N videos" while any are being made.
+- Your videos: what needs you now as cards (ready to watch or being made, with a plain line and Watch
+  and review), finished videos as a grid with a filled green tick and Download. The library shows as
+  "Movies › AI Editor" instead of a full path (`/library` gives `place`).
+- Settings: the optional keys and Modal sit on the page (same rows and checks as setup), with a box of
+  plain-word prompts to copy into Claude Code. The style page says where the style started and how
+  many things you changed, and no longer shows the skill file's path. Creators on Home open their
+  style page and mark the one My style started from. "Build it yourself" opens My style's page.
+- Layout fixes at 1100 px and on phones: the style page's side panel moves under at 1100, key rows
+  stack in Settings, no words break mid-word, first-run panels are no longer cut off on phones.
+  Test: `home.py demo`.
+
 - My styles: every saved style (My style and each studied creator) is a card with its real numbers
   (measured, with that style's corrections) and its skill name. A style's page changes caption size,
   words and height, zooms, cut and sound effects with a live frame; each change is a correction at

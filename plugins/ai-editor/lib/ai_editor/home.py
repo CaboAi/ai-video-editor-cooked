@@ -256,6 +256,15 @@ def measured(root, handle):
 
 
 # ---------------------------------------------------------------- styles: the "Pick a style" cards
+def place(p):
+    """A folder as the page shows it: under the home folder by name ("Movies › AI Editor"), else in full."""
+    p = Path(p)
+    try:
+        return " › ".join(p.relative_to(Path.home()).parts) or str(p)
+    except ValueError:
+        return str(p)
+
+
 def facts(s):
     """[[label, value]] measured in a style.json, at most three. A part not measured is left out."""
     p, z, c = (s.get(k) or {} for k in ("pace", "zoom", "captions"))
@@ -331,7 +340,7 @@ def style_cards(root):
         else:
             line = (f"Measured from {st['videos']} of their videos." if st.get("videos") else "Studied by the editor.") + \
                 (f" {n} change{'s' if n != 1 else ''} from your feedback." if n else "")
-        out.append({"id": sid, "name": "My style" if sid == "mine" else sid, "facts": facts(st), "look": look(st),
+        out.append({"id": sid, "name": "My style" if sid == "mine" else sid, "facts": facts(st), "look": look(st), "base": base,
                     "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n,
                     "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False})
     return out
@@ -572,7 +581,7 @@ def make_handler(token):
                     if j["type"] == "teardown" and j["state"] in ("queued", "taken") and "@" + str(h) not in [c["id"] for c in cards]:
                         cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True,
                                       "line": "Being studied now. Your cut starts first; the style waits for the study."})
-                return self.send(200, {"path": root, "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
+                return self.send(200, {"path": root, "place": place(root), "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
                                        "videos": vids, "styles": cards})
             if path == "/recent":
                 st = read()
@@ -1201,6 +1210,8 @@ def demo():
     mine = get("/library")["styles"][0]
     assert mine["line"].startswith("Your saved style. Started from @sample.creator.") and mine["facts"][0] == ["Cut every", "1.9 s"]
     assert mine["skill"] == "my-style" and st["@sample.creator"]["skill"] == "edit-like-sample-creator"
+    assert mine["base"] == "sample.creator" and st["@sample.creator"]["base"] == "sample.creator", "the style page names where My style started"
+    assert place(Path.home() / "Movies" / "AI Editor") == "Movies › AI Editor" and (lambda lb: lb["place"] == place(lb["path"]))(get("/library"))
     # My styles: a style's page; a change there is a correction at that style's scope (overrides + its skill)
     pg = get("/style?id=@sample.creator")
     assert pg["values"]["captions.words_per_caption"] == 2 and pg["changed"] == [] and pg["rules"] == [], pg

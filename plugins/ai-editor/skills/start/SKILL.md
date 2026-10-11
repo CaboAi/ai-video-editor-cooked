@@ -9,9 +9,9 @@ compatibility: Python 3.9+, standard library only for the intake. The steps it r
 
 Paths: `${CLAUDE_SKILL_DIR}` means the folder containing this SKILL.md, and `${CLAUDE_PLUGIN_ROOT}` the plugin folder two levels above it.
 
-Read `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` first: the rules every video in this plugin follows (asking, looking real, motion, story and framing, privacy, cost).
+Read `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` first: the rules every video follows (where, asking, looking real, motion, story, privacy, cost).
 
-Every question to the user goes in the question box: call the AskUserQuestion tool (2-4 options, the recommended one first). Only in an agent without that tool, ask numbered questions in text.
+Every question goes in the question box: the AskUserQuestion tool (2-4 options, recommended first). Only in an agent without it, ask numbered questions in text.
 
 The user's whole job: drop a video, answer a few questions, approve the cut, approve the stills sheet.
 Everything else is this skill's job.
@@ -51,10 +51,9 @@ re-edit.
 
 ## 1. The video
 
-No video path, link or creator yet (a first run, a bare "edit my video"): ask in the question box
-**Open the home page (Recommended)** (they pick a creator and drop the video there; follow
-`references/home.md`) / **I'll give the path** / **Use the sample take** (cut's "No video yet?").
-Name the edit folder after the file (`IMG_1234.MOV` -> `edits/img-1234`).
+"Open the home page" (`nextwork-editor`, `/ai-editor:start`): open it, `references/home.md`. No video,
+link or creator (a bare "edit my video"): ask **Open the home page (Recommended)** / **I'll give
+the path** / **Use the sample take** (cut's "No video yet?"). Edit folder: `IMG_1234.MOV` -> `edits/img-1234`.
 
 ## 2. Intake: only what is missing
 

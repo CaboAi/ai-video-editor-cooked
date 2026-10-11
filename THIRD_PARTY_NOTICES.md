@@ -122,3 +122,15 @@ The style and sound lessons in `references/style.md` and `references/sound.md` w
 launch films by Apple, Linear, Stripe, The Browser Company (Arc, Dia) and Raycast (cut times, colours,
 loudness, tempo, spectrograms). Nothing from those films (footage, audio, brand, type, colour) is copied
 into the plugin or its output; the renderer uses only the target site's own UI, colours, fonts and words.
+
+## Brand marks on the home page
+
+`plugins/ai-editor/lib/ai_editor/home.html` carries the marks of the tools and services it names,
+drawn in one colour to match the page:
+
+- Python, FFmpeg, Node.js, Git, ElevenLabs, Google Gemini and Modal: SVG paths from Simple Icons
+  16.34.0 (https://github.com/simple-icons/simple-icons, CC0 1.0). The marks remain the trademarks of
+  their owners and are used only to name each service.
+- TypeSafe: the site's own favicon (typesafe.ai), reduced to its one-colour mark and embedded as a
+  48 px PNG. A trademark of its owner, used only to name the service.
+

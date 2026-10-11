@@ -9,7 +9,7 @@ compatibility: Claude Code or any agent with a shell, on Mac, Windows or Linux. 
 
 Paths: `${CLAUDE_SKILL_DIR}` means the folder containing this SKILL.md, and `${CLAUDE_PLUGIN_ROOT}` the plugin folder two levels above it.
 
-Every question to the user goes in the question box: call the AskUserQuestion tool (2-4 options, the recommended one first). Only in an agent without that tool, ask numbered questions in text.
+Every question goes in the question box: the AskUserQuestion tool (2-4 options, recommended first). Only in an agent without it, ask numbered questions in text.
 
 The user may never have used a terminal. Go one step at a time. Before each install, say in one
 sentence what the tool is for. Run the command once they say yes. Check after every step.
@@ -38,12 +38,11 @@ Every step can be skipped and finished later: on a skip, run `python3 "$U" later
 any time to add it." When the user says "finish setup" (or "add my <x> key"), run
 `python3 "$U" todo` and go straight to the steps it lists (every optional step not done yet).
 
-Work through them with a header on every step, e.g. **Step 2 of 4, keys: TypeSafe (1 of 3)**. For
-each step say what it is, why it helps them, what it costs, and what skipping it means. One short
-line each.
+Put a header on every step, e.g. **Step 2 of 4, keys: TypeSafe (1 of 3)**, and say in one short
+line each what it is, why it helps, what it costs, what skipping means.
 
-If a script prints an error, read its message to the user in plain words and ask again. Do not
-open, grep or debug the setup scripts: their messages already say what to do.
+If a script prints an error, say its message in plain words and ask again. Never open, grep or
+debug the setup scripts: their messages say what to do.
 
 ## 1. Doctor
 
@@ -165,11 +164,13 @@ is, what it costs, the card, then four checked steps.
 
 ## 7. Check
 
-Run doctor again until it prints `Ready.` Skipped keys show as `--`; that is fine.
+Run doctor again until it prints `Ready.` Skipped keys show as `--`; that is fine. Then
+`python3 "$U" install-launcher`: the `nextwork-editor` command opens the editor's window from any
+terminal (`uninstall-launcher` takes it off).
 
 ## 8. Your style (asked once)
 
-The last part of setup is about taste, not tools. Ask what is still missing:
+Last, taste. Ask what is still missing:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/profile.py" missing --style
@@ -196,7 +197,7 @@ Check: it prints `Tested: cutting the speaker out works.` On **No**, skip it: th
 Then offer, in one question box, to study those creators now so the first edit is quick:
 "Break down @handle's style now? (about a minute per creator)" with yes first. On yes, run the
 creator-teardown skill in quick mode for each creator and each liked video link. On no, start does
-it later. End with: "Ready. Drop a video and say edit my video."
+it later. End with: "Ready. Type nextwork-editor in a terminal, or say edit my video."
 
 ## Optional: GitHub Actions and AWS Lambda renders
 

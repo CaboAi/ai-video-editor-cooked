@@ -17,7 +17,7 @@ A URL in. A product video out, made only of the site's real UI, real recorded cl
 colours and type, and its own words, scored and mixed for this cut. `S="${CLAUDE_SKILL_DIR}/scripts"`,
 Run the scripts with `python3` on Mac and Linux, `py` on Windows.
 `PY="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/run.py"`; `python3 "$PY"` below runs the editor's venv Python (`py "$PY"` on Windows).
-Work in `product/<name>/` under the folder Claude Code was started in.
+Work in `product/<name>/` in the library (PRINCIPLES.md "Where").
 
 ```
 URL -> brief (questions) -> crawl.mjs -> site.json + pages/ (features, pricing, docs, changelog, customers...)

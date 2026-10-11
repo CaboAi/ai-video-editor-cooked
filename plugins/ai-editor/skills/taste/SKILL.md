@@ -26,7 +26,8 @@ The user's own rules, kept outside the plugin (plugin updates never touch them):
    small" becomes "Cards fill the space they have", not "make the router card bigger".
 2. Scope. After every correction, ask in the question box: "Is this about this video, your style, or
    would it help everyone?" with the options `My style (Recommended)`, `Just this video` and
-   `Would help everyone`. Skip the question only when they already said it ("always", "just this one").
+   `Would help everyone`. When the edit used a creator's style (`edits/<name>/style.json` has a
+   `source`), add `This style (@handle)` first, as the recommended one. Skip the question only when they already said it ("always", "just this one").
    `Would help everyone` saves it to their style too, then step 6.
 3. Save it with `add`, with the setting when one maps (table below) and the edit it was said on:
 
@@ -34,7 +35,13 @@ The user's own rules, kept outside the plugin (plugin updates never touch them):
 python3 "$S/taste.py" add captions "Captions bigger" --set captions.size_pct=6 --edit edits/<name>
 python3 "$S/taste.py" add sound "Whooshes quieter on this one" --video edits/<name>
 python3 "$S/taste.py" add visuals "Logos stay smaller than the captions" --edit edits/<name>
+python3 "$S/taste.py" add captions "Captions smaller" --set captions.size_pct=4.5 --style edits/<name> --edit edits/<name>
 ```
+
+   `--style` (This style): the setting goes to that creator's `style.overrides.json` (style.json stays
+   as measured; a re-study keeps it), which wins over taste.json on that style, and the rule to the
+   "Learned from your feedback" section of its `edit-like-<handle>` skill. `My style` rules also
+   update the `my-style` skill.
 
    The same rule said again (same setting, or near-identical words, same scope) edits the old
    one instead of adding a copy. Every-video rules also land in taste.md (words) and taste.json

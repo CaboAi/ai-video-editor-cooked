@@ -15,9 +15,11 @@ product video). Notes save with the edit, never in the plugin:
     python3 review.py <folder> resolve <id> fixed|wontfix|open [--reply "..."] [--new-t 12.3]
     python3 review.py <folder> round --video v2.mp4 [--stage cut|edit] [--transcript ..] [--plan ..] [--note ".."]
     python3 review.py <folder> alt <name> --video other.mp4 [--transcript ..]   another video in this round
-    python3 review.py <folder> learn --scope style|video|everyone --rule <id> <section> "<rule>" [key=value] ...
+    python3 review.py <folder> learn --scope this-style|style|video|everyone --rule <id> <section> "<rule>" [key=value] ...
                                      the round's preference notes into the user's taste (taste.py add); --none if
-                                     none. Each note records it: "taste": rule id | video-only | suggested | one-off
+                                     none. Each note records it: "taste": rule id | video-only | suggested | one-off.
+                                     this-style: the creator style the edit used (<folder>/style.json "source", or
+                                     --style <style.json>): its overrides and its edit-like-<slug> skill
     python3 review.py demo                         self-check on a generated 6 s clip
 
 Each round also gets review/data-<stage><round>.json for the page, built from the edit folder when
@@ -229,8 +231,30 @@ def card_at(plan, t):
 
 
 def grab(video, t, out):
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.3f}", "-i", str(video), "-frames:v", "1",
+    """The frame at t as a jpg. At the very end (the playhead on the last frame) `-ss t` lands past the last
+    frame and writes nothing, so a note lost its still: seek from the end instead."""
+    d = duration(video)
+    seek = ["-sseof", "-0.1"] if d and t >= d - 0.05 else ["-ss", f"{t:.3f}"]
+    subprocess.run(["ffmpeg", "-v", "error", "-y", *seek, "-i", str(video), "-frames:v", "1",
                     "-vf", "scale=960:-2", "-q:v", "3", str(out)], check=False)
+
+
+_HOME = {"at": 0.0, "url": None}
+
+
+def home_url():
+    """The home page's address (home.py keeps one fixed address in $AI_EDITOR_HOME/home/.server) when it
+    answers, else None. Checked at most every 10 s."""
+    if time.time() - _HOME["at"] < 10:
+        return _HOME["url"]
+    f = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home" / ".server"
+    try:
+        url = f.read_text(encoding="utf-8").strip()
+        urllib.request.urlopen(url.replace("/?t=", "/state?t="), timeout=1).read()
+    except (OSError, ValueError):
+        url = None
+    _HOME.update(at=time.time(), url=url)
+    return url
 
 
 def listening(folder):
@@ -370,6 +394,7 @@ def make_handler(folder, token):
                 d = load(rj)
                 d["listening"] = listening(folder)
                 d["cutcheck"] = (folder / "cut-check.html").exists()
+                d["home"] = home_url()   # the Home button: back to the editor's window, or how to start it
                 for x in d.get("activity", [])[-1:]:
                     if x.get("log") and not x.get("done"):
                         x["pct"] = log_pct(x["log"])
@@ -576,7 +601,9 @@ def serve(folder, port=0, open_browser=True):
             webbrowser.open(url)
         return None, url
     token = secrets.token_urlsafe(32)
-    srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(folder, token))
+    # exclusive bind on Windows, where SO_REUSEADDR (HTTPServer's default) lets two servers share a port
+    srv = type("Server", (ThreadingHTTPServer,), {"allow_reuse_address": os.name != "nt"})(("127.0.0.1", port),
+                                                                                      make_handler(folder, token))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
     (folder / "review" / ".server").write_text(url, encoding="utf-8")
     if open_browser:
@@ -610,6 +637,12 @@ def cmd_start(a, folder):
     d["data"] = round_data(folder, d["video"], d["stage"], d["round"], d["plan"])
     log_round(d)
     save(rj, d)
+    try:   # the home page's library lists this edit wherever it was made
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import library
+        library.record(folder)
+    except (OSError, ValueError, ImportError):
+        pass
     print(f"{rj}: {stage_name(d['stage'])}, round {d['round']}")
 
 
@@ -750,10 +783,25 @@ def cmd_wait(folder, poll=1.0):
               f"\n    frame: {folder / 'review' / c['frame']}"
               + "".join(f"\n    image: {folder / 'review' / x}" for x in c.get("images") or []))
     if cs:
-        print(f"LEARN: pick the notes that are preferences, ask the scope once for all of them, then run:\n"
-              f"  python3 {Path(__file__).resolve()} {folder} learn --scope style|video|everyone"
-              f" --rule <id> <section> \"<rule>\" [key=value] ...   (no preferences: learn --none)")
+        print(learn_hint(folder))
     return e["type"]
+
+
+def edit_style(folder):
+    """The one creator style.json this edit used (styleskill.sources), else None."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from ai_editor import styleskill
+    src = styleskill.sources(folder)
+    return src[0] if len(src) == 1 else None
+
+
+def learn_hint(folder):
+    sp = edit_style(folder)
+    scopes = "this-style|style|video|everyone" if sp else "style|video|everyone"
+    return (f"LEARN: pick the notes that are preferences, ask the scope once for all of them"
+            + (f" (this edit used @{sp.parent.name}'s style: \"This style\" first)" if sp else "") + ", then run:\n"
+            f"  python3 {Path(__file__).resolve()} {folder} learn --scope {scopes}"
+            f" --rule <id> <section> \"<rule>\" [key=value] ...   (no preferences: learn --none)")
 
 
 def learned_round(d):
@@ -775,7 +823,15 @@ def cmd_learn(a, folder):
     if not rules and not a.none:
         sys.exit("give --rule for each preference note, or --none")
     if rules and not a.scope:
-        sys.exit("--scope style|video|everyone: ask the user once for the batch")
+        sys.exit("--scope this-style|style|video|everyone: ask the user once for the batch")
+    from ai_editor import styleskill
+    sp = None
+    if a.scope == "this-style":
+        src = styleskill.sources(getattr(a, "style", None) or folder)
+        if len(src) != 1:
+            sys.exit("--scope this-style: " + ("this edit used no creator style" if not src else "this edit blends several creators")
+                     + "; pass --style creator-teardowns/<handle>/style.json, or use --scope style")
+        sp = src[0]
 
     def f(d):
         stage, rnd = learned_round(d)
@@ -788,14 +844,15 @@ def cmd_learn(a, folder):
                 section, rule, *kv = rules[c["id"]]
                 setting, _, raw = kv[0].partition("=") if kv else (None, "", "")
                 value = taste.parse(raw) if setting else None
-                scope = f"video:{d['name']}" if a.scope == "video" else "all"
-                status, r = taste.add(section, rule, setting, value, scope, folder, source="review")
-                c.update(rule=rule, taste={"style": r["id"], "video": "video-only"}.get(a.scope, "suggested"))
+                scope = f"video:{d['name']}" if a.scope == "video" else styleskill.scope(sp)
+                status, r = taste.add(section, rule, setting, value, scope, folder, source="review", style=sp)
+                c.update(rule=rule, taste={"style": r["id"], "this-style": r["id"], "video": "video-only"}.get(a.scope, "suggested"))
                 if a.scope == "everyone":
                     taste.suggest(c["text"], rule, f"review note ({r['section']})", note=f"{d['name']}#{c['id']}")
                 out.append(f"#{c['id']} -> {status} rule #{r['id']} {r['section']}: {rule}"
-                           + (" (this video only)" if a.scope == "video" else " (+ suggested to everyone)"
-                              if a.scope == "everyone" else ""))
+                           + {"video": " (this video only)", "everyone": " (+ suggested to everyone)",
+                              "this-style": f" (this style, skill {styleskill.name(sp)})",
+                              "style": " (every video, skill my-style)"}[a.scope])
             elif (c["stage"], c["round"]) == (stage, rnd) and "taste" not in c:
                 c["taste"] = "one-off"
         return out
@@ -808,6 +865,7 @@ def demo():
     import io
     import tempfile
     tmp = Path(tempfile.mkdtemp(prefix="review_demo_"))
+    os.environ["AI_EDITOR_HOME"] = str(tmp / "home")   # start records the folder in the library index there
     vid = tmp / "v.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30:duration=6",
                     "-f", "lavfi", "-i", "sine=duration=6", "-shortest", "-pix_fmt", "yuv420p", str(vid)], check=True)
@@ -821,6 +879,11 @@ def demo():
     folder = tmp / "edits" / "demo"
     ns = argparse.Namespace
     cmd_start(ns(video=str(vid), stage="cut", transcript=str(tr), plan=None, note=None, name=None), folder)
+    assert str(folder.resolve()) in load(tmp / "home" / "library.json")["edits"], "start lists the edit in the library"
+    end = tmp / "end.jpg"   # the playhead on the last frame: -ss there writes nothing, so grab seeks from the end
+    grab(vid, duration(vid), end)
+    assert end.exists() and end.stat().st_size > 1000, "no still at the last frame"
+    assert "Move to playhead" not in HTML.read_text(encoding="utf-8") and 'id="homebtn"' in HTML.read_text(encoding="utf-8")
     assert load(folder / "review.json")["vertical"] is False
     srv, url = serve(folder, 0, open_browser=False)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -879,6 +942,17 @@ def demo():
     post("/delete", {"id": ci["id"]})
     assert [x["id"] for x in load(folder / "review.json")["comments"]] == [c["id"]]
     assert not json.loads(get("/state").read())["listening"]
+    assert json.loads(get("/state").read())["home"] is None   # no home page running: the button says how to start it
+    hs = ThreadingHTTPServer(("127.0.0.1", 0), type("H", (BaseHTTPRequestHandler,), {
+        "do_GET": lambda self: (self.send_response(200), self.end_headers(), self.wfile.write(b"{}")), "log_message": lambda *a: None}))
+    threading.Thread(target=hs.serve_forever, daemon=True).start()
+    hurl = f"http://127.0.0.1:{hs.server_address[1]}/?t=abc"
+    (tmp / "home" / "home").mkdir(parents=True, exist_ok=True)
+    (tmp / "home" / "home" / ".server").write_text(hurl, encoding="utf-8")
+    _HOME["at"] = 0
+    assert json.loads(get("/state").read())["home"] == hurl, "the Home button reads home.py's fixed address"
+    hs.shutdown()
+    hs.server_close()
     # the cut's transcript: kept words on the cut's timeline, the cut word struck, the removed pause a chip
     (folder / "words.raw.json").write_text(json.dumps([
         {"text": "hello", "start": 0.0, "end": 0.4, "type": "word"}, {"text": "um,", "start": 0.5, "end": 0.8, "type": "word"},
@@ -949,7 +1023,7 @@ def demo():
     otx = {"lines": [{"tokens": [{"w": "hello", "t": 0.0}, {"w": "um,", "t": 0.4}, {"w": "world", "t": 0.8}]}]}
     ntx = {"lines": [{"tokens": [{"w": "hello", "t": 0.0}, {"p": 0.3}, {"w": "um,", "t": None}, {"w": "world", "t": 0.4}]}]}
     assert remap(1.0, otx, ntx) == 0.6 and remap(0.5, otx, ntx) == 0.4 and remap(1.0, otx, None) is None
-    learn = lambda **k: cmd_learn(ns(**{"scope": None, "rule": None, "none": False, **k}), folder)
+    learn = lambda **k: cmd_learn(ns(**{"scope": None, "rule": None, "none": False, "style": None, **k}), folder)
     with contextlib.redirect_stdout(io.StringIO()):
         learn(none=True)
     assert load(folder / "review.json")["comments"][0]["taste"] == "one-off"
@@ -991,6 +1065,8 @@ def demo():
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from ai_editor import taste
     taste.HOME = tmp / "home"
+    old_skills = os.environ.get("AI_EDITOR_SKILLS")
+    os.environ["AI_EDITOR_SKILLS"] = str(tmp / "skills")   # never the user's real skills folder
     o = io.StringIO()
     with contextlib.redirect_stdout(o):
         learn(scope="style", rule=[[str(c2["id"]), "visuals", "Cards fill the space they have"]])
@@ -1004,6 +1080,31 @@ def demo():
     sug = [json.loads(x) for x in (tmp / "home" / "suggestions.jsonl").read_text(encoding="utf-8").splitlines()]
     assert sug[-1]["note"] == taste.note_key(f"demo#{c4['id']}") and sug[-1]["what"] == "on all of them", sug
     assert "from a review note" in taste.report() and "3 came from review-page notes" in taste.report(), taste.report()
+    # this-style: the edit used a creator's style, so LEARN offers it first; the setting goes to that style's
+    # overrides and its skill, not to taste.json; without a creator style it refuses
+    try:
+        learn(scope="this-style", rule=[[str(c2["id"]), "captions", "Captions too big", "captions.size_pct=4.5"]])
+        raise AssertionError("this-style with no creator style")
+    except SystemExit as e:
+        assert "no creator style" in str(e), e
+    sp = tmp / "creator-teardowns" / "alice" / "style.json"
+    sp.parent.mkdir(parents=True)
+    sp.write_text('{"handle": "alice"}', encoding="utf-8")
+    (folder / "style.json").write_text(json.dumps({"handle": "alice", "source": [str(sp)]}), encoding="utf-8")
+    assert "learn --scope this-style|style|video|everyone" in learn_hint(folder) and "@alice" in learn_hint(folder)
+    with contextlib.redirect_stdout(o):
+        learn(scope="this-style", rule=[[str(c2["id"]), "captions", "Captions too big", "captions.size_pct=4.5"]])
+    assert "(this style, skill edit-like-alice)" in o.getvalue(), o.getvalue()
+    r = next(r for r in taste.load_rules() if r["rule"] == "Captions too big")
+    assert r["scope"] == "style:alice" and next(c for c in load(folder / "review.json")["comments"] if c["id"] == c2["id"])["taste"] == r["id"]
+    assert json.loads((sp.parent / "style.overrides.json").read_text(encoding="utf-8")) == {"captions": {"size_pct": 4.5}}
+    assert "size_pct" not in taste.read_json().get("captions", {})
+    assert "- Captions too big." in (tmp / "skills" / "edit-like-alice" / "SKILL.md").read_text(encoding="utf-8")
+    assert "Cards fill the space they have" in (tmp / "skills" / "my-style" / "SKILL.md").read_text(encoding="utf-8")
+    if old_skills is None:
+        os.environ.pop("AI_EDITOR_SKILLS", None)
+    else:
+        os.environ["AI_EDITOR_SKILLS"] = old_skills
     # every round replays its own video: the next render overwriting the same file changes no earlier tab
     rs = load(folder / "review.json")["rounds"]
     assert [Path(r["video"]).name for r in rs] == ["v-cut1.mp4", "v-edit1.mp4"], rs
@@ -1063,7 +1164,8 @@ def main():
     s.add_argument("--reply")
     s.add_argument("--new-t", type=float, help="where the note's moment is in the new render")
     s = sp.add_parser("learn", help="save the round's preference notes to the user's taste")
-    s.add_argument("--scope", choices=["style", "video", "everyone"], help="asked once for the batch")
+    s.add_argument("--scope", choices=["this-style", "style", "video", "everyone"], help="asked once for the batch")
+    s.add_argument("--style", help="this-style: the creator style.json (default: the one the edit used)")
     s.add_argument("--rule", nargs="+", action="append", metavar="ARG", help='<id> <section> "<rule>" [key=value]')
     s.add_argument("--none", action="store_true", help="no note in this round is a preference")
     a = ap.parse_args()

@@ -2168,6 +2168,19 @@ def demo_contrast():
                            text=True, env={**os.environ, "AI_EDITOR_HOME": d})
         assert r.returncode == 0 and "default style" in r.stderr, r.stderr
         assert json.loads((Path(d) / "plan.json").read_text(encoding="utf-8"))["zooms"], r.stdout
+        # a creator style with the user's corrections on it: measured 6 < taste.json 7 < style.overrides.json 4.5
+        cs = Path(d) / "creator-teardowns" / "alice"
+        cs.mkdir(parents=True)
+        (cs / "style.json").write_text(json.dumps({"handle": "alice", **style, "captions": {**style["captions"], "size_pct": 6}}), encoding="utf-8")
+        (cs / "style.overrides.json").write_text('{"captions": {"size_pct": 4.5}}', encoding="utf-8")
+        (Path(d) / "taste.json").write_text('{"captions": {"size_pct": 7, "y_pct": 60}}', encoding="utf-8")
+        (Path(d) / "style.json").write_text(json.dumps({**json.loads((cs / "style.json").read_text(encoding="utf-8")),
+                                                         "source": [str(cs / "style.json")]}), encoding="utf-8")
+        for sj in (Path(d) / "style.json", cs / "style.json"):   # the edit's copy, or the creator's file itself
+            r = subprocess.run([sys.executable, __file__, str(sj), f"{d}/captions.json"], capture_output=True,
+                               text=True, env={**os.environ, "AI_EDITOR_HOME": d})
+            cap = json.loads((Path(d) / "plan.json").read_text(encoding="utf-8"))["captions"]["style"]
+            assert r.returncode == 0 and cap["size_pct"] == 4.5 and cap["y_pct"] == 60, (r.stderr, cap)
 
 
 # One beat at a time, for the overlays skill: which beat made a card, and a change to just that beat.
@@ -2374,7 +2387,8 @@ def main():
     images = json.loads(img.read_text(encoding="utf-8")) if img.exists() else []
     vis = edit_dir / "visuals.json"
     visuals = json.loads(vis.read_text(encoding="utf-8")) if vis.exists() else []
-    # The user's own settings (taste skill) win over the creator's measured style.
+    # The user's own settings (taste skill) win over the creator's measured style; corrections saved on this
+    # style (its style.overrides.json) win over the every-video ones (taste.load_json, styleskill.py).
     sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
     from ai_editor import taste, profile
     prof = profile.load()   # the start skill's answers: brand kit, what to avoid, sound
@@ -2384,7 +2398,7 @@ def main():
         print(f"note: {sp} {'is empty' if style == {} else 'not found'}; planning with the default style. To keep it "
               f"with the edit: python3 {Path(profile.__file__)} style {edit_dir}", file=sys.stderr)
         style = profile.default_style(prof)
-    style = profile.fill_transitions(taste.merge(style, taste.load_json()),
+    style = profile.fill_transitions(taste.merge(style, taste.load_json(style=sp)),
                                      lambda m: print(f"note: {m}", file=sys.stderr))
     plan = build(style, json.loads(Path(a.words).read_text(encoding="utf-8")),
                  probe(video), images, a.aspect, cut_points(edit_dir), visuals, edit_dir,

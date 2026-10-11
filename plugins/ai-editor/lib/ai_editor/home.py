@@ -553,7 +553,6 @@ def make_handler(token):
                 d = read()
                 d["listening"], d["keys"] = listening(), key_rows()
                 d["profile"] = (home().parent / "profile.json").exists()   # set up before: a returning user
-                d["key_file"] = str(keys.key_file()).replace(str(Path.home()), "~")
                 lk = d.get("lookup") or {}
                 if lk.get("handle"):
                     lk["listing"] = listing(d["root"], lk["handle"])

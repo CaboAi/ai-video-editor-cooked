@@ -785,14 +785,24 @@ def demo_launcher():
         assert MARK in f.read_text(encoding="utf-8") and str(LAUNCHER) in f.read_text(encoding="utf-8") and os.access(f, os.X_OK)
         before = f.stat().st_mtime_ns
         assert install_launcher("Linux", str(b), t) == 0 and f.stat().st_mtime_ns == before, "a second install changes nothing"
-        r = subprocess.run([str(f), "--dry-run"], capture_output=True, text=True,
-                           env=dict(os.environ, AI_EDITOR_HOME=str(t / "h"), AI_EDITOR_LIBRARY=str(t / "lib")))
+        # run the launcher this computer would get: the .cmd on Windows (cmd /c), the sh script elsewhere
+        win = os.name == "nt"
+        run = (lambda p, *a: ["cmd", "/c", str(p), *a]) if win else (lambda p, *a: ["sh", str(p), *a])
+        real = b / "real.cmd" if win else f
+        if win:
+            with open(real, "w", encoding="utf-8", newline="") as fh:
+                fh.write(launcher_text("Windows"))
+        env = dict(os.environ, AI_EDITOR_HOME=str(t / "h"), AI_EDITOR_LIBRARY=str(t / "lib"))
+        r = subprocess.run(run(real, "--dry-run"), capture_output=True, text=True, env=env)
         assert r.returncode == 0 and "/ai-editor:start open the home page" in r.stdout, (r.stdout, r.stderr)
-        moved = f.read_text(encoding="utf-8").replace(str(LAUNCHER), str(t / "gone.py"))
-        (b / "moved").write_text(moved, encoding="utf-8")
-        r = subprocess.run(["sh", str(b / "moved")], capture_output=True, text=True)
-        assert r.returncode == 1 and r.stdout == "The AI editor moved, maybe an update. In Claude Code, say: set up the editor.\n", r.stdout
-        (b / "moved").unlink()
+        moved = b / ("moved.cmd" if win else "moved")
+        with open(moved, "w", encoding="utf-8", newline="") as fh:
+            fh.write(real.read_text(encoding="utf-8").replace(str(LAUNCHER), str(t / "gone.py")))
+        r = subprocess.run(run(moved), capture_output=True, text=True)
+        assert r.returncode == 1 and r.stdout.strip() == "The AI editor moved, maybe an update. In Claude Code, say: set up the editor.", r.stdout
+        moved.unlink()
+        if win:
+            real.unlink()
         assert uninstall_launcher("Linux", str(b), t) == 0 and not f.exists()
         assert uninstall_launcher("Linux", str(b), t) == 0
         f.write_text("#!/bin/sh\necho someone else's\n", encoding="utf-8")   # not ours: never replaced or removed

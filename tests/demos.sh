@@ -7,6 +7,7 @@ PY=${PY:-python}
 T=plugins/creator-teardown/skills/creator-teardown/scripts
 A=plugins/ai-editor/skills
 L=plugins/ai-editor/lib/ai_editor
+failed=()
 for s in "$T/fetch.py demo" "$T/editplan.py demo" "$T/visual.py demo" "$T/graphics.py demo" "$T/sound.py demo" \
   "$T/report.py demo" "$T/look.py demo" "$T/gemini.py demo" "$T/parallel.py demo" \
   "$A/cut/scripts/test_build_timeline.py" "$A/cut/scripts/test_retakes.py" "$A/cut/scripts/test_media.py" "$A/cut/scripts/verify_cut.py demo" "$A/cut/scripts/hook_check.py demo" "$A/cut/scripts/join.py demo" \
@@ -21,8 +22,9 @@ for s in "$T/fetch.py demo" "$T/editplan.py demo" "$T/visual.py demo" "$T/graphi
   "$A/improve/scripts/improve.py demo" "$A/style-edit/scripts/preview.py demo" "tests/golden.py demo" "tests/fresh_install.py demo"; do
   echo "== $s"
   # shellcheck disable=SC2086
-  "$PY" $s
+  "$PY" $s || failed+=("$s")   # keep going: one CI run lists every failing check, not just the first
 done
 echo "== tests/test_record.mjs"
-node tests/test_record.mjs
+node tests/test_record.mjs || failed+=("tests/test_record.mjs")
+if ((${#failed[@]})); then printf 'FAILED: %s\n' "${failed[@]}"; exit 1; fi
 echo "all demos ok"

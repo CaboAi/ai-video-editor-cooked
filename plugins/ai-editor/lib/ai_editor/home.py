@@ -126,6 +126,20 @@ def update(fn):
         return out
 
 
+def link_set(vids):
+    """Pasted video links as one study: the creator when every link names the same one, the app they are on
+    (instagram when any is, since it ranks by likes), and a plain note."""
+    handles = {i.get("handle") for i in vids}
+    plats = {i.get("platform") for i in vids}
+    plat = "instagram" if "instagram" in plats else plats.pop() if len(plats) == 1 else "tiktok"
+    n = len(vids)
+    note = f"{n} video link{'s' if n > 1 else ''}." + (" 5 or more gives a truer style." if n < 5 else "") \
+        + (" Instagram ranks by likes, not views." if plat == "instagram" else "")
+    h = handles.pop() if len(handles) == 1 else None
+    return {"kind": "creator", "platform": plat, "urls": [i["url"] for i in vids],
+            "handle": re.sub(r"[^a-z0-9._-]", "", h.lower()) if h else None, "note": note}
+
+
 def latest(d, kind):
     return next((j for j in reversed(d["jobs"]) if j["type"] == kind), None)
 
@@ -732,10 +746,9 @@ def make_handler(token):
             if len(parts) == 1 and not re.search(r"[./]", parts[0]):
                 parts = ["@" + parts[0].lstrip("@")]           # a bare name is a handle, never a website
             items = [links.classify(p) for p in parts]
-            reels = [i for i in items if i["kind"] in ("video", "own", "long") and "instagram.com" in i["url"]]
-            if len(items) > 1 and len(reels) == len(items):    # pasted reel links: an Instagram teardown
-                return self.send(200, {"kind": "creator", "platform": "instagram", "urls": [i["url"] for i in reels],
-                                       "handle": None, "note": f"{len(reels)} reel links. Instagram ranks by likes, not views."})
+            vids = [i for i in items if i["kind"] in ("video", "own", "long")]
+            if vids and len(vids) == len(items):               # pasted video links (any app): study just those
+                return self.send(200, link_set(vids))
             it = items[0]
             if it["kind"] != "creator":
                 return self.send(200, {"kind": it["kind"], "note": "Paste a creator's handle or profile link, like "
@@ -759,7 +772,7 @@ def make_handler(token):
                 handle = re.sub(r"[^a-z0-9._-]", "", str(b.get("handle") or "").lower())
                 urls = [u for u in b.get("urls") or [] if links.classify(u)["kind"] != "unsupported"][:40]
                 if urls and not handle:
-                    handle = "instagram-" + time.strftime("%m%d%H%M")
+                    handle = link_set([links.classify(u) for u in urls])["handle"] or "links-" + time.strftime("%m%d%H%M")
                 if not handle:
                     return self.send(400, {"error": "no creator"})
                 args = {"handle": handle, "platform": b.get("platform") if b.get("platform") in ("tiktok", "youtube") else "tiktok",
@@ -768,7 +781,7 @@ def make_handler(token):
                     f = Path(d["root"]) / "creator-teardowns" / handle / "picks.txt"
                     f.parent.mkdir(parents=True, exist_ok=True)
                     f.write_text("\n".join(urls) + "\n", encoding="utf-8")
-                    args.update(urls=str(f), platform="instagram")
+                    args.update(urls=str(f), platform=link_set([links.classify(u) for u in urls])["platform"])
             elif kind == "skill":
                 td = latest(d, "teardown")
                 if not td or td["state"] != "done":
@@ -790,7 +803,7 @@ def make_handler(token):
             else:
                 return self.send(400, {"error": "unknown job"})
             j = update(lambda d: queue(d, kind, args))
-            return self.send(200, {"id": j["id"]})
+            return self.send(200, {"id": j["id"], "handle": j["args"].get("handle")})
 
         def videos(self, b, d):
             """One clip, several joined into one video (takes), or several separate videos: one JOB each."""
@@ -1067,6 +1080,10 @@ def demo():
     assert r["kind"] == "creator" and r["handle"] == "sample.creator" and r["platform"] == "tiktok" and calls, r
     assert post("/lookup", {"text": "someone"})["ask_platform"] is True
     assert post("/lookup", {"text": "https://example.com/pricing"})["kind"] != "creator"
+    one = post("/lookup", {"text": "https://www.tiktok.com/@some.one/video/7412345678901234567"})
+    assert one["urls"] and one["handle"] == "some.one" and one["platform"] == "tiktok" and "5 or more" in one["note"], one
+    mix = post("/lookup", {"text": "https://youtu.be/abcDEF12345 https://www.youtube.com/shorts/xyzXYZ12345"})
+    assert len(mix["urls"]) == 2 and mix["platform"] == "youtube" and mix["handle"] is None, mix
     ig = post("/lookup", {"text": "https://www.instagram.com/someone/"})
     assert ig["platform"] == "instagram" and "reel" in ig["note"], ig
     post("/lookup", {"text": "@sample.creator"})

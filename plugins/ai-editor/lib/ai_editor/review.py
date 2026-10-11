@@ -61,6 +61,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import askhook  # noqa: E402
+
 HTML = Path(__file__).with_name("review.html")
 LOCK = threading.Lock()
 BEAT_S = 6          # `wait` touches review/.listening at least this often; older = nobody listening
@@ -388,6 +391,8 @@ def make_handler(folder, token):
                 return self.send(403, {"error": "open the page with the URL review.py printed"})
             path = urlsplit(self.path).path
             q = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()}
+            if askhook.route(self, "GET", path, q):   # Claude's questions (askhook.py)
+                return
             if path == "/":
                 return self.send(200, HTML.read_bytes(), "text/html; charset=utf-8", cookie=True)
             if path == "/state":
@@ -426,6 +431,8 @@ def make_handler(folder, token):
             except ValueError:
                 return self.send(400, {"error": "not json"})
             path = urlsplit(self.path).path
+            if askhook.route(self, "POST", path, {}, body):
+                return
             if path == "/comment":
                 return self.comment(body)
             if path == "/edit":
@@ -606,6 +613,7 @@ def serve(folder, port=0, open_browser=True):
                                                                                       make_handler(folder, token))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
     (folder / "review" / ".server").write_text(url, encoding="utf-8")
+    askhook.register(srv, url)
     if open_browser:
         webbrowser.open(url)
     return srv, url
@@ -913,6 +921,16 @@ def demo():
     assert running(folder) == url and serve(folder, 0, open_browser=False) == (None, url)
     r = get("/")
     assert b"review" in r.read() and "HttpOnly" in r.headers["Set-Cookie"]
+    # Claude's question (askhook.py): posted, polled by the showing page, answered in its own words, cleared
+    assert '<script src="/ask.js">' in HTML.read_text(encoding="utf-8") and b"askq" in get("/ask.js").read()
+    qs = [{"question": "Keep the intro?", "header": "Intro", "options": [{"label": "Keep", "description": ""}], "multiSelect": False}]
+    post("/ask", {"id": "q1", "questions": qs})
+    assert json.loads(get("/ask?v=1").read())["ask"] == {"id": "q1", "questions": qs} and askhook.live() == [url]
+    post("/ask/answer", {"id": "q1", "answers": ["Cut it to 3 seconds"]})
+    assert json.loads(get("/ask?id=q1").read())["result"] == {"answers": ["Cut it to 3 seconds"]}
+    assert json.loads(get("/ask").read())["ask"] is None
+    post("/ask/clear", {"id": "q1"})
+    assert not srv.asks
     r = get("/video?k=cut-1", Range="bytes=10-19")
     assert r.status == 206 and len(r.read()) == 10 and r.headers["Content-Range"].endswith(f"/{vid.stat().st_size}")
     # a note: its words, its frame still; an attached image (a non-image is dropped); delete

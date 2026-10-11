@@ -1,5 +1,5 @@
 {
-  "description": "Checks the editor's tools at session start. Silent when everything is installed.",
+  "description": "Checks the editor's tools at session start (silent when everything is installed). Shows Claude's questions in the editor's window when it is open.",
   "hooks": {
     "SessionStart": [
       {
@@ -9,6 +9,19 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.py\" doctor --quiet 2>/dev/null || py \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.py\" doctor --quiet 2>/dev/null || true",
             "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/askhook.py\" 2>/dev/null || py \"${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/askhook.py\" 2>/dev/null || true",
+            "timeout": 900,
+            "statusMessage": "Asking in the editor window"
           }
         ]
       }

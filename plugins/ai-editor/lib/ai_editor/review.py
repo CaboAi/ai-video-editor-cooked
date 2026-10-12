@@ -1062,8 +1062,7 @@ def cmd_round(a, folder):
               f"Do not open the edit: say so in one line and run `wait` again.")
         sys.exit(3)
     if d0.get("stopped"):
-        print("STOPPED: the user pressed Stop on the page. Do not open a round; run `wait` for their next send.")
-        sys.exit(3)
+        sys.exit("STOPPED: the user pressed Stop on the page. Do not open a round; run `wait` for their next send.")
 
     def f(d):
         if a.stage and a.stage != d["stage"]:

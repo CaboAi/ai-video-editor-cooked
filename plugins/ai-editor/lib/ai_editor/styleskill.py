@@ -43,12 +43,25 @@ HOME = Path(os.environ.get("AI_EDITOR_HOME", Path.home() / ".ai-video-editor")) 
 FORMAT_LINE = re.compile(r"Script format: the `([^`]+)` skill")
 
 
+def _scratch(p):
+    """True for a folder inside the system temp dir (a test or scratch AI_EDITOR_HOME)."""
+    import tempfile
+    try:
+        r = Path(p).resolve()
+    except OSError:
+        return False
+    roots = {Path(tempfile.gettempdir()).resolve(), Path("/tmp").resolve(), Path("/private/tmp"), Path("/var/folders")}
+    return any(r == t or t in r.parents for t in roots)
+
+
 def skills_dir():
     env = os.environ.get("AI_EDITOR_SKILLS")
     if env:
         return Path(env)
     if taste.HOME != HOME:   # a self-check pointed the taste at a temp folder: its skills go there too
         return taste.HOME / "skills"
+    if _scratch(HOME):       # a test home in a temp folder never writes the user's real skills
+        return HOME / "skills"
     proj = Path.cwd() / ".claude"
     return proj / "skills" if proj.is_dir() else Path.home() / ".claude" / "skills"
 
@@ -337,6 +350,8 @@ def learn(style_path, section, rule, setting=None, value=None, edit=None, source
 
 
 def demo():
+    import tempfile
+    assert _scratch(Path(tempfile.gettempdir()) / "x") and not _scratch(Path.home() / ".ai-video-editor")
     old = os.environ.get("AI_EDITOR_SKILLS"), taste.HOME
     with tempfile.TemporaryDirectory() as d:
         d = Path(d)

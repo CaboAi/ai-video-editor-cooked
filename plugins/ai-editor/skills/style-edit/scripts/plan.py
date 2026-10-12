@@ -2,7 +2,8 @@
 """Turn a creator's style.json + a cut's words.json into plan.json for the Remotion render.
 
     python3 plan.py <style.json> <edits/NAME/captions.json> [--images images.json (default: next to it)]
-                    [--aspect auto|9:16|16:9] [--layout overlay|split] [--out edits/NAME/plan.json]
+                    [--aspect auto|9:16|16:9] [--layout overlay|split|letterbox] [--title T]
+                    [--out edits/NAME/plan.json]
     python3 plan.py cards edits/NAME [--plan plan.json]   every card, its time, box and the beat it came from
     python3 plan.py beat  edits/NAME card:3|0:15|word@2 key=value ... | --drop   change one beat (visuals.json, images.json)
     python3 plan.py beat  edits/NAME --add beats.json   new beats into visuals.json in spoken order
@@ -20,7 +21,9 @@ full-frame scenes (a cut-away with a designed transition), pile/icon_burst and v
 the split panel (the speaker in a window under it, framed from face.json; the panel opens only when a
 card needs it), and only logos, lower thirds, arrow callouts and caption pages stay boxes over the
 footage. A beat's "layout" overrides, except that an explaining card on vertical is never a box.
---layout overlay never opens the panel: split cards become scenes.
+--layout overlay never opens the panel: split cards become scenes. --layout letterbox (a landscape take only):
+a black 9:16 frame, the take as a centred band, a lowercase title above it, one word at a time in the band and
+the first image in images.json beside the head over the opening line; nothing else.
 Also writes "look" (profile brand kit > creator style.json > editorial; references/motion.md) and
 "motion" (the personality, from the creator's pace). The anti-generic rules (visuals.md) run first.
 The user's profile (~/.ai-video-editor/profile.json, the start skill) supplies brand, avoid and sound.
@@ -1217,6 +1220,72 @@ def split_cards(cards, art):
     return sorted(out, key=lambda c: c["start"])
 
 
+# Letterbox layout: a black 9:16 frame, the landscape take as a centred band, one lowercase title above it,
+# one word at a time inside the bottom of the band, and one real photo beside the head over the opening line.
+# Pixels of the 1080 x 1920 frame. LB_SAFE: the reels safe zone (x 60-940, y 250-1440): nothing outside it.
+LB_SAFE = (60, 250, 940, 1440)
+LB_TITLE_X = 140        # title and word side margins: centred, the right edge inside the safe zone
+LB_TITLE_GAP = 24       # the title's last line ends this far above the band
+LB_TITLE_PX = 58
+LB_WORD_PX = 46
+LB_WORD_Y = 0.18        # the word's centre sits this share of the band's height above its bottom
+LB_CARD = (0.41, 0.25)  # the photo: side and top inset, as shares of the band's height
+LB_HIGHLIGHT = "#F7D21C"
+LB_TITLE_WORDS = 8
+LB_OPEN_MAX_S = 6.0     # the photo leaves at the end of the first sentence, or by this
+
+
+def letterbox_title(words):
+    """The first sentence, lowercase, at most LB_TITLE_WORDS words; a question keeps its mark."""
+    out = []
+    for w in words:
+        out.append(w["text"].strip())
+        if w["text"].rstrip().endswith((".", "?", "!")) or len(out) >= LB_TITLE_WORDS:
+            break
+    q = out and out[-1].endswith("?")
+    return " ".join(clean(x) for x in out if clean(x)).lower() + ("?" if q else "")
+
+
+def letterbox_plan(head, style, words, meta, images, face, lay):
+    """plan.json for the letterbox layout (references/contracts.md). Light by design: no zooms, no cards but
+    the opening photo, which is the first image in images.json (the user's own photo or a capture) or none."""
+    if meta["height"] >= meta["width"]:
+        sys.exit("ERROR: letterbox needs a landscape (16:9) take; this cut is vertical. Use --layout overlay or split")
+    W, H = SIZES["9:16"]
+    bh = W * meta["height"] / meta["width"]
+    by = (H - bh) / 2
+    pct = lambda v, d: round(100 * v / d, 2)
+    title = (lay.get("title") or letterbox_title(words)).strip().lower()
+    if len(title) > 90:
+        print(f"warning: the title is {len(title)} characters; over about 90 it no longer fits above the band", file=sys.stderr)
+    cs = style.get("captions") or {}
+    # the creator's highlight when she has one (not her fill colour), else yellow; layout.highlight wins
+    hi = lay.get("highlight") or (cs.get("highlight_color") if cs.get("highlight_color") not in (None, cs.get("color", "#FFFFFF")) else LB_HIGHLIGHT)
+    cap = {"present": cs.get("present", True), "font_match": cs.get("font_match"), "weight": 500, "case": "lower",
+           "color": hi, "highlight_color": hi, "effect": "none", "active_scale": 1, "size_pct": pct(LB_WORD_PX, H),
+           "width_pct": pct(W - 2 * LB_TITLE_X, W), "y_pct": pct(by + bh * (1 - LB_WORD_Y), H)}
+    cap = {k: v for k, v in cap.items() if v is not None}
+    chunks = chunk_captions(words, 1, "lower") if cap["present"] else []
+    out = {**head, "width": W, "height": H, "durationInFrames": round(meta["duration"] * head["fps"]),
+           "layout": {"mode": "letterbox", "band": [0, pct(by, H), 100, pct(bh, H)], "title": title,
+                      "title_box": [pct(LB_TITLE_X, W), pct(LB_SAFE[1], H), pct(W - 2 * LB_TITLE_X, W),
+                                    pct(by - LB_TITLE_GAP - LB_SAFE[1], H)], "title_px": LB_TITLE_PX},
+           "captions": {"style": cap, "chunks": chunks}, "zooms": [], "cards": []}
+    img = next((i for i in images if i.get("src")), None)
+    if not img:
+        print("note: letterbox has no opening photo: add one of your own photos or a capture to images.json "
+              "(never a generated image), or leave it out", file=sys.stderr)
+        return out
+    end = next((w["end"] for w in words if w["text"].rstrip().endswith((".", "?", "!"))), words[-1]["end"] if words else 3)
+    side, top = LB_CARD[0] * bh, by + LB_CARD[1] * bh
+    heads = [h["box"] for h in (face or {}).get("heads", []) if h.get("box")]
+    cx = sorted(b[0] + b[2] / 2 for b in heads)[len(heads) // 2] if heads else 40
+    x = LB_SAFE[2] - side if cx < 50 else LB_SAFE[0]    # beside the head, on the side it is not
+    out["layout"]["card"] = {"src": img["src"], "to": round(min(end, LB_OPEN_MAX_S), 3),
+                             "box": [pct(x, W), pct(top, H), pct(side, W), pct(side, H)]}
+    return out
+
+
 def mark_emph(chunks):
     """The stressed word of a caption line: in a line of 3+ words, the one held clearly longest
     (people stretch the word they stress). Marked "emph": true for the renderer."""
@@ -1498,7 +1567,11 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
             "durationInFrames": round(duration * fps),
             "look": pick_look(style, profile, prof_mod),
             "motion": pick_motion(style)}
-    pace = (style.get("pace") or {}) if took(style, "pace") else {}
+    if ((layout or {}).get("mode") or (style.get("layout") or {}).get("mode")) == "letterbox":
+        if visuals:
+            print("note: letterbox shows one opening photo only; visuals.json beats are not drawn", file=sys.stderr)
+        return letterbox_plan(head, style, words, meta, images, face, {**(style.get("layout") or {}), **(layout or {})})
+    pace =(style.get("pace") or {}) if took(style, "pace") else {}
     # Explaining cards are scenes or sit in the split panel; the panel opens only when a card needs it,
     # unless the layout was set by hand (overlay: split cards become scenes).
     explicit = (layout or {}).get("mode") or (style.get("layout") or {}).get("mode")
@@ -1697,7 +1770,7 @@ def caption_backdrops(plan, edit_dir, meta):
     ponytail: split layout is measured as if the panel were closed (full-frame footage under the
     caption's y); check.py render measures the real frames either way."""
     from check import footage_affine
-    from edit import proxy_filter
+    from edit import footage_filter
     W, H = plan["width"] // 4, plan["height"] // 4
     cs, chunks = plan["captions"]["style"], plan["captions"]["chunks"]
     y = (plan.get("layout") or {}).get("caption_full_y") or cs.get("y_pct", 70)
@@ -1713,7 +1786,7 @@ def caption_backdrops(plan, edit_dir, meta):
     out = {}
     if not want:
         return out
-    vf = proxy_filter(meta["width"], meta["height"], plan["width"], plan["height"]) + f",fps=4,scale={W}:{H}"
+    vf = footage_filter(plan, meta["width"], meta["height"]) + f",fps=4,scale={W}:{H}"
     p = subprocess.Popen(["ffmpeg", "-v", "error", "-i", str(Path(edit_dir) / plan["video"]), "-vf", vf,
                           "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE)
     n = 0
@@ -1913,6 +1986,23 @@ def demo():
     vs = build(style, words, {**meta, "width": 1080, "height": 1920}, imgs, layout={"mode": "split"})
     assert vs["layout"]["mode"] == "split" and vs["captions"]["style"]["y_pct"] == 50 + SPLIT_CAP_BELOW
     assert all(c["box"] == art for c in vs["cards"]) and "layout" not in p
+    # letterbox: 9:16 from a landscape take, the title from the first sentence, one word a page, the first image
+    # beside the head (away from it) until the first sentence ends; every element inside the reels safe zone
+    lb = build(style, words, meta, imgs, layout={"mode": "letterbox"})
+    ly, cs = lb["layout"], lb["captions"]["style"]
+    assert (lb["width"], lb["height"], lb["zooms"], lb["cards"]) == (1080, 1920, [], []) and ly["title"] == "so this is how i edit", ly
+    assert all(len(c["words"]) == 1 and c["text"].islower() for c in lb["captions"]["chunks"]) and cs["color"] == LB_HIGHLIGHT
+    assert ly["band"] == [0, 34.18, 100, 31.64] and ly["card"]["src"] == "images/n.png" and ly["card"]["to"] == 2.05, ly
+    px = lambda b: (b[0] * 10.8, b[1] * 19.2, (b[0] + b[2]) * 10.8, (b[1] + b[3]) * 19.2)
+    word_y = cs["y_pct"] * 19.2
+    for x0, y0, x1, y1 in (px(ly["title_box"]), px(ly["card"]["box"]), (540 - cs["width_pct"] * 5.4, word_y - 30, 540 + cs["width_pct"] * 5.4, word_y + 30)):
+        assert LB_SAFE[0] - 0.5 <= x0 and LB_SAFE[1] - 0.5 <= y0 and x1 <= LB_SAFE[2] + 0.5 and y1 <= LB_SAFE[3] + 0.5, (x0, y0, x1, y1)
+    assert px(ly["title_box"])[3] < ly["band"][1] * 19.2 < word_y < (ly["band"][1] + ly["band"][3]) * 19.2
+    right_head = {"heads": [{"t": 0, "box": [60, 20, 20, 40]}]}
+    lr = letterbox_plan({"fps": 30}, {}, words, meta, imgs, right_head, {"title": "My Title"})["layout"]
+    assert lr["card"]["box"][0] == round(100 * LB_SAFE[0] / 1080, 2) and lr["title"] == "my title", lr
+    assert "card" not in build(style, words, meta, layout={"mode": "letterbox"})["layout"]
+    assert build({**style, "layout": {"mode": "letterbox"}}, words, meta)["layout"]["mode"] == "letterbox"   # style.json picks it
     kit = {"cues": {n: {"attack_s": 0.2} for n in SFX_RANK}}
     sp = {"fps": 30, "durationInFrames": 300, "zooms": [{"start": 1.25}, {"start": 6.0}],
           "cards": [{"start": 1.0, "end": 3.0, "anim": {"type": "flow", "props": {"nodes": [{"at": 0.5}, {"at": 0.6}],
@@ -2373,7 +2463,8 @@ def main():
     ap.add_argument("words")
     ap.add_argument("--images")
     ap.add_argument("--aspect", choices=["auto", "9:16", "16:9"], default="auto")
-    ap.add_argument("--layout", choices=["overlay", "split"], help="default: style.json layout.mode, else overlay")
+    ap.add_argument("--layout", choices=["overlay", "split", "letterbox"], help="default: style.json layout.mode, else overlay")
+    ap.add_argument("--title", help="letterbox: the title above the band (default: the first sentence, lowercase)")
     ap.add_argument("--out")
     ap.add_argument("--no-sfx", action="store_true", help="no sound cues (same as \"sfx\": false in style.json)")
     ap.add_argument("--behind", choices=["on", "off"], help="cards behind the speaker (default: the profile's answer); "
@@ -2402,7 +2493,7 @@ def main():
                                      lambda m: print(f"note: {m}", file=sys.stderr))
     plan = build(style, json.loads(Path(a.words).read_text(encoding="utf-8")),
                  probe(video), images, a.aspect, cut_points(edit_dir), visuals, edit_dir,
-                 {"mode": a.layout} if a.layout else None, prof, None if a.behind is None else a.behind == "on")
+                 {k: v for k, v in (("mode", a.layout), ("title", a.title)) if v} or None, prof, None if a.behind is None else a.behind == "on")
     out = Path(a.out) if a.out else edit_dir / "plan.json"
     line = contrast_summary(treat_captions(plan, edit_dir, probe(video), contrast_floors(edit_dir, out)),
                             plan["captions"]["chunks"])

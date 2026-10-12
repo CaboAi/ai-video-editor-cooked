@@ -126,7 +126,10 @@ def on_screen(box, t, plan):
     grown by the zoom (and moved by a pan), and in split moved into the speaker's window under the seam."""
     x, y, w, h = box
     s = zoom_at(t, plan["zooms"])
-    lay = plan.get("layout")
+    lay = plan.get("layout") or {}
+    if lay.get("mode") == "letterbox":   # the cut sits unmoved in the band
+        _, by, _, bh = lay["band"]
+        return [x, by + y * bh / 100, w, h * bh / 100]
     if not lay:
         ox, oy = zoom_state(t, plan["zooms"])[1]
         px, pk = pan_at(t, plan.get("pans"))
@@ -252,7 +255,7 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
                                    "run face.py, then plan again; or give the card a smaller box above the head"))
     cap = plan["captions"]["style"]
     ys = [("captions", cap.get("y_pct"))] + ([("full-frame captions", plan["layout"]["caption_full_y"])]
-                                              if plan.get("layout") else [])
+                                              if "caption_full_y" in (plan.get("layout") or {}) else [])
     for what, v in ys:
         if v is not None and not top <= v <= 100 - bottom:
             out.append(finding("FAIL", None, f"{what} at {v}% down, under the app's UI ({top}-{100 - bottom}% is clear)",
@@ -270,7 +273,8 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
     dur = plan["durationInFrames"] / plan["fps"]
     marks = sorted([0.0, dur] + [z[k] for z in plan["zooms"] for k in ("start", "end")] + list(cuts)
                    + [c[k] for c in cards for k in ("start", "end")])
-    for a, b in zip(marks, marks[1:]) if not plan.get("cover") else ():   # an audio clip's cover moves throughout
+    # an audio clip's cover moves throughout; a letterbox holds still on purpose
+    for a, b in zip(marks, marks[1:]) if not plan.get("cover") and (plan.get("layout") or {}).get("mode") != "letterbox" else ():
         if b - a > static_s and not any(c["start"] <= a and c["end"] >= b for c in cards):
             out.append(finding("WARN", a, f"static for {b - a:.1f} s ({a:.1f}-{b:.1f} s): no card, zoom or cut",
                                "add a visual beat or a zoom in that stretch"))
@@ -478,16 +482,16 @@ def check_render(edit, plan, video):
     import cv2
     import numpy as np
     import face as facemod
-    from edit import proxy_filter
+    from edit import footage_filter
     from plan import probe
     out, measured = [], {}
-    split = bool(plan.get("layout"))
+    split = (plan.get("layout") or {}).get("mode") == "split"
     mode = "split" if split else "overlay"
     W, H = plan["width"] // 2, plan["height"] // 2
     cards = plan["cards"]
     m = probe(edit / plan["video"])
     fps = plan["fps"]
-    behind = sampled(edit / plan["video"], proxy_filter(m["width"], m["height"], plan["width"], plan["height"]), W, H, fps)
+    behind = sampled(edit / plan["video"], footage_filter(plan, m["width"], m["height"]), W, H, fps)
     ground = None
     if split:
         g = plan["layout"]["ground"].lstrip("#")

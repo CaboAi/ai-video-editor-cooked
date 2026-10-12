@@ -12,7 +12,7 @@ for s in "$T/fetch.py demo" "$T/editplan.py demo" "$T/visual.py demo" "$T/graphi
   "$T/report.py demo" "$T/format_check.py demo" "$T/look.py demo" "$T/gemini.py demo" "$T/parallel.py demo" "$T/_progress.py demo" \
   "$A/cut/scripts/test_build_timeline.py" "$A/cut/scripts/test_retakes.py" "$A/cut/scripts/test_media.py" "$A/cut/scripts/verify_cut.py demo" "$A/cut/scripts/hook_check.py demo" "$A/cut/scripts/join.py demo" \
   "$A/cut/scripts/judge_cut.py demo" "$A/cut/scripts/read_cut.py demo" "$A/cut/scripts/transcribe.py demo" "$A/cut/scripts/trend.py demo" "$A/cut/scripts/splice_check.py demo" \
-  "$L/keys.py" "$L/net.py demo" "$L/progress.py demo" "$L/jev.py" "$L/profile.py demo" "$L/links.py demo" "$L/lock.py demo" "$L/models.py" "$L/run.py demo" "$L/review.py demo" "$L/styleskill.py demo" "$L/home.py demo" "$L/askhook.py demo" "$L/library.py demo" "$L/custom.py demo" "$L/launcher.py demo" "$L/live.py demo" \
+  "$L/keys.py" "$L/net.py demo" "$L/progress.py demo" "$L/jev.py" "$L/profile.py demo" "$L/links.py demo" "$L/lock.py demo" "$L/models.py" "$L/run.py demo" "$L/review.py demo" "$L/styleskill.py demo" "$L/home.py demo" "$L/askhook.py demo" "$L/library.py demo" "$L/custom.py demo" "$L/presets.py demo" "$L/launcher.py demo" "$L/live.py demo" \
   "$A/style-edit/scripts/plan.py demo" "$A/style-edit/scripts/edit.py demo" "$A/style-edit/scripts/export_nle.py demo" "$A/style-edit/scripts/chapters.py demo" "$A/style-edit/scripts/source.py demo" \
   "$A/style-edit/scripts/matte.py demo" "$A/clips/scripts/clips.py demo" "$A/setup/scripts/setup.py demo" \
   "$A/taste/scripts/taste.py demo" "$A/taste/scripts/learn.py demo" "$A/style-edit/scripts/face.py demo" "$A/style-edit/scripts/check.py demo" \

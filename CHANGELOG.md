@@ -120,6 +120,31 @@ What changed for every user, newest first.
   it, the renderer after an update) shows on the window's video job as "Downloading the cutout model,
   first time only" with "12 of 15 MB", and on the review page's Claude panel. `setup.py warm` runs the
   warm-up alone. Test: `setup.py demo`, `models.py`.
+- The style page has ready-made presets, laid out as in the I4 design and fitted to the window. Captions:
+  Plain (white TikTok Sans, the default), Bold, Karaoke and Minimal, plus every file in
+  `<library>/custom/captions/` and a copied creator's own captions ("Theirs"). Each tile is a real still from
+  the StyleEdit composition on a frame of the user's newest raw take with five words from their own
+  transcript (a demo photo and "I will push these changes" when there are none), rendered in one bundle in
+  the background and cached by everything that changes the picture (at most 60 files, none older than 7
+  days). The big preview shows the picked one; drag its dashed box to move the captions (only the big
+  preview renders again), and a size slider sits under the tiles. Custom caption files are checked: a key
+  that is not a caption setting, or a bad value, is dropped with a warning. Zooms: None, Smooth (0.8 s push
+  at 1.18x, a zoom change at least every 5 s) and Punchy (1.15x snap, about 6 a minute). Cut: Relaxed / Natural /
+  Tight (0.25 / 0.15 / 0.12 s pauses) with "Play 5 s of your video, before and after", cut from the newest
+  edit's raw take with that pause rule. Cards and graphics: on/off, Rarely / Sometimes / Often (at most 2 /
+  4 / 8 cards a minute; the default style is Sometimes, a copied creator's style has no cap until the user
+  picks one; plan.py names every card it leaves out) and the card look. Sound: effects and background music.
+  Each section says "you changed this" or "from @creator" and has its own Reset. Every pick is saved as a
+  correction through the style's skill (`captions.preset`, `zoom.preset`, `cut.max_pause`, `cards.on`,
+  `cards.per_min`, `look.preset`, `sfx`, `music`), and plan.py applies each one (`presets.py`; a demo check
+  per preset in `plan.py demo`). Caption presets are JSON files in `plugins/ai-editor/presets/captions/`;
+  the onboarding caption answers use the same files.
+  Changed for existing users: the default style's zoom block is now the Smooth preset (`per_min` 3 instead
+  of 9.5, with the same 5 s longest hold, push, 0.8 s and 1.18x). On most takes the hold rule still lands a
+  zoom change every 5 s, so edits look the same; long sentence-free stretches no longer get the extra
+  changes the old rate added. The default style now lands at most 4 cards a minute ("Sometimes"); plan.py
+  names each card it leaves out. A caption answer from onboarding (bold, karaoke, minimal) is now the whole
+  preset, so its size and TikTok Sans replace a copied creator's measured caption size and font.
 - First run opens the editor's window first. Before, a new install went straight to several minutes of
   installs in the terminal and the window never opened. Now the window opens at once (it needs nothing
   installed, and runs on a Mac's built-in Python 3.9 too) and `setup.py install-all --report` installs the

@@ -1,0 +1,17 @@
+{
+ "style": "karaoke",
+ "font_match": "TikTok Sans",
+ "size_pct": 4.6,
+ "weight": 800,
+ "case": "as_is",
+ "words_per_caption": 4,
+ "max_lines": 2,
+ "color": "#FFFFFF",
+ "highlight_color": "#FFFFFF",
+ "emphasis_color": "#FFFFFF",
+ "inactive_opacity": 0.5,
+ "stroke": false,
+ "box": false,
+ "shadow": false,
+ "effect": "karaoke"
+}

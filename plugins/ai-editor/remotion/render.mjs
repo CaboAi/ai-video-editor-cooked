@@ -1,6 +1,7 @@
 // Renders a plan.json with the StyleEdit composition (or the one its "composition" key names). Called by skills/style-edit/scripts/edit.py.
 //
 //   node render.mjs stills <publicDir> <plan.json> <outDir> name=frame ...
+//   node render.mjs many   <publicDir> <jobs.json>             [{plan: {...}, frame, out: x.jpg}]: one bundle, several plans (style page tiles)
 //   node render.mjs bench  <publicDir> <plan.json>            -> JSON: laptop seconds per frame
 //   node render.mjs local  <publicDir> <plan.json> <out.mp4> [--draft] [--concurrency=N]
 //   node render.mjs chunk  <publicDir> <plan.json> <out.mkv> <from> <to> [--draft] [--concurrency=N]   frames from..to inclusive
@@ -103,6 +104,30 @@ async function stills(publicDir, planPath, outDir, ...pairs) {
     }
     console.log(output);
   }
+}
+
+async function many(publicDir, jobsPath) {
+  // Each still that worked prints "ok <out>" (the caller keeps only those); a failed one prints "failed <out>: why"
+  // and the others still run. The bundle (a copy of the public dir) is removed however this ends.
+  const jobs = readPlan(jobsPath);
+  const serveUrl = await bundle({ entryPoint: ENTRY, publicDir: path.resolve(publicDir) });
+  let failed = 0;
+  try {
+    for (const j of jobs) {
+      try {
+        const composition = await selectComposition({ serveUrl, id: j.plan.composition || ID, inputProps: j.plan });
+        await renderStill({ serveUrl, composition, inputProps: j.plan, output: j.out, frame: j.frame, imageFormat: "jpeg",
+          jpegQuality: 88, timeoutInMilliseconds: TIMEOUT_MS });
+        console.log(`ok ${j.out}`);
+      } catch (e) {
+        failed++;
+        console.error(`failed ${j.out}: ${String(e?.message ?? e).split("\n")[0]}`);
+      }
+    }
+  } finally {
+    fs.rmSync(serveUrl, { recursive: true, force: true });
+  }
+  if (failed) process.exitCode = 1;
 }
 
 async function bench(publicDir, planPath) {
@@ -212,7 +237,7 @@ async function lambda(publicDir, planPath, out, siteName) {
   }
 }
 
-const cmds = { stills, bench, local, chunk, bundle: bundleTo, "lambda-estimate": lambdaEstimate, lambda };
+const cmds = { stills, many, bench, local, chunk, bundle: bundleTo, "lambda-estimate": lambdaEstimate, lambda };
 if (!cmds[cmd]) {
   console.error(`usage: node render.mjs ${Object.keys(cmds).join("|")} ...`);
   process.exit(2);

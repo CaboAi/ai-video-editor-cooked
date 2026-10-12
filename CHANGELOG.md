@@ -4,6 +4,13 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Review page: while Claude is making a round (it ran `status`, `round` or `resolve` in the last 15 min) the
+  page says "Claude is working. Notes you send now are next." instead of "Claude is not listening".
+- Claude's questions in the window: when Claude asks a question (AskUserQuestion) and the home page or a
+  review page is open in front of you, the question shows there with its options, an Other box and
+  "Answer in Claude Code instead". Several questions show one after another; the tab title says
+  "(1) Claude has a question". No page open, or no answer in 10 minutes: the terminal box shows as before.
+  Permission prompts stay in the terminal. Test: `askhook.py demo`, `home.py demo`, `review.py demo`.
 - Study a creator from links: paste one or more video links (TikTok, YouTube or Instagram) instead of a
   profile, on the first run and on Pick a style. The window lists the links, names the creator when every
   link shares one, and says that 5 or more gives a truer style. Test: `home.py demo`.

@@ -28,6 +28,15 @@ Then wait for `wait` to finish. Each time it prints a job, start a new `wait` in
 straight away (so Cancel and the next job reach you), then do the job. `ALREADY` means a `wait` is
 running: leave it.
 
+## Questions
+
+Ask with AskUserQuestion as usual. When the home page or a review page is open and showing, a hook
+(`lib/ai_editor/askhook.py`) puts the question on that page: the options, an Other box, and "Answer in
+Claude Code instead". The answer comes back as the tool's result, the same as a terminal answer. No page
+showing, "Answer in Claude Code instead", or 10 minutes with no answer: the terminal box shows. Never ask
+a question in plain chat text when AskUserQuestion fits: only the tool reaches the page. Permission
+prompts (Allow or Deny for a command) stay in the terminal; a hook cannot answer them.
+
 ## Keys
 
 The page saves keys itself through `keys.py` (prefix check, one free test request, then the key

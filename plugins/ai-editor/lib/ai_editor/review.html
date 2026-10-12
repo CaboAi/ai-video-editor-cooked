@@ -455,6 +455,7 @@ function listenText(S){
   if(picked)return 'Claude is working on round '+(S.round+1);
   if(S.sent)return 'Notes sent';
   if(S.listening)return S.round>1&&!S.comments.some(c=>c.stage===S.stage&&c.round===S.round)?'Round '+S.round+' is ready':'Claude is listening';
+  if(S.busy)return 'Claude is working. Notes you send now are next.';
   return 'Claude is not listening. Notes still save.';
 }
 function render(){
@@ -579,7 +580,7 @@ function workHtml(){
   const act=(S.activity||[]).filter(x=>x.round===S.round),live=act.some(x=>!x.done);
   if(p==='approve')return `<div class="claude"><div><b>Claude</b><p>${S.stage==='cut'?'The cut is approved. Claude is styling it.':'Approved. The edit is finished.'}</p></div></div>`;
   if(p!=='send'&&!live)return '';
-  const head=p==='send'?(act.length?`Making round ${S.round+1}.`:picked?`Claude has your notes and is starting round ${S.round+1}.`:'Notes sent. Waiting for Claude to pick them up.'):'Still coming in this round:';
+  const head=p==='send'?(act.length?`Making round ${S.round+1}.`:picked?`Claude has your notes and is starting round ${S.round+1}.`:'Notes sent. Waiting for Claude to pick them up.'+(S.listening||!S.busy?'':' Claude is finishing something and takes them next.')):'Still coming in this round:';
   const li=act.map(x=>x.done?`<li><span class="ic">${TICK}</span>${esc(x.text)}</li>`
     :`<li class="now"><span class="ic"><i></i></span>${esc(x.text)}</li>`+(x.pct!=null?`<li class="pb"><em><i style="width:${x.pct}%"></i></em>${x.pct}%</li>`:'')).join('');
   const sent=e&&e.type==='send'?e.at:null;
@@ -755,4 +756,4 @@ document.querySelectorAll('.themebtn').forEach(b=>b.onclick=e=>{e.stopPropagatio
   try{localStorage.setItem('review-theme',t)}catch(err){}themeIcon()});
 OS.addEventListener('change',themeIcon);themeIcon();
 load();setInterval(load,3000);
-</script></body></html>
+</script><script src="/ask.js"></script></body></html>

@@ -200,6 +200,7 @@ published prices, not measured on a bill.
 | Something is missing or broken | Say **run the editor doctor**. Every line reads `ok`, or `FIX` with the exact command for your computer. |
 | Doctor says something moved off the pinned versions | Say **repair the editor setup**. Claude runs `setup.py repair` from wherever the plugin is installed, and it puts the exact pinned set back. From a cloned folder (Way 1) you can run it yourself: `python3 plugins/ai-editor/skills/setup/scripts/setup.py repair` (`py` instead of `python3` on Windows). |
 | You skipped a key or step | Say **finish setup**. Only the skipped steps run. |
+| Where do Claude's questions show up? | In the editor's window or review page when one is open in front of you; answer there. Otherwise in the terminal. Permission prompts (Allow or Deny for a command) always show in the terminal. |
 | Claude does not know "edit my video" | The editor is not loaded. Type `/reload-plugins`, or install it with Way 2. |
 | `python3` not found | Mac: `brew install python`. Windows: `winget install -e --id Python.Python.3.12`, then open a new terminal. Linux: `sudo apt install -y python3 python3-venv`. |
 | Node is too old on Debian or Ubuntu | Doctor prints the fix: it adds NodeSource's signed package source, then installs Node. |

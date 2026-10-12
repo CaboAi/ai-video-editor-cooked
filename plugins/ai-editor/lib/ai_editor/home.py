@@ -60,6 +60,7 @@ from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import askhook  # noqa: E402
 import keys  # noqa: E402
 import library  # noqa: E402
 import links  # noqa: E402
@@ -570,6 +571,8 @@ def make_handler(token):
             if not self.authorized():
                 return self.send(403, {"error": "open the page with the URL home.py printed"})
             path = unquote(urlsplit(self.path).path)
+            if askhook.route(self, "GET", path, {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()}):   # Claude's questions
+                return
             if path == "/":
                 return self.send(200, HTML.read_bytes(), "text/html; charset=utf-8", cookie=True)
             if path == "/state":
@@ -660,6 +663,8 @@ def make_handler(token):
                 body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 1 << 20)) or b"{}")
             except ValueError:
                 return self.send(400, {"error": "not json"})
+            if askhook.route(self, "POST", path, {}, body):
+                return
             if path == "/key":
                 name, val = body.get("name"), str(body.get("value") or "").strip()
                 if name not in KEY_NAMES or not val or len(val) > 400 or re.search(r"\s", val):
@@ -989,6 +994,7 @@ def serve(root=None, port=None, open_browser=True):
         update(lambda d: d.__setitem__("port", srv.server_address[1]))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
     (home() / ".server").write_text(url, encoding="utf-8")
+    askhook.register(srv, url)
     threading.Thread(target=run_doctor, daemon=True).start()
     if open_browser:
         webbrowser.open(url)
@@ -1049,6 +1055,16 @@ def demo():
             assert e.code == 403, (p, e.code)
     r = urllib.request.urlopen(base + "/?t=" + tok)
     assert b"ai editor" in r.read() and "SameSite=Strict" in r.headers["Set-Cookie"]
+    # Claude's question (askhook.py): the hook posts it, the showing page polls it and answers, the hook clears it
+    assert b'src="/ask.js"' in HTML.read_bytes() and b"askq" in urllib.request.urlopen(base + "/ask.js?t=" + tok).read()
+    assert askhook.live() == []   # served, but no page has polled yet
+    qs = [{"question": "Tight or loose?", "header": "Cut", "options": [{"label": "Tight", "description": ""}], "multiSelect": False}]
+    post("/ask", {"id": "q1", "questions": qs})
+    assert get("/ask?v=1")["ask"] == {"id": "q1", "questions": qs} and askhook.live() == [url]
+    post("/ask/answer", {"id": "q1", "answers": ["Tight"]})
+    assert get("/ask?id=q1")["result"] == {"answers": ["Tight"]} and get("/ask")["ask"] is None
+    post("/ask/clear", {"id": "q1"})
+    assert not srv.asks
     for _ in range(50):
         if read().get("doctor"):
             break

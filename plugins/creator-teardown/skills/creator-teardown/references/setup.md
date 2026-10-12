@@ -65,7 +65,7 @@ a small model reads one frame sheet per video instead. Offer it once.
 1. Open https://aistudio.google.com/apikey and sign in with any Google account.
 2. Click **Create API key**. Accept the terms if asked. If it asks for a project,
    let it create one. No card is needed: the free tier covers a teardown.
-3. Copy the key (it starts with `AIza`).
+3. Copy the key (new keys start with `AQ.`, older ones with `AIza`).
 4. In a terminal window (not this chat), run the `setkey --gemini` line doctor
    printed. It asks for the key and hides what they type. On a Mac, after copying:
    `pbpaste | python3 <skill>/scripts/fetch.py setkey --gemini`.

@@ -83,9 +83,9 @@ Use captions.json from here on.
 on screen and the rules plan.py enforces.
 
 1. **Propose:** `python3 "$S/route.py" beats edits/<name>` splits captions.json into sentences,
-   marks the profile's named things, and with a TypeSafe key Jev picks one route per sentence
+   marks the profile's named things into beats.json. Pick one route per sentence yourself
    (`none`, `capture:shot|browser|sticker`, `post`, `logo`, `logo_cluster`, `chat`, `terminal`,
-   `toasts`, `side_by_side`, `video_card`) into beats.json. No key: null picks, decide them yourself.
+   `toasts`, `side_by_side`, `video_card`).
 2. **Real things first:** write `visuals.json` (`references/shapes.md`): a named product
    or doc becomes a `capture` (with `marks` found by text), a quoted post a `post`, an app an `app`,
    a video a `youtube`, a repo a `github`, a brand in passing a `logo`, an expert's words a clip (`references/visuals.md` "Sourced proof").

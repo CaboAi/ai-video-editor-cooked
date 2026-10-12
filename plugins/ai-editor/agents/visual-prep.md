@@ -22,8 +22,8 @@ open a browser, never touch `spans.json`, `cut.mp4` or the source video. Never r
    profile's `assets_dir` that fit a line into `EDIT/images/` and write `EDIT/images.json`
    (`<ROOT>/skills/style-edit/references/shapes.md`, each with `word` and `nth`).
 3. **Captions and beats:** `python3 "$C/retakes.py" captions EDIT` (proofread `captions.txt`; fix a word
-   with `retakes.py fix`), then `python3 "$S/route.py" beats EDIT` (with a TypeSafe key Jev picks routes
-   for a fraction of a cent, the same key the cut used; without one, decide the picks yourself).
+   with `retakes.py fix`), then `python3 "$S/route.py" beats EDIT` (every pick is null: decide the picks
+   yourself).
 4. **Visuals:** write `EDIT/visuals.json` by `shapes.md`: a card only where a sentence names something
    real, only the speaker's words, every beat with `word` and `nth`.
 5. **Fetch and face:** `node "$S/capture.mjs" EDIT` (free: local Chrome screenshots, logos, posts), then

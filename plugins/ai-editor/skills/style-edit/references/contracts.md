@@ -169,12 +169,11 @@ part by part from the profile's creators. `blend` records which creator each par
 
 ```json
 [{"i": 1, "text": "It is 40 times faster than Claude.", "start": 2.4, "end": 4.1,
-  "names": ["Claude"], "pick": "capture:sticker", "p": 0.7}]
+  "names": ["Claude"], "pick": null}]
 ```
 
 - `i`: sentence index. `start`, `end`: seconds on cut.mp4. `names`: the profile's `names` said in the sentence.
-- `pick`: `none` | `capture:shot|browser|sticker` | `post` | `logo` | `logo_cluster` | `chat` | `terminal` | `toasts` | `side_by_side` | `video_card`,
-  or `null` with no TypeSafe key (Claude routes). `p`: the pick's probability, or `null`.
+- `pick`: `null`. Claude routes each sentence: `none` | `capture:shot|browser|sticker` | `post` | `logo` | `logo_cluster` | `chat` | `terminal` | `toasts` | `side_by_side` | `video_card`.
 
 ## visuals.json (Claude -> capture.mjs + plan.py)
 

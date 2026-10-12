@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Self-check for retakes.py, offline: canned Jev answers, no key, no network.
+"""Self-check for retakes.py, offline, no network.
 
     python3 test_retakes.py
 """
@@ -24,65 +24,41 @@ def take(text):
     return toks
 
 
-def run(text, same=0.95, keep="second", other=0.9):
-    """spans, review and the questions asked, with every answer canned."""
-    toks = take(text)
-    cands = R.find(toks)
-    qs = {q: v for c in cands for q, v in c["questions"].items()}
-    canned = {}
-    for q in qs:
-        kind = q.rsplit("_", 1)[1]
-        if kind == "keep":
-            canned[q] = {"type": "choice", "choice": keep, "confidence": 0.9,
-                         "probabilities": {keep: 0.95}}
-        else:
-            canned[q] = {"type": "noul", "noul": same if kind == "same" else other}
-    cuts, review = R.decide(cands, R.jev.ask(R.STATE, qs, canned=canned) if qs else {})
-    spans = R.to_spans(cuts, toks)
-    B.resolve_spans(spans, toks)   # every span must quote cleanly, no overlaps
-    return spans, review, qs
+def run(text):
+    """(kind, text) of every candidate found in code."""
+    return [(c["kind"], c["text"]) for c in R.find(take(text))]
 
 
-def test_retake_last_take_wins():
-    spans, review, _ = run("so the main thing is money | so the main thing is that money compounds over time.")
-    assert [s["text"] for s in spans] == ["so the main thing is money"], spans
-    assert spans[0]["kind"] == "retake" and not review, (spans, review)
+def cut_all(toks, kinds):
+    """spans.json cutting every candidate of `kinds`, as Claude would write it."""
+    return [{"text": c["text"], "kind": c["kind"], "after": max(0.0, round(c["at"] - 0.001, 3))}
+            for c in R.find(toks) if c["kind"] in kinds]
+
+
+def test_retake_is_a_candidate():
+    got = run("so the main thing is money | so the main thing is that money compounds over time.")
+    assert got == [("retake", "so the main thing is money")], got
 
 
 def test_false_start_in_a_clause():
-    spans, _, _ = run("the thing about the thing about money is simple.")
-    assert [s["text"] for s in spans] == ["the thing about"] and spans[0]["kind"] == "false_start", spans
+    got = run("the thing about the thing about money is simple.")
+    assert got == [("false_start", "the thing about")], got
 
 
-def test_clean_take_asks_nothing():
-    spans, review, qs = run("I moved to Lisbon last year. | The rent was half what I paid before.")
-    assert not spans and not review and not qs, (spans, qs)
+def test_clean_take_finds_nothing():
+    assert not run("I moved to Lisbon last year. | The rent was half what I paid before.")
 
 
-def test_broken_second_take_goes_to_review():
-    spans, review, _ = run("so the main thing is money | so the main", keep="first")
-    assert not spans and review and "kept" in review[0]["action"], (spans, review)
+def test_um_and_meta_found():
+    got = run("um I think so. | wait sorry | I think this works.")
+    assert ("filler", "um") in got and ("meta", "wait") in got and ("meta", "sorry") in got, got
+    assert [c["check"] for c in R.find(take("um yes."))] == [False]   # um is always cut, never a place to look
 
 
-def test_unsure_is_a_low_cut_for_review():
-    spans, review, _ = run("so the main thing is money | so the main thing is that money grows.", same=0.55)
-    assert spans[0].get("confidence") == "low" and review[0]["action"] == "cut, low confidence", spans
-    spans, review, _ = run("so the main thing is money | so the main thing is that money grows.", same=0.1)
-    assert not spans and not review
-
-
-def test_um_cut_without_asking_and_meta_asked():
-    spans, _, qs = run("um I think so. | wait sorry | I think this works.", same=0.1, other=0.9)
-    texts = [s["text"] for s in spans]
-    assert "um" in texts and "wait sorry" in texts, spans
-    assert not any(q.endswith("_filler") for q in qs)   # um is never a question
-
-
-def test_chain_cuts_all_but_last():
-    spans, _, qs = run("and to break down, | and to break down competitor ads, | "
-                       "and to break down competitor ads for the whole niche.")
-    assert [s["text"] for s in spans] == ["and to break down, and to break down competitor ads,"], spans
-    assert sum(q.endswith("_keep") for q in qs) == 1, qs   # only the chain end asks which take
+def test_chain_is_every_earlier_attempt():
+    got = run("and to break down, | and to break down competitor ads, | "
+              "and to break down competitor ads for the whole niche.")
+    assert [k for k, _ in got] == ["retake", "retake"] and got[0][1] == "and to break down,", got
 
 
 HOOK = "most people edit their videos backwards."
@@ -100,9 +76,9 @@ def test_alternate_hooks_after_the_cta():
     text = f"{HOOK} | {BODY} | {CTA} | {HOOK} | most people edit their videos the wrong way round."
     toks = take(text)
     assert len(R.alt_hooks(toks)) == 2, R.alt_hooks(toks)
-    spans, review, qs = run(text)
-    alts = [s for s in spans if s["kind"] == "alt_hook"]
-    assert [s["text"] for s in alts] == [f"{HOOK} most people edit their videos the wrong way round."], spans
+    spans = cut_all(toks, {"alt_hook"})
+    alts = spans
+    assert [s["text"] for s in alts] == [HOOK, "most people edit their videos the wrong way round."], spans
     assert not any(s["kind"] == "retake" for s in spans), spans   # no "last take wins" on a hook
     cuts = B.resolve_spans(spans, toks)
     kept = [w["text"] for w in toks if not B.covered_by(w, cuts)]
@@ -209,36 +185,12 @@ def test_verify_counts_a_misheard_name_as_heard_differently():
         assert ("jev -> jeff" in out.getvalue()) != missing, out.getvalue()
 
 
-def test_no_key_falls_back():
+def test_propose_writes_candidates_only():
     with tempfile.TemporaryDirectory() as d:
         (Path(d) / "words.raw.json").write_text(json.dumps(take("so the main | so the main thing.")), encoding="utf-8")
-        assert R.propose(d) == 4
-        assert (Path(d) / "candidates.md").exists() and not (Path(d) / "spans.json").exists()
-
-
-
-def test_rejected_key_has_its_own_exit():
-    """A 401 from TypeSafe exits 5 with a new-key message; an outage stays 4 (the no-key fallback)."""
-    import contextlib
-    import io
-    old_get, old_post = R.keys.get, R.jev._post
-    try:
-        R.keys.get = lambda name: ("ts-bad", "test")
-        for code, want, says in ((401, 5, "rejected"), (503, 4, "Falling back")):
-            def post(body, key, tries=5, code=code):
-                raise R.jev.JevError(f"TypeSafe HTTP {code}: no", code)
-            R.jev._post = post
-            with tempfile.TemporaryDirectory() as d:
-                (Path(d) / "words.raw.json").write_text(json.dumps(take("so the main | so the main thing.")), encoding="utf-8")
-                err, argv = io.StringIO(), sys.argv
-                sys.argv = ["retakes.py", "propose", d]
-                with contextlib.redirect_stderr(err):
-                    got = R.main()
-                sys.argv = argv
-                assert got == want and says in err.getvalue(), (code, got, err.getvalue())
-                assert (Path(d) / "candidates.md").exists()
-    finally:
-        R.keys.get, R.jev._post = old_get, old_post
+        R.propose(d)
+        assert (Path(d) / "candidates.md").exists() and (Path(d) / "transcript.txt").exists()
+        assert sorted(p.name for p in Path(d).iterdir()) == ["candidates.md", "transcript.txt", "words.raw.json"]
 
 
 def test_sample_list_and_comparison_are_not_candidates():

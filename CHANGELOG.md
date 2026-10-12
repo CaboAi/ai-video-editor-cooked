@@ -39,6 +39,16 @@ What changed for every user, newest first.
   `review.py serve` skips it when the home window holds that edit's job and goes there in its own tab. Test:
   `askhook.py demo` (two sessions, two pages), `home.py demo`, `review.py demo`, `progress.py demo`,
   `launcher.py demo` (the terminal command per OS, recorded, never run).
+- Jev is gone: the editor no longer uses TypeSafe or asks for its key. On a real skit Jev marked
+  0.44-99.8 s (85% of the video) as one retake, because skits repeat lines on purpose. `retakes.py
+  propose` now writes `transcript.txt` and `candidates.md` (what code flagged) and Claude writes
+  `spans.json` from them, as it did without a key; no `review.md`, `jev-usage.jsonl` or exit 4/5.
+  `clips.py candidates` ranks by the measured features and Claude judges the shortlist. `route.py beats`
+  leaves every pick null for Claude, and `route.py highlight` prints the page's sentences closest first.
+  `product.py copy` and `pages` list without ranking. The TypeSafe row is gone from setup, the window's
+  key rows, `keys.py`, README and the docs. A saved `TYPESAFE_API_KEY` line stays in the key file
+  untouched and is never read; an old "typesafe" in later.json is ignored. Test: `test_retakes.py`,
+  `clips.py demo`, `route.py demo`, `keys.py`, `setup.py demo`, `home.py demo`.
 - The home window shows progress on its own. A tester pressed Copy and the window sat blank while Claude
   installed and ran the teardown, because steps only reached it when Claude ran `home.py status`. Now the
   long scripts report themselves while Claude has that job taken (a script never takes a queued job, so

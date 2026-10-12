@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""The cheap way to decide the cut: code finds the candidates, Jev judges them, Claude
-reviews only what Jev was unsure of.
+"""Code finds the places a cut might go; Claude decides the cut from them.
 
     python3 retakes.py text    <edit_dir>              transcript.txt, one line per phrase
-    python3 retakes.py propose <edit_dir> [--force]    spans.json + review.md (needs a TypeSafe key)
-    python3 retakes.py fix     <edit_dir> cloud=Claude [jiv=Jev ...]   fix misheard words
+    python3 retakes.py propose <edit_dir>              transcript.txt + candidates.md
+    python3 retakes.py fix     <edit_dir> cloud=Claude [haiku=Haiku ...]   fix misheard words
     python3 retakes.py captions <edit_dir>             captions.json + captions.txt for style-edit
     python3 retakes.py hook    <edit_dir> <n>          <edit_dir>-hook<n>/: the cut opening on alternate hook n
     python3 retakes.py remap   <edit_dir>              re-point visuals built before a re-cut
@@ -14,17 +13,12 @@ text     words.raw.json as "[start-end] words" per phrase, about a fifth of its 
 propose  1. Code finds every candidate: a restart (words said again within 40 s: a retake
             or a false start), an unfinished phrase followed by a pause, talking-to-self
             ("wait", "let me start again"), and soft fillers ("like", "you know").
-         2. Jev judges each one in a single batched request, seeing only the words that
-            candidate is about. "um"/"uh" and audio events are cut without asking.
-         3. Writes spans.json (what build_timeline.py reads), review.md (only the items Jev
-            was unsure of) and candidates.json (every candidate with its answers).
-         Last take wins: a restart cuts the earlier attempt, unless Jev says the later one
-         is the broken one; that case is never cut automatically, it goes to review.md.
-         Alternate hooks are the exception: takes of the opening line recorded after the body
+         2. Writes transcript.txt and candidates.md (each candidate is a place to look, not a
+            decision; "um"/"uh" and audio events are always cut). Claude decides the cut from
+            those and writes spans.json (references/retake-detection.md).
+         Alternate hooks: takes of the opening line recorded after the body
          (after the call to action) are cut from the main cut as `alt_hook` and listed in
          hooks.json, so the hook stays at the start and the cut never ends on one.
-         With no TypeSafe key it writes transcript.txt and candidates.md and exits 4: decide
-         the cut yourself from those (references/retake-detection.md).
 fix      Replaces one whole word everywhere in words.raw.json, words.json, cut.transcript.json
          and captions.json (style-edit's caption text), keeping
          punctuation and timings. A misheard name costs one command, not a rewrite. Each pair is
@@ -43,7 +37,7 @@ remap    Visuals prepared while the user reviewed the cut (visuals.json, images.
          the new cut. A beat whose word was cut is dropped and printed. Then copies decisions.json
          over prep-decisions.json, so running it twice changes nothing.
 
-Exit codes: 0 ok, 1 error, 2 usage, 4 no TypeSafe key (fall back to deciding yourself)
+Exit codes: 0 ok, 1 error, 2 usage
 """
 import argparse
 import difflib
@@ -57,7 +51,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[2] / "lib"))
 from textnorm import load_words, norm, nwords, pair_by_time  # noqa: E402
-from ai_editor import jev, keys, profile  # noqa: E402
+from ai_editor import profile  # noqa: E402
 
 PHRASE_GAP_S = 0.5        # a silence this long ends a phrase
 WINDOW_S = 40.0           # a restart this far back is still a retake
@@ -71,12 +65,6 @@ STOP = {"a", "an", "the", "and", "or", "but", "so", "of", "to", "in", "on", "at"
 META = re.compile(r"\b(wait|sorry|hold on|shoot|oops|start (?:again|over)|one more time|"
                   r"let me (?:start|do (?:that|this|it)|try|say (?:that|it))(?: (?:again|over))?|"
                   r"take two|again)\b")
-# Noul bands (cookbooks/consistency_noul_cookbook.md): 0.3-0.7 is uncertain and goes to review.
-CUT, SURE, UNSURE, FILLER_CUT, KEEPER_CONF = 0.7, 0.85, 0.3, 0.8, 0.6
-
-STATE = ("Lines from the transcript of one person recording a talking-head video in a single "
-         "take. Speakers often stop mid-sentence and say the line again, and the later attempt "
-         "replaces the earlier one. Transcription can misspell names.")
 
 
 # --- transcript ---------------------------------------------------------------
@@ -292,7 +280,7 @@ def keeps_fillers(d):
 
 
 def find(toks, keep_fillers=False):
-    """Every candidate, each with the Jev questions that decide it. keep_fillers (the user's taste
+    """Every candidate; `check` is False for the ones always cut (um, uh, audio events). keep_fillers (the user's taste
     `cut.keep_fillers`, learned from their own edit): no filler is a candidate."""
     phr = phrases(toks)
     end_of = {i: b for a, b in phr for i in range(a, b + 1)}
@@ -300,43 +288,22 @@ def find(toks, keep_fillers=False):
     alts = alt_hooks(toks)
     tail = alts[0][0] if alts else len(toks)   # nothing in the alternate hooks is judged: all of it is cut
 
-    def add(kind, a, b, qs=None, **extra):
+    def add(kind, a, b, check=False, **extra):
         if kind != "alt_hook":
             b = min(b, tail - 1)    # a phrase can run into the first alternate hook (a word hung on it)
         cands.append({"id": f"c{len(cands)}", "kind": kind, "cut": [a, b], "at": toks[a]["start"],
-                      "text": say(toks, a, b), "questions": qs or {}, **extra})
+                      "text": say(toks, a, b), "check": check, **extra})
 
     for i, j in restarts(toks):
         if j >= tail:
             continue
-        cid = f"c{len(cands)}"
         gap = toks[j]["start"] - toks[j - 1]["end"]
         second = say(toks, j, min(end_of[j], j + 25))
-        qs = {f"{cid}_same": jev.noul(
-            "Is `second_attempt` the speaker starting over on what they began in `first_attempt`, "
-            "to replace it?",
-            true="Yes: the second attempt says the same words or the same idea again, as a retry.",
-            false="No: the second attempt moves on to new content, or repeats words on purpose "
-                  "for emphasis or as a list.",
-            first_attempt=say(toks, i, j - 1), second_attempt=second,
-            pause_between="a long pause" if gap >= 1.0 else "a short pause" if gap >= 0.3 else "no pause")}
         add("false_start" if j - i <= 4 and gap < 1.0 else "retake",
-            i, j - 1, qs, second=second, keeper_at=toks[j]["start"])
+            i, j - 1, True, second=second, keeper_at=toks[j]["start"])
 
-    # A fragment that is already the first attempt of a restart needs no second question.
+    # A fragment that is already the first attempt of a restart is not a second candidate.
     restarted = {c["cut"][0] for c in cands}
-    # Chain ends get the keeper question: a middle attempt is replaced by a later one anyway.
-    for c in cands:
-        nxt = next((d for d in cands if d["kind"] in ("retake", "false_start")
-                    and d["cut"][0] <= c["cut"][1] + 1 <= d["cut"][1]), None)
-        if nxt is None:
-            c["questions"][f"{c['id']}_keep"] = jev.choice(
-                "Which attempt should stay in the finished video?",
-                {"second": "`second_attempt`, the later one. Pick this unless it breaks off "
-                           "unfinished or stumbles worse than the first.",
-                 "first": "`first_attempt`, only if `second_attempt` breaks off unfinished or is "
-                          "clearly worse."},
-                first_attempt=c["text"], second_attempt=c["second"])
 
     for pi, (a, b) in enumerate(phr):
         words = sum(len(nwords(t["text"])) for t in toks[a:b + 1])
@@ -344,14 +311,7 @@ def find(toks, keep_fillers=False):
             continue
         if toks[b]["text"].strip().endswith((".", "?", "!")):
             continue
-        na, nb = phr[pi + 1]
-        cid = f"c{len(cands)}"
-        add("false_start", a, b, {f"{cid}_frag": jev.noul(
-            "Does the speaker leave `fragment` unfinished and abandon it, then start a "
-            "different sentence in `next`?",
-            true="Yes: `fragment` breaks off and `next` does not complete it.",
-            false="No: `next` carries on and completes the thought in `fragment`.",
-            fragment=say(toks, a, b), next=say(toks, na, min(nb, na + 20)))})
+        add("false_start", a, b, True)
 
     seq = [(w, i) for i, t in enumerate(toks) for w in nwords(t["text"])]
     flat = " ".join(w for w, _ in seq)
@@ -362,14 +322,7 @@ def find(toks, keep_fillers=False):
             a, b = seq[w0][1], seq[w1][1]
             if a >= tail or (kind == "filler" and (keep_fillers or m.group(0) == "like" and not loose_like(toks, a))):
                 continue
-            ctx = say(toks, max(0, a - 12), min(len(toks) - 1, b + 12))
-            cid = f"c{len(cands)}"
-            q = (jev.noul("In `text`, are the words `words` the speaker talking to themself about "
-                          "the recording (like \"wait\", \"sorry\", \"let me start again\"), not "
-                          "to the viewer?", text=ctx, words=m.group(0)) if kind == "meta" else
-                 jev.noul("In `text`, is `word` a hesitation filler that can be removed without "
-                          "changing what is said?", text=ctx, word=m.group(0)))
-            add(kind, a, b, {f"{cid}_{kind}": q})
+            add(kind, a, b, True)
 
     for n, (a, b) in enumerate(alts, 1):
         add("alt_hook", a, b, hook=n)
@@ -382,100 +335,16 @@ def find(toks, keep_fillers=False):
     return sorted(cands, key=lambda c: c["cut"][0])
 
 
-# --- decisions (code over Jev's answers) ----------------------------------------
-
-def decide(cands, answers):
-    """(cuts, review). A cut is {a, b, kind, confidence, note}. Review lists every item
-    Jev was unsure of, cut or not, for Claude to look at."""
-    cuts, review = [], []
-    for c in cands:
-        qs = {q.rsplit("_", 1)[1]: answers.get(q) for q in c["questions"]}
-        c["answers"] = {k: v for k, v in qs.items() if v}
-        if not qs:   # um, uh, audio events: always cut
-            note = {"filler": "hesitation", "alt_hook": f"alternate hook {c.get('hook')}: retakes.py hook"}
-            cuts.append({**c, "confidence": "high", "note": note.get(c["kind"], "")})
-            continue
-        p = next(v["noul"] for k, v in qs.items() if k != "keep")
-        keep = qs.get("keep")
-        if c["kind"] == "filler":
-            if p >= FILLER_CUT:
-                cuts.append({**c, "confidence": "high", "note": f"filler, Jev {p:.2f}"})
-            continue
-        why = f"Jev {p:.2f}"
-        if keep:
-            why += f", keeps the {keep['choice']} attempt ({keep['confidence']:.2f})"
-        if p >= CUT and keep and keep["choice"] == "first":
-            review.append({**c, "p": p, "action": "kept: Jev says the later attempt is the broken one"})
-            continue
-        if p >= CUT and (not keep or keep["confidence"] >= KEEPER_CONF):
-            note = (f"keeper at {c['keeper_at']:.1f}s, " if "keeper_at" in c else "") + why
-            cuts.append({**c, "confidence": "high" if p >= SURE else "medium", "note": note})
-        elif p >= 0.5 and (not keep or keep["choice"] == "second"):
-            cuts.append({**c, "confidence": "low", "note": why})
-            review.append({**c, "p": p, "action": "cut, low confidence"})
-        elif p >= UNSURE or (p >= CUT and keep):
-            review.append({**c, "p": p, "action": "kept"})
-    return cuts, review
-
-
-def to_spans(cuts, toks):
-    """Merge overlapping or touching cuts and quote them for build_timeline.py."""
-    rank = {"alt_hook": 5, "retake": 4, "false_start": 3, "meta": 2, "filler": 1, "audio_event": 0}
-    level = {"low": 0, "medium": 1, "high": 2}
-    merged = []
-    for c in sorted(cuts, key=lambda c: c["cut"][0]):
-        a, b = c["cut"]
-        if merged and a <= merged[-1]["b"] + 1 and (merged[-1]["kind"] == "alt_hook") == (c["kind"] == "alt_hook"):
-            m = merged[-1]
-            m["b"] = max(m["b"], b)
-            m["kind"] = max(m["kind"], c["kind"], key=rank.get)
-            m["confidence"] = min(m["confidence"], c["confidence"], key=level.get)
-            m["notes"].append(c["note"])
-        else:
-            merged.append({"a": a, "b": b, "kind": c["kind"], "confidence": c["confidence"],
-                           "notes": [c["note"]]})
-    spans = []
-    for m in merged:
-        a, b = m["a"], m["b"]
-        while a < b and not nwords(toks[a]["text"]):
-            a += 1
-        while b > a and not nwords(toks[b]["text"]):
-            b -= 1
-        if not nwords(toks[a]["text"]):
-            continue
-        sp = {"text": say(toks, a, b), "kind": m["kind"], "after": max(0.0, round(toks[a]["start"] - 0.001, 3))}
-        if m["confidence"] != "high":
-            sp["confidence"] = m["confidence"]
-        note = "; ".join(n for n in m["notes"] if n)
-        if note:
-            sp["note"] = note[:160]
-        spans.append(sp)
-    return spans
-
-
-def review_md(review, toks):
-    if not review:
-        return "# Review\n\nNothing uncertain. Read paper-edit.md once, then render.\n"
-    lines = ["# Review", "", f"{len(review)} item(s) Jev was unsure of. For each: leave it, or edit "
-             "spans.json (add, delete or narrow the entry). Everything else is decided.", ""]
-    for r in review:
-        lines.append(f"- **{r['id']}** {r['at']:.2f}s `{r['kind']}`, {r['action']} (Jev {r['p']:.2f})")
-        lines.append(f"  - cut candidate: \"{r['text']}\"")
-        if r.get("second"):
-            lines.append(f"  - said again as: \"{r['second']}\"")
-    return "\n".join(lines) + "\n"
-
-
 def candidates_md(cands):
-    lines = ["# Candidates found in code (no TypeSafe key, so nothing is judged)", "",
+    lines = ["# Candidates found in code", "",
              "Each is a place to look, not a decision. Check each against transcript.txt and "
              "references/retake-detection.md, then write spans.json.", ""]
     for c in cands:
-        if c["questions"]:
+        if c["check"]:
             extra = f" -> said again: \"{c['second']}\"" if c.get("second") else ""
             lines.append(f"- {c['at']:.2f}s `{c['kind']}` \"{c['text']}\"{extra}")
     alts = [c for c in cands if c["kind"] == "alt_hook"]
-    n = sum(1 for c in cands if not c["questions"]) - len(alts)
+    n = sum(1 for c in cands if not c["check"]) - len(alts)
     lines += ["", f"Plus {n} um/uh/audio-event token(s), always cut."]
     if alts:
         lines += ["", "Alternate hooks (takes of the opening line after the body). Not retakes: cut each "
@@ -484,36 +353,19 @@ def candidates_md(cands):
     return "\n".join(lines) + "\n"
 
 
-def propose(d, key=None, canned=None, force=False):
-    """Returns 0, or 4 with no key. canned={qid: answer} runs offline (tests)."""
+def propose(d):
+    """transcript.txt, candidates.md and hooks.json. Claude writes spans.json from them."""
     d = Path(d)
     toks = load(d)
     (d / "transcript.txt").write_text(text_view(toks, d.name), encoding="utf-8")
     cands = find(toks, keeps_fillers(d))
     write_hooks(d, toks)
-    if key is None and canned is None:
-        (d / "candidates.md").write_text(candidates_md(cands), encoding="utf-8")
-        return 4
-    sp = d / "spans.json"
-    if sp.exists() and not force:
-        sys.exit(f"ERROR: {sp} exists. Pass --force to replace it (it is kept as spans.prev.json).")
-    qs = {q: v for c in cands for q, v in c["questions"].items()}
-    answers = jev.ask(STATE, qs, key=key, log_dir=d, canned=canned)
-    cuts, review = decide(cands, answers)
-    spans = to_spans(cuts, toks)
-    if sp.exists():
-        sp.replace(d / "spans.prev.json")
-    sp.write_text(json.dumps(spans, indent=1), encoding="utf-8")
-    (d / "review.md").write_text(review_md(review, toks), encoding="utf-8")
-    (d / "candidates.json").write_text(json.dumps(
-        [{k: v for k, v in c.items() if k != "questions"} for c in cands], indent=1), encoding="utf-8")
-    u = jev.ask.last_usage
+    (d / "candidates.md").write_text(candidates_md(cands), encoding="utf-8")
     n = sum(c["kind"] == "alt_hook" for c in cands)
     if n:
         print(f"{n} alternate hook(s) after the body, cut from the main cut: {d / 'hooks.json'}")
-    print(f"{len(cands)} candidates, {len(qs)} questions, {u['input_tokens']} Jev tokens "
-          f"(${u['cost_usd']:.4f}); {len(spans)} spans, {len(review)} to review")
-    return 0
+    print(f"{len(cands)} candidates. Wrote {d / 'transcript.txt'} and {d / 'candidates.md'}: "
+          "decide the cut from those and write spans.json.")
 
 
 # --- alternate hooks -------------------------------------------------------------
@@ -717,7 +569,6 @@ def main():
     ap.add_argument("cmd", choices=["text", "propose", "fix", "captions", "hook", "remap"])
     ap.add_argument("edit_dir")
     ap.add_argument("pairs", nargs="*", help="fix: old=new; hook: the alternate's number")
-    ap.add_argument("--force", action="store_true")
     a = ap.parse_args()
     d = Path(a.edit_dir)
     if a.cmd == "text":
@@ -752,21 +603,7 @@ def main():
             f"{w} -> {v}" + (f" x{k}" if k > 1 else "") for (w, v), k in n.items()) if n else ""))
         print(f"{d / 'captions.txt'}: proofread this; a misheard word is retakes.py fix {d} old=new")
     else:
-        key, _ = keys.get("typesafe")
-        try:
-            code = propose(d, key=key, force=a.force)
-        except jev.JevError as e:
-            (d / "candidates.md").write_text(candidates_md(find(load(d), keeps_fillers(d))), encoding="utf-8")
-            if e.rejected_key:
-                print(f"TypeSafe rejected the saved key ({e}). Save a new one with the setup skill's setkey step. "
-                      "Meanwhile decide the cut yourself from transcript.txt and candidates.md.", file=sys.stderr)
-                return 5
-            print(f"{e}. Falling back: decide the cut yourself from transcript.txt.", file=sys.stderr)
-            return 4
-        if code == 4:
-            print(f"No TypeSafe key. Wrote {d / 'transcript.txt'} and {d / 'candidates.md'}: "
-                  "decide the cut yourself from those.")
-        return code
+        propose(d)
     return 0
 
 

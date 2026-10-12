@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Find the best short clips in a long video. Transcribe once, then code and Jev do the reading.
+"""Find the best short clips in a long video. Transcribe once, then code ranks and Claude reads the shortlist.
 
     python3 clips.py link       <video file> <clips_dir>   the source, linked (never copied when avoidable)
     python3 clips.py candidates <clips_dir> [--min 20 --max 40] [--speakers 1|2] [--style style.json] [--top 8]
@@ -18,13 +18,11 @@ candidates  1. Sentences from the word timings (. ? ! or a 1.2 s silence ends on
                from ffmpeg), words in the first 3 s, laughter and other audio events, names and
                numbers said (things style-edit can show as real captures), a start that leans on
                earlier context ("and", "so", "that's why").
-            4. Jev, with a TypeSafe key: four yes/no questions a candidate (the hook alone, self
-               contained, pays off, a concrete claim / number / story), plus one per "what works"
-               move from the creator's style.json. One batched request, a cent or two a video.
-            5. Score = 0.7 Jev + 0.3 features (features only with no key), then the top --top
-               candidates that do not overlap: shortlist.md (about 1,500 tokens) for Claude.
-            Writes candidates.json, shortlist.json, shortlist.md. Exit 4 with no key: the
-            shortlist is ranked by features only and Claude judges the four questions itself.
+            4. Score = the features, then the top --top candidates that do not overlap:
+               shortlist.md (about 1,500 tokens) for Claude, who judges each on the hook alone,
+               self-contained, pays off, concrete (claim, number, story), plus the "what works"
+               moves from the creator's style.json, listed at the top.
+            Writes candidates.json, shortlist.json, shortlist.md.
 page        picks.html: one self-contained page with every shortlisted clip, its transcript, its
             score breakdown and a low-res preview (base64 mp4, 360 px, cut with ffmpeg).
 reframe     A wide source.mp4 cropped to 9:16, the crop following the speaker's head shot by shot
@@ -38,7 +36,7 @@ trim        For each chosen id, edits/<name>-clip<N>/source.mp4 (frame-accurate 
             links.py, else the file's embedded art, else black), 1080x1920; clip.json says audio_only and
             names the edit's copy of the cover and its box, which plan.py hands the renderer to move.
 
-Exit codes: 0 ok, 1 error, 2 usage, 4 no TypeSafe key (features-only ranking)
+Exit codes: 0 ok, 1 error, 2 usage
 """
 import argparse
 import array
@@ -57,7 +55,6 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[2] / "lib"))
-from ai_editor import jev, keys  # noqa: E402
 from ai_editor.links import AUDIO_EXT  # noqa: E402
 
 SOURCES = [f"source{e}" for e in (".mp4", ".mov", ".mkv", ".webm", ".m4v") + AUDIO_EXT]
@@ -116,12 +113,6 @@ NUMBER = re.compile(r"\d|\b(hundred|thousand|million|billion|percent|half|double
 PROMO = re.compile(r"\b(sponsor(?:ed)?|link in the description|use (?:my )?code|promo code|check (?:them|it) out|"
                    r"subscribe|that's all i have|see you (?:in the )?next|thanks for watching|today's video is)\b", re.I)
 SKIP_CAPS = {"I", "I'm", "I've", "I'll", "I'd", "AM", "PM", "OK", "Okay", "Yeah", "Oh", "Mm-hmm", "Uh", "Um"}
-W_JEV = {"hook": 0.35, "self": 0.25, "payoff": 0.25, "concrete": 0.15}
-W_WHAT_WORKS = 0.15       # share of the Jev score the creator's moves get, when there are any
-
-STATE = ("Excerpts from the transcript of one long video (a talk, tutorial or podcast) that is "
-         "being cut into short vertical clips for TikTok, Reels and Shorts. A viewer of a clip "
-         "has seen nothing else of the video. Transcription can misspell names.")
 
 
 # --- transcript ------------------------------------------------------------------
@@ -271,7 +262,7 @@ def feature_score(f, med_wpm):
 
 def what_works(style):
     """The creator's measured moves as short strings: style.json's `what_works`, any shape
-    (a list, or a dict of lists or strings). At most 4, so the Jev bill stays flat."""
+    (a list, or a dict of lists or strings). At most 4, so the shortlist stays short."""
     ww = (style or {}).get("what_works")
     out = []
 
@@ -292,36 +283,7 @@ def what_works(style):
     return list(dict.fromkeys(out))[:4]
 
 
-def questions(c, moves):
-    cid, clip = c["id"], c["text"]
-    qs = {
-        f"{cid}_self": jev.noul(
-            "Can someone who has seen nothing else of the video follow `clip` on its own?",
-            true="Yes: it sets up what it is about and ends on a finished thought.",
-            false="No: it leans on something said earlier (an unexplained 'this', 'he', 'as I said') "
-                  "or stops mid-thought.", clip=clip),
-        f"{cid}_payoff": jev.noul(
-            "Does `clip` pay off what its first sentence sets up (an answer, a result, a lesson or a "
-            "punchline) before it ends?", clip=clip),
-        f"{cid}_concrete": jev.noul(
-            "Does `clip` contain a concrete claim, a number, a named example or a short story, rather "
-            "than only general talk?", clip=clip),
-    }
-    for k, m in enumerate(moves):
-        qs[f"{cid}_ww{k}"] = jev.noul("Does `clip` do this: `move`?", clip=clip, move=m)
-    return qs
-
-
-def hook_question(text):
-    return jev.noul(
-        "Heard alone in the first 3 seconds of a short video, with no context, would `first_sentence` "
-        "make a viewer want to keep watching?",
-        true="Yes: it opens a question, makes a bold or surprising claim, or names a problem the viewer has.",
-        false="No: it is a greeting, a transition, or needs earlier context to mean anything.",
-        first_sentence=text)
-
-
-def candidates(d, lo=20, hi=40, speakers=1, style=None, top=8, key=None, canned=None, names=None):
+def candidates(d, lo=20, hi=40, speakers=1, style=None, top=8, names=None):
     d = Path(d)
     toks = load_words(d / "words.raw.json")
     sents = sentences(toks)
@@ -338,43 +300,15 @@ def candidates(d, lo=20, hi=40, speakers=1, style=None, top=8, key=None, canned=
         c["features_score"] = feature_score(c, med_wpm)
 
     moves = what_works(style)
-    qs, hook_ids = {}, {}
     for c in cands:
-        hid = hook_ids.setdefault(c["first"], f"h{c['first']}")
-        qs[hid] = hook_question(c["hook"])
-        qs.update(questions(c, moves))
-    state = STATE + (" Two people talk in it: a host and a guest." if speakers == 2 else "")
-    est_tokens = round((len(json.dumps(qs)) + len(state)) / 4)
-    code = 0
-    try:
-        if key is None and canned is None:
-            raise jev.JevError("no TypeSafe key")
-        ans = jev.ask(state, qs, key=key, log_dir=d, canned=canned)
-        usage = jev.ask.last_usage
-    except jev.JevError as e:
-        print(f"{e}: ranking on code features only.", file=sys.stderr)
-        ans, usage, code = {}, None, 4
-    for c in cands:
-        a = {"hook": ans.get(f"h{c['first']}")} | {k: ans.get(f"{c['id']}_{k}") for k in ("self", "payoff", "concrete")}
-        if all(a.values()):
-            c["jev"] = {k: round(jev.yes(v), 3) for k, v in a.items()}
-            ww = [jev.yes(ans[f"{c['id']}_ww{k}"]) for k in range(len(moves)) if f"{c['id']}_ww{k}" in ans]
-            j_score = sum(W_JEV[k] * c["jev"][k] for k in W_JEV)
-            if ww:
-                c["jev"]["what_works"] = round(sum(ww) / len(ww), 3)
-                j_score = (1 - W_WHAT_WORKS) * j_score + W_WHAT_WORKS * c["jev"]["what_works"]
-            c["score"] = round(0.7 * j_score + 0.3 * c["features_score"], 3)
-        else:
-            c["jev"], c["score"] = None, c["features_score"]
+        c["score"] = c["features_score"]
     short = shortlist(cands, top)
     (d / "candidates.json").write_text(json.dumps(cands, indent=1), encoding="utf-8")
     (d / "shortlist.json").write_text(json.dumps(short, indent=1), encoding="utf-8")
-    (d / "shortlist.md").write_text(shortlist_md(short, moves, jev_used=code == 0), encoding="utf-8")
-    cost = usage["cost_usd"] if usage else round(est_tokens * jev.USD_PER_MTOK / 1e6, 4)
-    print(f"{len(sents)} sentences, {len(cands)} candidates {lo}-{hi} s, {len(qs)} Jev questions "
-          f"({'$%.4f' % cost if usage else 'about %d tokens, $%.4f with a key' % (est_tokens, cost)}); "
+    (d / "shortlist.md").write_text(shortlist_md(short, moves), encoding="utf-8")
+    print(f"{len(sents)} sentences, {len(cands)} candidates {lo}-{hi} s; "
           f"shortlist {len(short)} -> {d / 'shortlist.md'} ({(d / 'shortlist.md').stat().st_size} bytes)")
-    return code
+    return 0
 
 
 def shortlist(cands, top):
@@ -393,16 +327,13 @@ def clip_text(c, n=60):
     return c["text"] if len(w) <= 2 * n else " ".join(w[:n]) + " [...] " + " ".join(w[-n // 2:])
 
 
-def shortlist_md(short, moves, jev_used):
-    lines = [f"# Shortlist: {len(short)} clips, best first",
-             "" if jev_used else "No Jev answers: judge each one yourself on hook alone, self-contained, "
-                                 "pays off, concrete (claim, number, story). The features are measured.",
-             f"Creator's moves scored: {'; '.join(moves)}" if moves else "", ""]
+def shortlist_md(short, moves):
+    lines = [f"# Shortlist: {len(short)} clips, best first by measured features",
+             "Judge each one yourself on hook alone, self-contained, pays off, concrete (claim, number, story).",
+             f"Creator's moves to judge against: {'; '.join(moves)}" if moves else "", ""]
     for c in short:
-        j = c["jev"]
-        js = " ".join(f"{k} {v:.2f}" for k, v in j.items()) if j else "no Jev"
         lines += [f"## {c['id']}  {mmss(c['start'])}-{mmss(c['end'])}  {c['dur']} s  score {c['score']:.2f}",
-                  f"Jev: {js}. Features {c['features_score']:.2f}: {c['wpm']} wpm, {c['energy_db']:+.1f} dB, "
+                  f"Features {c['features_score']:.2f}: {c['wpm']} wpm, {c['energy_db']:+.1f} dB, "
                   f"{c['hook_words_3s']} words in 3 s, {c['numbers']} numbers, laughs {c['laughs']}"
                   f"{', starts on a connective' if c['leans_back'] else ''}"
                   f"{', ad read or sign-off' if c['promo'] else ''}"
@@ -457,7 +388,7 @@ def page(d, recommend=()):
                 tag = "audio" if is_audio(src) else "video"
                 vid = (f'<{tag} controls preload="auto" src="data:{tag}/mp4;base64,'
                        f'{base64.b64encode(mp4.read_bytes()).decode()}"></{tag}>')
-            rows = [("score", c["score"]), ("features", c["features_score"])] + list((c["jev"] or {}).items())
+            rows = [("score", c["score"]), ("features", c["features_score"])]
             table = "".join(f'<tr><td>{html.escape(k.replace("_", " "))}</td><td>{v:.2f}</td>'
                             f'<td class="b"><div class="bar"><i style="width:{v * 100:.0f}%"></i></div></td></tr>'
                             for k, v in rows)
@@ -633,7 +564,7 @@ def link_source(video, clips_dir, link=os.link, symlink=os.symlink):
 # --- demo ---------------------------------------------------------------------------------
 
 def demo():
-    """Offline: a synthetic 4-minute transcript, canned Jev answers, every invariant asserted."""
+    """Offline: a synthetic 4-minute transcript, every invariant asserted."""
     filler = "and we talked about a few things that came up over the week in general terms."
     plan = []
     for k in range(24):
@@ -671,16 +602,7 @@ def demo():
         assert not opens({"text": "Mm-hmm."}) and not closes({"text": "and it would know- ..."})
         good = next(i for i, s in enumerate(sents) if s["text"].startswith("Why does"))
 
-        # canned Jev: the planted run scores high, everything else low
-        ws = windows(sents, 15, 40)
-        hi, lo = {"type": "noul", "noul": 0.92}, {"type": "noul", "noul": 0.15}
-        canned = {}
-        for n, (i, j) in enumerate(ws):
-            planted = i == good and j >= good + 4
-            canned[f"h{i}"] = hi if i == good else lo
-            for k in ("self", "payoff", "concrete", "ww0", "ww1"):
-                canned[f"c{n}_{k}"] = hi if planted else lo
-        code = candidates(d, lo=15, hi=40, style=style, canned=canned, names=["Acme"])
+        code = candidates(d, lo=15, hi=40, style=style, names=["Acme"])
         assert code == 0
         cands = json.loads((d / "candidates.json").read_text(encoding="utf-8"))
         starts = {s["start"] for s in sents}
@@ -689,7 +611,7 @@ def demo():
             assert c["start"] in starts and c["end"] in ends and 15 <= c["dur"] <= 40, c
         short = json.loads((d / "shortlist.json").read_text(encoding="utf-8"))
         assert short[0]["hook"].startswith("Why does") and "Acme" in short[0]["named"], short[0]
-        assert short[0]["jev"]["what_works"] > 0.9 and short[0]["numbers"] >= 3
+        assert short[0]["numbers"] >= 3
         for x in short:
             for y in short:
                 assert x is y or x["end"] <= y["start"] or x["start"] >= y["end"], "shortlist overlaps"
@@ -697,14 +619,8 @@ def demo():
         assert len(md) < 8000 and short[0]["id"] in md and chr(0x2014) not in md
         filler_starts = [c for c in cands if c["leans_back"]]
         assert filler_starts and all(c["features_score"] < short[0]["features_score"] for c in filler_starts)
-        assert json.loads(Path(d / "jev-usage.jsonl").read_text(encoding="utf-8").splitlines()[-1])["cost_usd"] == 0
-
-        # no key: features only, exit 4, same files
-        assert candidates(d, lo=15, hi=40, style=style, names=["Acme"]) == 4
-        assert json.loads((d / "shortlist.json").read_text(encoding="utf-8"))[0]["jev"] is None
 
         # page without media still renders, recommended first
-        candidates(d, lo=15, hi=40, style=style, canned=canned, names=["Acme"])
         rec = short[0]["id"]
         p = page(d, [rec]).read_text(encoding="utf-8")
         assert "Recommended #1" in p and p.index(f">{rec}<") < p.index(f'>{short[1]["id"]}<') and "<video" not in p
@@ -794,7 +710,7 @@ def main():
         style = json.loads(Path(a.style).read_text(encoding="utf-8")) if a.style else None
         prof = Path(os.environ.get("AI_EDITOR_HOME", Path.home() / ".ai-video-editor")) / "profile.json"
         names = name_list(json.loads(prof.read_text(encoding="utf-8")).get("names")) if prof.exists() else []
-        return candidates(a.clips_dir, a.min, a.max, a.speakers, style, a.top, keys.get("typesafe")[0], names=names)
+        return candidates(a.clips_dir, a.min, a.max, a.speakers, style, a.top, names=names)
     if a.cmd == "page":
         page(a.clips_dir, [x for x in a.recommend.split(",") if x])
     elif a.cmd == "reframe":

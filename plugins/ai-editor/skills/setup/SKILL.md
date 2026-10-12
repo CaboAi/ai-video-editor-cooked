@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Installs and checks everything the AI video editor needs on Mac, Windows or Linux (Python, ffmpeg, Node, git, the Python packages, the free transcription model and the Remotion renderer): on a first run it opens the editor's window first, then installs in the background. Then saves the user's style once. Also walks through the optional API keys (TypeSafe for cheaper cuts, Gemini for reading a creator's look, ElevenLabs for verbatim transcripts), the optional CrisperWhisper model, cloud renders on Modal ($30 free credit a month), the GitHub CLI for free GitHub Actions renders and AWS Lambda. Use when the user says "set up the editor", "install ai-editor", "setup", "finish setup", "set up Modal", "cloud renders", "add my TypeSafe key", "add my Gemini key", "add my ElevenLabs key", when they have just installed the plugin, or when another ai-editor or creator-teardown step fails because a tool is missing. Not for editing a video (that is start) and not for changing one edit preference (that is taste).
+description: Installs and checks everything the AI video editor needs on Mac, Windows or Linux (Python, ffmpeg, Node, git, the Python packages, the free transcription model and the Remotion renderer): on a first run it opens the editor's window first, then installs in the background. Then saves the user's style once. Also walks through the optional API keys (Gemini for reading a creator's look, ElevenLabs for verbatim transcripts), the optional CrisperWhisper model, cloud renders on Modal ($30 free credit a month), the GitHub CLI for free GitHub Actions renders and AWS Lambda. Use when the user says "set up the editor", "install ai-editor", "setup", "finish setup", "set up Modal", "cloud renders", "add my Gemini key", "add my ElevenLabs key", when they have just installed the plugin, or when another ai-editor or creator-teardown step fails because a tool is missing. Not for editing a video (that is start) and not for changing one edit preference (that is taste).
 license: MIT
 compatibility: Claude Code or any agent with a shell, on Mac, Windows or Linux. Installs Python 3.10+, ffmpeg 4.4+, Node 20+, git and the Remotion renderer; needs internet. Runs from the full ai-editor plugin folder.
 ---
@@ -35,11 +35,11 @@ No browser, or the user wants the terminal: say the plan (**Tools** 2-10 min, re
 optional; **Cloud renders** 3 min, optional; **Your style** 2 min), then steps 1-8 here.
 
 Every step can be skipped and finished later: on a skip, run `python3 "$U" later <step>`
-(`typesafe`, `gemini`, `elevenlabs`, `modal`, `style`, `matte`) and say "Saved. Say *finish setup*
+(`gemini`, `elevenlabs`, `modal`, `style`, `matte`) and say "Saved. Say *finish setup*
 any time to add it." When the user says "finish setup" (or "add my <x> key"), run
 `python3 "$U" todo` and go to the steps it lists (every optional step not done yet).
 
-Put a header on every step, e.g. **Step 2 of 4, keys: TypeSafe (1 of 3)**, and say in one short
+Put a header on every step, e.g. **Step 2 of 4, keys: Gemini (1 of 2)**, and say in one short
 line each what it is, why it helps, what it costs, what skipping means.
 
 If a script prints an error, say its message in plain words. Never open or debug the setup
@@ -115,12 +115,11 @@ Remotion company licence (remotion.dev/license). Say this once.
 
 ## 5. API keys
 
-Three keys, one at a time, each optional. Recommend the first two. For each key, say what it is for
+Two keys, one at a time, each optional. Recommend Gemini. For each key, say what it is for
 and what it costs (`references/keys.md` has both lines per key), walk the click path, save it, then
 check it. If the user says no, the editor still works and Claude does that job instead.
 
 The direct links (give them as clickable links and open them too):
-- TypeSafe: https://console.typesafe.ai/keys
 - Gemini: https://aistudio.google.com/apikey
 - ElevenLabs: https://elevenlabs.io/app/settings/api-keys (sign up first at https://elevenlabs.io/app/sign-up)
 - Modal: https://modal.com/signup
@@ -138,7 +137,7 @@ clipboard) (Recommended)** / **Skip**. Tell them to copy only the key right befo
   `python3 "<full path>/setup.py" setkey <name>` to paste in; they paste the key when it asks (it
   stays hidden).
 
-`<name>` is `typesafe`, `gemini` or `elevenlabs`. `setkey` sends one free test request before saving
+`<name>` is `gemini` or `elevenlabs`. `setkey` sends one free test request before saving
 and never prints the key:
 - `Tested: the <name> key works.`: done.
 - `Nothing saved: ...` (the clipboard held something else) or `Not saved: the service rejected this

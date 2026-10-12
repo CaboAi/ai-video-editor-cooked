@@ -16,8 +16,7 @@ Moved out of SKILL.md step 4. Read the section the step points at.
 Called by start for a whole edit, the cut skill starts the `visual-prep` agent as the cut page opens.
 It does steps 1-3 and `face.py` on the first cut and copies its `decisions.json` to
 `prep-decisions.json`. Every visual it writes names a word and which time it is said (`nth`), never a
-second. It plans, renders and uploads nothing; its one bill is the step 3 Jev call (a fraction of a
-cent).
+second. It plans, renders and uploads nothing, and spends nothing.
 
 Wait for its JSON if it is still running. Cut approved unchanged: go to step 4. Cut changed after notes:
 

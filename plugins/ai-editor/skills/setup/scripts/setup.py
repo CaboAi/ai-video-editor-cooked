@@ -18,7 +18,7 @@
 Pins: Python packages in plugins/ai-editor/requirements/requirements.lock (hashed, every OS);
 Node packages in remotion/package-lock.json; models in lib/ai_editor/models.py (URL + sha256).
 What got installed is recorded in ~/.ai-video-editor/env.json. AI_EDITOR_HOME moves the folder.
-  python3 setup.py setkey typesafe|gemini|elevenlabs   save an API key (asks, hides what you type),
+  python3 setup.py setkey gemini|elevenlabs   save an API key (asks, hides what you type),
                               after one free test request proves it works
   python3 setup.py keys       test every saved key (one free request each)
   python3 setup.py certs      let Python check secure websites ("fix my certificates"): certifi into the venv,
@@ -29,7 +29,7 @@ What got installed is recorded in ~/.ai-video-editor/env.json. AI_EDITOR_HOME mo
   python3 setup.py modal      install Modal (cloud renders) in the venv, then say how to log in
   python3 setup.py modal-check   one tiny function on Modal: proves the login works
   python3 setup.py matte      download the person-matting model (15 MB) for cards behind the speaker
-  python3 setup.py later <step>   save an optional step for later (typesafe gemini elevenlabs style modal matte)
+  python3 setup.py later <step>   save an optional step for later (gemini elevenlabs style modal matte)
   python3 setup.py todo       every optional step not done yet ("finish setup")
   python3 setup.py install-launcher     put the `nextwork-editor` command on the PATH (a user folder, no sudo;
                               idempotent). It opens the editor's window with Claude Code behind it.
@@ -313,7 +313,7 @@ def certs_row(online=True):
     fix_cmd = (f'open "{cmd}"' if cmd else
                f'{"py" if OS == "Windows" else "python3"} "{Path(__file__).resolve()}" certs')
     return ok, (f"{n} trusted certificates" if ok else "this Python can't check secure websites "
-                "(key checks and ElevenLabs, TypeSafe, Gemini calls fail)"), fix_cmd
+                "(key checks and ElevenLabs, Gemini calls fail)"), fix_cmd
 
 
 def step_certs():
@@ -410,14 +410,12 @@ def login_line(domain, days):
 
 
 KEY_ROWS = [  # name, what it gives, what happens without it
-    ("typesafe", "found: Jev decides the cut, far fewer Claude tokens",
-     "Recommended: without it Claude reads the whole transcript to decide the cut"),
     ("gemini", "found: the teardown reads a creator's look from video frames",
      "Recommended: without it the teardown look pass uses one frame sheet per video"),
     ("elevenlabs", "found: Scribe transcripts keep every filler",
      "Optional: without it transcripts are free and local"),
 ]
-KEY_HELP = {"typesafe": "https://console.typesafe.ai/keys", "gemini": "https://aistudio.google.com/apikey",
+KEY_HELP = {"gemini": "https://aistudio.google.com/apikey",
             "elevenlabs": "https://elevenlabs.io/app/settings/api-keys"}
 LATER = HOME / "later.json"   # steps the user chose to do later; doctor reminds, "finish setup" resumes
 
@@ -456,9 +454,9 @@ def later(name):
 
 
 def still_later():
-    """Skipped steps that are still not done."""
+    """Skipped steps that are still not done. A step this version no longer has (an old "typesafe") is ignored."""
     done = step_done()
-    return [x for x in later_load() if not (x in done and done[x]())]
+    return [x for x in later_load() if x in done and not done[x]()]
 
 
 def todo(done=None):
@@ -1116,10 +1114,13 @@ def demo():
         profile.HOME = Path(d)       # a home whose profile has every style answer marks style done
         later("style"); later("style")
         assert later_load() == ["style"] and "style" in still_later()
+        LATER.write_text('["typesafe", "style"]', encoding="utf-8")   # saved by an older version
+        assert "typesafe" not in still_later() and "typesafe" not in todo()
+        LATER.write_text('["style"]', encoding="utf-8")
         assert later("bogus") == 2 and later_load() == ["style"]   # an unknown step is refused, not saved
     # finish setup after a bare bootstrap: every optional step is listed, none saved for later
     assert todo({x: (lambda: False) for x in STEPS}) == list(STEPS) == [
-        "typesafe", "gemini", "elevenlabs", "style", "modal", "matte"]
+        "gemini", "elevenlabs", "style", "modal", "matte"]
     assert todo({x: (lambda x=x: x != "gemini") for x in STEPS}) == ["gemini"]
     assert set(step_done()) == set(STEPS)
     HOME, LATER, profile.HOME = keep

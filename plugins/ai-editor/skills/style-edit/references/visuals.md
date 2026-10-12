@@ -253,11 +253,9 @@ given as `{"logo": "brand"}`.
 python3 "${CLAUDE_SKILL_DIR}/scripts/route.py" beats edits/<name>
 ```
 
-Splits captions.json into sentences, marks the profile's named things in each, and with a TypeSafe
-key asks Jev for one pick per sentence (weighted by the creator's `graphics.kinds` when edits/<name>/style.json
-has it: "From the teardown") (`none`, `capture`, `logo`, `post`, `template:<name>`) into
-`edits/<name>/beats.json`, for a fraction of a cent. Without a key the picks are null and Claude
-picks from the same file. Then only the template props are left: the `template-filler` agent
+Splits captions.json into sentences and marks the profile's named things in each, into
+`edits/<name>/beats.json`. Claude picks one route per sentence from that file, leaning to the creator's
+`graphics.kinds` mix it prints when edits/<name>/style.json has it ("From the teardown"). Then only the template props are left: the `template-filler` agent
 (haiku) fills them from beats.json, or Claude does.
 
 ## Template-filler contract

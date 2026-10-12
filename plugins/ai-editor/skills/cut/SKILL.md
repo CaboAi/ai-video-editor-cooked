@@ -61,13 +61,14 @@ Follow every rule in it. Save a reaction to a result ("too slow") with the taste
 ## 1. Transcribe
 
 ```bash
-python3 "$PY" "$S/transcribe.py" <source> edits/<name>/words.raw.json
+python3 "$PY" "$S/transcribe.py" <source> edits/<name>/words.raw.json [--script <their script>]
 ```
 
-Say the time first: Whisper takes 1-4 min for a 3-min take on a laptop, CrisperWhisper about the
-take's length. It picks ElevenLabs Scribe when a key is saved, else CrisperWhisper if setup
-installed it, else the free local Whisper (`--engine whisper|crisper|scribe` overrides). Whisper drops
-some ums and false starts; Scribe and CrisperWhisper keep them for the cut. With neither, say once that
+A script (or `--keyterm Name`, repeatable) gets names and jargon right (+20% on Scribe).
+
+Say the time first: Whisper 1-4 min for a 3-min take, CrisperWhisper about the take's length. It picks ElevenLabs Scribe when a key is saved, else CrisperWhisper if setup
+installed it, else the free local Whisper (`--engine whisper|crisper|scribe` overrides), which drops
+some ums and false starts. With neither, say once that
 setup can add one (CrisperWhisper's weights are non-commercial only). A take full of retakes:
 `AI_EDITOR_WHISPER_MODEL=medium` hears them better (1.5 GB, twice as slow). Step 5 catches the rest.
 
@@ -79,14 +80,14 @@ setup can add one (CrisperWhisper's weights are non-commercial only). A take ful
 python3 "$S/retakes.py" propose edits/<name>
 ```
 
-Code finds every possible cut (a line said again, an unfinished sentence, "wait, sorry", fillers) and
-TypeSafe's Jev judges them in one request (a fraction of a cent) into `spans.json` and `review.md`.
+Code finds every possible cut (a repeated line, an unfinished sentence, "wait, sorry", fillers);
+TypeSafe's Jev judges them in one request into `spans.json` and `review.md`.
 
 - **Exit 0.** Read `review.md` only: the few items Jev was unsure of. Fix any you disagree with in `spans.json` (shape: `references/shapes.md`; rules:
   `references/retake-detection.md`), then go to step 3. Do not re-decide the items Jev was sure of; the
   read-through in step 3 catches a wrong one.
-- **Exit 4: no TypeSafe key** (or Jev unreachable); **exit 5: the key was rejected.** Decide yourself:
-  read `transcript.txt` and `candidates.md` (the places code flagged), follow
+- **Exit 4: no TypeSafe key** (or Jev unreachable); **exit 5: key rejected.** Decide yourself:
+  read `transcript.txt` and `candidates.md` (what code flagged), follow
   `references/retake-detection.md`, and write `spans.json` (`references/shapes.md`). Tell the user once
   that a TypeSafe key (exit 5: a new one) makes this cheaper, via the `setup` skill.
 
@@ -97,7 +98,7 @@ Only if the user wants it shorter, also read `references/editorial-rules.md` and
 cuts (content calls, which Jev does not make).
 
 A misheard name is one command, never a JSON rewrite: `python3 "$S/retakes.py" fix edits/<name>
-cloud=Claude jiv=Jev` (whole words, timings untouched, kept in `fixes.json` for the captions).
+cloud=Claude jiv=Jev` (whole words, kept in `fixes.json` for the captions).
 
 ## 3. Build
 
@@ -106,18 +107,18 @@ python3 "$S/build_timeline.py" <source> edits/<name> --dry-run
 python3 "$S/build_timeline.py" <source> edits/<name>
 ```
 
-Every pause (breaths included) over `--max-pause` (0.15 s) becomes 0.10 s; under music only gaps
-between words are trimmed. Fix any `ERROR` the dry run prints, then run it for real.
+Every pause (breaths too) over `--max-pause` (0.15 s) becomes 0.10 s; under music only word gaps
+are trimmed. Fix any dry-run `ERROR`, then run it for real.
 
 Then the `cut-judge` agent scores `paper-edit.md` (what plays, `<<n>>` at each join)
 and fixes `spans.json`: a flub, restart or "wait" left in (add a span), a bad join or two takes
 stitched into a sentence nobody said (move it), a good line lost that no better take replaces
 (remove it). Launch, readers for takes over 5 min, and the approval score: `references/judge.md`.
-- `CLIPPED` in `paper-edit.md`: a pause cut ate a word. Raise `--pad`, rebuild. Still there: the
-  word's label is off; step 5 says if it plays.
+- `CLIPPED` in `paper-edit.md`: a pause cut ate a word. Raise `--pad`, rebuild. Still there: a label
+  is off; step 5 says if it plays.
 - Joins inside speech move to a quiet frame. Any `still in speech`: listen in step 5.
 
-Build again if spans changed: paper is free, a render is not.
+Rebuild if spans changed: paper is free, renders are not.
 
 ## 4. Render
 
@@ -125,7 +126,7 @@ Build again if spans changed: paper is free, a render is not.
 python3 "$S/render.py" <source> edits/<name>
 ```
 
-A 3-min 4K take renders in a few minutes: run it in the background.
+A 4K take takes minutes: run it in the background.
 
 ## 5. Verify
 
@@ -135,10 +136,10 @@ python3 "$PY" "$S/verify_cut.py" edits/<name> --engine <same engine as step 1>
 
 Diffs cut.mp4's transcript against the words meant to be kept.
 - **MISSING**: a kept word is not in the render. Raise `--pad` (or narrow the span), rebuild, re-render.
-- **SURVIVED**: a span to add. A real repeat or stumble: add it, never one that cuts a kept line.
-  Clean speech there is a mishearing.
+- **SURVIVED**: a span to add for a real repeat or stumble, never one that cuts a kept line.
 - **HEARD DIFFERENTLY** ("jev -> jeff") and filler notes are transcriber variance: no rebuild.
 - **DOUBLED**: words said twice in a row. Natural ("very, very"): keep. A stumble: add its span.
+- **N join(s) in speech**: listen. Clipped: `splice_check.py edits/<name> --fix`, re-render.
 
 One fix cycle, then show the user what is left.
 
@@ -152,13 +153,12 @@ R="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/review.py"
 python3 "$R" edits/<name> start --video edits/<name>/cut.mp4 --stage cut --transcript edits/<name>/words.json
 ```
 
-Then `serve` and `wait` in the background. Say the seconds cut. `wait` exits on send or
-approve, with the notes. "keep <line>": narrow or delete that span; "cut <line>": add one; pauses
+Then `serve` and `wait` in the background. Say the seconds cut. `wait` exits with the notes. "keep <line>": narrow or delete that span; "cut <line>": add one; pauses
 off: `--max-pause`. Then build, render, verify, `preview_cut.py`, `resolve`, `round`.
 
-After approval: hook check, then hook variants if `hooks.json` exists (`references/retake-detection.md`).
+After approval: `python3 "$S/trend.py" log edits/<name>` (`tally`: trend), hook check, then hook variants if `hooks.json` exists (`references/retake-detection.md`).
 
-Only the user's approval finishes the cut; `cut.mp4` and `words.json` go to style-edit. On "just the
+Only approval finishes the cut; `cut.mp4` and `words.json` go to style-edit. On "just the
 cut first", say they can ask for the style. Never start style-edit on your own. Called by start: as
 the page opens, start the `visual-prep` agent in the background.
 
@@ -183,4 +183,4 @@ the page opens, start the `visual-prep` agent in the background.
 
 ## Self-check
 
-`python3 "$S/test_build_timeline.py"`, `test_retakes.py`, `test_media.py` (needs ffmpeg).
+`test_build_timeline.py`, `test_retakes.py`, `test_media.py` (ffmpeg); `demo` on `transcribe.py`, `trend.py`, `splice_check.py`.

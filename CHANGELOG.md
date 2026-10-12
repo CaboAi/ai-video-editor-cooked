@@ -40,6 +40,15 @@ What changed for every user, newest first.
   word "review" and shows the video name in full beside Home, centred. Fixed: "to Nonex" in a zoom line
   with no measured scale, Done tiles breaking "today" letter by letter, and a style page heading
   breaking a handle mid-word.
+- Review page: change the cut from its transcript, like Tella. The new Transcript tab shows the whole take,
+  cut words struck and pauses marked. Drag across words and press Restore or Cut; changes wait,
+  highlighted with Undo, until Apply. "Preview with my changes" plays the raw take skipping every cut range
+  plus the pending changes (checked each frame), so the result is heard before any render. Apply rewrites
+  `spans.json` (restored words leave their span; cut words get a `manual` span; `spans.prev.json` keeps the
+  old one) and `wait` prints `EDITS ...` so Claude rebuilds, renders, verifies and opens the next round.
+  Read only on the edit stage. Notes Claude resolved now show green ("Done in round N"), left-as-is notes
+  grey, and the Notes tab counts "2 done · 1 open". Test: `review.py demo`.
+
 - First run opens the editor's window first. Before, a new install went straight to several minutes of
   installs in the terminal and the window never opened. Now the window opens at once (it needs nothing
   installed, and runs on a Mac's built-in Python 3.9 too) and `setup.py install-all --report` installs the

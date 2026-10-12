@@ -38,6 +38,32 @@ An edit-stage note started with `--plan plan.json` also names the card on screen
 (`[card 3 image 'notion']`: the index in `plan.json` `cards`). Look at the frame still and any
 `image:` line before deciding the fix. `wait` ends with a `LEARN:` line and the `learn` command.
 
+## Transcript edits (the cut): `EDITS`
+
+The **Transcript** tab (cut stage) shows the whole take: kept words, cut words struck, pauses as
+`(1.2s)`. The user drags across words and presses **Restore** or **Cut**; changes wait on the page
+(highlighted, each with Undo) until **Apply changes**. **Preview with my changes** plays the raw take
+skipping every cut range plus the pending changes, without a render. On the edit stage the tab is
+read only.
+
+Apply posts `/edits` `{"restore": [[start, end], ...], "cut": [[start, end], ...]}` (raw-take seconds).
+The server changes `spans.json` itself: a restored word leaves the span covering it (the span narrows
+or splits), a cut adds a span with `kind: "manual"` quoting those words (whole words, `occurrence`
+when the phrase repeats). The old file is kept as `spans.prev.json`. Then `wait` exits with:
+
+```
+EDITS 2 transcript edits applied to spans.json: rebuild, render, verify, round
+  5 word(s) restored, 1 cut (kind manual); the spans before are in .../spans.prev.json
+  restore 2.86-4.80s: "including this view right here."
+  then: python3 .../build_timeline.py <source> <edit>; python3 .../render.py <source> <edit>; verify_cut.py; ... round --video <edit>/cut.mp4
+SEND: <name> the cut, round 1, 0 notes. ...
+```
+
+Do exactly that, with `status` lines on the page: `build_timeline.py`, `render.py`, `verify_cut.py`
+(cut skill steps 3-5), fix any notes listed under the `SEND` line too, then `round --video
+<edit>/cut.mp4`. Never undo a `manual` span or re-cut a restored word. Stop on the page puts
+`spans.prev.json` back.
+
 ## After send or approve: learn from the notes
 
 Review notes flow into the user's taste (memory) and, when marked for everyone, to the maintainers.
@@ -97,7 +123,7 @@ python3 "$R" edits/<name> resolve 2 wontfix --reply "<why>" --new-t 8.0
 python3 "$R" edits/<name> round --video edits/<name>/cut.mp4
 ```
 
-`--new-t` pins the note on the new render's timeline (a cut moves later moments). `wontfix` shows as
+A note resolved `fixed` turns green on the next round ("Done in round N: <reply>"); `wontfix` turns grey with the reply. `--new-t` pins the note on the new render's timeline (a cut moves later moments). `wontfix` shows as
 **left as is** with the reply as the reason; the user can press **fix it anyway**, which comes back
 as a new note starting `fix it anyway:`. Do it. Then run `wait` in the background again. The open
 tab follows the new round by itself; `round` never opens another.

@@ -34,6 +34,9 @@ n+1. `wait` never sees it. `round` makes it an open note of the new round, moved
 are said when both rounds have the cut's transcript (else at the same time), with a new frame still.
 Stop merges queued notes into the reopened round.
 `status` exits 3 with STOPPED when the user pressed Stop on the page: stop the round and run `wait`.
+The Transcript tab (cut stage) restores or cuts words: POST /edits {"restore": [[s, e]], "cut": [[s, e]]} in raw-take
+seconds rewrites spans.json (apply_edits; spans.prev.json kept) and `wait` prints "EDITS <n> transcript edits applied
+to spans.json: rebuild, render, verify, round". Stop puts spans.prev.json back.
 
 `wait` exits when the user presses send or approve, and prints every note of the round: its time,
 the text, the words being said, the card on screen (from plan.json) and the frame still's path.
@@ -146,12 +149,16 @@ def cut_transcript(folder, dur):
 
     lines, line, prev = [], [], 0.0
     for w in words:
+        if not all(isinstance(w.get(k), (int, float)) for k in ("start", "end")):   # no timing: shown, never editable
+            line.append({"w": str(w.get("text", "")).strip(), "t": None, "nt": 1})
+            continue
         gap = {"start": prev, "end": w["start"]}
         removed = (gap["end"] - gap["start"]) - kept_s(gap, spans)
         if removed >= 0.3:
             line.append({"p": round(removed, 1)})
         kept = kept_s(w, spans) >= min(0.1, (w["end"] - w["start"]) / 2)
-        line.append({"w": w["text"].strip(), "t": on_cut(w) if kept else None})
+        # s/e: the word on the raw take, for the transcript editor (select, restore or cut, preview)
+        line.append({"w": w["text"].strip(), "t": on_cut(w) if kept else None, "s": round(w["start"], 3), "e": round(w["end"], 3)})
         prev = w["end"]
         if w["text"].strip()[-1:] in ".?!" or len(line) >= 24:
             lines.append(line)
@@ -160,10 +167,11 @@ def cut_transcript(folder, dur):
     try:
         src = float(load(folder / "report.json")["duration"])
     except (OSError, ValueError, KeyError, TypeError):
-        src = words[-1]["end"]
+        src = max((w["end"] for w in words if isinstance(w.get("end"), (int, float))), default=0.0)
     cuts = sum(1 for a, b in zip([{"end": 0.0}] + spans, spans + [{"start": src}]) if b["start"] - a["end"] > 0.05)
     return {"lines": [{"t": next((x["t"] for x in ln if x.get("t") is not None), None), "tokens": ln} for ln in lines],
-            "cuts": cuts, "source_s": round(src, 1), "points": [round(o, 2) for o in offs[1:]]}
+            "cuts": cuts, "source_s": round(src, 1), "points": [round(o, 2) for o in offs[1:]],
+            "kept": [[round(s["start"], 3), round(s["end"], 3)] for s in spans]}
 
 
 def chapters_of(folder):
@@ -373,6 +381,99 @@ def raw_to_cut(folder, t):
     return round(off, 2) if spans else None
 
 
+def raw_video(folder, d):
+    """The raw take the cut came from: round 0's clip, else report.json's source. None when neither is there."""
+    r0 = next((r for r in d.get("rounds", []) if (r["stage"], r["round"]) == ("cut", 0)), None)
+    try:
+        p = Path(r0["video"] if r0 else load(folder / "report.json")["source"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return p if p.is_file() else None
+
+
+def _locate():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "skills" / "cut" / "scripts"))
+    from textnorm import locate, nwords
+    return locate, nwords
+
+
+def span_range(sp, toks, locate):
+    """The token range [a, b] a spans.json entry quotes, as build_timeline.resolve_spans picks it. None if it does not resolve."""
+    hits = locate(sp.get("text", ""), toks)
+    if "after" in sp:
+        hits = [h for h in hits if toks[h[0]]["start"] >= float(sp["after"])]
+    if "occurrence" in sp:
+        k = int(sp["occurrence"]) - 1
+        return hits[k] if 0 <= k < len(hits) else None
+    return hits[0] if hits and ("after" in sp or len(hits) == 1) else None
+
+
+def apply_edits(folder, restore, cut):
+    """The review page's transcript edits onto spans.json, deterministically. restore/cut: [[start, end], ...] in
+    raw-take seconds. A token is in a range when its middle is, or the range sits inside it (a cut inside a word
+    takes the whole word). Restore drops those tokens from the spans covering them (a span loses them or splits);
+    cut adds a "manual" span quoting each run of kept tokens. Each new span quotes its words, with "occurrence"
+    when they are said more than once. spans.prev.json keeps what was there. Returns the counts, or raises ValueError."""
+    locate, nwords = _locate()
+    toks = [t for t in load(folder / "words.raw.json") if isinstance(t, dict) and t.get("type", "word") in ("word", "audio_event")
+            and all(isinstance(t.get(k), (int, float)) for k in ("start", "end"))]
+    sp_path = folder / "spans.json"
+    spans = load(sp_path) if sp_path.exists() else []
+
+    def picked(ranges):
+        out = set()
+        for r in ranges or []:
+            a, b = float(r[0]), float(r[1])
+            out |= {i for i, t in enumerate(toks) if a - 1e-3 <= (t["start"] + t["end"]) / 2 <= b + 1e-3
+                    or (t["start"] <= a and b <= t["end"])}
+        return out
+    R, C = picked(restore), picked(cut)
+    C -= R
+    ranges = []
+    for i, sp in enumerate(spans):
+        ab = span_range(sp, toks, locate)
+        if ab is None:
+            raise ValueError(f"span {i} ({sp.get('text', '')[:40]!r}) does not match the transcript: fix spans.json first")
+        ranges.append(ab)
+    covered = {i for a, b in ranges for i in range(a, b + 1)}
+
+    def runs(idx):
+        out = []
+        for i in sorted(idx):
+            if out and i == out[-1][-1] + 1:
+                out[-1].append(i)
+            else:
+                out.append([i])
+        for r in out:   # trim tokens with no words (a lone dash): a quote cannot start or end on them
+            while r and not nwords(toks[r[0]]["text"]):
+                r.pop(0)
+            while r and not nwords(toks[r[-1]]["text"]):
+                r.pop()
+        return [r for r in out if r]
+
+    def quote(run, base):
+        q = {k: v for k, v in base.items() if k not in ("text", "occurrence", "after")}
+        q["text"] = " ".join(toks[i]["text"].strip() for i in run)
+        hits = locate(q["text"], toks)
+        if len(hits) > 1:
+            q["occurrence"] = hits.index((run[0], run[-1])) + 1
+        return q
+    new = []
+    for sp, (a, b) in zip(spans, ranges):
+        keep = [i for i in range(a, b + 1) if i not in R]
+        new += [sp] if len(keep) == b - a + 1 else [quote(r, sp) for r in runs(keep)]
+    new += [quote(r, {"kind": "manual", "note": "cut on the review page"}) for r in runs(C - covered)]
+    for q in new:   # the new file must build: every quote lands on the words it was made from
+        if span_range(q, toks, locate) is None:
+            raise ValueError(f"could not quote {q['text'][:40]!r} unambiguously")
+    out = {"restored": len(R & covered), "cut": len(C - covered), "not_restorable": len(R - covered), "spans": len(new)}
+    if out["restored"] or out["cut"]:
+        (folder / "spans.prev.json").write_text(json.dumps(spans, indent=1), encoding="utf-8")
+        new.sort(key=lambda q: toks[span_range(q, toks, locate)[0]]["start"])
+        sp_path.write_text(json.dumps(new, indent=1), encoding="utf-8")
+    return out
+
+
 def fmt(t):
     return f"{int(t // 60)}:{t % 60:04.1f}"
 
@@ -460,6 +561,7 @@ def make_handler(folder, token):
                 d["listening"], d["busy"] = listening(folder), busy(folder)
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
                 d["cutcheck"] = (folder / "cut-check.html").exists()
+                d["rawvideo"] = raw_video(folder, d) is not None   # the transcript editor's preview plays the raw take
                 d["home"] = home_url()   # the Home button: back to the editor's window, or how to start it
                 for x in d.get("activity", [])[-1:]:
                     if x.get("log") and not x.get("done"):
@@ -467,6 +569,9 @@ def make_handler(folder, token):
                 return self.send(200, d)
             if path == "/video":
                 d = load(rj)
+                if q.get("k") == "raw":
+                    p = raw_video(folder, d)
+                    return self.file(p, "video/mp4") if p else self.send(404, {})
                 r = next((r for r in d.get("rounds", []) if f"{r['stage']}-{r['round']}" == q.get("k")), d)
                 p = Path(alt_of(d, q.get("alt", ""), r)["video"])
                 return self.file(p, "video/mp4") if p.exists() else self.send(404, {})
@@ -504,6 +609,8 @@ def make_handler(folder, token):
                 return self.comment(body)
             if path == "/edit":
                 return self.edit(body)
+            if path == "/edits":
+                return self.transcript_edits(body)
             if path == "/scope":   # a saved note: all versions ("*") or one version (a name, None = main)
                 def sc(d):
                     for c in d["comments"]:
@@ -533,7 +640,9 @@ def make_handler(folder, token):
                     return self.send(409, {"error": "the first cut is on its way"})
                 if body["type"] == "stop":   # the round's notes open again; `status` tells Claude to stop
                     def st(d):
-                        if d.get("sent") and d["events"] and d["events"][-1]["type"] == "send":
+                        if d.get("sent") and d["events"] and d["events"][-1]["type"] in ("send", "edits"):
+                            if d["events"][-1]["type"] == "edits" and (folder / "spans.prev.json").exists():
+                                shutil.copyfile(folder / "spans.prev.json", folder / "spans.json")   # stop undoes the edits
                             d["events"].append({"type": "stop", "stage": d["stage"], "round": d["round"],
                                                 "at": now(), "handled": True})
                             d["sent"], d["stopped"] = False, now()
@@ -565,7 +674,7 @@ def make_handler(folder, token):
                 return self.send(400, {"error": "no time"})
             d = load(rj)
             last = d["events"][-1]["type"] if d["events"] else None
-            if d.get("sent") and last != "send":   # approved: nothing comes after it on this stage
+            if d.get("sent") and last not in ("send", "edits"):   # approved: nothing comes after it on this stage
                 return self.send(409, {"error": "this round is approved"})
             queued = bool(d.get("sent"))   # with Claude: the note waits for the next round
             alt = body.get("alt") or None
@@ -583,6 +692,37 @@ def make_handler(folder, token):
                 c["queued"] = True
             update(rj, lambda d: d["comments"].append(c))
             return self.send(200, c)
+
+        def transcript_edits(self, body):
+            """The transcript editor's Apply: restore/cut word ranges (raw-take seconds) into spans.json, then an
+            "edits" event, so `wait` exits and Claude rebuilds, renders, verifies and opens the next round."""
+            d = load(rj)
+            if d.get("stage") != "cut" or d.get("raw"):
+                return self.send(409, {"error": "words change on the cut only"})
+            if d.get("sent"):
+                return self.send(409, {"error": "Claude has this round"})
+            try:
+                restore, cut = list(body.get("restore") or []), list(body.get("cut") or [])
+                for r in restore + cut:
+                    if len(r) != 2 or float(r[0]) > float(r[1]):
+                        raise ValueError
+            except (TypeError, ValueError):
+                return self.send(400, {"error": "restore and cut take [[start, end], ...]"})
+            try:
+                with LOCK:
+                    out = apply_edits(folder, restore, cut)
+            except (OSError, ValueError) as e:
+                return self.send(409, {"error": str(e)})
+            if not (out["restored"] or out["cut"]):
+                return self.send(200, {**out, "event": False})
+
+            def ev(d):
+                d["events"].append({"type": "edits", "stage": d["stage"], "round": d["round"], "at": now(), "handled": False,
+                                    "n": len(restore) + len(cut), "restore": restore, "cut": cut, "counts": out})
+                d["sent"] = True
+                d.pop("stopped", None)
+            update(rj, ev)
+            return self.send(200, {**out, "event": True})
 
         def edit(self, body):
             """A note changed in place: its text, its time (moved to the playhead: new frame still and words),
@@ -858,7 +998,9 @@ def cmd_wait(folder, poll=1.0):
     e = ev[-1]
     r = next((r for r in d.get("rounds", []) if (r["stage"], r["round"]) == (e["stage"], e["round"])), d)
     cs = sorted((c for c in d["comments"] if c["stage"] == e["stage"] and c["round"] == e["round"]), key=lambda c: c["t"])
-    print(f"{e['type'].upper()}: {d['name']} {stage_name(e['stage'])}, round {e['round']}, "
+    if e["type"] == "edits":
+        print(edits_text(folder, e))
+    print(f"{'SEND' if e['type'] == 'edits' else e['type'].upper()}: {d['name']} {stage_name(e['stage'])}, round {e['round']}, "
           f"{len(cs)} note{'' if len(cs) == 1 else 's'}. video {r['video']}")
     for x in r.get("alts") or []:
         print(f"  also {x['name']}: {x['video']}")
@@ -874,6 +1016,30 @@ def cmd_wait(folder, poll=1.0):
     if cs:
         print(learn_hint(folder))
     return e["type"]
+
+
+def edits_text(folder, e):
+    """What `wait` prints for the transcript editor's Apply: the line Claude acts on, the words, the commands."""
+    try:
+        words = [w for w in load(folder / "words.raw.json") if w.get("type", "word") == "word" and "start" in w]
+    except (OSError, ValueError):
+        words = []
+    said = lambda a, b: " ".join(w["text"].strip() for w in words if a - 1e-3 <= (w["start"] + w["end"]) / 2 <= b + 1e-3
+                                 or w["start"] <= a and b <= w["end"])   # apply_edits' rule
+    try:
+        src = load(folder / "report.json")["source"]
+    except (OSError, ValueError, KeyError):
+        src = "<source>"
+    cut = Path(__file__).resolve().parents[2] / "skills" / "cut" / "scripts"
+    rows = [f"EDITS {e['n']} transcript edit{'' if e['n'] == 1 else 's'} applied to spans.json: rebuild, render, verify, round",
+            f"  {e['counts']['restored']} word(s) restored, {e['counts']['cut']} cut (kind manual); the spans before are in {folder / 'spans.prev.json'}"]
+    rows += [f"  restore {a:.2f}-{b:.2f}s: \"{said(a, b)}\"" for a, b in e["restore"]]
+    rows += [f"  cut {a:.2f}-{b:.2f}s: \"{said(a, b)}\"" for a, b in e["cut"]]
+    if e["counts"].get("not_restorable"):
+        rows.append(f"  {e['counts']['not_restorable']} word(s) were cut by the pause trim, not a span: nothing to restore there")
+    rows.append(f"  then: python3 {cut / 'build_timeline.py'} {src} {folder}; python3 {cut / 'render.py'} {src} {folder}; "
+                f"verify_cut.py; python3 {Path(__file__).resolve()} {folder} round --video {folder / 'cut.mp4'}")
+    return "\n".join(rows)
 
 
 def edit_style(folder):
@@ -1059,8 +1225,9 @@ def demo():
     (folder / "decisions.json").write_text(json.dumps([{"start": 0.0, "end": 0.45}, {"start": 1.95, "end": 7.5}]), encoding="utf-8")
     tx = cut_transcript(folder, 6.0)
     toks = [x for ln in tx["lines"] for x in ln["tokens"]]
-    assert toks == [{"w": "hello", "t": 0.0}, {"w": "um,", "t": None}, {"p": 1.1}, {"w": "world.", "t": 0.5},
-                    {"w": "later", "t": 1.5}], toks
+    assert [{k: x[k] for k in x if k not in ("s", "e")} for x in toks] == [{"w": "hello", "t": 0.0}, {"w": "um,", "t": None}, {"p": 1.1},
+                                                                          {"w": "world.", "t": 0.5}, {"w": "later", "t": 1.5}], toks
+    assert toks[1]["s"] == 0.5 and toks[1]["e"] == 0.8 and tx["kept"] == [[0.0, 0.45], [1.95, 7.5]], tx
     assert [ln["t"] for ln in tx["lines"]] == [0.0, 1.5] and tx["points"] == [0.45] and tx["cuts"] == 2, tx
     assert cut_transcript(folder, 30.0) is None   # decisions that do not add up to this video: no transcript
     round_data(folder, vid, "cut", 1, None)
@@ -1251,6 +1418,63 @@ def demo():
     assert (d1["round"], d1["sent"], "raw" in d1) == (1, False, False) and [r["round"] for r in d1["rounds"]] == [0, 1], d1
     assert (c["round"], c["t"], c["moved"], "queued" in c) == (1, 2.0, "words", False), c
     p2("/event", {"type": "approve"})
+    # the transcript editor: Apply turns restore/cut word ranges into spans.json, keeps spans.prev.json, and `wait`
+    # exits with the EDITS line. Restoring part of a span splits it; a cut inside a word takes the whole word
+    ef = tmp / "edits" / "tx"
+    ws = "so the thing is the thing is we ship it today okay".split()
+    (ef / "review").mkdir(parents=True)
+    (ef / "words.raw.json").write_text(json.dumps([{"text": w, "start": i * 0.5, "end": i * 0.5 + 0.4, "type": "word"}
+                                                    for i, w in enumerate(ws)] + [{"text": "untimed", "type": "word"}]), encoding="utf-8")
+    sp0 = [{"text": "the thing is the thing is", "kind": "retake", "occurrence": 1, "note": "keeper after"},
+           {"text": "okay", "kind": "filler"}]
+    (ef / "spans.json").write_text(json.dumps(sp0), encoding="utf-8")
+    (ef / "decisions.json").write_text(json.dumps([{"start": 0.0, "end": 0.45}, {"start": 3.45, "end": 6.0}]), encoding="utf-8")
+    tv = tmp / "tx.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30:duration=3",
+                    "-pix_fmt", "yuv420p", str(tv)], check=True)
+    with contextlib.redirect_stdout(io.StringIO()):
+        cmd_start(ns(video=str(tv), stage="cut", transcript=None, plan=None, note=None, name=None, raw=False), ef)
+    tx = load(ef / "review" / load(ef / "review.json")["data"])["transcript"]
+    flat = [x for ln in tx["lines"] for x in ln["tokens"] if "w" in x]
+    assert flat[1] == {"w": "the", "t": None, "s": 0.5, "e": 0.9} and flat[-1] == {"w": "untimed", "t": None, "nt": 1}, flat
+    assert tx["kept"] == [[0.0, 0.45], [3.45, 6.0]], tx
+    srv3, url3 = serve(ef, 0, open_browser=False)
+    threading.Thread(target=srv3.serve_forever, daemon=True).start()
+    b3, t3 = url3.split("/?t=")
+    p3 = lambda b: json.loads(urllib.request.urlopen(urllib.request.Request(b3 + "/edits?t=" + t3, json.dumps(b).encode(), method="POST")).read())
+    try:
+        urllib.request.urlopen(urllib.request.Request(b3 + "/edits", b"{}", method="POST"))
+        raise AssertionError("/edits without the token")
+    except urllib.error.HTTPError as err:
+        assert err.code == 403
+    assert p3({"restore": [[6.0, 6.4]]})["event"] is False and not (ef / "spans.prev.json").exists()   # kept already: no change
+    # restore "is the" (1.5-2.4 s): the retake span splits into two; cut "ship" by a range inside the word
+    r = p3({"restore": [[1.5, 2.4]], "cut": [[4.05, 4.1]]})
+    assert (r["restored"], r["cut"], r["event"]) == (2, 1, True), r
+    sp1 = load(ef / "spans.json")
+    assert sp1 == [{"kind": "retake", "note": "keeper after", "text": "the thing", "occurrence": 1},
+                   {"kind": "retake", "note": "keeper after", "text": "thing is", "occurrence": 2},
+                   {"kind": "manual", "note": "cut on the review page", "text": "ship"},
+                   {"kind": "filler", "text": "okay"}], sp1
+    assert load(ef / "spans.prev.json") == sp0
+    try:   # Claude has the round now
+        p3({"cut": [[0.0, 0.4]]})
+        raise AssertionError("edits while Claude has the round")
+    except urllib.error.HTTPError as err:
+        assert err.code == 409
+    o = io.StringIO()
+    with contextlib.redirect_stdout(o):
+        cmd_wait(ef, poll=0.01)
+    o = o.getvalue()
+    assert o.startswith("EDITS 2 transcript edits applied to spans.json: rebuild, render, verify, round"), o
+    assert 'restore 1.50-2.40s: "is the"' in o and 'cut 4.05-4.10s: "ship"' in o and "build_timeline.py" in o and "\nSEND: tx the cut, round 1" in o, o
+    # Stop while Claude applies them: spans.json goes back
+    urllib.request.urlopen(urllib.request.Request(b3 + "/event?t=" + t3, b'{"type": "stop"}', method="POST"))
+    assert load(ef / "spans.json") == sp0 and not load(ef / "review.json")["sent"]
+    # a whole span restored: it goes; the next span keeps its fields
+    assert p3({"restore": [[5.5, 5.9]]})["restored"] == 1 and load(ef / "spans.json") == sp0[:1]
+    srv3.shutdown()
+    srv3.server_close()
     srv2.shutdown()
     srv2.server_close()
     srv.shutdown()

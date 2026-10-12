@@ -144,7 +144,10 @@ this file (or joined.mp4) as the video. The steps
 reach the home page by themselves (join.py, transcribe.py, build_timeline.py, render.py); put each on the
 review page with `python3 "$R" <edit> status "<step>"`. The cut's
 own `start` (cut skill step 6) then opens round 1 on the same page, with the round 0 notes moved onto
-the cut: run `wait` and carry on there. `status video --done` once round 1 is up.
+the cut: run `wait` and carry on there. `status video --done` once round 1 is up. When that `wait` prints
+`EDITS <n> transcript edits applied to spans.json`, the user restored or cut words on the Transcript tab:
+run `build_timeline.py`, `render.py`, `verify_cut.py`, then `review.py <edit> round --video <edit>/cut.mp4`
+(`../../style-edit/references/review.md`, Transcript edits).
 
 ### `JOB style-change <my-style|@handle> [style=<style.json>] text=<the user's words>`
 

@@ -53,7 +53,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from textnorm import load_words, locate  # noqa: E402
 
-KINDS = {"alt_hook", "retake", "false_start", "filler", "meta", "audio_event", "redundant"}
+KINDS = {"alt_hook", "retake", "false_start", "filler", "meta", "audio_event", "redundant", "manual"}
 CONF = {"high", "medium", "low"}
 DEFAULT_MAX_PAUSE = 0.15
 GAP_QUIET_DB = 12.0   # a word gap counts as a pause only if it stays this far under speech

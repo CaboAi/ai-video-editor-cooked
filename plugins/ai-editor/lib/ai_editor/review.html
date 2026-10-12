@@ -6,16 +6,16 @@
 :root{--page:#FAFAF9;--panel:#FFFFFF;--raise:#FFFFFF;--line:#E7E5E4;--line2:#D6D3D1;--chip:#F5F5F4;--hover:#EFEEEC;
   --ink:#0C0A09;--ink-hover:#000000;--onink:#FFFFFF;--strong:#000000;--ink2:#44403C;--body:#57534E;--muted:#78716C;--quiet:#A8A29E;
   --film:#1C1917;--range:#0C0A0924;--shade:#0C0A098C;--zone:#FAFAF9E6;--sendoff:#D6D3D1;--sendarrow:#FFFFFF;
-  --sh:0 1px 2px #0C0A0914;--pop:0 8px 30px #0C0A0914;color-scheme:light}
+  --sh:0 1px 2px #0C0A0914;--pop:0 8px 30px #0C0A0914;--ok:#15803D;--okbg:#F0FDF4;--okline:#BBF7D0;--chg:#FDE68A;color-scheme:light}
 /* dark: the OS setting until the user picks with the header switch (html[data-theme]) */
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--page:#100E0E;--panel:#161413;--raise:#2A2725;--line:rgba(255,255,255,.10);--line2:rgba(255,255,255,.18);--chip:rgba(255,255,255,.06);--hover:rgba(255,255,255,.09);
   --ink:#F2F0EB;--ink-hover:#FFFFFF;--onink:#100E0E;--strong:#F2F0EB;--ink2:rgba(242,240,235,.82);--body:rgba(242,240,235,.72);--muted:rgba(242,240,235,.58);--quiet:rgba(242,240,235,.45);
   --film:#000000;--range:rgba(242,240,235,.22);--shade:#0C0A098C;--zone:#FAFAF9E6;--sendoff:rgba(255,255,255,.12);--sendarrow:rgba(242,240,235,.55);
-  --sh:0 1px 2px rgba(0,0,0,.6);--pop:0 8px 30px rgba(0,0,0,.6);color-scheme:dark}}
+  --sh:0 1px 2px rgba(0,0,0,.6);--pop:0 8px 30px rgba(0,0,0,.6);--ok:#4ADE80;--okbg:rgba(74,222,128,.08);--okline:rgba(74,222,128,.30);--chg:rgba(253,230,138,.28);color-scheme:dark}}
 :root[data-theme=dark]{--page:#100E0E;--panel:#161413;--raise:#2A2725;--line:rgba(255,255,255,.10);--line2:rgba(255,255,255,.18);--chip:rgba(255,255,255,.06);--hover:rgba(255,255,255,.09);
   --ink:#F2F0EB;--ink-hover:#FFFFFF;--onink:#100E0E;--strong:#F2F0EB;--ink2:rgba(242,240,235,.82);--body:rgba(242,240,235,.72);--muted:rgba(242,240,235,.58);--quiet:rgba(242,240,235,.45);
   --film:#000000;--range:rgba(242,240,235,.22);--shade:#0C0A098C;--zone:#FAFAF9E6;--sendoff:rgba(255,255,255,.12);--sendarrow:rgba(242,240,235,.55);
-  --sh:0 1px 2px rgba(0,0,0,.6);--pop:0 8px 30px rgba(0,0,0,.6);color-scheme:dark}
+  --sh:0 1px 2px rgba(0,0,0,.6);--pop:0 8px 30px rgba(0,0,0,.6);--ok:#4ADE80;--okbg:rgba(74,222,128,.08);--okline:rgba(74,222,128,.30);--chg:rgba(253,230,138,.28);color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--page);color:var(--ink);font:13px/16px system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;font-synthesis:none}
 body{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
@@ -157,6 +157,7 @@ body.withTx #tx{display:flex}
 aside{width:400px;flex-shrink:0;background:var(--panel);border:1px solid var(--line);border-radius:20px;display:flex;flex-direction:column;overflow:hidden}
 .phead{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 12px;flex-shrink:0;gap:8px}
 .phead span{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ptabs{flex-shrink:0}#ptabs>button{padding:6px 11px}#pmeta{flex:1;min-width:0;text-align:right}
 .mhead2{display:none}
 #list{flex:1;min-height:0;overflow:auto;padding:8px 20px 16px;display:flex;flex-direction:column;gap:16px;scrollbar-width:thin}
 .claude{display:flex;flex-direction:column;gap:10px;padding-top:4px}
@@ -246,6 +247,47 @@ aside{width:400px;flex-shrink:0;background:var(--panel);border:1px solid var(--l
 .actions button.primary:disabled{opacity:.5}
 #send i{width:10px;height:10px;border-radius:2px;background:var(--onink);display:none}
 #send.stop i{display:block}
+
+/* done notes: Claude fixed it (green); left as is (grey, with the reason) */
+.note.done .bub{background:var(--okbg);box-shadow:inset 0 0 0 1px var(--okline)}
+.note.done:hover .bub{background:var(--okbg)}
+.okt{width:18px;height:18px;border-radius:9px;background:var(--ok);color:var(--panel);display:grid;place-items:center;flex-shrink:0}
+.okt svg{width:11px;height:11px}
+.note.done .reply .ic{color:var(--ok)}
+.note.done .reply>div>span:first-child b{color:var(--ok);font-weight:600}
+.note.wont .bub{background:var(--chip);box-shadow:inset 0 0 0 1px var(--line2)}
+.note.wont .bub p{color:var(--muted)}
+/* the transcript editor (panel tab): select words, Restore or Cut, preview, apply */
+aside{position:relative}
+.txp{display:flex;flex-direction:column;gap:14px}
+.txtop{position:sticky;top:-8px;z-index:3;background:var(--panel);margin:-8px -20px 0;padding:8px 20px 12px;border-bottom:1px solid var(--chip);display:flex;flex-direction:column;gap:10px}
+.txtop p{margin:0;font-size:13px;line-height:18px;color:var(--muted)}
+.txrow{display:flex;align-items:center;gap:8px}
+.txrow .grow{flex:1}
+.pbtn{height:32px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-size:13px;font-weight:500;color:var(--strong);white-space:nowrap}
+.pbtn:hover{border-color:var(--line2)}
+.pbtn.on{background:var(--ink);border-color:var(--ink);color:var(--onink)}
+.pbtn.go{background:var(--ink);border-color:var(--ink);color:var(--onink);font-weight:600}
+.pend{display:flex;flex-direction:column;gap:6px;max-height:132px;overflow:auto}
+.pend div{display:flex;align-items:baseline;gap:8px;font-size:13px;line-height:18px;color:var(--ink2)}
+.pend div span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pend button{font-size:12px;color:var(--muted)}.pend button:hover{color:var(--ink)}
+.pend b{font-weight:600;color:var(--strong)}
+.txw{font-size:15px;line-height:26px;color:var(--body);user-select:none;-webkit-user-select:none}
+.txw p{margin:0 0 12px}
+.tw{cursor:pointer;border-radius:4px;padding:1px 0}
+.tw.cut{color:var(--quiet);text-decoration:line-through;text-decoration-thickness:1px}
+.tw.chg{background:var(--chg);color:var(--strong)}
+.tw.sel{background:var(--range);box-shadow:0 0 0 2px var(--range)}
+.tw.now{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px;color:var(--strong)}
+.tw.cut.now{text-decoration:line-through underline}
+.tw.nt{cursor:default;border-bottom:1px dotted var(--line2)}
+.txw .pz{font-size:12px;line-height:18px;color:var(--quiet);border:1px solid var(--line);border-radius:6px;padding:0 5px;text-decoration:none}
+#txbar{position:absolute;z-index:6;display:none;gap:4px;padding:4px;background:var(--ink);border-radius:10px;box-shadow:var(--pop)}
+#txbar.open{display:flex}
+#txbar button{height:28px;padding:0 12px;border-radius:7px;color:var(--onink);font-size:13px;font-weight:600}
+#txbar button:hover{background:rgba(127,127,127,.25)}
+body.preview #pins,body.preview #cmprow{visibility:hidden}
 
 @media (max-width:1180px){aside{width:340px}.bub{width:100%}.brand,.status{width:auto}}
 /* phone: the player on top, the notes in a bottom sheet */
@@ -341,9 +383,9 @@ aside{width:400px;flex-shrink:0;background:var(--panel);border:1px solid var(--l
  </div>
 </div>
 <aside>
- <div class="phead"><div class="seg" id="ptabs"><button data-tab="notes">Notes <small id="ncount"></small></button><button data-tab="rounds">Rounds</button></div><span id="pmeta"></span></div>
+ <div class="phead"><div class="seg" id="ptabs"><button data-tab="notes">Notes <small id="ncount"></small></button><button data-tab="rounds">Rounds</button><button data-tab="tx" id="txtab">Transcript</button></div><span id="pmeta"></span></div>
  <div class="mhead2"><div><b>Notes</b><span id="mcount"></span></div><button id="msend"></button></div>
- <div id="list"></div>
+ <div id="list"></div><div id="txbar" role="toolbar" aria-label="change the selected words"></div>
  <div class="pfoot">
   <div id="box"><textarea id="ta" rows="1" aria-label="note"></textarea><div id="pics"></div>
    <input type="file" id="picin" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
@@ -376,7 +418,8 @@ const viewRound=()=>(S.rounds||[]).find(r=>key(r)===key(view))||S;
 const onAlt=c=>(c.alt||'')===alt||c.alt==='*';   // each video keeps its own notes and pins; '*' = all videos
 const isCur=()=>view&&view.stage===S.stage&&view.round===S.round;
 const approved=st=>S.events.some(e=>e.type==='approve'&&e.stage===st);
-const pending=()=>{const e=S.events[S.events.length-1];return S.sent&&e?e.type:null};
+const pending=()=>{const e=S.events[S.events.length-1];return S.sent&&e?(e.type==='edits'?'send':e.type):null};   // transcript edits: with Claude, like a send
+const editsSent=()=>{const e=S.events[S.events.length-1];return !!(S.sent&&e&&e.type==='edits')};
 const rn=r=>r.round===0?'Your clip, before the cut':'Round '+r.round;   // round 0: the raw clip, open while the cut is made
 const plural=(n,w)=>n+' '+w+(n===1?'':'s');
 const mainName=r=>r.label||'main';
@@ -412,8 +455,11 @@ function cmpOptions(){   // what can play beside this round: its other versions,
 }
 function setVideo(){
   if(alt&&!(viewRound().alts||[]).some(a=>a.name===alt))alt='';
-  const k=key(view)+'|'+alt;if(k!==loaded){const t=loaded.split('|')[0]===key(view)?v.currentTime:0;loaded=k;
-    v.src='/video?k='+key(view)+'&alt='+encodeURIComponent(alt);v.playbackRate=speed;if(t)v.addEventListener('loadedmetadata',()=>v.currentTime=Math.min(t,v.duration||t),{once:true})}
+  if(previewOn&&!canPreview())previewOn=false;
+  if(previewOn){mode='watch'}
+  document.body.classList.toggle('preview',previewOn);
+  const k=previewOn?'raw':key(view)+'|'+alt;if(k!==loaded){const t=seekTo??(loaded.split('|')[0]===key(view)?v.currentTime:0);seekTo=null;loaded=k;
+    v.src=previewOn?'/video?k=raw':'/video?k='+key(view)+'&alt='+encodeURIComponent(alt);v.playbackRate=speed;if(t)v.addEventListener('loadedmetadata',()=>v.currentTime=Math.min(t,v.duration||t),{once:true})}
   const opts=cmpOptions();
   if(mode==='compare'&&!opts.length)mode='watch';
   if(mode==='compare'&&(!cmp||!opts.some(o=>o.k===cmp.k&&o.alt===cmp.alt)))cmp=opts.find(o=>o.k!==key(view))||opts[0];
@@ -458,8 +504,8 @@ function steps(){
 function listenText(S){
   const e=S.events[S.events.length-1],picked=!!(S.sent&&e&&e.handled);
   if(picked&&e.type==='approve')return e.stage==='cut'?'The cut is approved':'Approved';
-  if(picked)return S.raw?'Claude is making the cut':'Claude is working on round '+(S.round+1);
-  if(S.sent)return 'Notes sent';
+  if(picked)return S.raw?'Claude is making the cut':e.type==='edits'?'Claude is applying your changes':'Claude is working on round '+(S.round+1);
+  if(S.sent)return e&&e.type==='edits'?'Changes sent':'Notes sent';
   if(S.listening)return S.round>1&&!S.comments.some(c=>c.stage===S.stage&&c.round===S.round)?'Round '+S.round+' is ready':'Claude is listening';
   if(S.busy)return 'Claude is working. Notes you send now are next.';
   return 'Claude is not listening. Notes still save.';
@@ -480,22 +526,28 @@ function render(){
   sb.title=working?(S.raw?'the first cut is on its way':'stop Claude working on this round; your notes open again'):'';
   ap.textContent=S.stage==='cut'?'Approve the cut':(S.alts||[]).length?'Approve all':'Approve the edit';
   ap.className=!working&&live&&!mine?'primary':'';ap.disabled=!!p||!isCur()||mine>0;
-  ap.title=mine>0?'send or delete your notes before you approve':'';
+  if(PEND.length&&isCur()){ap.disabled=true;ap.className=''}
+  ap.title=mine>0?'send or delete your notes before you approve':PEND.length?'apply or discard your transcript changes first':'';
   $('mapprove').textContent='Approve';$('mapprove').className=ap.className;$('mapprove').disabled=ap.disabled;
   $('msend').textContent=sb.querySelector('span').textContent;$('msend').disabled=sb.disabled;
-  $('ncount').textContent=S.comments.filter(c=>onAlt(c)&&c.stage===view.stage&&(c.round===view.round||c.round===view.round-1)).length||'';
+  $('ncount').textContent=noteCount();
   $('mcount').textContent=mine?mine+(p?'':', not sent'):'';
   [...$('ptabs').children].forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
   const nv=(vr.alts||[]).length;
   $('pmeta').textContent=view.round===0?rn(view):rn(view)+' · '+(!isCur()?'read only':working?'still plays':nv?(nv+1)+' versions':ago(vr.at||S.at||Date.now()));
-  $('oldbadge').style.display=isCur()?'none':'block';$('oldbadge').textContent='Older round, read only';
+  $('oldbadge').style.display=isCur()&&!previewOn?'none':'block';$('oldbadge').textContent=previewOn?'Preview with your changes':'Older round, read only';
   // the composer: open until approve. While Claude works, a note waits for the next round
-  const canNote=isCur()&&p!=='approve';
+  const canNote=isCur()&&p!=='approve'&&!previewOn;
   ta.disabled=!canNote;box.classList.toggle('off',!canNote);
-  ta.placeholder=p==='send'?(S.raw?'Add a note for the cut...':'Add a note for the next round...'):!isCur()?'Older round, read only':p==='approve'?(S.stage==='cut'?'The cut is approved':'Approved'):view.round>1?'Leave a note on round '+view.round+'...':'Leave a note at this moment...';
+  ta.placeholder=previewOn?'Back to the cut to leave a note':p==='send'?(S.raw?'Add a note for the cut...':'Add a note for the next round...'):!isCur()?'Older round, read only':p==='approve'?(S.stage==='cut'?'The cut is approved':'Approved'):view.round>1?'Leave a note on round '+view.round+'...':'Leave a note at this moment...';
   const sc=$('scope');sc.style.display=nv&&canNote?'block':'none';
   if(nv)sc.innerHTML=`<option value="">${esc(lab(alt))} only</option><option value="*">${nv===1?'Both':'All'} versions</option>`;
   renderVer();renderTx();renderBar();renderTracks();renderList();boxTime();
+}
+function noteCount(){   // "2 done · 1 open" over this round's notes and last round's answered ones
+  const cs=S.comments.filter(c=>onAlt(c)&&c.stage===view.stage&&(c.round===view.round||c.round===view.round-1));
+  const n=st=>cs.filter(c=>c.status===st).length,parts=[n('fixed')?n('fixed')+' done':'',n('open')?n('open')+' open':''].filter(Boolean);
+  return n('fixed')||n('wontfix')?parts.join(' · '):(cs.length||'');
 }
 const here=c=>(c.stage===view.stage&&c.round===view.round)?c.t:(c.new_t??c.t);
 function shown(){   // this round's notes, and last round's pinned where Claude moved them
@@ -503,7 +555,7 @@ function shown(){   // this round's notes, and last round's pinned where Claude 
 }
 function bounds(){   // segment starts: chapters on the edit, else the cut points, else one segment
   const d=data(),T=D();
-  let pts=d.chapters?d.chapters.map(c=>c[0]):(d.points||[]);
+  let pts=previewOn?[]:d.chapters?d.chapters.map(c=>c[0]):(d.points||[]);
   const out=[0];pts.forEach(t=>{if(t>out[out.length-1]+Math.max(.3,T*.006)&&t<T-.3)out.push(t)});return out;
 }
 function renderBar(){
@@ -530,7 +582,7 @@ function renderTracks(){
 // the transcript: drawn once per round, then only the line and word playing now change
 let txKey='',txLines=[],txCur=-1;
 function renderTx(){
-  const tx=view.stage==='cut'&&!cmp&&data().transcript;
+  const tx=view.stage==='cut'&&!cmp&&!previewOn&&tab!=='tx'&&data().transcript;
   document.body.classList.toggle('withTx',!!tx);
   if(!tx){txKey='';return}
   if(txKey===key(view))return;txKey=key(view);txCur=-1;
@@ -561,17 +613,18 @@ function noteHtml(c){
     ${editing.images.length?`<div class="att">${editing.images.map((x,i)=>`<span class="rm"><a><img src="${x.startsWith('data:')?x:'/frames/'+encodeURIComponent(x)}" alt="">Image ${i+1}</a><button data-rmimg="${i}" aria-label="remove image">×</button></span>`).join('')}</div>`:''}
     <div class="erow"><button data-addimg>+ Image</button><span class="grow"></span><button data-cancel>Cancel</button><button class="go" data-save>Save</button></div>`
     :`${c.text?`<p${canEdit?` class="ed" data-edit="${c.id}" title="click to edit"`:''}>${esc(c.text)}</p>`:''}${card}${imgs}`;
-  let h=`<div class="note${old?' old':''}${ed?' editing':''}" data-t="${t}" data-old="${old?1:0}"${why?` title="${esc(why)}"`:''}><div class="bub">${thumb}<div class="nb"><div class="nh"><span class="tchip num">${tm}</span>${c.words?`<span class="q">"${esc(c.words)}"</span>`:''}</div>
+  const done=c.status==='fixed'&&(old||c.reply),wont=c.status==='wontfix'&&(old||c.reply);
+  let h=`<div class="note${old?' old':''}${ed?' editing':''}${done?' done':''}${wont?' wont':''}" data-t="${t}" data-old="${old?1:0}"${why?` title="${esc(why)}"`:''}><div class="bub">${thumb}<div class="nb"><div class="nh">${done?`<span class="okt" aria-label="done">${TICK}</span>`:''}<span class="tchip num">${tm}</span>${c.words?`<span class="q">"${esc(c.words)}"</span>`:''}</div>
     ${body}</div></div>`;
   if(c.moved&&!old)h+=`<span class="nmeta">${c.moved==='words'?`Moved from ${fmtx(c.t_was)} to where the same words are said`:`Same time as in the last round. The cut changed, so check it`}</span>`;
   const meta=[nv?(c.alt==='*'?(nv===1?'Both':'All')+' versions':esc(c.alt||mainName(viewRound()))+' only'):'',c.edited&&!old?'Edited':''].filter(Boolean);
   if(meta.length)h+=`<span class="nmeta">${meta.join(' · ')}</span>`;
   if(old||c.reply){
     const st=c.status,ic=st==='fixed'?TICK:st==='wontfix'?'<i></i>':'<u></u>';
-    const lead=st==='fixed'?`Fixed in round ${view.stage===c.stage&&old?view.round:c.round+1}`:st==='wontfix'?'Left as is':'Still open';
+    const lead=st==='fixed'?`<b>Done in round ${view.stage===c.stage&&old?view.round:c.round+1}</b>`:st==='wontfix'?'Left as is':'Still open';
     const btns=[];
     if(old&&live&&st==='wontfix')btns.push(`<button class="obtn" data-anyway="${c.id}">Fix it anyway</button>`);
-    h+=`<div class="reply"><span class="ic">${ic}</span><div><span>${lead}${c.reply?': '+esc(c.reply):'.'}${moved}</span>${btns.length?`<div style="display:flex;gap:8px">${btns.join('')}</div>`:''}</div></div>`;
+    h+=`<div class="reply"><span class="ic">${ic}</span><div><span>${lead}${c.reply?': '+esc(c.reply):'.'}${esc(moved)}</span>${btns.length?`<div style="display:flex;gap:8px">${btns.join('')}</div>`:''}</div></div>`;
   }
   const acts=[];
   if(old&&live&&!c.checked&&c.status!=='open')acts.push(`<button data-good="${c.id}">Got it</button>`);
@@ -586,7 +639,8 @@ function workHtml(){
   const act=(S.activity||[]).filter(x=>x.round===S.round),live=act.some(x=>!x.done);
   if(p==='approve')return `<div class="claude"><div><b>Claude</b><p>${S.stage==='cut'?'The cut is approved. Claude is styling it.':'Approved. The edit is finished.'}</p></div></div>`;
   if(p!=='send'&&!live)return '';
-  const head=S.raw?'Making the cut. Your clip plays meanwhile. Notes you leave now go on the cut.':p==='send'?(act.length?`Making round ${S.round+1}.`:picked?`Claude has your notes and is starting round ${S.round+1}.`:'Notes sent. Waiting for Claude to pick them up.'+(S.listening||!S.busy?'':' Claude is finishing something and takes them next.')):'Still coming in this round:';
+  const ed=editsSent()?S.events[S.events.length-1]:null,nch=ed?plural(ed.n,'transcript change'):'';
+  const head=S.raw?'Making the cut. Your clip plays meanwhile. Notes you leave now go on the cut.':ed?(act.length?`Claude is applying your changes (${nch}). Round ${S.round+1} lands here.`:picked?`Claude has your ${nch} and is starting round ${S.round+1}.`:S.listening||S.busy?`${nch} saved. Waiting for Claude to pick them up.`:`${nch} saved in spans.json, but Claude is not listening. Ask Claude in the terminal to apply them.`):p==='send'?(act.length?`Making round ${S.round+1}.`:picked?`Claude has your notes and is starting round ${S.round+1}.`:'Notes sent. Waiting for Claude to pick them up.'+(S.listening||!S.busy?'':' Claude is finishing something and takes them next.')):'Still coming in this round:';
   const li=act.map(x=>x.done?`<li><span class="ic">${TICK}</span>${esc(x.text)}</li>`
     :`<li class="now"><span class="ic"><i></i></span>${esc(x.text)}</li>`+(x.pct!=null?`<li class="pb"><em><i style="width:${x.pct}%"></i></em>${x.pct}%</li>`:'')).join('');
   const sent=e&&e.type==='send'?e.at:null;
@@ -597,6 +651,10 @@ function workedFor(r){   // the send of the round before this one to the moment 
   return e&&r.at?dur((new Date(r.at)-new Date(e.at))/1000):'';
 }
 function renderList(){
+  $('txtab').style.display=txSource()?'':'none';
+  if(tab==='tx'&&!txSource())tab='notes';
+  if(tab!=='tx')hideBar();
+  if(tab==='tx'){const k=$('list').scrollTop;$('list').innerHTML=txPanel();$('list').scrollTop=k;tickTxp();return}
   if(tab==='rounds'){
     const rs=(S.rounds||[cur()]).filter(r=>r.stage===view.stage).slice().reverse();
     $('list').innerHTML=rs.map(r=>{const n=S.comments.filter(c=>c.stage===r.stage&&c.round===r.round).length;
@@ -673,6 +731,141 @@ $('list').addEventListener('click',async e=>{
 $('txlines').addEventListener('click',e=>{const w=e.target.closest('[data-t]');if(w)v.currentTime=+w.dataset.t});
 $('pins').addEventListener('pointerdown',e=>{const b=e.target.closest('.pin');if(b){e.stopPropagation();v.currentTime=Math.max(0,+b.dataset.pt-(b.dataset.old==='1'?3:0))}});
 
+
+// ---- the transcript editor (Transcript tab): the whole take, cut words struck. Drag across words, then Restore or
+// Cut; changes wait in PEND until Apply (POST /edits). Preview plays the raw take skipping every cut range.
+let PEND=[],txSel=null,txAnchor=null,txMoved=false,txDown=false,previewOn=false,seekTo=null,txFor='',W=[],KEEP=[];
+function txSource(){   // [transcript, round key]: this cut round's, or on the edit the last cut round's (read only)
+  if(view.stage==='cut')return data().transcript?[data().transcript,key(view)]:null;
+  const r=(S.rounds||[]).filter(r=>r.stage==='cut'&&DATA[key(r)]&&DATA[key(r)].transcript).pop();
+  return r?[DATA[key(r)].transcript,key(r)]:null;
+}
+const txEditable=()=>view.stage==='cut'&&isCur()&&!pending()&&!S.raw&&!!data().transcript;
+const canPreview=()=>view.stage==='cut'&&isCur()&&!!S.rawvideo&&!!(data().transcript&&data().transcript.kept);
+function txWords(){   // W: every word of the take in order; pauses ride on the word after them
+  const src=txSource();if(!src){W=[];txFor='';return}
+  if(txFor===src[1])return;txFor=src[1];PEND=[];txSel=null;W=[];let pz=null;
+  src[0].lines.forEach(l=>{l.tokens.forEach(x=>{if(x.p!=null){pz=x.p;return}
+    W.push({w:x.w,t:x.t,s:x.s,e:x.e,nt:!!x.nt||x.s==null,cut0:x.t==null,pz,br:false});pz=null});if(W.length)W[W.length-1].br=true});
+  KEEP=keepRanges();
+}
+function cutNow(k){let c=W[k].cut0;for(const e of PEND)if(e.a<=k&&k<=e.b&&!W[k].nt)c=e.op==='cut';return c}
+const changed=k=>!W[k].nt&&cutNow(k)!==W[k].cut0;
+function changeRuns(){   // the net change as runs of words: [{op,a,b}] (untimed words never change)
+  const out=[];let cur=null;
+  W.forEach((w,k)=>{if(w.nt)return;const ch=changed(k),op=ch?(cutNow(k)?'cut':'restore'):null;
+    if(op&&cur&&cur.op===op)cur.b=k;else{cur=op?{op,a:k,b:k}:null;if(cur)out.push(cur)}});
+  return out;
+}
+const said=(a,b)=>W.slice(a,b+1).filter(w=>!w.nt).map(w=>w.w).join(' ');
+function keepRanges(){   // what the preview plays, in raw seconds: the cut's kept spans, plus restored words, minus cut ones
+  const tx=data().transcript;if(!tx||!tx.kept)return [];
+  let R=tx.kept.map(r=>[r[0],r[1]]);
+  const prevE=k=>{for(let i=k-1;i>=0;i--)if(!W[i].nt)return W[i].e;return 0},nextS=k=>{for(let i=k+1;i<W.length;i++)if(!W[i].nt)return W[i].s;return 1e9};
+  for(const r of changeRuns()){const a=W[r.a],b=W[r.b];
+    if(r.op==='restore')R.push([Math.max(a.s-.08,prevE(r.a)),Math.min(b.e+.08,nextS(r.b))]);
+    else R=R.flatMap(([x,y])=>[[x,Math.min(y,a.s)],[Math.max(x,b.e),y]]).filter(([x,y])=>y-x>.01);}
+  R.sort((x,y)=>x[0]-y[0]);const m=[];for(const r of R){if(m.length&&r[0]<=m[m.length-1][1]+.001)m[m.length-1][1]=Math.max(m[m.length-1][1],r[1]);else m.push(r)}
+  return m;
+}
+function txPanel(){
+  txWords();const ed=txEditable(),runs=changeRuns(),p=pending();let top='';
+  if(view.stage==='edit')top=`<p>Read only on the edit: it is built on the approved cut. To change a word, leave a note.</p>`;
+  else if(!isCur())top=`<p>An older round, read only.</p>`;
+  else if(p==='send')top=workHtml()||`<p>Claude has this round. Words can change again when the next round is up.</p>`;
+  else if(p==='approve')top=`<p>The cut is approved. Words are read only now.</p>`;
+  else top=`<p>Drag across words to cut them or bring them back. Struck words are cut.</p>`;
+  if(canPreview()&&(ed||previewOn))top+=`<div class="txrow"><button class="pbtn${previewOn?' on':''}" data-preview>${previewOn?'Back to the cut':'Preview with my changes'}</button><span class="grow"></span></div>`;
+  if(ed&&PEND.length){
+    top+=`<div class="txrow"><b class="num">${plural(runs.length,'change')}, not applied</b><span class="grow"></span><button class="pbtn" data-discard>Discard</button><button class="pbtn go" data-apply${runs.length?'':' disabled'}>Apply changes</button></div>
+      <div class="pend">${PEND.map((e,i)=>`<div><b>${e.op==='cut'?'Cut':'Restored'}</b><span>"${esc(said(e.a,e.b))}"</span><button data-undo="${i}">Undo</button></div>`).join('')}</div>`;
+  }
+  const t=v.currentTime;let body='',par='';
+  W.forEach((w,k)=>{
+    if(w.pz!=null)par+=`<s class="pz">${w.pz}s</s> `;
+    const c=w.nt?'tw nt':'tw'+(cutNow(k)?' cut':'')+(changed(k)?' chg':'')+(txSel&&txSel.a<=k&&k<=txSel.b?' sel':'');
+    par+=`<span class="${c}" data-k="${k}"${w.nt?' title="No timing in the transcript: it cannot be changed here"':''}>${esc(w.w)}</span> `;
+    if(w.br){body+=`<p>${par}</p>`;par=''}
+  });
+  return `<div class="txp"><div class="txtop">${top}</div><div class="txw" id="txw">${body}</div></div>`;
+}
+let txNow=-1;
+function tickTxp(){
+  if(tab!=='tx'||!W.length)return;const t=v.currentTime+.03,raw=previewOn;let k=-1;
+  W.forEach((w,i)=>{if(w.nt)return;const at=raw?w.s:w.t;if(at!=null&&at<=t&&(raw?!cutNow(i):true))k=i});
+  if(k===txNow&&document.querySelector('#txw .now'))return;txNow=k;
+  document.querySelectorAll('#txw .now').forEach(e=>e.classList.remove('now'));
+  const el=k>=0&&document.querySelector(`#txw [data-k="${k}"]`);if(!el)return;el.classList.add('now');
+  if(!v.paused){const L=$('list'),r=el.getBoundingClientRect(),lr=L.getBoundingClientRect();if(r.top<lr.top+120||r.bottom>lr.bottom-20)L.scrollTop+=r.top-lr.top-lr.height*.35}
+}
+function seekWord(k){const w=W[k];if(!w||w.nt)return;
+  if(previewOn){v.currentTime=w.s;return}
+  if(w.t!=null){v.currentTime=w.t;return}
+  const n=W.slice(k).find(x=>x.t!=null);if(n)v.currentTime=n.t;   // a cut word: where the cut picks up
+}
+function hideBar(){$('txbar').classList.remove('open')}
+function showBar(){
+  const a=txSel&&W.slice(txSel.a,txSel.b+1).map((w,i)=>w.nt?null:cutNow(txSel.a+i)).filter(x=>x!==null);
+  if(!a||!a.length||!txEditable())return hideBar();
+  const bar=$('txbar');bar.innerHTML=(a.includes(true)?'<button data-op="restore">Restore</button>':'')+(a.includes(false)?'<button data-op="cut">Cut</button>':'');
+  const last=document.querySelector(`#txw [data-k="${txSel.b}"]`),first=document.querySelector(`#txw [data-k="${txSel.a}"]`);if(!last)return hideBar();
+  const ar=document.querySelector('aside').getBoundingClientRect(),r=last.getBoundingClientRect(),f=first.getBoundingClientRect();
+  bar.classList.add('open');
+  const floor=(document.querySelector('.txtop')||bar).getBoundingClientRect().bottom-ar.top+4,above=f.top-ar.top-bar.offsetHeight-8;
+  bar.style.top=(above<floor?r.bottom-ar.top+8:above)+'px';   // above the words, or under them when the header is in the way
+  bar.style.left=Math.max(8,Math.min(ar.width-bar.offsetWidth-8,r.right-ar.left-bar.offsetWidth/2))+'px';
+}
+function paintSel(){document.querySelectorAll('#txw .tw').forEach(el=>{const k=+el.dataset.k;el.classList.toggle('sel',!!txSel&&txSel.a<=k&&k<=txSel.b)})}
+const wordAt=e=>{const el=document.elementFromPoint(e.clientX,e.clientY);const w=el&&el.closest&&el.closest('#txw .tw:not(.nt)');return w?+w.dataset.k:null};
+$('list').addEventListener('pointerdown',e=>{
+  if(tab!=='tx')return;const w=e.target.closest('#txw .tw');if(!w||w.classList.contains('nt'))return;
+  const k=+w.dataset.k;
+  if(e.shiftKey&&txSel&&txEditable()){txSel={a:Math.min(txSel.a,k),b:Math.max(txSel.b,k)};paintSel();showBar();return}
+  txDown=true;txAnchor=k;txMoved=false;hideBar();e.preventDefault();
+});
+document.addEventListener('pointermove',e=>{if(!txDown)return;const k=wordAt(e);if(k==null||!txEditable())return;
+  if(k!==txAnchor)txMoved=true;if(txMoved){txSel={a:Math.min(txAnchor,k),b:Math.max(txAnchor,k)};paintSel()}});
+document.addEventListener('pointerup',()=>{if(!txDown)return;txDown=false;
+  if(!txMoved){const had=!!txSel;txSel=null;if(had)paintSel();seekWord(txAnchor);
+    if(txEditable()){txSel={a:txAnchor,b:txAnchor};paintSel();showBar()}return}   // one word: seek, and offer it
+  showBar()});
+$('list').addEventListener('scroll',()=>{if($('txbar').classList.contains('open'))showBar()});
+$('txbar').addEventListener('click',e=>{const b=e.target.closest('[data-op]');if(!b||!txSel)return;
+  PEND.push({op:b.dataset.op,a:txSel.a,b:txSel.b});txSel=null;hideBar();KEEP=keepRanges();render()});
+document.addEventListener('pointerdown',e=>{if(txSel&&!e.target.closest('#txw')&&!e.target.closest('#txbar')){txSel=null;hideBar();paintSel()}});
+$('list').addEventListener('click',async e=>{
+  if(tab!=='tx')return;
+  const u=e.target.closest('[data-undo]');if(u){PEND.splice(+u.dataset.undo,1);KEEP=keepRanges();return render()}
+  if(e.target.closest('[data-discard]')){PEND=[];KEEP=keepRanges();return render()}
+  if(e.target.closest('[data-preview]'))return togglePreview();
+  if(e.target.closest('[data-apply]'))return applyEdits();
+});
+async function applyEdits(){
+  const runs=changeRuns(),r2=x=>[W[x.a].s,W[x.b].e];
+  const body={restore:runs.filter(x=>x.op==='restore').map(r2),cut:runs.filter(x=>x.op==='cut').map(r2)};
+  const r=await fetch('/edits',{method:'POST',body:JSON.stringify(body)}),j=await r.json().catch(()=>({}));
+  if(!r.ok)return alert(j.error||'Could not apply the changes');
+  if(!j.event)return alert('Nothing changed: those words are cut by the pause trim, not by a cut Claude made.');
+  PEND=[];if(previewOn)togglePreview();await load(true);
+}
+function togglePreview(){
+  // carry the moment across: cut time <-> raw time by the word playing there
+  const t=v.currentTime;
+  if(!previewOn){const w=W.filter(w=>!w.nt&&w.t!=null&&w.t<=t+.01).pop();seekTo=w?w.s+Math.max(0,t-w.t):(KEEP[0]||[0])[0]}
+  else{const w=W.filter(w=>!w.nt&&w.s<=t+.01&&w.t!=null).pop();seekTo=w?w.t+Math.max(0,Math.min(t-w.s,w.e-w.s)):0}
+  previewOn=!previewOn;KEEP=keepRanges();loaded='';setVideo();render();
+}
+// the skip-list: on every frame (requestVideoFrameCallback) and timeupdate, a moment outside the kept ranges jumps
+// to the next one; within half a frame of a range's end it jumps early, so at most ~1 frame of a cut plays
+function skip(t){
+  if(!previewOn||!KEEP.length)return;const h=.5/FPS;
+  if(KEEP.some(r=>t>=r[0]-h&&t<r[1]-h))return;
+  const n=KEEP.find(r=>r[0]>t-h);
+  if(n){if(Math.abs(v.currentTime-n[0])>.001)v.currentTime=n[0]}else if(!v.paused){v.pause();v.currentTime=KEEP[KEEP.length-1][1]-.01}
+}
+if('requestVideoFrameCallback' in HTMLVideoElement.prototype){const f=(_,m)=>{skip(m.mediaTime);v.requestVideoFrameCallback(f)};v.requestVideoFrameCallback(f)}
+v.addEventListener('timeupdate',()=>skip(v.currentTime));v.addEventListener('play',()=>skip(v.currentTime));
+
 // player
 const toggle=()=>{v.paused?v.play():v.pause()};
 v.addEventListener('click',toggle);v2.addEventListener('click',toggle);$('play').onclick=toggle;
@@ -699,7 +892,7 @@ function tick(){const T=D(),t=v.currentTime,p=Math.min(100,t/T*100);
   document.querySelectorAll('.pin').forEach(el=>el.classList.toggle('cur',el.dataset.old==='0'&&Math.abs(+el.dataset.pt-t)<1));
   document.querySelectorAll('#ticks span[data-s]').forEach((el,i,all)=>el.classList.toggle('cur',t>=+el.dataset.s&&(!all[i+1]||t<+all[i+1].dataset.s)));
   document.querySelectorAll('.track .ph').forEach(el=>el.style.left=p+'%');
-  $('time').innerHTML=`<b>${fmtx(t)}</b><span>/ ${fmt(v.duration||0)}</span>`;tickTx()}
+  $('time').innerHTML=`<b>${fmtx(t)}</b><span>/ ${fmt(v.duration||0)}</span>`;tickTx();tickTxp()}
 v.addEventListener('timeupdate',tick);v.addEventListener('seeked',tick);
 const at=e=>{const r=bar.getBoundingClientRect();return Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))*(v.duration||0)};
 bar.addEventListener('pointerdown',e=>{dragging=true;bar.setPointerCapture(e.pointerId);v.currentTime=at(e);tick()});
@@ -749,6 +942,7 @@ document.addEventListener('keydown',e=>{
   else if(k==='c'){e.preventDefault();openBox()}
   else if(k==='z'&&S.vertical)$('safebtn').click();
   else if(k==='?')$('howbtn').click();else if(k==='f')$('full').click();else if(k==='m')$('mute').click();
+  else if(k==='Escape'&&txSel){txSel=null;hideBar();renderList()}
   else if(k==='Escape'){inT=outT=null;$('how').classList.remove('open');renderBar();boxTime()}
 });
 $('howbtn').onclick=e=>{e.stopPropagation();$('how').classList.toggle('open')};

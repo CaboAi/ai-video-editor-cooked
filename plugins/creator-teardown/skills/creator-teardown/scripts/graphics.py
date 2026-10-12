@@ -1244,8 +1244,8 @@ def cmd_measure(a):
         if p not in todo:
             print(f"{p.stem} cached", file=sys.stderr)
     from parallel import pmap
-    _progress.step("Naming graphics", detail=f"{len(todo)} videos" if todo else None, progress=0)
-    pmap(measure_one, [(p, outdir / "graphics") for p in todo], tick=_progress.ticker("Naming graphics", len(todo)))
+    _progress.step("Naming graphics", detail=f"{len(todo)} videos" if todo else None, progress=0, key=a.handle)
+    pmap(measure_one, [(p, outdir / "graphics") for p in todo], tick=_progress.ticker("Naming graphics", len(todo), key=a.handle))
     g = merge(outdir)
     if a.json:
         print(json.dumps({k: g.get(k) for k in ("kinds", "layout", "entrances", "secondary_motion")}, indent=1))

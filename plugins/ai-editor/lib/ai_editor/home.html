@@ -436,7 +436,8 @@ const MOON='<svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="
 const SUN='<svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3 3l1.1 1.1M11.9 11.9L13 13M3 13l1.1-1.1M11.9 4.1L13 3"/></svg>';
 const OS=matchMedia('(prefers-color-scheme: dark)'),isDark=()=>{const t=document.documentElement.dataset.theme;return t?t==='dark':OS.matches};
 const themeBtn=()=>`<button class="themebtn" title="${isDark()?'Light mode':'Dark mode'}" aria-label="${isDark()?'Light mode':'Dark mode'}" onclick="toggleTheme()">${isDark()?SUN:MOON}</button>`;
-function toggleTheme(){const t=isDark()?'light':'dark';document.documentElement.dataset.theme=t;post('/theme',{theme:t});render()}
+let themeAt=0;   // a poll already in flight still carries the old theme: ignore the server's for 3 s after a click
+function toggleTheme(){const t=isDark()?'light':'dark';document.documentElement.dataset.theme=t;themeAt=Date.now();post('/theme',{theme:t});render()}
 // the theme is one setting ($AI_EDITOR_HOME/ui.json): a choice made on a review page shows here on the next poll
 function applyTheme(t){const h=document.documentElement;if(t==='light'||t==='dark'){if(h.dataset.theme!==t)h.dataset.theme=t}else delete h.dataset.theme}
 OS.addEventListener('change',()=>render());
@@ -454,6 +455,7 @@ function liveStrip(){
   const j=busyJob();if(!j)return '';
   if(j.state==='queued')return S.listening?`<span class="lstrip"><span class="spin"></span><span class="ltxt">Claude is picking this up</span></span>`:`<span class="ltxt">Waiting for Claude. Type ${CMD} in Terminal.</span>`;
   const s=j.steps.at(-1),last=Math.max(j.u||0,s?s.t||0:0,S.claude_seen||0)||jobStart(j),age=Math.max(0,Math.round(Date.now()/1000-last));
+  if(!S.listening&&age>60)return `<span class="ltxt">Claude is not listening. Type ${CMD} in Terminal.</span>`;
   const txt=age>60?`Still working: ${s?s.text:'getting started'}. First runs take longer.`:s?s.text+(s.detail&&!s.done?' · '+s.detail:''):'Claude is on it';
   return `<span class="lstrip" title="${esc(txt)}"><span class="spin"></span><span class="ltxt">${esc(txt)}</span><span class="lclk" data-since="${last}">${secs(age)}</span></span>`;
 }
@@ -1229,7 +1231,7 @@ function render(){
 }
 setInterval(()=>{for(const e of document.querySelectorAll('[data-since]')){const t=+e.dataset.since;if(t)e.textContent=secs(Math.max(0,Math.round(Date.now()/1000-t)))}},1000);
 async function load(){
-  try{const r=await fetch('/state');if(!r.ok)throw 0;S=await r.json();applyTheme(S.theme)}catch(e){const lv=$('#live');lv.className='live';lv.style.width='auto';lv.style.maxWidth='520px';lv.style.whiteSpace='normal';lv.textContent='The editor stopped. Run nextwork-editor to start it again.';return}
+  try{const r=await fetch('/state');if(!r.ok)throw 0;S=await r.json();if(Date.now()-themeAt>3000)applyTheme(S.theme)}catch(e){const lv=$('#live');lv.className='live';lv.style.width='auto';lv.style.maxWidth='520px';lv.style.whiteSpace='normal';lv.textContent='The editor stopped. Run nextwork-editor to start it again.';return}
   // live reload: a new page version (home.html, ask.js or the Python changed) reloads this tab, keeping the view
   if(S.page){if(PV&&S.page!==PV&&canReload()){keepView();location.reload();return}PV=PV||S.page}
   const lk=S.lookup||{};

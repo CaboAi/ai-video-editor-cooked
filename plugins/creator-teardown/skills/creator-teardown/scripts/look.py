@@ -1128,9 +1128,9 @@ def cmd_measure(a):
         if p not in todo:
             print(f"{p.stem} cached", file=sys.stderr)
     from parallel import pmap
-    _progress.step("Reading captions and faces", detail=f"{len(todo)} videos" if todo else None, progress=0)
+    _progress.step("Reading captions and faces", detail=f"{len(todo)} videos" if todo else None, progress=0, key=a.handle)
     pmap(measure_one, [(p, outdir / "transcripts", a.fps) for p in todo],
-         tick=_progress.ticker("Reading captions and faces", len(todo)))
+         tick=_progress.ticker("Reading captions and faces", len(todo), key=a.handle))
     rows = [json.loads(p.with_suffix(".look.json").read_text(encoding="utf-8")) for p in vids]
     visuals = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((outdir / "video").glob("*.visual.json"))]
     sp = outdir / "style.json"

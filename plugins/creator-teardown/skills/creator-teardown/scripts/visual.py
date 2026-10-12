@@ -406,9 +406,9 @@ def cmd_download(a):
         sys.exit("yt-dlp not found. Run fetch.py doctor.")
     vdir = outdir / "video"
     vdir.mkdir(parents=True, exist_ok=True)
-    _progress.step(DOWNLOAD, detail=f"{len(todo)} videos", progress=0)
+    _progress.step(DOWNLOAD, detail=f"{len(todo)} videos", progress=0, key=handle)
     failed = [vid for vid, ok in pmap(lambda v: fetch_one(yt, v, vdir), todo, threads=True,
-                                      tick=_progress.ticker(DOWNLOAD, len(todo))) if not ok]
+                                      tick=_progress.ticker(DOWNLOAD, len(todo), key=handle)) if not ok]
     print(f"{len(todo) - len(failed)} of {len(todo)} downloaded -> {vdir}")
     if failed:
         # Every later step measures what is on disk: a gap here is a smaller sample, so say it.
@@ -453,8 +453,8 @@ def cmd_measure(a):
         sys.exit(f"no videos in {outdir / 'video'}. Run `download {handle}` first.")
     tdir = outdir / "transcripts"
     print(f"measuring {len(vids)} videos", file=sys.stderr)
-    _progress.step(MEASURE, detail=f"{len(vids)} videos", progress=0)
-    rows = pmap(measure_one, [(p, outdir / "sheets") for p in vids], tick=_progress.ticker(MEASURE, len(vids)))
+    _progress.step(MEASURE, detail=f"{len(vids)} videos", progress=0, key=handle)
+    rows = pmap(measure_one, [(p, outdir / "sheets") for p in vids], tick=_progress.ticker(MEASURE, len(vids), key=handle))
 
     sp = [s for s in (speech(tdir, r["id"]) for r in rows) if s]
     first = rows[0]

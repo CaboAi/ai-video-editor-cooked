@@ -285,7 +285,7 @@ def cmd_setkey(args):
 
 
 def cmd_list(args):
-    _progress.step("Listed their videos")
+    _progress.step("Listed their videos", key=args.handle)
     handle = slug(args.handle)
     outdir = OUT_ROOT / handle
     outdir.mkdir(parents=True, exist_ok=True)
@@ -516,8 +516,8 @@ def cmd_transcribe(args):
         return vid, True
 
     from parallel import pmap
-    _progress.step("Transcribed every word", detail=f"{len(todo)} videos", progress=0)
-    res = pmap(one, enumerate(todo, 1), threads=True, tick=_progress.ticker("Transcribed every word", len(todo)))
+    _progress.step("Transcribed every word", detail=f"{len(todo)} videos", progress=0, key=handle)
+    res = pmap(one, enumerate(todo, 1), threads=True, tick=_progress.ticker("Transcribed every word", len(todo), key=handle))
     done = [vid for vid, ok in res if ok]
     failed = [vid for vid, ok in res if not ok]
 

@@ -45,11 +45,12 @@ ask for a key in the chat, and never read the key file. "Skip, add later" runs `
 
 ## The jobs
 
-Progress is automatic: while the page has a job queued or taken, the long scripts (creator-teardown's,
-the cut's transcribe, join, build and render, setup's install-all) post their own steps with a count
-("video 3 of 7"), and the page shows a live strip with a clock, so it never looks stopped. You still
+Progress is automatic: once you have taken a job (your `wait` or your own `status`; a script never takes
+a queued one), the long scripts (creator-teardown's, the cut's transcribe, join, build and render,
+setup's install-all) post their own steps with a count ("video 3 of 7") onto the job their edit folder
+or handle names, and the page shows a live strip with a clock, so it never looks stopped. You still
 report the steps you own (the result, `--done`, `--failed`, steps no script covers) with `status`. The
-same words update the same row, never a second one. A new `--step` closes the step before it; `--done` or
+same words as the newest step update that row, never a second one. A new `--step` closes the step before it; `--done` or
 `--failed "<plain sentence>"` ends the job:
 
 ```bash

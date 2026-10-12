@@ -534,7 +534,7 @@ def build(outdir, at=None):
 
 
 def cmd_build(a):
-    _progress.step("Writing the style")
+    _progress.step("Writing the style", key=a.handle)
     outdir = OUT_ROOT / slug(a.handle)
     if not (outdir / "video").exists():
         sys.exit(f"no {outdir / 'video'}. Run the visual pass first.")

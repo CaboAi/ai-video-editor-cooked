@@ -106,10 +106,13 @@ def read():
 
 class _Lock:
     """Cross-process: the server, `wait` and `status` all write state.json. A lock file made with O_EXCL."""
+    def __init__(self, wait=10):
+        self.tries = int(wait / 0.025)
+
     def __enter__(self):
         self.p = home() / ".lock"
         self.p.parent.mkdir(parents=True, exist_ok=True)
-        for _ in range(400):
+        for _ in range(self.tries):
             try:
                 os.close(os.open(self.p, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
                 return self
@@ -126,8 +129,8 @@ class _Lock:
         self.p.unlink(missing_ok=True)
 
 
-def update(fn):
-    with _Lock():
+def update(fn, wait=10):
+    with _Lock(wait):
         d = read()
         out = fn(d)
         d["home_py"] = Path(__file__).resolve().as_posix()   # where progress.py finds this file
@@ -683,22 +686,45 @@ def cmd_wait(poll=1.0):
     return line
 
 
+def same_key(j, key):
+    """A script's key names its job: a video's edit folder (the key is that folder or a file inside it),
+    a teardown's handle."""
+    try:
+        if j["type"] == "video":
+            e, k = Path(j["args"]["edit"]).resolve(), Path(key).resolve()
+            return k == e or e in k.parents
+        slug = lambda h: re.sub(r"[^a-z0-9._-]", "", str(h).lstrip("@").lower())
+        return slug(j["args"]["handle"]) == slug(key)
+    except (KeyError, TypeError, OSError):
+        return False
+
+
+def mine(d, kind, key=None):
+    """The taken job a script's report belongs to: the one its key names; with no key, the only taken one."""
+    taken = [j for j in d["jobs"] if j["type"] == kind and j["state"] == "taken"]
+    if key:
+        return next((j for j in reversed(taken) if same_key(j, key)), None)
+    return taken[0] if len(taken) == 1 else None
+
+
 def cmd_status(a):
     def f(d):
         t = time.time()
         d["claude_seen"] = t   # the page's heartbeat: Claude (or a script it runs) is still at work
-        # the job being worked on: the newest taken one (separate videos queue several), else the newest queued
-        act = [j for j in d["jobs"] if j["type"] == a.job and j["state"] in ("queued", "taken")]
-        j = next((j for j in reversed(act) if j["state"] == "taken"), act[-1] if act else None)
-        if getattr(a, "if_active", False) and not j:   # a script's own report (progress.py): never makes a job
-            return None
+        if if_active:   # a script's own report (progress.py): only onto a taken job, never makes or takes one
+            j = mine(d, a.job, getattr(a, "key", None))
+            if not j:
+                return None
+        else:   # the job being worked on: the newest taken one (separate videos queue several), else the newest queued
+            act = [j for j in d["jobs"] if j["type"] == a.job and j["state"] in ("queued", "taken")]
+            j = next((j for j in reversed(act) if j["state"] == "taken"), act[-1] if act else None)
         j = j or latest(d, a.job)
         if not j or (a.job == "setup" and j["state"] in ("done", "failed")):
             j = queue(d, a.job, {})
         if j["state"] == "queued":   # the first step takes the job
             j["state"] = "taken"
         j["u"] = t
-        same = next((s for s in j["steps"] if s["text"] == a.step), None) if a.step else None
+        same = j["steps"][-1] if a.step and j["steps"] and j["steps"][-1]["text"] == a.step else None   # only the newest
         if a.step and not same:
             for s in j["steps"]:
                 if not s.get("done"):
@@ -718,10 +744,16 @@ def cmd_status(a):
             j["finished"] = t
         j.setdefault("started", t)
         return j
-    j = update(f)
+    if_active = getattr(a, "if_active", False)
+    try:   # a script's report gives up after 2 s, well before progress.py's 5 s kill could strand the lock
+        j = update(f, wait=2 if if_active else 10)
+    except TimeoutError:
+        if not if_active:
+            raise
+        j = None
     if j is None:
         print(f"no {a.job} job on the page")
-        return
+        return 1   # progress.py reads the exit code: nothing was written
     if a.job == "setup" and (a.step or a.done or a.failed):   # a step finished: the tool rows tick as it goes
         run_doctor()
     print(f"{j['id']}: {j['state']}" + (f", {a.step}" if a.step else ""))
@@ -1512,6 +1544,19 @@ def demo():
     lines = [out(cmd_wait, 0.01) for _ in range(3)]
     assert [ln.split(" edit=")[1].split()[0] for ln in lines] == [str(root.resolve() / "edits" / n) for n in ("a-2", "b", "c")], lines
     assert all("takes=" not in ln and "as=@sample.creator" in ln for ln in lines)
+    # a script's report (progress.py) lands on the video its edit folder names, never on the newest one
+    sr = lambda step, key=None: out(cmd_status, ns(job="video", step=step, detail=None, progress=None, result=None,
+                                                   done=False, failed=None, if_active=True, key=key))
+    ev = {n: root.resolve() / "edits" / n for n in ("a-2", "b", "c")}
+    sr("Wrote down every word you said", ev["a-2"] / "transcript.json")
+    sr("Cutting out the mistakes", ev["a-2"])
+    sr("Wrote down every word you said", ev["a-2"])   # a step from before, said again: a new row, not the old one
+    sr("Cutting out the mistakes", ev["c"])
+    assert sr("Cutting out the mistakes") == "no video job on the page", "several taken, no key: skipped"
+    assert sr("Cutting out the mistakes", root.resolve() / "edits" / "zzz") == "no video job on the page", "no match: skipped"
+    vj = {Path(j["args"]["edit"]).name: [s["text"] for s in j["steps"]] for j in read()["jobs"] if j["type"] == "video"}
+    assert vj["a-2"] == ["Wrote down every word you said", "Cutting out the mistakes", "Wrote down every word you said"], vj
+    assert vj["c"] == ["Cutting out the mistakes"] and vj["b"] == [], vj
     try:   # a creator not studied is refused
         post("/job", {"type": "video", "paths": order[:1], "as": "@nobody"})
         raise AssertionError("an unstudied creator was queued")
@@ -1522,6 +1567,9 @@ def demo():
     assert out(cmd_wait, 0.01).startswith("JOB teardown @newbie")
     assert {"id": "@newbie", "studying": True}.items() <= next(c for c in get("/library")["styles"] if c["id"] == "@newbie").items()
     post("/job", {"type": "video", "paths": order[:1], "as": "@newbie"})
+    q = latest(read(), "video")
+    assert sr("Wrote down every word you said", q["args"]["edit"]) == "no video job on the page"   # never takes it
+    assert latest(read(), "video")["state"] == "queued" and not latest(read(), "video")["steps"]
     assert " as=@newbie " in out(cmd_wait, 0.01)
     post("/scanhome", {"on": False})   # picked files stay listed without the opt-in
     assert {r["name"] for r in get("/recent")["videos"]} == {"a.mov", "b.mov", "c.mp4", "drop.mp4", "take.mp4"}
@@ -1796,7 +1844,8 @@ def main():
     s.add_argument("--result", help="JSON, or @file.json")
     s.add_argument("--done", action="store_true")
     s.add_argument("--failed", help="a plain sentence for the page")
-    s.add_argument("--if-active", action="store_true", help="only onto a queued or taken job (progress.py)")
+    s.add_argument("--if-active", action="store_true", help="only onto a taken job, never taking one (progress.py)")
+    s.add_argument("--key", help="with --if-active: the edit folder or handle the job is for")
     a = ap.parse_args()
     if a.cmd == "serve":
         srv, url = serve(a.root, a.port, open_browser=not a.no_open)
@@ -1812,7 +1861,7 @@ def main():
     elif a.cmd == "wait":
         cmd_wait()
     elif a.cmd == "status":
-        cmd_status(a)
+        sys.exit(cmd_status(a))
 
 
 if __name__ == "__main__":

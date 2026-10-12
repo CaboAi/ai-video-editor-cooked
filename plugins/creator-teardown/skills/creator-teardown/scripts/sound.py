@@ -257,10 +257,10 @@ def cmd_measure(a):
     if not vids:
         sys.exit(f"no videos in {outdir / 'video'}. Run visual.py download first.")
     rows = []
-    _progress.step("Sound effects and music", detail=f"{len(vids)} videos", progress=0)
+    _progress.step("Sound effects and music", detail=f"{len(vids)} videos", progress=0, key=a.handle)
     for k, p in enumerate(vids, 1):
         if k > 1:
-            _progress.ticker("Sound effects and music", len(vids))(k - 1)
+            _progress.ticker("Sound effects and music", len(vids), key=a.handle)(k - 1)
         cache = p.with_suffix(".sound.json")
         if cache.exists() and not a.force:
             rows.append(json.loads(cache.read_text(encoding="utf-8")))
@@ -275,7 +275,7 @@ def cmd_measure(a):
         rows.append(r)
         print(f"{p.stem}: {len(r['sfx'])} effects ({r['sfx_per_min']}/min) "
               f"{dict(Counter(s['kind'] for s in r['sfx']))}, music {r['music']}", file=sys.stderr)
-    _progress.ticker("Sound effects and music", len(vids))(len(vids))
+    _progress.ticker("Sound effects and music", len(vids), key=a.handle)(len(vids))
     sp = outdir / "style.json"
     style = json.loads(sp.read_text(encoding="utf-8")) if sp.exists() else {"handle": slug(a.handle)}
     style["sound"] = summarise(rows)

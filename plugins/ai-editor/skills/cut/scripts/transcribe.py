@@ -243,7 +243,6 @@ def demo():
 def main():
     if sys.argv[1:] == ["demo"]:
         return demo()
-    progress.step("Wrote down every word you said", job="video")   # the home page's video job, when there is one
     ap = argparse.ArgumentParser()
     ap.add_argument("media")
     ap.add_argument("out")
@@ -252,6 +251,7 @@ def main():
     ap.add_argument("--script", help="the user's script: its names and jargon bias the transcription")
     ap.add_argument("--keyterm", action="append", default=[], help="one name or term to bias towards (repeatable)")
     a = ap.parse_args()
+    progress.step("Wrote down every word you said", job="video", key=Path(a.out).parent)   # the home page's video job, if any
 
     if not Path(a.media).exists():
         sys.exit(f"ERROR: no such file: {a.media}")

@@ -609,7 +609,6 @@ def retime(words, spans):
 def main():
     sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
     from ai_editor import progress   # the home page's video job, when there is one
-    progress.step("Cutting out the mistakes", job="video")
     ap = argparse.ArgumentParser()
     ap.add_argument("source")
     ap.add_argument("edit_dir")
@@ -620,6 +619,7 @@ def main():
                     help="silence threshold in dB. Default: derived from the take.")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
+    progress.step("Cutting out the mistakes", job="video", key=a.edit_dir)
 
     d = Path(a.edit_dir)
     raw = load_words(d / "words.raw.json")

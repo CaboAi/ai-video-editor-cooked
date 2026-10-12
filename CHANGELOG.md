@@ -40,6 +40,9 @@ What changed for every user, newest first.
   word "review" and shows the video name in full beside Home, centred. Fixed: "to Nonex" in a zoom line
   with no measured scale, Done tiles breaking "today" letter by letter, and a style page heading
   breaking a handle mid-word.
+
+## ai-editor 2.3.0, creator-teardown 2.5.0 (2026-10-12)
+
 - First run opens the editor's window first. Before, a new install went straight to several minutes of
   installs in the terminal and the window never opened. Now the window opens at once (it needs nothing
   installed, and runs on a Mac's built-in Python 3.9 too) and `setup.py install-all --report` installs the

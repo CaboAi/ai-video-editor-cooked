@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.4.0, creator-teardown 2.6.0 (2026-10-12)
+
 - The review page teaches the style from each finished video. On round 1 of the cut and of the edit of
   the user's first 3 videos, one line says "Your first videos teach it your style. Leave notes on
   anything that is off: each video comes out closer." Got it hides it for good (`ui.json`, which the

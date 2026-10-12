@@ -1196,8 +1196,14 @@ function rrender(){
 window.addEventListener('drop',e=>{if(returning()&&!ui.onboard&&e.dataTransfer.files.length){if(rv!=='new')rgo('new');chooseFiles(e.dataTransfer.files)}});
 // while files are dragged over the window: one overlay, so it is clear where they go
 let dragN=0;const hasFiles=e=>[...((e.dataTransfer||{}).types||[])].includes('Files');
-window.addEventListener('dragenter',e=>{if(hasFiles(e)&&returning()&&!ui.onboard){dragN++;document.body.classList.add('dragging')}});
-window.addEventListener('dragleave',()=>{if(dragN&&--dragN===0)document.body.classList.remove('dragging')});
+// The overlay lives only while files are being dragged over the window: every dragover renews a short timer,
+// so a lost dragleave (the page re-renders while you drag) can never leave it stuck. Esc, drop or a click clears it.
+let dragT=null;const dragOff=()=>{dragN=0;clearTimeout(dragT);document.body.classList.remove('dragging')};
+window.addEventListener('dragenter',e=>{if(hasFiles(e)&&returning()&&!ui.onboard){dragN++;document.body.classList.add('dragging');clearTimeout(dragT);dragT=setTimeout(dragOff,400)}});
+window.addEventListener('dragover',e=>{if(document.body.classList.contains('dragging')){clearTimeout(dragT);dragT=setTimeout(dragOff,400)}});
+window.addEventListener('dragleave',e=>{if(!e.relatedTarget||(dragN&&--dragN===0))dragOff()});
+for(const ev of ['drop','dragend','blur','mousedown'])window.addEventListener(ev,dragOff,true);
+window.addEventListener('keydown',e=>{if(e.key==='Escape')dragOff()});
 window.addEventListener('drop',()=>{dragN=0;document.body.classList.remove('dragging')},true);
 
 // ---------------------------------------------------------------- render loop

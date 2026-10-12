@@ -14,8 +14,11 @@ What changed for every user, newest first.
   captions|visuals|plan|render`, which `retakes.py captions`, `route.py beats`, `plan.py`, `edit.py stills`
   and `edit.py render` now post themselves (render with its log's percent) through `review.step()`, a
   no-op when no page waits on the edit. When the edit round lands the bar fills green and the page
-  switches to it with "The edit is ready". Stop still works and takes the approve back. With no word
-  from Claude for 15 minutes the card says so instead of showing a bar. Green marks only what is done,
+  switches to it with "The edit is ready". Stop still works and takes the approve back (`round --stage
+  edit` then exits 3). With no word from Claude for 15 minutes and no render log moving, the card says so
+  instead of showing a bar. `review.py final` marks the cut as the finished video ("just the cut"), so
+  Approve reads "Approve the cut" and no edit is waited for. review.json takes a cross-process lock file,
+  since the style-edit scripts now write it too. Green marks only what is done,
   in light and dark. Test: `review.py demo` (steps in place, no-ops, Stop on the approve) and headless
   screenshots at 1440x900, 1280x720, 1920x1080 and 390x844.
 

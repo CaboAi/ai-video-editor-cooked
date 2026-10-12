@@ -704,7 +704,7 @@ function vNew(){
     <div><h1>New video</h1><p class="lede" style="margin-top:8px;font-size:16px;line-height:22px">Click the clips you want, in the order they play.</p></div>
     <div class="between" style="align-items:center;flex-wrap:wrap"><div class="row" style="gap:8px;flex-wrap:wrap">${chips}</div><label class="choose">${FOLDER}Choose files...<input type="file" id="pickm" multiple accept="video/*,.mov,.mkv,.mp4" class="hide" onchange="chooseFiles(this.files);this.value=''"></label></div>
     ${trashRow()}<div class="grid"><div class="droptile" id="droptile" onclick="$('#pickm').click()">${UP}<div style="font-weight:500;font-size:13px;line-height:17px">Drop files here</div><div class="muted" style="font-size:12px">or anywhere on this window</div></div>${ups}${vids.map(clipCard).join('')}</div>
-    ${!vids.length&&R?`<div class="muted">No clips here yet. Choose files or drop them in.</div>`:''}
+    ${!vids.length&&!nv.up.length&&R?`<div class="muted">No clips here yet. Choose files or drop them in.</div>`:''}
     <div class="row" style="gap:8px"><b style="font-weight:500;font-size:13px;white-space:nowrap;flex-shrink:0">${n} picked</b><span class="muted">Click a clip again to take it out. The numbers are the order they play.</span></div>
   </div>${side}`;
 }

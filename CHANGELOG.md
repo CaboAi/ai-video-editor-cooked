@@ -4,6 +4,12 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Change the editor itself and still get updates: fork the repo, install the plugin from your fork,
+  and say "update the editor". The new `update` skill finds how you installed (official plugin, your
+  fork, or a plain clone). On a fork it shows what the update brings and which of your files it also
+  touches, makes a `before-update-<date>` branch, merges, runs the fast self-checks, and rolls back
+  if they fail. It never pushes, stashes or deletes a branch. README "Want to change the editor
+  itself?". Test: `update.py demo`.
 - Review page: while Claude is making a round (it ran `status`, `round` or `resolve` in the last 15 min) the
   page says "Claude is working. Notes you send now are next." instead of "Claude is not listening".
 - Claude's questions in the window: when Claude asks a question (AskUserQuestion) and the home page or a

@@ -172,7 +172,7 @@ the page opens, start the `visual-prep` agent in the background.
 | `spans.json exists. Pass --force` | only on a fresh decision: `propose --force` (keeps spans.prev.json) |
 | build `ERROR` on a quote | fix that span's quote or add `occurrence`, `--dry-run` again |
 | `cannot derive a silence threshold` / `marked no silence` | speech and background are under 10 dB apart: `ffmpeg -i <source> -af volumedetect -vn -f null -`, pass `--noise` about 10 dB above the mean |
-| render `ERROR ... (kept in <tmp>)` | say it; re-run render once |
+| render `ERROR ...` | say it; re-run render once |
 
 ## Rules
 

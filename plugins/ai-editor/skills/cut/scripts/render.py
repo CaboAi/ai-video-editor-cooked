@@ -118,7 +118,8 @@ def main():
 
         def encode_all():
             """The first span's error, else None."""
-            workers = max(2, (os.cpu_count() or 8) // (2 if hw else 4))
+            # the hardware encoder holds a few sessions at once; more get refused and send everything to x264
+            workers = 4 if enc is not x264 else max(2, (os.cpu_count() or 8) // 4)
             with cf.ThreadPoolExecutor(workers) as ex:
                 for n, err in enumerate(ex.map(one, range(len(frames))), 1):
                     if err:
@@ -126,49 +127,56 @@ def main():
                     if n % 20 == 0:
                         print(f"  video {n}/{len(frames)}", flush=True)
 
-        err = encode_all()
-        if err and enc is not x264:   # every segment again: concat -c copy needs one encoder's streams throughout
+        def attempt():
+            """The whole render with the current encoder: the first error, else None."""
+            err = encode_all()
+            if err:
+                return err
+            lst = tmp / "list.txt"
+            # concat quoting: a ' in the temp path (a user name like O'Brien) is closed, escaped, reopened
+            lst.write_text("".join("file '" + str(tmp / f"{i:05d}.mp4").replace("'", "'\\''") + "'\n"
+                                   for i in range(len(frames))), encoding="utf-8")
+            allv = tmp / "all.mp4"
+            if subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst),
+                               "-c", "copy", str(allv)]).returncode:
+                return "concat failed"
+            want = sum(e - s for s, e in frames)
+            if count_frames(allv) != want:
+                return "concat lost frames"
+
+            print("  audio, one pass", flush=True)
+            parts = []
+            for i, (s, e) in enumerate(frames):
+                t0, t1 = off + s / fps, off + e / fps
+                fo = max(0.0, t1 - t0 - FADE_S)
+                parts.append(f"[0:a:0]atrim=start={t0:.6f}:end={t1:.6f},asetpts=PTS-STARTPTS,"
+                             f"afade=t=in:d={FADE_S},afade=t=out:st={fo:.6f}:d={FADE_S}[a{i}]")
+            fc = ";".join(parts) + ";" + "".join(f"[a{i}]" for i in range(len(frames))) + \
+                f"concat=n={len(frames)}:v=0:a=1[ac]"
+            aud = tmp / "a.m4a"
+            if subprocess.run(["ffmpeg", "-v", "error", "-y", "-vn", "-i", src,
+                               "-filter_complex", fc, "-map", "[ac]",
+                               "-c:a", "aac", "-b:a", "192k", str(aud)]).returncode:
+                return "audio pass failed"
+
+            if subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(allv), "-i", str(aud),
+                               "-map", "0:v", "-map", "1:a", "-c", "copy", "-movflags", "+faststart",
+                               str(out)]).returncode:
+                return "mux failed"
+            got = count_frames(out)
+            print(f"  check: {got} frames of {want}, {want / fps:.2f}s")
+            if got != want:
+                return "frame mismatch"
+
+        err = attempt()
+        # A hardware render that fails anywhere (a refused session, a span short, a lost frame at the join)
+        # is redone whole with x264: re-encoding only the failed spans would mix two encoders in one concat -c copy.
+        if err and enc is not x264:
             print(f"  hardware encode failed, again with x264 ({err[:200]})", flush=True)
             enc = x264
-            err = encode_all()
+            err = attempt()
         if err:
             sys.exit(f"ERROR {err}")
-
-        lst = tmp / "list.txt"
-        # concat quoting: a ' in the temp path (a user name like O'Brien) is closed, escaped, reopened
-        lst.write_text("".join("file '" + str(tmp / f"{i:05d}.mp4").replace("'", "'\\''") + "'\n"
-                               for i in range(len(frames))), encoding="utf-8")
-        allv = tmp / "all.mp4"
-        if subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst),
-                           "-c", "copy", str(allv)]).returncode:
-            sys.exit("ERROR concat failed")
-        want = sum(e - s for s, e in frames)
-        if count_frames(allv) != want:
-            sys.exit("ERROR concat lost frames")
-
-        print("  audio, one pass", flush=True)
-        parts = []
-        for i, (s, e) in enumerate(frames):
-            t0, t1 = off + s / fps, off + e / fps
-            fo = max(0.0, t1 - t0 - FADE_S)
-            parts.append(f"[0:a:0]atrim=start={t0:.6f}:end={t1:.6f},asetpts=PTS-STARTPTS,"
-                         f"afade=t=in:d={FADE_S},afade=t=out:st={fo:.6f}:d={FADE_S}[a{i}]")
-        fc = ";".join(parts) + ";" + "".join(f"[a{i}]" for i in range(len(frames))) + \
-            f"concat=n={len(frames)}:v=0:a=1[ac]"
-        aud = tmp / "a.m4a"
-        if subprocess.run(["ffmpeg", "-v", "error", "-y", "-vn", "-i", src,
-                           "-filter_complex", fc, "-map", "[ac]",
-                           "-c:a", "aac", "-b:a", "192k", str(aud)]).returncode:
-            sys.exit("ERROR audio pass failed")
-
-        if subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(allv), "-i", str(aud),
-                           "-map", "0:v", "-map", "1:a", "-c", "copy", "-movflags", "+faststart",
-                           str(out)]).returncode:
-            sys.exit("ERROR mux failed")
-        got = count_frames(out)
-        print(f"  check: {got} frames of {want}, {want / fps:.2f}s")
-        if got != want:
-            sys.exit("ERROR frame mismatch")
         print(out)
     finally:   # a failed render left 24-66 MB of segments behind on every try
         shutil.rmtree(tmp, ignore_errors=True)

@@ -52,6 +52,11 @@ def test_window_property():
         assert got == e - s, (fps, tb, snap.__name__, vstart, s, e, got)
 
 
+def test_first_int():
+    # ffprobe on FFmpeg 8+ prints a trailing field when the stream carries side data (an iPhone ICC profile)
+    assert [R.first_int(t) for t in ("16,\n", "3508", "3508,\n", "", "N/A")] == [16, 3508, 3508, 0, 0]
+
+
 def ff(*a):
     subprocess.run(["ffmpeg", "-v", "error", "-y", *map(str, a)], check=True)
 
@@ -91,9 +96,17 @@ def test_real_renders():
                 quoted = d / "it's tmp"
                 quoted.mkdir(exist_ok=True)
                 env = dict(os.environ, **({"TMPDIR": str(quoted), "TMP": str(quoted), "TEMP": str(quoted)} if run else {}))
-                r = subprocess.run([sys.executable, HERE / "render.py", src, ed, "--no-hw"],
+                # the second run on a Mac decodes and encodes with VideoToolbox (or falls back to x264)
+                hw = [] if run and sys.platform == "darwin" else ["--no-hw"]
+                r = subprocess.run([sys.executable, HERE / "render.py", src, ed, *hw],
                                    capture_output=True, text=True, env=env)
                 assert r.returncode == 0, (name, frames, r.stdout[-400:], r.stderr[-400:])
+                if run:   # one span past the last frame fails, and the segments are still cleaned up
+                    (ed / "report.json").write_text(json.dumps({"fps": fps, "frames": [[0, total + 5]]}),
+                                                    encoding="utf-8")
+                    r = subprocess.run([sys.executable, HERE / "render.py", src, ed, *hw],
+                                       capture_output=True, text=True, env=env)
+                    assert r.returncode and not list(quoted.glob("cut_render_*")), (r.stderr[-300:],)
 
 
 # (start, end, amplitude): speech-like tones; the 4th word sits only a few dB over the bed
@@ -195,6 +208,7 @@ def test_recheck_prints_one_line():
 
 if __name__ == "__main__":
     test_recheck_prints_one_line()
+    test_first_int()
     test_window_property()
     test_real_renders()
     test_music_bed()

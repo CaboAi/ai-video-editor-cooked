@@ -49,6 +49,17 @@ What changed for every user, newest first.
   key rows, `keys.py`, README and the docs. A saved `TYPESAFE_API_KEY` line stays in the key file
   untouched and is never read; an old "typesafe" in later.json is ignored. Test: `test_retakes.py`,
   `clips.py demo`, `route.py demo`, `keys.py`, `setup.py demo`, `home.py demo`.
+- The cut renders about 2.5x faster on a Mac and no longer crashes on iPhone footage. With FFmpeg 8 and 9,
+  ffprobe prints a frame count as `16,` when the stream carries an ICC profile (every iPhone take, copied
+  into each segment), and `render.py` failed on `int()`; it now reads the first number. The two whole-file
+  frame counts decode on every core (`-threads 0`). A Mac that already decodes with VideoToolbox now
+  encodes with it too (`h264_videotoolbox -q:v 65`); if that fails, every span is redone with x264, which
+  Windows, Linux and `--no-hw` still use. A failed render no longer leaves its `cut_render_*` temp folder
+  (24-66 MB) behind. The review page's copy of each round's cut is an APFS clone on a Mac (`cp -c`), not a
+  full copy. `clips.py` reads ffprobe's `width,height` the same tolerant way. Measured on a 60 s iPhone
+  clip cut to 42 s: 21.3 s and 68 MB before (with the parse fix alone), 8.3 s and 40 MB after, 44.9 dB
+  PSNR between them. Test: `test_media.py` (the parse, a VideoToolbox render on a Mac, and a failed
+  render cleaning up).
 - The home window shows progress on its own. A tester pressed Copy and the window sat blank while Claude
   installed and ran the teardown, because steps only reached it when Claude ran `home.py status`. Now the
   long scripts report themselves while Claude has that job taken (a script never takes a queued job, so
@@ -159,6 +170,9 @@ What changed for every user, newest first.
   changes the old rate added. The default style now lands at most 4 cards a minute ("Sometimes"); plan.py
   names each card it leaves out. A caption answer from onboarding (bold, karaoke, minimal) is now the whole
   preset, so its size and TikTok Sans replace a copied creator's measured caption size and font.
+
+## ai-editor 2.3.0, creator-teardown 2.5.0 (2026-10-12)
+
 - First run opens the editor's window first. Before, a new install went straight to several minutes of
   installs in the terminal and the window never opened. Now the window opens at once (it needs nothing
   installed, and runs on a Mac's built-in Python 3.9 too) and `setup.py install-all --report` installs the

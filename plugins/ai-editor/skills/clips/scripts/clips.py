@@ -517,7 +517,7 @@ def reframe(edit_dir):
     src = e / "source.mp4"
     w, h = map(int, subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
                                     "stream=width,height", "-of", "csv=p=0", str(src)],
-                                   capture_output=True, text=True, check=True).stdout.strip().split(","))
+                                   capture_output=True, text=True, check=True).stdout.split(",")[:2])
     crop_w = round(h * 9 / 16 / 2) * 2
     if crop_w >= w:
         print(f"{src} is already {w}x{h}: nothing to reframe")

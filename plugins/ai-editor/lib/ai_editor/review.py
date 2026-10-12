@@ -1038,8 +1038,12 @@ def keep(folder, video, stage, rnd, name=None):
     tag = "-" + re.sub(r"[^\w-]", "_", name) if name else ""   # outside the f-string: Python 3.9 (a Mac's built-in) has no backslash there
     dst = folder / "review" / f"v-{stage}{rnd}{tag}{src.suffix}"
     if src != dst.resolve():
-        # ponytail: a full copy per round; a copy-on-write clone (APFS cp -c, btrfs reflink) if disk use matters
-        shutil.copyfile(src, dst)
+        # A Mac clones on APFS (cp -c: no extra disk until one side changes, and a rewrite of the cut
+        # never reaches the clone); anything else, or a cp -c refused off APFS, copies.
+        # ponytail: Linux btrfs/xfs could reflink with cp --reflink=auto if disk use matters there
+        dst.unlink(missing_ok=True)
+        if sys.platform != "darwin" or subprocess.run(["cp", "-c", str(src), str(dst)], capture_output=True).returncode:
+            shutil.copyfile(src, dst)
     return str(dst)
 
 

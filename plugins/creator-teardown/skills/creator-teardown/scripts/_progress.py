@@ -24,7 +24,10 @@ def state_file():
 
 
 def step(text, detail=None, progress=None, job="teardown", key=None, timeout=5):
-    """True when the page's taken `job` (the one `key` names) got the step. Never raises."""
+    """True when the page's taken `job` (the one `key` names) got the step. Never raises.
+    AI_EDITOR_NO_PROGRESS=1: a no-op (format_check.py's re-merges, which are not new steps)."""
+    if os.environ.get("AI_EDITOR_NO_PROGRESS"):
+        return False
     try:
         d = json.loads(state_file().read_text(encoding="utf-8"))
         if not any(j.get("type") == job and j.get("state") == "taken" for j in d.get("jobs", [])):
@@ -68,6 +71,9 @@ def demo():
         assert json.loads(f.read_text(encoding="utf-8"))["jobs"][0]["state"] == "queued", "wait still hands it out"
         job["state"] = "taken"
         f.write_text(json.dumps({"root": tmp, "jobs": [job], "home_py": home_py.as_posix()}), encoding="utf-8")
+        os.environ["AI_EDITOR_NO_PROGRESS"] = "1"
+        assert step("Listed their videos", key="x") is False   # format_check.py's re-merge: no new step
+        del os.environ["AI_EDITOR_NO_PROGRESS"]
         assert step("Listed their videos", key="@Other") is False   # another creator's key: skipped
         assert step("Listed their videos", key="@X") and ticker("Transcribed every word", 7, key="x")(3)
         assert ticker("Transcribed every word", 7)(4) and step("Transcribed every word")   # keyless, lone job; in place

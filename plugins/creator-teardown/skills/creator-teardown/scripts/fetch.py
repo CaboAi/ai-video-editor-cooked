@@ -15,7 +15,8 @@ Commands:
 
   transcribe  transcribes the picked videos through transcribe.py next to this
               file: the N most-viewed plus the 2 videos closest to the median as
-              a control group. Whisper (free, local) by default; Scribe v2 when
+              a control group, plus 2 spares, all of the creator's usual length
+              (pasted links: every one). Whisper (free, local) by default; Scribe v2 when
               an ElevenLabs key exists. Uses video/<id>.mp4 when visual.py
               downloaded it, else downloads the audio (needs ffmpeg).
 
@@ -28,7 +29,7 @@ Usage:
   python3 scripts/fetch.py doctor
   python3 scripts/fetch.py setkey [--gemini]
   python3 scripts/fetch.py list <handle> [--platform tiktok] [--limit 40]
-  python3 scripts/fetch.py transcribe <handle> [--top 8] [--control 2] [--ids ID,ID]
+  python3 scripts/fetch.py transcribe <handle> [--top 8] [--control 2] [--spare 2] [--ids ID,ID]
                                                 [--engine whisper|scribe]
 
 Output lands in ./creator-teardowns/<handle>/, under the folder you run it from.
@@ -141,22 +142,43 @@ def platform_of(urls):
     return hosts.pop() if len(hosts) == 1 else "mixed"
 
 
-def count_line(top, control):
+def count_line(top, control, spare=()):
     """The first line download and transcribe print: --top N takes N plus the control group."""
-    return (f"{len(top)} most-viewed + {len(control)} control (closest to the median) = "
-            f"{len(top) + len(control)} videos")
+    extra = f" + {len(spare)} spare (in case the format check leaves some out)" if spare else ""
+    return (f"{len(top)} most-viewed + {len(control)} control (closest to the median){extra} = "
+            f"{len(top) + len(control) + len(spare)} videos")
 
 
-def pick(videos, median, top, control):
-    """The `top` most-viewed, plus the `control` videos closest to the median.
+def usual_length(videos):
+    """(lo, hi) seconds: within 2x of the median listed length, the creator's usual video. None when
+    under half the listing has a length (YouTube listings often have none)."""
+    ds = [v["duration"] for v in videos if v.get("duration")]
+    if len(ds) < max(3, len(videos) / 2):
+        return None
+    m = statistics.median(ds)
+    return m / 2, m * 2
+
+
+def pick(videos, median, top, control, spare=0):
+    """(top, control, spare): the `top` most-viewed, the `control` videos closest to the median, and
+    the next `spare` most-viewed.
 
     The control group is what separates a creator's habits from the reason a
     video won: a move in the winner AND the median videos is a habit.
+    A style copies one format, so only videos of the creator's usual length are picked when enough
+    are (a 3-minute podcast clip is not their 40-second talking head). The spares are measured too, so
+    the format check (format_check.py) can leave a mismatch out and still keep the sample.
     """
+    band = usual_length(videos)
+    if band:
+        usual = [v for v in videos if v.get("duration") and band[0] <= v["duration"] <= band[1]]
+        if len(usual) >= top + control + spare:
+            videos = usual
     ranked = sorted(videos, key=reach, reverse=True)
     rest = [v for v in ranked[top:] if reach(v)]
     rest.sort(key=lambda v: abs(reach(v) - median))
-    return ranked[:top], rest[:control]
+    ctrl = rest[:control]   # the control comes first: on a small profile the spares give way, not the control
+    return ranked[:top], ctrl, [v for v in ranked[top:] if v not in ctrl][:spare]
 
 
 def cmd_doctor(args):
@@ -347,6 +369,8 @@ def cmd_list(args):
     vids.sort(key=reach, reverse=True)
     payload = {"handle": handle, "platform": args.platform, "profile_url": url,
                "count": len(vids), "median_views": median, "ranked_by": by, "videos": vids}
+    if args.urls:
+        payload["pasted"] = True   # pasted links: every one is measured, the format check keeps one format
     if by == "likes":
         print("No view counts on these links (Instagram hides them from yt-dlp): ranked by likes.",
               file=sys.stderr)
@@ -450,10 +474,13 @@ def cmd_transcribe(args):
         if missing:
             sys.exit(f"unknown ids: {', '.join(missing)}")
         todo = [(by_id[i], "picked") for i in ids]
+    elif meta.get("pasted"):
+        todo = [(v, "pasted") for v in meta["videos"]]
+        print(f"{len(todo)} pasted links, all of them")
     else:
-        top, control = pick(meta["videos"], median, args.top, args.control)
-        todo = [(v, "top") for v in top] + [(v, "control") for v in control]
-        print(count_line(top, control) + f", median {median:,.0f} views")
+        top, control, spare = pick(meta["videos"], median, args.top, args.control, args.spare)
+        todo = [(v, "top") for v in top + spare] + [(v, "control") for v in control]
+        print(count_line(top, control, spare) + f", median {median:,.0f} views")
     if not todo:
         sys.exit("nothing to transcribe")
 
@@ -564,16 +591,32 @@ def demo():
     # Control group: the videos closest to the median, never a top pick again.
     vids = [{"id": str(i), "view_count": n}
             for i, n in enumerate([9000, 5000, 4800, 4700, 1000, 300])]
-    top, control = pick(vids, 4750, 1, 2)
+    top, control, _ = pick(vids, 4750, 1, 2)
     assert [v["id"] for v in top] == ["0"], top
     assert [v["id"] for v in control] == ["2", "3"], control
     assert count_line(top, control).startswith("1 most-viewed + 2 control") and "= 3 videos" in count_line(top, control)
+    # Spares: the next most-viewed, never also a control video.
+    top, control, spare = pick(vids, 4750, 1, 2, spare=1)
+    assert [v["id"] for v in spare] == ["1"] and [v["id"] for v in control] == ["2", "3"], (spare, control)
+    assert "+ 1 spare" in count_line(top, control, spare) and "= 4 videos" in count_line(top, control, spare)
+    # A small profile: 7 listed, 5 + 2 control + 2 spare wanted. The control is kept, the spares shrink.
+    seven = [{"id": str(i), "view_count": n} for i, n in enumerate([9, 8, 7, 6, 5, 4, 3])]
+    top, control, spare = pick(seven, 6, 5, 2, 2)
+    assert len(top) == 5 and [v["id"] for v in control] == ["5", "6"] and spare == [], (control, spare)
+    # One format: a 200 s podcast clip is not picked from a profile of 30-40 s videos, unless too few are usual.
+    lens = [{"id": str(i), "view_count": n, "duration": d}
+            for i, (n, d) in enumerate([(9000, 200), (5000, 35), (4800, 30), (4700, 40), (1000, 38), (300, 31)])]
+    assert usual_length(lens) == (18.25, 73.0), usual_length(lens)
+    top, control, spare = pick(lens, 4750, 2, 2, 1)
+    assert "0" not in [v["id"] for v in top + control + spare], (top, control, spare)
+    assert [v["id"] for v in pick(lens, 4750, 3, 2, 1)[0]] == ["0", "1", "2"]   # 5 usual, 6 wanted: no filter
+    assert usual_length([{"id": "a"}, {"id": "b"}, {"id": "c", "duration": 30}]) is None
 
     assert slug("@Some.Creator") == "some.creator"
 
     # Instagram links carry likes, not views: rank and pick on likes.
     ig = [{"id": "a", "like_count": 900}, {"id": "b", "like_count": 100}, {"id": "c", "like_count": 120}]
-    top, control = pick(ig, 120, 1, 1)
+    top, control, _ = pick(ig, 120, 1, 1)
     assert [v["id"] for v in top] == ["a"] and [v["id"] for v in control] == ["c"], (top, control)
     assert platform_of(["https://www.instagram.com/reel/X/", "https://instagram.com/p/Y"]) == "instagram"
     assert platform_of(["https://www.tiktok.com/@a/video/1", "https://youtu.be/x"]) == "mixed"
@@ -644,6 +687,8 @@ def main():
     p.add_argument("--top", type=int, default=8, help="most-viewed videos to take; --control more are added (default 2)")
     p.add_argument("--control", type=int, default=2,
                    help="videos closest to the median, as a control group")
+    p.add_argument("--spare", type=int, default=2,
+                   help="next most-viewed videos, in case the format check leaves some out")
     p.add_argument("--ids", default=None,
                    help="comma-separated video ids (replaces --top/--control)")
     p.add_argument("--engine", choices=["whisper", "scribe"], default=None,

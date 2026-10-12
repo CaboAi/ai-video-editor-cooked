@@ -72,6 +72,23 @@ What changed for every user, newest first.
   left-as-is notes grey, and the Notes tab counts "2 done · 1 open". Test: `review.py demo`,
   `test_build_timeline.py`.
 
+- A creator's style now copies one editing format, not a blend of everything they post. After the
+  visual and look passes, `format_check.py check <handle>` gives each video a few measured features
+  (frame: full, letterbox, split or 16:9; talking head, two people, screen recording or b-roll; words a
+  caption, caption height, size and case; median shot length; length), groups the videos that match,
+  keeps the largest group (a tie: the higher median view multiple) and writes `format.json` with each
+  differing video and why. When the kept group is 3 or more and a majority, the others move to
+  `video/left-out/`, so style.json, look.md, graphics, sound and the page come from the kept format only;
+  style.json records `format` and the style's skill says it ("copying their talking-head videos with word
+  captions"). With 1-2 videos or no majority nothing moves and the user is asked for more videos of one
+  kind. A profile run picks videos of the creator's usual length (within 2x of the median) and measures 2
+  spares when the profile is big enough, about 1 min more at worst; pasted links are all measured and the
+  user is told "Using 4 of 6: 2 look like a different format". `visual.py measure` keeps each video's
+  measure until the video or the measuring code changes (`--force` measures again). Without a face
+  detector the face share is recorded as not measured instead of 0. On 5 public Shorts (3 Ali Abdaal
+  talking heads, 2 Fireship), the check put the 2 Fireship videos in their own groups and split off one
+  talking head with top-of-frame sentence captions; 2 of 5 is no majority, so nothing moved. Test:
+  `format_check.py demo`, `report.py demo`, `fetch.py demo`, `visual.py demo`.
 - First run opens the editor's window first. Before, a new install went straight to several minutes of
   installs in the terminal and the window never opened. Now the window opens at once (it needs nothing
   installed, and runs on a Mac's built-in Python 3.9 too) and `setup.py install-all --report` installs the

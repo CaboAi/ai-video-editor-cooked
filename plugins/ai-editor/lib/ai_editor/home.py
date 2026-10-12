@@ -46,6 +46,7 @@ import os
 import re
 import secrets
 import shutil
+import statistics
 import subprocess
 import sys
 import threading
@@ -79,7 +80,7 @@ TOOLS = {"python": ("Python", "runs the editor"), "ffmpeg": ("ffmpeg", "cuts and
          "python packages": ("Python packages", "pinned versions"),
          "transcription model": ("Transcription model", "500 MB, runs offline"),
          "renderer": ("The renderer", "700 MB"), "free disk": ("Free disk", "3 GB or more")}
-TOP, CONTROL = 5, 2       # creator-teardown quick mode: 5 most viewed + 2 closest to the median
+TOP, CONTROL, SPARE = 5, 2, 2   # creator-teardown quick mode: 5 most viewed + 2 closest to the median + 2 spares
 PORT = 47821              # the fixed address; the next free one up to PORT + 19 when it is taken
 REVIEW = Path(__file__).with_name("review.py")
 DEMO = Path(__file__).with_name("demo")   # stock photos for empty previews (demo/CREDITS.md)
@@ -177,12 +178,23 @@ def reach(v):
     return v.get("view_count") or v.get("like_count") or 0
 
 
-def picks(vids, median):
-    """What quick mode studies, as fetch.py pick: the TOP most viewed, then the CONTROL closest to the median."""
+def picks(vids, median, pasted=False):
+    """What quick mode studies, as fetch.py pick: the TOP most viewed, SPARE more for its format check, then the
+    CONTROL closest to the median, all of the creator's usual length (within 2x of the median) when enough are.
+    Pasted links: every one."""
+    ds = [v["duration"] for v in vids if v.get("duration")]
+    if not pasted and len(ds) >= max(3, len(vids) / 2):
+        m = statistics.median(ds)
+        usual = [v for v in vids if v.get("duration") and m / 2 <= v["duration"] <= m * 2]
+        vids = usual if len(usual) >= TOP + CONTROL + SPARE else vids
     ranked = sorted(vids, key=reach, reverse=True)
-    rest = sorted((v for v in ranked[TOP:] if reach(v)), key=lambda v: abs(reach(v) - median))
+    if pasted:
+        return [dict(v, role=f"Top {i + 1}") for i, v in enumerate(ranked)]
+    ctrl = sorted((v for v in ranked[TOP:] if reach(v)), key=lambda v: abs(reach(v) - median))[:CONTROL]
+    spare = [v for v in ranked[TOP:] if v not in ctrl][:SPARE]   # the control first: spares give way on a small profile
     return [dict(v, role=f"Top {i + 1}") for i, v in enumerate(ranked[:TOP])] + \
-        [dict(v, role="Control, median") for v in rest[:CONTROL]]
+        [dict(v, role=f"Top {TOP + i + 1}, spare") for i, v in enumerate(spare)] + \
+        [dict(v, role="Control, median") for v in ctrl]
 
 
 def listing(root, handle):
@@ -194,7 +206,7 @@ def listing(root, handle):
     keep = ("id", "title", "duration", "view_count", "like_count", "vs_median", "thumbnail", "webpage_url")
     return {"handle": d.get("handle"), "platform": d.get("platform"), "count": d.get("count"),
             "median": d.get("median_views"), "ranked_by": d.get("ranked_by"),
-            "videos": [{k: v.get(k) for k in keep + ("role",)} for v in picks(d.get("videos") or [], d.get("median_views") or 0)]}
+            "videos": [{k: v.get(k) for k in keep + ("role",)} for v in picks(d.get("videos") or [], d.get("median_views") or 0, d.get("pasted"))]}
 
 
 def run_listing(root, handle, platform):
@@ -1443,8 +1455,14 @@ def demo():
     assert ig["platform"] == "instagram" and "reel" in ig["note"], ig
     post("/lookup", {"text": "@sample.creator"})
     lk = get("/state")["lookup"]["listing"]
-    assert [v["role"] for v in lk["videos"]] == ["Top 1", "Top 2", "Top 3", "Top 4", "Top 5", "Control, median", "Control, median"]
-    assert lk["videos"][5]["view_count"] == 151000 and lk["videos"][0]["thumbnail"] == "https://x/0.jpg", lk
+    assert [v["role"] for v in lk["videos"]] == ["Top 1", "Top 2", "Top 3", "Top 4", "Top 5", "Top 6, spare", "Top 7, spare",
+                                                 "Control, median", "Control, median"], lk["videos"]
+    # one format, as fetch.py pick: a 200 s clip among 30 s videos is not studied; pasted links all are
+    assert "0" not in [v["id"] for v in picks([{**vids[0], "duration": 200}] + vids[1:], 151000)]
+    assert len(picks(vids, 151000, pasted=True)) == len(vids)
+    small = picks(vids[:7], 151000)   # 7 listed: 5 top and 2 control, no spare
+    assert [v["role"] for v in small][-2:] == ["Control, median", "Control, median"] and len(small) == 7, small
+    assert lk["videos"][7]["view_count"] == 151000 and lk["videos"][0]["thumbnail"] == "https://x/0.jpg", lk
     # Start: a teardown job; `wait` prints it as one line and marks it taken
     try:   # Build my skill before the study is done: refused
         post("/job", {"type": "skill"})

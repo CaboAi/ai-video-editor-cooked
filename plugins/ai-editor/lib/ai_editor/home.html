@@ -294,8 +294,8 @@ body.dragging #dropov{display:flex}
 .crow{display:flex;align-items:center;gap:14px;margin-top:14px;width:100%;border:0;background:none;padding:0;text-align:left}
 .crow:hover .cn{text-decoration:underline}
 .confirm{border:1.5px solid var(--ink);border-radius:14px;padding:14px 16px;background:var(--panel);display:flex;flex-direction:column;gap:10px}
-@media (max-width:1100px){.rv-side{width:400px!important}.sp-side{width:100%!important}.spwrap{flex-wrap:wrap}.setcols .krow{flex-direction:column;gap:12px}.setcols .kl{width:auto}}
-@media (max-width:760px){.tabs{order:3;width:100%}.tabs button{flex:1;padding:7px 4px;white-space:nowrap}.ncard .th{width:88px;height:156px}.setcols{flex-direction:column}.rv-side{width:auto!important}.scard{width:100%}.vrow .st,.vrow .act{width:auto}.vrow{flex-wrap:wrap}.bar2{flex-direction:column;align-items:stretch}}
+@media (max-width:1100px){.rv-side{width:400px!important}.sp-side{width:100%!important}.spwrap{flex-wrap:wrap}}
+@media (max-width:760px){.tabs{order:3;width:100%}.tabs button{flex:1;padding:7px 4px;white-space:nowrap}.ncard .th{width:88px;height:156px}.rv-side{width:auto!important}.scard{width:100%}.vrow .st,.vrow .act{width:auto}.vrow{flex-wrap:wrap}.bar2{flex-direction:column;align-items:stretch}}
 @media (max-width:1100px){.brand,.live{width:auto}.step{padding:7px 10px}}
 .step{white-space:nowrap}.foot{flex-wrap:wrap}.foot>.sub{flex:1 1 260px}
 @media (max-width:1100px){.tiles{grid-template-columns:repeat(5,minmax(0,1fr))}.tdiv{display:none}.glabel,.glabel.g2{grid-column:1/-1;grid-row:auto}.glabel.g2{margin-top:8px}.tile.m0,.tile.m1{grid-column:auto;grid-row:auto}}
@@ -348,8 +348,7 @@ body.dragging #dropov{display:flex}
   main>*{min-height:0;max-height:100%}
   main>.col,main>.panel,main>.grow{overflow-y:auto;overscroll-behavior:contain}
   main>.col{align-self:stretch}
-  .setcols>.col{overflow-y:auto;overscroll-behavior:contain;min-height:0;max-height:100%}
-  main>.col>*,main>.grow>*,main>.panel>*,.setcols>.col>*{flex-shrink:0}
+  main>.col>*,main>.grow>*,main>.panel>*{flex-shrink:0}
   .foot,.stick{position:sticky;bottom:0;z-index:2;background:var(--panel)}
   .col>.stick{background:var(--bg);box-shadow:0 -12px 12px -4px var(--bg)}
   main *{scrollbar-width:thin;scrollbar-color:var(--ring) transparent}
@@ -372,6 +371,44 @@ body.dragging #dropov{display:flex}
   .lede{margin-top:8px}
   .mrow{padding:10px 20px}
 }
+/* Settings (st-): two columns that scroll on their own, so the window never scrolls */
+.st-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;flex:1;min-width:0;align-self:stretch}
+.st-col{display:flex;flex-direction:column;gap:16px;min-width:0;min-height:0}
+.st-hd{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 20px 14px}
+.st-body{display:flex;flex-direction:column;gap:12px;padding:0 20px 16px}
+.st-key{display:flex;flex-direction:column;gap:10px;padding:14px 20px;border-top:1px solid var(--line)}
+.st-top{display:flex;align-items:center;gap:8px;min-width:0}
+.st-tag{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.st-state{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px;line-height:16px;color:var(--t3);white-space:nowrap;flex-shrink:0}
+.st-state.ok{color:var(--ink)}
+.st-x{width:18px;height:18px;border-radius:9px;border:1.5px solid var(--ink);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}.st-x svg{width:9px;height:9px}
+.st-field{display:flex;gap:8px;align-items:center;min-width:0}
+.st-in{display:flex;align-items:center;gap:8px;padding:0 0 0 12px}
+.st-in input{flex:1;min-width:0;border:0;outline:0;font:13px var(--mono);background:none;color:var(--ink)}
+.st-in button{border:0;background:none;color:var(--t3);font-size:13px;padding:0 12px}
+.st-mask{display:flex;align-items:center;background:var(--bg);color:var(--t2);letter-spacing:.04em}
+.st-acts{display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;font-size:13px}
+.st-acts a,.st-perm a{color:var(--ink);font-size:13px}
+.st-ink{color:var(--ink)!important;font-weight:600}
+.st-lock{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--t3);white-space:nowrap}
+.st-perm{border:1px solid var(--line);border-radius:12px;background:var(--bg);padding:10px 12px;display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:16px;color:var(--t2)}
+.st-permhd{display:flex;justify-content:space-between;gap:12px;color:var(--ink);font-weight:600;flex-wrap:wrap}.st-permhd a{font-weight:400}
+.st-prow{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.st-chip{border:1px solid var(--line);border-radius:8px;padding:3px 8px;color:var(--t3);white-space:nowrap;background:var(--panel)}
+.st-chip.on{border-color:var(--ink);color:var(--ink);font-weight:600}
+.st-vers{display:flex;gap:32px;flex-wrap:wrap}
+.st-path{display:flex;align-items:center;gap:8px;font-size:15px;min-width:0;color:var(--ink)}.st-path svg{flex-shrink:0;color:var(--t3)}
+.st-path span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.st-line{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 20px;border-top:1px solid var(--line);font-size:14px}
+.st-line.st-first{border-top:0}
+.st-check{width:20px;height:20px;accent-color:var(--ink);flex-shrink:0}
+.st-seg{display:flex;background:var(--soft);border-radius:10px;padding:3px;gap:2px}
+.st-seg button{display:flex;align-items:center;gap:6px;border:0;background:none;border-radius:8px;padding:6px 10px;font-size:13px;color:var(--t3)}
+.st-seg button.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px #0000001f}
+.st-seg i{width:12px;height:12px;border-radius:4px;border:1px solid var(--ring)}
+@media (min-width:761px){.st-col{overflow-y:auto;overscroll-behavior:contain;max-height:100%}.st-col>*{flex-shrink:0}}
+@media (min-width:761px) and (max-width:1000px){.st-grid{grid-template-columns:1fr;overflow-y:auto}.st-col{overflow:visible;max-height:none}}
+@media (max-width:760px){.st-grid{grid-template-columns:1fr;gap:16px}.st-hd,.st-key,.st-line{padding-left:16px;padding-right:16px}.st-body{padding:0 16px 16px}.st-lock{white-space:normal}}
 </style>
 </head>
 <body>
@@ -1108,32 +1145,70 @@ function vMyStyle(){
   return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:24px"><div><h1>My styles</h1></div>
     ${styleGroups(false)}</div>`;
 }
-function updateSec(){
+// ---- Settings: keys (each with its own status), updates, the videos folder, the theme, this computer
+const FINDER=()=>/Mac/.test(navigator.platform)?'Finder':'Explorer';
+const ST_HINT={gemini:'Paste the key. It starts with AIza or AQ.'};
+// ElevenLabs' "Create API key" form, as testers should leave it (they did not know which switches to touch)
+const ST_PERMS=[['Speech to Text','Access',1],['Text to Speech, Voices, Dubbing and the rest','No access'],['Credit quota','Set a limit',1]];
+function stHelp(k){
+  if(k.id!=='elevenlabs')return '';
+  return `<div class="st-perm"><div class="st-permhd"><span>On ElevenLabs, create the key like this</span><a href="${k.url}" target="_blank" rel="noopener">Open ElevenLabs</a></div>
+    ${ST_PERMS.map(([a,b,on])=>`<div class="st-prow"><span>${a}</span><span class="st-chip${on?' on':''}">${b}</span></div>`).join('')}</div>`;
+}
+function stKey(k){
+  const st=S.keys[k.id]||{},u=ui.keys[k.id]||{},c=st.check,editing=u.edit||!st.set;
+  const icon=st.set&&c&&c.ok?TICK:st.set&&c&&!c.ok?`<span class="st-x">${CROSS}</span>`:TODO;
+  const state=!st.set?'Not set':st.env?'From your environment':u.busy?'Checking...':!c?'Saved, not checked':c.ok?'Verified':'Failed';
+  let body;
+  if(editing)body=`<div class="st-field"><div class="input st-in"><input id="k-${k.id}" type="${ui.show[k.id]?'text':'password'}" autocomplete="off" spellcheck="false" placeholder="${ST_HINT[k.id]||'Paste the key'}" onkeydown="if(event.key==='Enter')verify('${k.id}')"><button onclick="ui.show['${k.id}']=!ui.show['${k.id}'];swapType('${k.id}')">Show</button></div><button class="small dark" ${u.busy?'disabled':''} onclick="verify('${k.id}')">${u.busy?'Checking':'Verify'}</button></div>
+    ${u.bad?`<div class="msg bad">${CROSS}<span>${esc(u.msg)}</span></div>`:''}
+    ${stHelp(k)}
+    <div class="st-acts"><a href="${k.url}" target="_blank" rel="noopener">${k.id==='elevenlabs'?'Create a key':'Get a key'}</a><span class="muted">${k.cost}</span>${st.set?`<button class="hlink" onclick="ui.keys['${k.id}']={};render()">Cancel</button>`:''}</div>`;
+  else body=`<div class="st-field"><div class="input st-mask">•••• •••• ${esc(st.last4||'')}</div>${st.env?'':`<button class="small" onclick="ui.keys['${k.id}']={edit:1};render()">Replace</button>`}</div>
+    ${c&&!c.ok?`<div class="msg bad">${CROSS}<span>${esc(c.msg[0].toUpperCase()+c.msg.slice(1))}</span></div>`:''}
+    <div class="st-acts"><button class="hlink" ${u.busy?'disabled':''} onclick="stCheck('${k.id}')">${c?'Check again':'Check it'}</button>${st.env?'<span class="muted">Change it where the variable is set.</span>':ui.strm===k.id?`<span class="muted">Remove this key?</span><button class="hlink st-ink" onclick="stRemove('${k.id}')">Remove</button><button class="hlink" onclick="ui.strm=null;render()">Keep it</button>`:`<button class="hlink" onclick="ui.strm='${k.id}';render()">Remove</button>`}</div>`;
+  return `<div class="st-key"><div class="st-top">${icon}${logo(k.id)}<span class="kname">${k.name}</span><span class="muted st-tag">${k.tag}</span><span class="st-state${c&&c.ok&&st.set?' ok':''}">${state}</span></div>${body}</div>`;
+}
+async function stCheck(id){ui.keys[id]={busy:1};render();await post('/key/check',{name:id});ui.keys[id]={};await load();render()}
+async function stRemove(id){const r=await post('/key/remove',{name:id});ui.strm=null;ui.keys[id]=r._ok?{}:{bad:1,edit:1,msg:r.msg||'Not removed.'};await load();render()}
+function stUpdate(){
   const u=S.update||{},j=latest('update'),busy=j&&(j.state==='queued'||j.state==='taken');
   const st=!j?'':j.state==='queued'?(S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal.`):j.state==='taken'?`Claude: ${(j.steps.at(-1)||{}).text||'updating'}`:j.state==='done'?'Updated. Type /reload-plugins in Claude Code.':j.state==='failed'?j.error:'';
-  return `<div class="sec"><div class="h">Updates</div>${u.newer?`<div class="between" style="align-items:center;flex-wrap:wrap"><div><div style="font-size:15px;font-weight:600">Version ${esc(u.latest)} is out</div><div class="sub">You have ${esc(u.installed)}.</div></div><button class="btn dark sm" ${busy?'disabled':''} onclick="queue({type:'update'})">${busy?'Updating...':'Update'}</button></div><div>${(u.notes||[]).map(n=>`<div class="dash">${esc(n)}</div>`).join('')}</div>`
-    :`<div class="sub">Version ${esc(u.installed||'')}${u.latest?'. Up to date.':''}</div>`}${st?`<div class="msg ${j.state==='failed'?'bad':''}">${esc(st)}</div>`:''}</div>`;
+  const line=u.checking?'Checking...':u.newer?'':u.latest?'Up to date.':u.checked?'Could not reach GitHub.':'';
+  return `<div class="panel"><div class="st-hd"><span class="h">Updates</span><span class="st-state${u.latest&&!u.newer?' ok':''}">${u.latest&&!u.newer?TICK:''}${line}</span></div>
+    <div class="st-body"><div class="st-vers"><div class="kv"><span>Installed</span><b>${esc(u.installed||'?')}</b></div><div class="kv"><span>Latest</span><b>${esc(u.latest||'?')}</b></div></div>
+    ${u.newer&&(u.notes||[]).length?`<div><div class="muted">What changed</div>${u.notes.map(n=>`<div class="dash">${esc(n)}</div>`).join('')}</div>`:''}
+    <div class="st-acts">${u.newer?`<button class="btn dark sm" ${busy?'disabled':''} onclick="queue({type:'update'})">${busy?'Updating...':'Update'}</button>`:`<button class="btn quiet sm" ${u.checking?'disabled':''} onclick="stCheckUpd()">Check now</button>`}<a href="https://github.com/nextwork-projects/ai-video-editor/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Full changelog</a></div>
+    ${st?`<div class="msg ${j.state==='failed'?'bad':''}">${esc(st)}</div>`:''}</div></div>`;
+}
+async function stCheckUpd(){await post('/update/check',{});await load();render();setTimeout(async()=>{await load();render()},2500)}
+function stFolder(){
+  const d=ui.disk,c=ui.clean,mb=b=>b==null?'...':b>=1e9?(b/1e9).toFixed(1)+' GB':Math.round(b/1e6)+' MB';
+  return `<div class="panel"><div class="st-hd"><span class="h">Videos folder</span></div><div class="st-body">
+    <div class="st-path" title="${esc(L.path)}">${FOLDER}<span>${esc(L.place||L.path)}</span></div>
+    ${ui.stlib&&!L.env?`<div class="st-field"><input class="input" id="libpath" placeholder="~/Videos/AI Editor" onkeydown="if(event.key==='Enter')setLib()"><button class="small dark" onclick="setLib()">Move</button></div><div class="st-acts"><span class="muted">New videos go there. Old ones stay where they are.</span><button class="hlink" onclick="ui.stlib=false;ui.libmsg='';render()">Cancel</button></div>`
+      :`<div class="st-acts"><button class="btn quiet sm" onclick="post('/reveal',{})">Show in ${FINDER()}</button>${L.env?'<span class="muted">Set by AI_EDITOR_LIBRARY.</span>':`<button class="btn quiet sm" onclick="ui.stlib=true;render();setTimeout(()=>$('#libpath')&&$('#libpath').focus())">Change</button>`}</div>`}
+    ${ui.libmsg?`<div class="msg bad">${CROSS}<span>${esc(ui.libmsg)}</span></div>`:''}
+    <div class="st-vers"><div class="kv"><span>Videos</span><b>${mb(d&&d.library)}</b></div><div class="kv"><span>Working files</span><b>${mb(d&&d.working)}</b></div><div class="kv"><span>Free</span><b>${mb(d&&d.free)}</b></div></div>
+    ${c&&c.ask?`<div class="confirm"><b>Delete ${c.files} working files (${mb(c.bytes)})?</b><div class="sub">Render pieces and caches. Your clips, cuts, final videos and notes stay.</div><div class="row"><button class="btn dark sm" onclick="cleanNow(true)">Delete them</button><button class="btn quiet sm" onclick="ui.clean=null;render()">Cancel</button></div></div>`
+      :`<div class="st-acts"><button class="hlink" ${d&&d.working?'':'disabled'} onclick="cleanNow(false)">Clear working files</button>${c&&c.deleted?`<span class="muted">Deleted ${c.files} files, ${mb(c.bytes)}.</span>`:''}</div>`}
+    </div><div class="st-line"><div><div>Your changes</div><div class="muted" title="${esc(L.custom||'')}">Rules and caption styles. Updates never touch them.</div></div><button class="btn quiet sm" onclick="post('/reveal',{custom:true})">Show in ${FINDER()}</button></div></div>`;
+}
+// the theme: the same choice as the header button and every review page (POST /theme, ui.json)
+function stTheme(t){applyTheme(t);themeAt=Date.now();post('/theme',{theme:t});S.theme=t;render()}
+function stLook(){
+  const cur=document.documentElement.dataset.theme||'system';
+  const sw={light:'<i style="background:#FAFAF9"></i>',dark:'<i style="background:#161413"></i>',system:'<i style="background:linear-gradient(135deg,#FAFAF9 50%,#161413 50%)"></i>'};
+  return `<div class="panel"><div class="st-line st-first"><span class="h">Theme</span><div class="st-seg">${['light','dark','system'].map(t=>`<button class="${cur===t?'on':''}" onclick="stTheme('${t}')">${sw[t]}${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</div></div></div>`;
 }
 function vSettings(){
-  const d=ui.disk,c=ui.clean;
-  const mb=b=>b==null?'':b>=1e9?(b/1e9).toFixed(1)+' GB':Math.round(b/1e6)+' MB';
-  const on=KEYS.filter(k=>(S.keys[k.id]||{}).set).length+(latest('modal')&&latest('modal').state==='done'?1:0);
-  return `<div class="row setcols" style="align-items:stretch;gap:24px;flex:1;min-width:0">
-    <div class="col rv-side" style="width:380px;gap:24px;padding:12px 14px 0"><div><h1>Settings</h1><p class="lede">Everything here is optional.</p></div></div>
-    <div class="col grow" style="min-width:0;gap:24px">
-    <div class="panel"><div class="between" style="padding:22px 24px 16px;align-items:flex-start;flex-wrap:wrap"><div><div class="h">Extras</div><div class="sub" style="margin-top:4px">${on} of ${KEYS.length+1} on</div></div><div class="lock">${LOCK}Keys stay on this computer. Never sent to the chat.</div></div>
-      ${KEYS.map(keyRow).join('')}
-      <div class="krow"><div class="kl"><div class="row" style="gap:8px">${latest('modal')&&latest('modal').state==='done'?TICK:TODO}${logo('modal')}<span class="kname">Modal</span><span class="muted">cloud renders</span></div><div style="color:var(--t2)">Splits a long video across many computers so it finishes faster. You see the time and cost first.</div><span class="muted">$30 free credit a month</span></div><div class="kr">${modalRow()}</div></div></div>
-    <div class="panel">${updateSec()}<div class="sec"><div class="h">Where your videos live</div><div style="font-size:15px" title="${esc(L.path)}">${esc(L.place||L.path)}</div>
-      <div class="row" style="flex-wrap:wrap"><button class="btn quiet" onclick="post('/reveal',{})">Show in ${/Mac/.test(navigator.platform)?'Finder':'Explorer'}</button>${L.env?'<span class="muted">Set by AI_EDITOR_LIBRARY.</span>':`<input class="input" id="libpath" placeholder="Another folder, like ~/Videos/AI Editor"><button class="small" onclick="setLib()">Move</button>`}</div>
-      ${ui.libmsg?`<div class="msg bad">${esc(ui.libmsg)}</div>`:''}</div>
-    <div class="sec"><div class="h">Your changes</div><div class="sub" title="${esc(L.custom||'')}">Your rules and caption styles. Updates never touch them.</div>
-      <div class="row"><button class="btn quiet" onclick="post('/reveal',{custom:true})">Show in ${/Mac/.test(navigator.platform)?'Finder':'Explorer'}</button></div></div>
-    <div class="sec"><div class="h">Disk use</div>${d?`<div class="row" style="gap:40px;flex-wrap:wrap"><div class="kv"><span>Your library</span><b>${mb(d.library)}</b></div><div class="kv"><span>Working files</span><b>${mb(d.working)}</b></div><div class="kv"><span>Free on this disk</span><b>${mb(d.free)}</b></div></div>`:'<div class="muted">Measuring...</div>'}
-      ${c&&c.ask?`<div class="confirm"><b>Delete ${c.files} working files (${mb(c.bytes)})?</b><div class="sub">Render pieces, sound caches and old review copies. Your clips, each cut, each final video and your notes stay.</div><div class="row"><button class="btn dark sm" onclick="cleanNow(true)">Delete them</button><button class="btn quiet sm" onclick="ui.clean=null;render()">Cancel</button></div></div>`
-        :`<div class="row"><button class="btn quiet" ${d&&d.working?'':'disabled'} onclick="cleanNow(false)">Clear working files</button>${c&&c.deleted?`<span class="muted">Deleted ${c.files} files, ${mb(c.bytes)}.</span>`:''}</div>`}</div>
-    <div class="sec"><div class="h">Recent clips</div><label class="row" style="cursor:pointer"><input type="checkbox" ${R&&R.scan_home?'checked':''} onchange="scanHome(this.checked)">Show recent clips from Movies, Desktop and Downloads</label></div>
-    <div class="sec"><div class="h">Tools on this computer</div><div class="sub">Python, the renderer and the transcription model.</div><button class="btn quiet" style="align-self:flex-start" onclick="ui.onboard=true;go(0)">Check the tools</button></div></div></div></div>`;
+  return `<div class="st-grid">
+    <div class="st-col"><div class="panel"><div class="st-hd"><span class="h">Keys</span><span class="st-lock">${LOCK}Saved on this computer only</span></div>
+      ${KEYS.map(stKey).join('')}
+      <div class="st-key"><div class="st-top">${latest('modal')&&latest('modal').state==='done'?TICK:TODO}${logo('modal')}<span class="kname">Modal</span><span class="muted st-tag">cloud renders</span></div>${modalRow()}</div></div></div>
+    <div class="st-col">${stUpdate()}${stFolder()}${stLook()}
+      <div class="panel"><label class="st-line st-first" style="cursor:pointer"><div><div>Recent clips</div><div class="muted">From Movies, Desktop and Downloads</div></div><input type="checkbox" class="st-check" ${R&&R.scan_home?'checked':''} onchange="scanHome(this.checked)"></label>
+        <div class="st-line"><div><div>Tools on this computer</div><div class="muted">Python, the renderer, the transcriber</div></div><button class="btn quiet sm" onclick="ui.onboard=true;go(0)">Check</button></div></div></div></div>`;
 }
 async function setLib(){const v=($('#libpath')||{}).value||'';if(!v.trim())return;const r=await post('/setlib',{path:v.trim()});ui.libmsg=r._ok?'':(r.msg||'That folder did not work.');await loadLib();loadDisk()}
 async function loadDisk(){try{ui.disk=await (await fetch('/disk')).json();render()}catch(e){}}

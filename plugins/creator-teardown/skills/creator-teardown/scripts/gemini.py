@@ -47,6 +47,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _net  # noqa: E402
+import _progress  # noqa: E402
 from fetch import OUT_ROOT, slug  # noqa: E402
 from transcribe import find_key  # noqa: E402
 
@@ -300,6 +301,7 @@ def cmd_kinds(a):
                 g.update(kind="set" if it["kind"] == KIND_SET else it["kind"], what=it.get("what", "")[:80],
                          kind_source="model")
         print(f"  {k + len(batch)}/{len(todo)} crops, {tokens} tokens", file=sys.stderr)
+        _progress.step("Naming graphics", detail=f"{k + len(batch)} of {len(todo)} graphics", progress=(k + len(batch)) / len(todo), key=a.handle)
     for f, d in docs.items():
         f.write_text(json.dumps(d, indent=1), encoding="utf-8")
     print(f"{total} input tokens, about ${total / 1e6 * 0.30:.4f} at most on the paid tier (free tier: $0)",

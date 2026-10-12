@@ -191,6 +191,9 @@ def main(argv):
         del argv[i:i + 2]
     if len(argv) < 3 or sort not in (None, "name", "created"):
         sys.exit(__doc__)
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "lib"))
+    from ai_editor import progress   # the home page's video job, when there is one
+    progress.step("Joined your clips in order", job="video", key=os.path.dirname(os.path.abspath(argv[0])))
     join(argv[0], order(argv[1:], sort))
 
 

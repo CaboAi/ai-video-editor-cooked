@@ -279,6 +279,10 @@ def main():
     run_b = ROOT / "plugins/creator-teardown/skills/creator-teardown/scripts/run.py"
     if run_a.read_bytes() != run_b.read_bytes():
         errors.append(f"{run_b}: differs from {run_a}; copy it across")
+    prog_a = ROOT / "plugins/ai-editor/lib/ai_editor/progress.py"
+    prog_b = ROOT / "plugins/creator-teardown/skills/creator-teardown/scripts/_progress.py"
+    if prog_a.read_bytes() != prog_b.read_bytes():
+        errors.append(f"{prog_b}: differs from {prog_a}; copy it across")
     # The certificate fallback is copied into creator-teardown, which cannot import ai_editor.
     def ctx_fn(p):
         t = p.read_text(encoding="utf-8")

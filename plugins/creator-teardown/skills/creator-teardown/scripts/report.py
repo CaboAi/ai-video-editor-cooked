@@ -37,6 +37,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _progress  # noqa: E402
 from fetch import OUT_ROOT, slug  # noqa: E402
 
 HOOK_S = 3.0
@@ -533,6 +534,7 @@ def build(outdir, at=None):
 
 
 def cmd_build(a):
+    _progress.step("Writing the style", key=a.handle)
     outdir = OUT_ROOT / slug(a.handle)
     if not (outdir / "video").exists():
         sys.exit(f"no {outdir / 'video'}. Run the visual pass first.")

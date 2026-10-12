@@ -43,7 +43,7 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
-from ai_editor import keys, models, net  # noqa: E402
+from ai_editor import keys, models, net, progress  # noqa: E402
 
 HOME = models.HOME
 # Whisper tidies speech by default. A prompt full of hesitations makes it keep
@@ -251,6 +251,7 @@ def main():
     ap.add_argument("--script", help="the user's script: its names and jargon bias the transcription")
     ap.add_argument("--keyterm", action="append", default=[], help="one name or term to bias towards (repeatable)")
     a = ap.parse_args()
+    progress.step("Wrote down every word you said", job="video", key=Path(a.out).parent)   # the home page's video job, if any
 
     if not Path(a.media).exists():
         sys.exit(f"ERROR: no such file: {a.media}")

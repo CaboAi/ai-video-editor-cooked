@@ -61,12 +61,15 @@ def video_window(s, e, fps, vstart):
 
 
 def main():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
+    from ai_editor import progress   # the home page's video job, when there is one
     ap = argparse.ArgumentParser()
     ap.add_argument("source")
     ap.add_argument("edit_dir")
     ap.add_argument("--crf", type=int, default=18)
     ap.add_argument("--no-hw", action="store_true", help="skip hardware decode on a Mac")
     a = ap.parse_args()
+    progress.step("Cutting out the mistakes", job="video", key=a.edit_dir)
 
     d = Path(a.edit_dir)
     rep = json.loads((d / "report.json").read_text(encoding="utf-8"))

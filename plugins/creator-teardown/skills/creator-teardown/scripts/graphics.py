@@ -46,6 +46,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _progress  # noqa: E402
 from fetch import OUT_ROOT, slug  # noqa: E402
 from look import decode, probe  # noqa: E402
 
@@ -1243,7 +1244,8 @@ def cmd_measure(a):
         if p not in todo:
             print(f"{p.stem} cached", file=sys.stderr)
     from parallel import pmap
-    pmap(measure_one, [(p, outdir / "graphics") for p in todo])
+    _progress.step("Naming graphics", detail=f"{len(todo)} videos" if todo else None, progress=0, key=a.handle)
+    pmap(measure_one, [(p, outdir / "graphics") for p in todo], tick=_progress.ticker("Naming graphics", len(todo), key=a.handle))
     g = merge(outdir)
     if a.json:
         print(json.dumps({k: g.get(k) for k in ("kinds", "layout", "entrances", "secondary_motion")}, indent=1))

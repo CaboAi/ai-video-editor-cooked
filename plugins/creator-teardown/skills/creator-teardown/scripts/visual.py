@@ -41,6 +41,9 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from parallel import pmap
+import _progress  # noqa: E402
+
+DOWNLOAD, MEASURE = "Downloaded the top 5 and 2 median", "Measured cuts, zooms and camera moves"   # the page's PLAN
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fetch import OUT_ROOT, count_line, pick, slug, ytdlp  # noqa: E402
@@ -403,7 +406,9 @@ def cmd_download(a):
         sys.exit("yt-dlp not found. Run fetch.py doctor.")
     vdir = outdir / "video"
     vdir.mkdir(parents=True, exist_ok=True)
-    failed = [vid for vid, ok in pmap(lambda v: fetch_one(yt, v, vdir), todo, threads=True) if not ok]
+    _progress.step(DOWNLOAD, detail=f"{len(todo)} videos", progress=0, key=handle)
+    failed = [vid for vid, ok in pmap(lambda v: fetch_one(yt, v, vdir), todo, threads=True,
+                                      tick=_progress.ticker(DOWNLOAD, len(todo), key=handle)) if not ok]
     print(f"{len(todo) - len(failed)} of {len(todo)} downloaded -> {vdir}")
     if failed:
         # Every later step measures what is on disk: a gap here is a smaller sample, so say it.
@@ -448,7 +453,8 @@ def cmd_measure(a):
         sys.exit(f"no videos in {outdir / 'video'}. Run `download {handle}` first.")
     tdir = outdir / "transcripts"
     print(f"measuring {len(vids)} videos", file=sys.stderr)
-    rows = pmap(measure_one, [(p, outdir / "sheets") for p in vids])
+    _progress.step(MEASURE, detail=f"{len(vids)} videos", progress=0, key=handle)
+    rows = pmap(measure_one, [(p, outdir / "sheets") for p in vids], tick=_progress.ticker(MEASURE, len(vids), key=handle))
 
     sp = [s for s in (speech(tdir, r["id"]) for r in rows) if s]
     first = rows[0]

@@ -50,6 +50,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import _progress  # noqa: E402
 from transcribe import KEY_FILE, VENV_PY, find_key
 
 OUT_ROOT = Path.cwd() / "creator-teardowns"
@@ -284,6 +285,7 @@ def cmd_setkey(args):
 
 
 def cmd_list(args):
+    _progress.step("Listed their videos", key=args.handle)
     handle = slug(args.handle)
     outdir = OUT_ROOT / handle
     outdir.mkdir(parents=True, exist_ok=True)
@@ -514,7 +516,8 @@ def cmd_transcribe(args):
         return vid, True
 
     from parallel import pmap
-    res = pmap(one, enumerate(todo, 1), threads=True)
+    _progress.step("Transcribed every word", detail=f"{len(todo)} videos", progress=0, key=handle)
+    res = pmap(one, enumerate(todo, 1), threads=True, tick=_progress.ticker("Transcribed every word", len(todo), key=handle))
     done = [vid for vid, ok in res if ok]
     failed = [vid for vid, ok in res if not ok]
 

@@ -247,6 +247,34 @@ def grab(video, t, out):
 
 
 _HOME = {"at": 0.0, "url": None}
+THEMES = ("light", "dark", "system")
+
+
+def _ui_json():
+    return Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "ui.json"
+
+
+def theme():
+    """The light/dark choice, one for the window and every review page (they run on different ports, so
+    a browser's per-origin storage cannot share it). "system" until the user picks."""
+    try:
+        t = load(_ui_json()).get("theme")
+    except (OSError, ValueError, AttributeError):
+        t = None
+    return t if t in THEMES else "system"
+
+
+def set_theme(t):
+    if t not in THEMES:
+        raise ValueError(t)
+    _ui_json().parent.mkdir(parents=True, exist_ok=True)
+    save(_ui_json(), {"theme": t})
+
+
+def themed(html):
+    """The page with the saved theme already on <html>, so it paints in it from the first frame."""
+    t = theme()
+    return html if t == "system" else html.replace(b"<html", f'<html data-theme="{t}"'.encode(), 1)
 
 
 def home_url():
@@ -425,9 +453,10 @@ def make_handler(folder, token):
             if askhook.route(self, "GET", path, q):   # Claude's questions (askhook.py)
                 return
             if path == "/":
-                return self.send(200, HTML.read_bytes(), "text/html; charset=utf-8", cookie=True)
+                return self.send(200, themed(HTML.read_bytes()), "text/html; charset=utf-8", cookie=True)
             if path == "/state":
                 d = load(rj)
+                d["theme"] = theme()
                 d["listening"], d["busy"] = listening(folder), busy(folder)
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
                 d["cutcheck"] = (folder / "cut-check.html").exists()
@@ -465,6 +494,12 @@ def make_handler(folder, token):
             path = urlsplit(self.path).path
             if askhook.route(self, "POST", path, {}, body):
                 return
+            if path == "/theme":   # the toggle: one choice for the window and every review page
+                try:
+                    set_theme(body.get("theme"))
+                except ValueError:
+                    return self.send(400, {"error": "light, dark or system"})
+                return self.send(200, {"theme": theme()})
             if path == "/comment":
                 return self.comment(body)
             if path == "/edit":

@@ -490,7 +490,9 @@ def eleven_music(prompt, seconds, out, key):
                                  data=json.dumps({"prompt": prompt, "music_length_ms": int(seconds * 1000),
                                                   "force_instrumental": True}).encode(),
                                  headers={"xi-api-key": key, "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=300) as r:
+    sys.path.insert(0, str(HERE.parents[1].parent / "lib"))
+    from ai_editor import net
+    with net.urlopen(req, 300) as r:
         Path(out).write_bytes(r.read())
     return out
 

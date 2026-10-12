@@ -143,6 +143,7 @@ and never prints the key:
 - `Tested: the <name> key works.`: done.
 - `Nothing saved: ...` (the clipboard held something else) or `Not saved: the service rejected this
   key`: they copied it wrong or only part of it; ask them to copy it again.
+- "can't check secure websites", or the user says "fix my certificates": run `python3 "$U" certs`.
 
 Keys live in `~/.config/creator-teardown/.env`, readable by the user only and shared with
 creator-teardown (`$AI_EDITOR_HOME/.env` instead when `AI_EDITOR_HOME` is set). Check them all at the end:

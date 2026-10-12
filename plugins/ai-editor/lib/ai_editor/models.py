@@ -9,8 +9,12 @@ import hashlib
 import os
 import shutil
 import sys
-import urllib.request
 from pathlib import Path
+
+try:
+    from ai_editor import net
+except ImportError:   # run as a script from this folder
+    import net
 
 HOME = Path(os.environ.get("AI_EDITOR_HOME", Path.home() / ".ai-video-editor"))
 DIR = HOME / "models"
@@ -65,7 +69,7 @@ def fetch(rel, check=True, hook=None):
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = dest.with_name(dest.name + ".part")
     print(f"downloading {rel}", flush=True)
-    urllib.request.urlretrieve(url, part, reporthook=hook)
+    net.retrieve(url, part, reporthook=hook)
     got = sha256(part)
     if got != want:
         part.unlink()
@@ -118,13 +122,13 @@ def demo():
         import contextlib
         import io
         PINS["t.bin"] = ("https://example.com/abc123def/t.bin", hashlib.sha256(b"x").hexdigest())
-        real, out = urllib.request.urlretrieve, io.StringIO()
+        real, out = net.retrieve, io.StringIO()
         try:
-            urllib.request.urlretrieve = lambda u, dest, reporthook=None: Path(dest).write_bytes(b"x")
+            net.retrieve = lambda u, dest, reporthook=None: Path(dest).write_bytes(b"x")
             with contextlib.redirect_stdout(out):
                 fetch("t.bin")
         finally:
-            urllib.request.urlretrieve = real
+            net.retrieve = real
             PINS.pop("t.bin")
         assert out.getvalue() == "downloading t.bin\n", out.getvalue()
     DIR = keep

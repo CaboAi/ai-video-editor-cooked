@@ -34,7 +34,6 @@ import statistics
 import subprocess
 import sys
 import tempfile
-import urllib.request
 from collections import Counter
 from pathlib import Path
 
@@ -137,7 +136,9 @@ def face_detector():
         import cv2
         if not YUNET.exists():
             YUNET.parent.mkdir(parents=True, exist_ok=True)
-            urllib.request.urlretrieve(YUNET_URL, YUNET)
+            import _net
+            with _net.urlopen(YUNET_URL, 60) as r:
+                YUNET.write_bytes(r.read())
     except Exception as e:  # offline, or no OpenCV: the rest still runs
         print(f"  no face detection ({e})", file=sys.stderr)
         return None

@@ -43,7 +43,7 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
-from ai_editor import keys, models  # noqa: E402
+from ai_editor import keys, models, net  # noqa: E402
 
 HOME = models.HOME
 # Whisper tidies speech by default. A prompt full of hesitations makes it keep
@@ -217,13 +217,13 @@ def run_scribe(wav, key, lang, terms=()):
                                  headers={"xi-api-key": key,
                                           "Content-Type": f"multipart/form-data; boundary={b}"})
     try:
-        with urllib.request.urlopen(req, timeout=900) as r:
+        with net.urlopen(req, 900) as r:
             payload = json.loads(r.read())
     except urllib.error.HTTPError as e:
         print(f"HTTP {e.code}: {e.read().decode(errors='replace')[:400]}", file=sys.stderr)
         sys.exit(3)
     except (urllib.error.URLError, OSError) as e:   # no network, DNS, a timeout
-        print(f"ElevenLabs unreachable ({getattr(e, 'reason', e)}). Check the connection and run again, "
+        print(f"ElevenLabs unreachable ({net.friendly(e)}). Check the connection and run again, "
               "or use --engine whisper (free, on this computer).", file=sys.stderr)
         sys.exit(3)
     return [{"text": w["text"], "start": w["start"], "end": w["end"], "type": w["type"]}

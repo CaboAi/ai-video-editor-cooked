@@ -66,6 +66,7 @@ import keys  # noqa: E402
 import library  # noqa: E402
 import links  # noqa: E402
 import live  # noqa: E402
+import presets  # noqa: E402
 from review import load, now, save, set_theme, theme, themed  # noqa: E402  (atomic write; review.py's server owns the rest)
 
 HTML = Path(__file__).with_name("home.html")
@@ -378,21 +379,114 @@ def style_cards(root):
 
 
 # The style page's controls: the settings the scripts read (taste skill's table), never a look of their own.
+# (section, type, low, high); "choice" keys take one of the names presets.py lists.
 CONTROLS = {"captions.size_pct": ("captions", float, 2.5, 9), "captions.words_per_caption": ("captions", int, 1, 6),
-            "captions.y_pct": ("captions", float, 40, 85), "zoom.per_min": ("visuals", float, 0, 20),
-            "cut.max_pause": ("cut", float, 0.05, 0.6), "sfx": ("sound", bool, None, None)}
+            "captions.y_pct": ("captions", float, 40, 85), "captions.preset": ("captions", "choice", None, None),
+            "zoom.per_min": ("visuals", float, 0, 20), "zoom.preset": ("visuals", "choice", None, None),
+            "cut.max_pause": ("cut", float, 0.05, 0.6), "cards.on": ("visuals", bool, None, None),
+            "cards.per_min": ("visuals", float, 0, 20), "look.preset": ("visuals", "choice", None, None),
+            "sfx": ("sound", bool, None, None), "music": ("sound", bool, None, None)}
+# Reset per section: every setting under these prefixes goes back to the style's own (or the default).
+SECTIONS = {"captions": ("captions.",), "zoom": ("zoom.",), "cut": ("cut.",), "cards": ("cards.", "look."), "sound": ("sfx", "music")}
+
+
+def choices(key):
+    return {"captions.preset": [""] + list(presets.captions()), "zoom.preset": list(presets.ZOOM),
+            "look.preset": list(presets.LOOKS)}[key]
 
 
 def control_rule(key, v):
-    return {"captions.size_pct": f"Captions {v:g}% of the frame tall", "captions.words_per_caption": f"{v} word{'s' if v != 1 else ''} a caption",
-            "captions.y_pct": f"Captions {v:g}% down the frame", "zoom.per_min": "No zooms" if not v else f"About {v:g} zooms a minute",
-            "cut.max_pause": f"Pauses cut down to {v:g} s", "sfx": "Sound effects on" if v else "No sound effects"}[key] + " (set on the style page)"
+    if key == "captions.preset":
+        r = f"Captions: the {presets.label(v)} preset" if v else "Captions: the creator's own"
+    elif key == "zoom.preset":
+        r = f"Zooms: {presets.ZOOM[v]['label']} ({presets.ZOOM[v]['sub'].lower()})"
+    elif key == "cards.per_min":
+        r = f"Cards {presets.CARDS[presets.nearest(presets.CARDS, 'per_min', v)]['label'].lower()}, at most {v:g} a minute"
+    else:
+        r = {"captions.size_pct": lambda: f"Captions {v:g}% of the frame tall",
+             "captions.words_per_caption": lambda: f"{v} word{'s' if v != 1 else ''} a caption",
+             "captions.y_pct": lambda: f"Captions {v:g}% down the frame",
+             "zoom.per_min": lambda: "No zooms" if not v else f"About {v:g} zooms a minute",
+             "cut.max_pause": lambda: f"Pauses cut down to {v:g} s", "sfx": lambda: "Sound effects on" if v else "No sound effects",
+             "cards.on": lambda: "Logos and screenshots on" if v else "No logos or screenshots",
+             "look.preset": lambda: f"Card look: {presets.LOOKS.get(v, v)}",
+             "music": lambda: "Background music on" if v else "No background music"}[key]()
+    return r + " (set on the style page)"
 
 
 def dig(d, key):
     for k in key.split("."):
         d = d.get(k) if isinstance(d, dict) else None
     return d
+
+
+def newest_edit(need=("words.json",)):
+    """The newest edit folder in the library holding all of `need`, else None."""
+    return next((Path(e["dir"]) for e in library.entries() if all((Path(e["dir"]) / f).is_file() for f in need)), None)
+
+
+def preview_source(root, sid):
+    """(picture for the previews, what it is): the style's chosen image, else the user's newest raw take, else a demo photo."""
+    d = style_dir(root, sid)
+    if d and (d / "cover.jpg").is_file():
+        return d / "cover.jpg", "Your image"
+    eds = [Path(e).resolve() for e in library.edit_dirs()]
+    raw = next((Path(r["path"]) for r in recent_list(read()) if Path(r["path"]).is_file()
+                and not is_output(Path(r["path"]).resolve(), eds)), None)
+    return (raw, "Your video") if raw else (DEMO / "person-1.jpg", "Example photo")
+
+
+def preset_state(root, sid, st, base, changed):
+    """The style page's preset sections: which tile is on in each, where it came from, and the caption tiles
+    (real stills, rendered in the background on the first ask)."""
+    prof = _profile()
+    tag = lambda prefixes, measured: "you changed this" if any(k.startswith(prefixes) and dig(changed, k) is not None for k in CONTROLS) \
+        else f"from @{base}" if base and measured else "default"
+    creator = {}
+    if base:
+        try:
+            creator = json.loads((Path(root) / "creator-teardowns" / base / "style.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            creator = {}
+    caps = {k: v for k, v in (st.get("captions") or {}).items() if k != "preset"}
+    mine_keys = {k: dig(changed, f"captions.{k}") for k in ("size_pct", "y_pct") if dig(changed, f"captions.{k}") is not None}
+    src, what = preview_source(root, sid)
+    ws, real = presets.phrase(newest_edit())
+    tiles = []
+    for name, block in presets.captions().items():
+        full = {**caps, **block, **mine_keys, "present": True}
+        _, img, err = presets.tile(full, ws, real, src)
+        tiles.append({"id": name, "name": presets.label(name), "note": presets.note(full, caps.get("words_per_caption")),
+                      "img": img, "err": bool(err), "block": {k: full.get(k) for k in ("size_pct", "y_pct")}})
+    if base and (creator.get("captions") or {}).get("present") is not False and creator.get("captions"):
+        full = {**caps, **mine_keys, "present": True}
+        _, img, err = presets.tile(full, ws, real, src)
+        tiles.insert(0, {"id": "", "name": "Theirs" if sid != "mine" else f"@{base}'s", "note": presets.note(full, caps.get("words_per_caption")),
+                         "img": img, "err": bool(err), "block": {k: full.get(k) for k in ("size_pct", "y_pct")}})
+    ids = [t["id"] for t in tiles]
+    cp = dig(changed, "captions.preset")
+    answer = (prof.get("captions") or {}).get("style")
+    sel = cp if cp in ids else answer if sid == "mine" and answer in ids and answer != "creator" else "" if "" in ids else "plain"
+    zp = dig(changed, "zoom.preset")
+    zsel = zp if zp in presets.ZOOM else presets.closest_zoom(st.get("zoom"))
+    cut = dig(st, "cut.max_pause") or 0.15
+    cpm = dig(st, "cards.per_min") or (creator.get("graphics") or {}).get("per_min") or presets.CARDS["sometimes"]["per_min"]
+    sfx = (prof.get("sound") or {}).get("sfx", True) if sid == "mine" and st.get("sfx") is None else st.get("sfx", True)
+    music = st["music"] if "music" in st else bool((prof.get("sound") or {}).get("music"))
+    clips = newest_edit(("report.json", "words.raw.json"))
+    return {"pic": what,
+            "captions": {"tiles": tiles, "sel": sel, "tag": tag(("captions.",), sel == ""), "size": caps.get("size_pct") or 4.2,
+                         "y": caps.get("y_pct") or 66, "off": caps.get("present") is False},
+            "zoom": {"opts": [{"id": k, "label": v["label"], "sub": v["sub"]} for k, v in presets.ZOOM.items()], "sel": zsel,
+                     "tag": tag(("zoom.",), bool(creator.get("zoom")))},
+            "cut": {"opts": [{"id": k, "label": v["label"], "sub": v["sub"], "value": v["max_pause"]} for k, v in presets.CUT.items()],
+                    "sel": presets.nearest(presets.CUT, "max_pause", cut), "value": cut, "tag": tag(("cut.",), False),
+                    "clips": bool(clips)},
+            "cards": {"on": dig(st, "cards.on") is not False, "opts": [{"id": k, "label": v["label"], "value": v["per_min"]} for k, v in presets.CARDS.items()],
+                      "sel": presets.nearest(presets.CARDS, "per_min", cpm), "look": dig(st, "look.preset") or "neutral",
+                      "looks": [[k, v] for k, v in presets.LOOKS.items()],
+                      "tag": tag(("cards.", "look."), bool((creator.get("graphics") or {}).get("per_min")))},
+            "sound": {"sfx": bool(sfx), "music": bool(music), "tag": tag(("sfx", "music"), False)}}
 
 
 def style_page(root, sid):
@@ -417,9 +511,17 @@ def style_page(root, sid):
     job = next((j for j in reversed(read()["jobs"]) if j["type"] == "style-change" and j["args"].get("style") == sid), None)
     return {"id": sid, "name": ss.display(sp), "use_for": ss.use_for(sp), "base": base, "values": vals,
             "changed": [k for k in CONTROLS if dig(changed, k) is not None], "look": look(st), "facts": facts(st),
-            "copies": copies, "rules": rules, "style_path": str(sp) if sp else None,
+            "copies": copies, "rules": rules, "style_path": str(sp) if sp else None, "presets": preset_state(root, sid, st, base, changed),
             "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid), "face": face_of(root, base),
             "delete_note": f"My style started from @{base}. It goes back to the default style." if sp and base and style_of(root, "mine")[2] == base else None}
+
+
+def forget_where(sp, keep):
+    """Forget every setting rule at this style's scope whose setting `keep` rejects (taste.forget unsets it too)."""
+    taste, ss = _taste()
+    if taste.rules_path().exists():
+        for r in [r for r in taste.load_rules() if r["scope"] == ss.scope(sp) and r.get("setting") and not keep(r["setting"])]:
+            taste.forget(r["id"])
 
 
 def set_control(root, sid, key, value):
@@ -428,10 +530,35 @@ def set_control(root, sid, key, value):
     taste, ss = _taste()
     sp, _, _ = style_of(root, sid)
     section, typ, lo, hi = CONTROLS[key]
-    v = bool(value) if typ is bool else typ(value)
+    if typ == "choice":
+        v = str(value if value is not None else "")
+        if v not in choices(key):
+            raise ValueError(f"{key} must be one of {', '.join(c or '(the creator own)' for c in choices(key))}")
+    else:
+        v = bool(value) if typ is bool else typ(value)
     if lo is not None and not lo <= v <= hi:
         raise ValueError(f"{key} must be between {lo} and {hi}")
+    # a preset replaces the older single settings it covers, so they cannot quietly win over it
+    if key == "zoom.preset":
+        forget_where(sp, lambda k: not (k.startswith("zoom.") and k != "zoom.preset"))
+    if key == "captions.preset":
+        forget_where(sp, lambda k: k != "captions.words_per_caption")
     return ss.learn(sp, section, control_rule(key, v), key, v)
+
+
+def reset_section(root, sid, section):
+    """Every setting of one section back to the style's own: its rules forgotten, any loose key unset."""
+    taste, ss = _taste()
+    sp, _, _ = style_of(root, sid)
+    pre = SECTIONS[section]
+    forget_where(sp, lambda k: not k.startswith(pre))
+    for k in CONTROLS:
+        if k.startswith(pre):
+            if sp:
+                ss.set_override(sp, k, drop=True)
+            else:
+                taste.save_json(taste.unset_key(taste.read_json(), k))
+    ss.write(str(sp) if sp else None)
 
 
 _UPD = {"at": 0.0, "latest": None, "notes": [], "busy": False}
@@ -873,6 +1000,13 @@ def make_handler(token):
                 d = style_dir(read()["root"], q.get("id", [""])[0])
                 f = d / ("face.jpg" if path.endswith("face") else "cover.jpg") if d else None
                 return self.send(200, f.read_bytes(), "image/jpeg", cache="private, max-age=86400") if f and f.is_file() else self.send(404, {})
+            if path in ("/style/tile", "/style/clip"):   # a preset's rendered still, a cut preview clip (presets.py cache)
+                k = q.get("k", [""])[0]
+                ok = re.fullmatch(r"[0-9a-f]{20}", k) if path == "/style/tile" else re.fullmatch(r"[0-9a-f]{20}-(before|[0-9.]+)\.mp4", k)
+                f = presets.cache_dir() / (k + ".jpg" if path == "/style/tile" else k) if ok else None
+                if not f or not f.is_file():
+                    return self.send(404, {})
+                return self.send(200, f.read_bytes(), "image/jpeg" if path == "/style/tile" else "video/mp4", cache="private, max-age=86400")
             if path == "/style":
                 try:
                     return self.send(200, style_page(read()["root"], q.get("id", ["mine"])[0]))
@@ -968,11 +1102,22 @@ def make_handler(token):
                     return self.send(404, {"error": "No such style."})
                 except (ValueError, OSError) as e:
                     return self.send(400, {"error": str(e)})
-            if path in ("/style/set", "/style/forget", "/style/reveal"):
+            if path == "/style/cutclips":   # the Cut section's "Play 5 s of your video, before and after"
+                c = presets.CUT.get(str(body.get("preset")))
+                ed = newest_edit(("report.json", "words.raw.json"))
+                got = c and ed and presets.cut_clips(ed, c["max_pause"])
+                if not got:
+                    return self.send(404, {"error": "No cut to play yet. Make a video first."})
+                return self.send(200, {"before": f"/style/clip?k={got[0].name}", "after": f"/style/clip?k={got[1].name}"})
+            if path in ("/style/set", "/style/forget", "/style/reveal", "/style/reset"):
                 root = read()["root"]
                 try:
                     sid = str(body.get("id") or "mine")
-                    if path == "/style/set":
+                    if path == "/style/reset":
+                        if body.get("section") not in SECTIONS:
+                            return self.send(400, {"error": "not a section"})
+                        reset_section(root, sid, body["section"])
+                    elif path == "/style/set":
                         if body.get("key") not in CONTROLS:
                             return self.send(400, {"error": "not a setting"})
                         set_control(root, sid, body["key"], body.get("value"))
@@ -1641,6 +1786,35 @@ def demo():
     pg = post("/style/forget", {"id": "@sample.creator", "rule": rid})
     assert pg["rules"] == [] and json.loads((td / "style.overrides.json").read_text(encoding="utf-8")) == {"captions": {}}, (pg["rules"], (td / "style.overrides.json").read_text(encoding="utf-8"))
     assert "3 words a caption" not in md.read_text(encoding="utf-8")
+    # presets: a creator's page offers its measured captions first, pre-selected, then the built-in tiles;
+    # picking a tile saves captions.preset at that style's scope, Reset puts the section back
+    pz = get("/style?id=@sample.creator")["presets"]
+    assert [t["id"] for t in pz["captions"]["tiles"]][:5] == ["", "plain", "bold", "karaoke", "minimal"] and pz["captions"]["sel"] == ""
+    assert pz["captions"]["tiles"][0]["name"] == "Theirs" and pz["captions"]["tag"] == "from @sample.creator"
+    assert pz["cut"]["sel"] == "natural" and pz["cards"]["on"] and pz["cards"]["look"] == "neutral" and pz["sound"]["sfx"]
+    pg = post("/style/set", {"id": "@sample.creator", "key": "captions.preset", "value": "karaoke"})
+    assert pg["presets"]["captions"]["sel"] == "karaoke" and pg["presets"]["captions"]["tag"] == "you changed this"
+    assert json.loads((td / "style.overrides.json").read_text(encoding="utf-8"))["captions"]["preset"] == "karaoke"
+    pg = post("/style/set", {"id": "@sample.creator", "key": "zoom.preset", "value": "punchy"})
+    assert pg["presets"]["zoom"]["sel"] == "punchy" and "Zooms: Punchy (snaps in fast) (set on the style page)" in md.read_text(encoding="utf-8")
+    for key, v in (("cards.per_min", 2), ("cards.on", False), ("look.preset", "editorial"), ("music", True), ("cut.max_pause", 0.25)):
+        pg = post("/style/set", {"id": "@sample.creator", "key": key, "value": v})
+    c = pg["presets"]
+    assert (c["cards"]["sel"], c["cards"]["on"], c["cards"]["look"], c["sound"]["music"], c["cut"]["sel"]) == ("rarely", False, "editorial", True, "relaxed"), c
+    for bad in (("captions.preset", "../x"), ("zoom.preset", "wobbly"), ("look.preset", "poster-red")):
+        try:
+            post("/style/set", {"id": "@sample.creator", "key": bad[0], "value": bad[1]})
+            raise AssertionError(f"{bad} accepted")
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+    pg = post("/style/reset", {"id": "@sample.creator", "section": "captions"})
+    assert pg["presets"]["captions"]["sel"] == "" and "captions" not in [r["setting"].split(".")[0] for r in pg["rules"]]
+    assert "preset" not in (json.loads((td / "style.overrides.json").read_text(encoding="utf-8")).get("captions") or {})
+    for sec in ("zoom", "cut", "cards", "sound"):
+        pg = post("/style/reset", {"id": "@sample.creator", "section": sec})
+    assert pg["rules"] == [] and pg["presets"]["cards"]["on"] and pg["presets"]["zoom"]["tag"] != "you changed this", pg["rules"]
+    pm = get("/style?id=mine")["presets"]   # My style started from the creator: the creator's captions on, zooms closest to measured
+    assert pm["captions"]["sel"] == "" and pm["zoom"]["sel"] == "none", pm["zoom"]   # taste.json zoom.per_min 0 above
     # Tell it what to change: one JOB line for Claude, at that style's scope
     post("/job", {"type": "style-change", "style": "@sample.creator", "text": "captions a bit bigger,\n fewer zooms"})
     assert out(cmd_wait, 0.01) == f"JOB style-change @sample.creator style={(td / 'style.json').resolve()} text=captions a bit bigger, fewer zooms"

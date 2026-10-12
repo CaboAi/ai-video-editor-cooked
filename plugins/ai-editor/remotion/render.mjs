@@ -1,6 +1,7 @@
 // Renders a plan.json with the StyleEdit composition (or the one its "composition" key names). Called by skills/style-edit/scripts/edit.py.
 //
 //   node render.mjs stills <publicDir> <plan.json> <outDir> name=frame ...
+//   node render.mjs many   <publicDir> <jobs.json>             [{plan: {...}, frame, out: x.jpg}]: one bundle, several plans (style page tiles)
 //   node render.mjs bench  <publicDir> <plan.json>            -> JSON: laptop seconds per frame
 //   node render.mjs local  <publicDir> <plan.json> <out.mp4> [--draft] [--concurrency=N]
 //   node render.mjs chunk  <publicDir> <plan.json> <out.mkv> <from> <to> [--draft] [--concurrency=N]   frames from..to inclusive
@@ -102,6 +103,18 @@ async function stills(publicDir, planPath, outDir, ...pairs) {
       await once();
     }
     console.log(output);
+  }
+}
+
+async function many(publicDir, jobsPath) {
+  const jobs = readPlan(jobsPath);
+  const serveUrl = await bundle({ entryPoint: ENTRY, publicDir: path.resolve(publicDir) });
+  process.on("exit", () => { try { fs.rmSync(serveUrl, { recursive: true, force: true }); } catch {} });
+  for (const j of jobs) {
+    const composition = await selectComposition({ serveUrl, id: j.plan.composition || ID, inputProps: j.plan });
+    await renderStill({ serveUrl, composition, inputProps: j.plan, output: j.out, frame: j.frame, imageFormat: "jpeg",
+      jpegQuality: 88, timeoutInMilliseconds: TIMEOUT_MS });
+    console.log(j.out);
   }
 }
 
@@ -212,7 +225,7 @@ async function lambda(publicDir, planPath, out, siteName) {
   }
 }
 
-const cmds = { stills, bench, local, chunk, bundle: bundleTo, "lambda-estimate": lambdaEstimate, lambda };
+const cmds = { stills, many, bench, local, chunk, bundle: bundleTo, "lambda-estimate": lambdaEstimate, lambda };
 if (!cmds[cmd]) {
   console.error(`usage: node render.mjs ${Object.keys(cmds).join("|")} ...`);
   process.exit(2);

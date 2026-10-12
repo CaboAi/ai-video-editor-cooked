@@ -40,6 +40,22 @@ What changed for every user, newest first.
   word "review" and shows the video name in full beside Home, centred. Fixed: "to Nonex" in a zoom line
   with no measured scale, Done tiles breaking "today" letter by letter, and a style page heading
   breaking a handle mid-word.
+- The style page has ready-made presets, laid out as in the I4 design and fitted to the window. Captions:
+  Plain (white TikTok Sans, the default), Bold, Karaoke and Minimal, plus every file in
+  `<library>/custom/captions/` and a copied creator's own captions ("Theirs"). Each tile is a real still from
+  the StyleEdit composition on a frame of the user's newest raw take with five words from their own
+  transcript (a demo photo and "I will push these changes" when there are none), rendered in one bundle in
+  the background and cached by everything that changes the picture. The big preview shows the picked one;
+  drag its dashed box to move the captions, and a size slider sits under the tiles. Zooms: None, Smooth
+  (0.8 s push, about 3 a minute, the new default) and Punchy (1.15x snap, about 6). Cut: Relaxed / Natural /
+  Tight (0.25 / 0.15 / 0.12 s pauses) with "Play 5 s of your video, before and after", cut from the newest
+  edit's raw take with that pause rule. Cards and graphics: on/off, Rarely / Sometimes / Often (at most 2 /
+  4 / 8 cards a minute; Sometimes is the default) and the card look. Sound: effects and background music.
+  Each section says "you changed this" or "from @creator" and has its own Reset. Every pick is saved as a
+  correction through the style's skill (`captions.preset`, `zoom.preset`, `cut.max_pause`, `cards.on`,
+  `cards.per_min`, `look.preset`, `sfx`, `music`), and plan.py applies each one (`presets.py`; a demo check
+  per preset in `plan.py demo`). Caption presets are JSON files in `plugins/ai-editor/presets/captions/`;
+  the onboarding caption answers use the same files.
 - First run opens the editor's window first. Before, a new install went straight to several minutes of
   installs in the terminal and the window never opened. Now the window opens at once (it needs nothing
   installed, and runs on a Mac's built-in Python 3.9 too) and `setup.py install-all --report` installs the

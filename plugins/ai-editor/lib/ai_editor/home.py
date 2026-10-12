@@ -685,7 +685,8 @@ def update_info():
     except (OSError, ValueError, KeyError):
         mine = None
     newer = bool(mine and _UPD["latest"] and vtuple(_UPD["latest"]) > vtuple(mine))
-    return {"installed": mine, "latest": _UPD["latest"], "newer": newer, "notes": _UPD["notes"] if newer else []}
+    return {"installed": mine, "latest": _UPD["latest"], "newer": newer, "notes": _UPD["notes"] if newer else [],
+            "checking": _UPD["busy"], "checked": _UPD["at"] or None}
 
 
 def trash(p):
@@ -838,12 +839,36 @@ def run_doctor():
     update(lambda d: d.__setitem__("doctor", {"rows": rows, "at": now()}))
 
 
-def key_rows():
+def key_rows(d=None):
+    """Per key: set, from the environment, its last 4 characters and the last check of that same key.
+    Never the key itself."""
+    checks = (d if d is not None else read()).get("keychecks") or {}
     out = {}
     for n in KEY_NAMES:
         k, where = keys.get(n)
-        out[n] = {"set": bool(k), "env": bool(k) and not str(where).endswith(".env")}
+        c = checks.get(n) or {}
+        out[n] = {"set": bool(k), "env": bool(k) and not str(where).endswith(".env"),
+                  "last4": k[-4:] if k and len(k) >= 12 else None,
+                  "check": {x: c[x] for x in ("ok", "msg", "at")} if k and c.get("last4") == k[-4:] else None}
     return out
+
+
+def note_check(name, key, ok, msg):
+    """Remember a key check by the key's last 4 characters, so a key changed elsewhere shows as not checked."""
+    update(lambda d: d.setdefault("keychecks", {}).__setitem__(name, {"ok": ok, "msg": msg, "at": now(), "last4": key[-4:]}))
+
+
+def remove_key(name):
+    """Drop VAR= from the key file, keeping every other line. False when the key comes from the environment."""
+    k, where = keys.get(name)
+    if k and not str(where).endswith(".env"):
+        return False
+    f, var = keys.key_file(), keys.VARS[name]
+    if f.exists():
+        keep = [ln for ln in f.read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.startswith(f"{var}=")]
+        keys.write_private(f, "\n".join(keep) + "\n" if keep else "")
+    update(lambda d: (d.get("keychecks") or {}).pop(name, None))
+    return True
 
 
 # ---------------------------------------------------------------- queueing jobs
@@ -1090,7 +1115,8 @@ def make_handler(token):
                 return self.send(200, themed(HTML.read_bytes()), "text/html; charset=utf-8", cookie=True)
             if path == "/state":
                 d = read()
-                d["listening"], d["keys"], d["theme"] = listening(), key_rows(), theme()
+                d["listening"], d["keys"], d["theme"] = listening(), key_rows(d), theme()
+                d.pop("keychecks", None)
                 bz = busy_with(d, listener())   # the listening Claude is making a video: the next one can get its own
                 d["busy"] = bz and {"id": bz["id"], "name": job_name(bz)}
                 d["profile"] = (home().parent / "profile.json").exists()   # set up before: a returning user
@@ -1224,7 +1250,25 @@ def make_handler(token):
                 ok, msg = keys.verify(name, val)
                 if ok:
                     keys.save(name, val)
+                    note_check(name, val, True, msg)
                 return self.send(200, {"ok": ok, "msg": "Verified. The key works." if ok else f"Not saved. {msg[0].upper()}{msg[1:]}"})
+            if path in ("/key/check", "/key/remove"):   # Settings: test the saved key again, or delete it
+                name = body.get("name")
+                if name not in KEY_NAMES:
+                    return self.send(400, {"msg": "no such key"})
+                if path == "/key/remove":
+                    return self.send(200, {}) if remove_key(name) else self.send(409, {"msg": "This key comes from an environment variable. Remove it there."})
+                k = keys.get(name)[0]
+                if not k:
+                    return self.send(404, {"msg": "No key saved."})
+                ok, msg = keys.verify(name, k)
+                note_check(name, k, ok, msg)
+                return self.send(200, {"ok": ok, "msg": msg})
+            if path == "/update/check":   # Settings: ask GitHub now instead of within the hour
+                if not _UPD["busy"]:
+                    _UPD["at"] = 0.0
+                update_info()
+                return self.send(200, {})
             if path == "/later":
                 for n in body.get("names") or []:
                     if n in KEY_NAMES + ("modal",):
@@ -1751,7 +1795,7 @@ def demo():
         time.sleep(0.02)
     st = get("/state")
     assert [(x["name"], x["ok"]) for x in st["doctor"]["rows"]] == [("Python 3.12", True), ("The renderer", False)], st["doctor"]
-    assert st["keys"]["gemini"] == {"set": False, "env": False} and not st["listening"] and st["profile"] is False
+    assert st["keys"]["gemini"] == {"set": False, "env": False, "last4": None, "check": None} and not st["listening"] and st["profile"] is False
     # keys: a wrong prefix is refused before any request; a good one is verified once, saved, never echoed
     sent = []
     real = keys._get
@@ -1771,6 +1815,35 @@ def demo():
     assert st["keys"]["gemini"]["set"] and not st["keys"]["elevenlabs"]["set"] and "typesafe" not in st["keys"]
     assert secret not in state_path().read_text(encoding="utf-8") and secret not in json.dumps(st), "a key reached state.json"
     assert keys.get("gemini")[0] == secret
+    # Settings: the saved key shows its last 4 and its check, a recheck can fail with the reason, remove keeps the others
+    assert st["keys"]["gemini"]["last4"] == "ssss" and st["keys"]["gemini"]["check"]["ok"] and "keychecks" not in st
+    keys.save("elevenlabs", "sk_" + "e" * 30)
+    assert get("/state")["keys"]["elevenlabs"]["check"] is None   # saved elsewhere: never checked here
+    keys._get = lambda *a: (401, "bad")
+    try:
+        r = post("/key/check", {"name": "gemini"})
+    finally:
+        keys._get = real
+    g = get("/state")["keys"]["gemini"]
+    assert not r["ok"] and not g["check"]["ok"] and "rejected" in g["check"]["msg"] and secret not in json.dumps(r), (r, g)
+    post("/key/remove", {"name": "gemini"})
+    st = get("/state")
+    assert not st["keys"]["gemini"]["set"] and st["keys"]["elevenlabs"]["set"] and keys.get("gemini") == (None, None)
+    os.environ["GEMINI_API_KEY"] = "AIza" + "v" * 35
+    try:
+        post("/key/remove", {"name": "gemini"})
+        raise AssertionError("removed a key that comes from the environment")
+    except urllib.error.HTTPError as e:
+        assert e.code == 409
+    finally:
+        os.environ.pop("GEMINI_API_KEY")
+    post("/update/check", {})
+    for _ in range(50):
+        if get("/state")["update"]["latest"]:
+            break
+        time.sleep(0.02)
+    u = get("/state")["update"]
+    assert u["latest"] == "99.0.0" and u["newer"] and u["checked"] and u["notes"] == ["Dark mode in the window"], u
     # the paste: a profile link names the platform; a bare name is a handle; a website is not a creator
     r = post("/lookup", {"text": "https://www.tiktok.com/@sample.creator"})
     assert r["kind"] == "creator" and r["handle"] == "sample.creator" and r["platform"] == "tiktok" and calls, r

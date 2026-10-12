@@ -197,6 +197,8 @@ body.dragging #dropov{display:flex}
 .cmenu button:hover{background:var(--soft)}
 .droptile{width:108px;height:192px;border:1.5px dashed var(--ring);border-radius:10px;background:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 10px;text-align:center;flex-shrink:0;cursor:pointer}
 .droptile.over{border-color:var(--ink)}
+.scr{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 12px;font-size:13px;line-height:18px;color:var(--t2)}
+.scr div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sec{display:flex;flex-direction:column;gap:12px;padding:20px 24px;border-top:1px solid var(--line)}
 .sec:first-child{border-top:0;padding-top:22px}
 .opt{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--panel);text-align:left;width:100%}
@@ -857,7 +859,7 @@ async function startCut(){const r=await queue({type:'video',path:ui.file.path,as
 // ---------------------------------------------------------------- returning user (Paper "J launcher + pick")
 // New video (pick clips) -> Pick a style -> Making your video; Home (welcome back), Your videos, My style, Settings.
 let L=null, R=null, rv=null;
-const nv={sel:[],clips:{},join:true,aspect:'9:16',style:'mine',filter:'all',making:[],up:[]};
+const nv={sel:[],clips:{},join:true,aspect:'9:16',style:'mine',filter:'all',making:[],up:[],script:'',scriptName:'',scriptMsg:'',draft:null};
 const CMD='nextwork-editor';
 const UP='<svg width="22" height="22" viewBox="0 0 22 22"><path d="M11 15V5M7 9l4-4 4 4M4 15v2a1 1 0 001 1h12a1 1 0 001-1v-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const FOLDER='<svg width="14" height="14" viewBox="0 0 14 14"><path d="M1.5 3.5a1 1 0 011-1h3l1.2 1.5h4.8a1 1 0 011 1v5.5a1 1 0 01-1 1h-9a1 1 0 01-1-1z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
@@ -916,6 +918,7 @@ function vNew(){
     ${n?`<div class="sec"><div class="between"><span class="h">In this order</span>${n>1?'<span class="muted">Drag to change</span>':''}</div><div class="order" id="order">${nv.sel.map((p,i)=>{const c=clipOf(p);return `<div draggable="true" data-i="${i}"><div class="th" style="background-image:url('${esc(c.thumb||'')}')"></div><div style="min-width:0"><div style="font-weight:600;font-size:13px">${i+1}</div><div class="muted" style="color:var(--t2);font-size:12px">${c.duration?fmtT(c.duration):esc(c.name)}</div></div></div>`}).join('')}</div></div>`
       :`<div class="sec"><div class="h">Your clips</div><div class="sub">Click clips, or drop files anywhere here.</div></div>`}
     <div class="sec"><div class="h">Shape</div><div class="row">${[['9:16','Tall · 9:16','TikTok, Reels, Shorts',18,32],['16:9','Wide · 16:9','YouTube',28,17]].map(([a,t,s,w,h])=>`<button class="shape ${nv.aspect===a?'on':''}" onclick="nv.aspect='${a}';render()"><div style="width:28px;height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i style="width:${w}px;height:${h}px"></i></div><div><b style="font-size:14px">${t}</b><div class="sub" style="font-size:12px;line-height:16px">${s}</div></div></button>`).join('')}</div></div>
+    ${scriptSec()}
     <div class="sec stick" style="margin-top:auto;padding:18px 24px 22px"><div class="between"><span class="sub" style="font-size:13px">${n?summary():'No clips picked yet'}</span><span class="muted">Step 1 of 2</span></div>
       <button class="go" id="next" ${n&&!nv.up.some(u=>!u.bad)?'':'disabled'} onclick="rgo('style')">Next: pick a style</button>
       <div class="muted faint" style="line-height:18px">Nothing starts until you pick a style.</div></div></div>`;
@@ -927,7 +930,45 @@ function vNew(){
     <div class="row" style="gap:8px"><b style="font-weight:500;font-size:13px;white-space:nowrap;flex-shrink:0">${n} picked</b><span class="muted">Click a clip again to take it out. The numbers are the order they play.</span></div>
   </div>${side}`;
 }
-const summary=()=>{const n=nv.sel.length;return `${n>1?(nv.join?`${n} clips joined`:`${n} separate videos`):'1 clip'}${total()?' · '+fmtT(total()):''} · ${nv.aspect==='9:16'?'Tall':'Wide'} ${nv.aspect}`};
+const summary=()=>{const n=nv.sel.length;return `${n>1?(nv.join?`${n} clips joined`:`${n} separate videos`):'1 clip'}${total()?' · '+fmtT(total()):''} · ${nv.aspect==='9:16'?'Tall':'Wide'} ${nv.aspect}${nv.script?' · Script':''}`};
+// Add your script: pasted, or a .txt/.md/.docx/.pdf the server reads to text. Only the text goes with the job.
+const SCRIPT_EXT=/\.(txt|md|docx|pdf)$/i,scriptLines=t=>t.split('\n').map(x=>x.trim()).filter(Boolean);
+function scriptSec(){
+  if(nv.script){const ls=scriptLines(nv.script);
+    return `<div class="sec"><div class="between"><span class="h">Your script</span><button class="hlink" style="font-size:13px" onclick="nv.script='';nv.scriptName='';render()">Remove</button></div>
+      <div class="scr">${ls.slice(0,3).map(l=>`<div>${esc(l)}</div>`).join('')}${ls.length>3?'<div class="faint">...</div>':''}</div>
+      <div class="muted">${ls.length} line${ls.length===1?'':'s'}${nv.scriptName?' · '+esc(nv.scriptName):''}</div></div>`}
+  const pick=`<label class="choose" style="height:38px">${FOLDER}Choose a file...<input type="file" accept=".txt,.md,.docx,.pdf" class="hide" onchange="scriptFile(this.files[0]);this.value=''"></label>`;
+  if(nv.draft!==null)return `<div class="sec"><span class="h">Add your script</span>
+    <textarea id="scriptin" class="input" style="height:72px;padding:10px 12px;font:13px/18px system-ui,sans-serif;resize:vertical" placeholder="MANAGER: We need to scale this.&#10;INTERN: We need to scale this?" oninput="nv.draft=this.value">${esc(nv.draft)}</textarea>
+    <div class="row" style="gap:8px"><button class="btn dark sm" onclick="pasteScript()">Add script</button><button class="btn quiet sm" onclick="nv.draft=null;nv.scriptMsg='';render()">Cancel</button></div>
+    ${nv.scriptMsg?`<div class="msg bad">${CROSS}<span>${esc(nv.scriptMsg)}</span></div>`:''}</div>`;
+  return `<div class="sec"><span class="h">Add your script</span>
+    <div class="row" style="gap:8px"><button class="btn quiet sm" onclick="nv.draft='';nv.scriptMsg='';render();showScriptBox()">Paste it</button>${pick}</div>
+    ${nv.scriptMsg?`<div class="msg bad">${CROSS}<span>${esc(nv.scriptMsg)}</span></div>`:'<div class="muted">Optional. Claude keeps the lines your script says twice.</div>'}</div>`;
+}
+// the open box and its buttons scroll clear of the panel's sticky bottom bar
+function showScriptBox(){
+  const t=$('#scriptin');if(!t)return;t.focus({preventScroll:true});
+  const sec=t.closest('.sec'),bar=sec.parentElement.querySelector('.stick');
+  let sc=sec.parentElement;while(sc&&sc!==document.body&&!(sc.scrollHeight>sc.clientHeight&&/auto|scroll/.test(getComputedStyle(sc).overflowY)))sc=sc.parentElement;
+  const over=sec.getBoundingClientRect().bottom-(bar?bar.getBoundingClientRect().top:innerHeight);
+  if(over>0)(sc&&sc!==document.body?sc:document.scrollingElement).scrollTop+=over+8;
+}
+function pasteScript(){
+  const t=(nv.draft||'').trim();
+  if(!t){nv.scriptMsg='Paste the lines first.';return render()}
+  if(new Blob([t]).size>200000){nv.scriptMsg='That script is over 200 KB. Paste only the lines you film.';return render()}
+  Object.assign(nv,{script:t,scriptName:'',scriptMsg:'',draft:null});render();
+}
+async function scriptFile(f){
+  if(!f)return;
+  if(!SCRIPT_EXT.test(f.name)){nv.scriptMsg='Add a .txt, .md, .docx or .pdf file, or paste the script.';return render()}
+  if(f.size>1000000){nv.scriptMsg='That file is too big. Paste the script instead.';return render()}
+  let j={};try{const r=await fetch('/script?name='+encodeURIComponent(f.name),{method:'POST',body:f});j=await r.json()}catch(e){j={msg:'That file did not load. Try again.'}}
+  if(j.ok)Object.assign(nv,{script:j.text,scriptName:f.name,scriptMsg:'',draft:null});else nv.scriptMsg=j.msg||'Could not read that file. Paste the script instead.';
+  render();
+}
 async function scanHome(on){await post('/scanhome',{on});await loadRecent()}
 // dropped or chosen files: a card at the front of the grid right away, with its copy progress; once in, it is
 // picked (that is why it was dropped), flashes once, and a toast names it. Problems stay on the card in words.
@@ -1075,8 +1116,8 @@ function vStyle(){
   </div>`;
 }
 async function makeVideo(){
-  const r=await queue({type:'video',paths:nv.sel,join:nv.join,as:nv.style,aspect:nv.aspect});
-  if(r._ok){nv.making=r.ids;nv.sel=[];await loadLib();rgo('making')}
+  const r=await queue({type:'video',paths:nv.sel,join:nv.join,as:nv.style,aspect:nv.aspect,script:nv.script});
+  if(r._ok){nv.making=r.ids;nv.sel=[];nv.script='';nv.scriptName='';await loadLib();rgo('making')}
 }
 
 // ---- making your video
@@ -1341,13 +1382,15 @@ function rrender(){
   rheader();
   if(rv==='settings'&&!ui.disk)loadDisk();
   const h=rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='making'?vMaking():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='settings'?vSettings():vHome();
+  const side=$('#main .rv-side'),sideY=side?side.scrollTop:0;   // the side panel keeps its scroll through a re-render
   $('#main').innerHTML=h;$('#main').classList.toggle('spwrap',rv==='stylepage');
+  if(sideY&&$('#main .rv-side'))$('#main .rv-side').scrollTop=sideY;
   if(rv==='mystyle'||rv==='style')flashBuilt();
   const o=$('#order');if(o)o.querySelectorAll('[draggable]').forEach(el=>{
     el.ondragstart=e=>{e.dataTransfer.setData('text/plain',el.dataset.i)};el.ondragover=e=>e.preventDefault();
     el.ondrop=e=>{e.preventDefault();e.stopPropagation();const a=+e.dataTransfer.getData('text/plain'),b=+el.dataset.i;if(isNaN(a)||a===b)return;const [x]=nv.sel.splice(a,1);nv.sel.splice(b,0,x);render()}});
 }
-window.addEventListener('drop',e=>{if(returning()&&!ui.onboard&&e.dataTransfer.files.length){if(rv!=='new')rgo('new');chooseFiles(e.dataTransfer.files)}});
+window.addEventListener('drop',e=>{if(returning()&&!ui.onboard&&e.dataTransfer.files.length){const fs=[...e.dataTransfer.files],sc=fs.filter(f=>SCRIPT_EXT.test(f.name)),vs=fs.filter(f=>!SCRIPT_EXT.test(f.name));if(rv!=='new')rgo('new');if(sc.length)scriptFile(sc[0]);if(vs.length)chooseFiles(vs)}});   // a script file dropped anywhere is the script
 // while files are dragged over the window: one overlay, so it is clear where they go
 let dragN=0;const hasFiles=e=>[...((e.dataTransfer||{}).types||[])].includes('Files');
 // The overlay lives only while files are being dragged over the window: every dragover renews a short timer,

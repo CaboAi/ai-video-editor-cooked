@@ -132,6 +132,7 @@ Five prompts, each one the user can paste into Claude Code as it is. Every numbe
 
 ### `JOB video <path> as=<mine|@handle|defaults> aspect=<9:16|16:9> edit=<dir> root=<dir>`
 ### `JOB video takes=<dir>/takes.txt as=... aspect=... edit=<dir> root=<dir>`
+### either one with ` script=<edit>/script.md` before `root=`
 
 The user picked clips and a style and pressed "Make my video" (or "Start the cut" on a first run).
 `edit=` is the edit folder the page already made and listed in the library: use it, never make
@@ -144,6 +145,9 @@ no question: the page asked it). "Separate videos" arrives as one JOB per clip; 
 `creator-teardowns/<h>/style.json` is not there yet, that creator is still being copied: cut now
 (the cut needs no style) and start the styled pass once the teardown job is done.
 `aspect`: `profile.py set aspect=<a>`.
+`script=`: the user added their script on the page. The page wrote it to `<edit>/script.md` (copy it
+there if the path is elsewhere). Pass `--script <edit>/script.md` to `transcribe.py`; the cut then runs
+`script_match.py` before deciding spans (cut skill step 2).
 
 The window turns into the review page as soon as it has a URL, so open it FIRST, on the raw clip
 (after the join for `takes=`), before transcribing:

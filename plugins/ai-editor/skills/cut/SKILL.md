@@ -66,8 +66,8 @@ python3 "$PY" "$S/transcribe.py" <source> edits/<name>/words.raw.json [--script 
 
 A script (or `--keyterm Name`, repeatable) gets names and jargon right (+20% on Scribe).
 
-Say the time first: Whisper 1-4 min for a 3-min take, CrisperWhisper about the take's length. It picks ElevenLabs Scribe when a key is saved, else CrisperWhisper if setup
-installed it, else the free local Whisper (`--engine whisper|crisper|scribe` overrides), which drops
+Say the time first: Whisper 1-4 min for a 3-min take, CrisperWhisper about the take's length. It picks
+Scribe when a key is saved, else CrisperWhisper if installed, else the free local Whisper (`--engine whisper|crisper|scribe` overrides), which drops
 some ums and false starts. With neither, say once that
 setup can add one (CrisperWhisper's weights are non-commercial only). A take full of retakes:
 `AI_EDITOR_WHISPER_MODEL=medium` hears them better (1.5 GB, twice as slow). Step 5 catches the rest.
@@ -85,7 +85,9 @@ into `candidates.md`. Each is a place to look, not a decision. Read `transcript.
 `candidates.md`, follow `references/retake-detection.md`, and write `spans.json`
 (`references/shapes.md`).
 
-Last take wins, except alternate hooks. Never type a timestamp or write a span for a
+With a `script.md`: `python3 "$S/script_match.py" edits/<name>`, read `script-match.md` (`references/script.md`).
+
+Last take wins, except alternate hooks. Never type a timestamp or span a
 pause.
 
 Only if the user wants it shorter, also read `references/editorial-rules.md` and add `redundant`
@@ -120,7 +122,7 @@ Rebuild if spans changed: paper is free, renders are not.
 python3 "$S/render.py" <source> edits/<name>
 ```
 
-A 4K take takes minutes: run it in the background.
+4K takes minutes: run it in the background.
 
 ## 5. Verify
 
@@ -170,10 +172,11 @@ the page opens, start the `visual-prep` agent in the background.
 ## Rules
 
 1. Every cut quotes the transcript. No quote, no cut.
-2. A script, if the user has one, breaks ties between takes. Nothing is cut for being off-script.
+2. A script breaks ties between takes and keeps every take of a line it says twice. Nothing is cut for
+   being off-script.
 3. Never stream-copy (`-c copy`) across cuts: it lands up to 2 s off.
 4. Never hand over a render that has not been verified and approved.
 
 ## Self-check
 
-`test_build_timeline.py`, `test_retakes.py`, `test_media.py` (ffmpeg); `demo` on `transcribe.py`, `trend.py`, `splice_check.py`.
+`test_build_timeline.py`, `test_retakes.py`, `test_media.py` (ffmpeg); `demo` on `transcribe.py`, `trend.py`, `splice_check.py`, `script_match.py`.

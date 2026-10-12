@@ -182,6 +182,8 @@ and the `my-style` skill). A wish no setting covers is a word rule at the same s
 scope question: the page named the style. Report what was saved, in plain words:
 `status style-change --step "Saved: captions 6% tall" --result '{"changed": ["Captions 6% tall", "About 3 zooms a minute"]}' --done`.
 The page shows `changed` and reloads the style's settings and its "Learned from your feedback" list.
+A style card adds "Learned from N videos" once its rules came from N edits (review notes saved at
+the final approve's "Teach <style>" panel, `review.py learn --done`).
 The same change said in the chat goes through the same `taste.py add`, so both land in one skill.
 The page's own controls (sliders, zooms, cut, sound effects) save through `styleskill.learn` directly
 and need no job.

@@ -1041,15 +1041,16 @@ async function delStyle(id){
 const skillBusy=id=>{const k=latest('skill');return k&&(k.state==='queued'||k.state==='taken')&&'@'+k.args.handle===id?k:null};
 const madeAgo=t=>{if(!t)return '';const d=Math.floor((Date.now()/1000-t)/86400);return d<1?'today':d<2?'yesterday':`${d} days ago`};
 const isNewStyle=c=>c.id!=='mine'&&!c.studying&&c.made&&Date.now()/1000-c.made<86400;
+const learnedN=c=>c.learned_from?` · Learned from ${c.learned_from} video${c.learned_from>1?'s':''}`:'';
 // what the card is, in plain words; My style says what it started as and what feedback changed
 function styleWhat(c){
   if(c.studying)return `<div class="sub" style="padding:8px 6px 10px;font-size:14px;line-height:21px">${esc(c.line)}</div>`;
-  if(c.id!=='mine')return `<div class="sub" style="padding:8px 6px 4px;font-size:14px;line-height:21px">${esc(c.id)}'s style${c.videos?`, measured from ${c.videos} of their videos`:''}. Pick it to edit exactly like them.</div><div class="muted" style="padding:0 6px 10px;font-size:13px">Made ${madeAgo(c.made)||'here'}</div>`;
+  if(c.id!=='mine')return `<div class="sub" style="padding:8px 6px 4px;font-size:14px;line-height:21px">${esc(c.id)}'s style${c.videos?`, measured from ${c.videos} of their videos`:''}. Pick it to edit exactly like them.</div><div class="muted" style="padding:0 6px 10px;font-size:13px">Made ${madeAgo(c.made)||'here'}${learnedN(c)}</div>`;
   const b=c.base&&(L.styles.find(x=>x.id==='@'+c.base)||{}),was=Object.fromEntries((b&&b.facts)||[]);
   const n=Math.max(c.changes||0,b?c.facts.filter(([k,v])=>was[k]!=null&&was[k]!==v).length:0);   // a changed number counts even before its rule is written
   return `<div class="sub" style="padding:8px 6px 8px;font-size:14px;line-height:21px">Your style. Used on every video unless you pick another.</div>
     ${c.base?`<div class="basechip"><i style="${b.face?`background-image:url('${esc(b.face)}')`:''}"></i>Started as a copy of @${esc(c.base)}</div>`:''}
-    <div class="muted" style="padding:8px 6px 10px;font-size:13px;line-height:19px">${n?`${n} change${n>1?'s':''} from your feedback${c.changed?` · last ${madeAgo(c.changed)}`:''}`:c.base?`No changes yet: it edits exactly like @${esc(c.base)}. Your feedback on videos changes it.`:'Starts from the default style. Your feedback on videos changes it.'}</div>`;
+    <div class="muted" style="padding:8px 6px 10px;font-size:13px;line-height:19px">${n?`${n} change${n>1?'s':''} from your feedback${c.changed?` · last ${madeAgo(c.changed)}`:''}${learnedN(c)}`:c.base?`No changes yet: it edits exactly like @${esc(c.base)}. Your feedback on videos changes it.`:'Starts from the default style. Your feedback on videos changes it.'}</div>`;
 }
 function factRows(c){
   const b=c.id==='mine'&&c.base&&(L.styles.find(x=>x.id==='@'+c.base)||{}),was=Object.fromEntries((b&&b.facts)||[]);

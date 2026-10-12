@@ -501,7 +501,9 @@ def style_cards(root):
         except (KeyError, OSError, ValueError):
             continue
         sc = ss.scope(sp)
-        n = sum(1 for r in taste.load_rules() if r["scope"] == sc) if taste.rules_path().exists() else 0
+        mine = [r for r in taste.load_rules() if r["scope"] == sc] if taste.rules_path().exists() else []
+        n = len(mine)
+        vids = len({c["edit"] for r in mine for c in r["corrections"] if c.get("edit")})   # edits it learned from
         if sid == "mine":
             line = (f"Your saved style. Started from @{base}." if base else "The default style.") + \
                 (f" {n} change{'s' if n != 1 else ''} from your feedback." if n else " Change it any time.")
@@ -512,7 +514,7 @@ def style_cards(root):
         made = next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None) if sp else None
         changed = taste.rules_path().stat().st_mtime if n and taste.rules_path().exists() else None
         out.append({"id": sid, "name": ss.display(sp), "facts": facts(st), "look": look(st), "base": base,
-                    "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "made": made, "changed": changed, "cover": cover_of(root, sid), "face": face_of(root, base),
+                    "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "learned_from": vids, "made": made, "changed": changed, "cover": cover_of(root, sid), "face": face_of(root, base),
                     "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False})
     return out
 
@@ -2207,6 +2209,7 @@ def demo():
     assert list(st) == ["mine", "@sample.creator", "@newbie"], list(st)
     assert st["@sample.creator"]["facts"] == [["Cut every", "1.9 s"], ["Zooms", "Punch, 6 a minute"], ["Captions", "2 words at a time"]]
     assert st["@sample.creator"]["look"]["box_color"] == "#000000" and st["mine"]["line"].startswith("The default")
+    assert st["mine"]["learned_from"] == 0, "no feedback yet: no \"Learned from N videos\""
     (tmp / "home" / "profile.json").write_text(json.dumps({"creators": [{"handle": "sample.creator"}]}), encoding="utf-8")
     mine = get("/library")["styles"][0]
     assert mine["line"].startswith("Your saved style. Started from @sample.creator.") and mine["facts"][0] == ["Cut every", "1.9 s"]

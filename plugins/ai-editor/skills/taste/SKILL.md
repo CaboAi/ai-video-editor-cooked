@@ -101,6 +101,8 @@ python3 "$S/taste.py" report
 
 Each rule with times applied, in how many edits, corrections, and the last edit where it
 was said again after it was applied. Rules from review-page notes (`review.py learn`) say so.
+On the final approve the review page offers the session's notes as rules to tick, saved into the
+edit's style (`review.py learn --propose` / `--done`; style-edit's `references/review.md`).
 Show it on "what have you learned", "are you learning", or after a regression.
 
 ## Before any edit

@@ -4,6 +4,18 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- The review page teaches the style from each finished video. On round 1 of the cut and of the edit of
+  the user's first 3 videos, one line says "Your first videos teach it your style. Leave notes on
+  anything that is off: each video comes out closer." Got it hides it for good (`ui.json`, which the
+  theme switch now merges into instead of overwriting). On the final approve (the edit, or a cut
+  marked `final`) the panel shows "Teach <style> from this video": `wait` prints a LEARN block with
+  every note of the session and its reply, Claude posts one-line rules with `review.py learn
+  --propose`, the page lists them with checkboxes, Update my style or Not now goes back through `wait`,
+  and `learn --done` saves the ticked rules with `styleskill.learn` into the style the edit used (or
+  My style): "Saved to <style>. Next video uses it." No notes all session: "No notes this time. Your
+  style stays as it is." Style cards on the home window add "Learned from N videos". Test: `review.py
+  demo` (propose, pick, done, no notes, the notice count) and headless screenshots, light and dark.
+
 - The review page shows the move from the cut to the edit. A tester approved the cut and nothing on the
   page changed while Claude spent minutes on captions, zooms and sound. Now a quiet line over the cut
   says "This is the cut. Captions, zooms and sound come next, once you approve it." and the button reads

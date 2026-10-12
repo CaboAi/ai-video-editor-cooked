@@ -253,6 +253,22 @@ aside{width:400px;flex-shrink:0;background:var(--panel);border:1px solid var(--l
 #stagebar{display:none;align-items:center;gap:10px;flex-shrink:0;padding:9px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--body);font-size:13px;line-height:18px}
 #stagebar b{color:var(--strong);font-weight:600}#stagebar svg{flex-shrink:0;color:var(--muted)}
 body.staged #stagebar{display:flex}
+/* the first-edit notice: one calm line, dismissed for good */
+#intro{display:none;align-items:center;gap:12px;flex-shrink:0;padding:9px 10px 9px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--body);font-size:13px;line-height:18px}
+#intro span{flex:1;min-width:0}body.intro #intro{display:flex}
+#intro button{height:28px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:var(--page);color:var(--strong);font-size:13px;font-weight:500;flex-shrink:0}
+#intro button:hover{border-color:var(--line2)}
+/* after the final approve: teach the style from this video's notes */
+body.learning #box{display:none}   /* approved: nothing left to note, the learn panel gets the room */
+.learn{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--line);border-radius:14px}
+.learn b{font-size:14px;line-height:18px;font-weight:600;color:var(--strong)}
+.learn p{margin:0;font-size:13px;line-height:19px;color:var(--body)}
+.learn p.wait{display:flex;align-items:center;gap:8px}.learn p.wait i{width:7px;height:7px;border-radius:4px;background:var(--ink);animation:pulse 1.2s ease-in-out infinite}
+.learn p.ok{display:flex;align-items:center;gap:8px;color:var(--strong);font-weight:600}.learn p.ok svg{color:var(--done);flex-shrink:0}
+.lrule{display:flex;align-items:flex-start;gap:10px;font-size:14px;line-height:20px;color:var(--strong);cursor:pointer}
+.lrule input{margin:3px 0 0;width:14px;height:14px;accent-color:var(--ink);flex-shrink:0;cursor:pointer}
+.lrule input:disabled{cursor:default}.lrule.off span{color:var(--quiet)}
+.learn .erow{margin-top:2px}.learn .erow button.go{flex:1}.learn .erow button.go:disabled{opacity:.5}
 #making{position:absolute;inset:0;z-index:3;display:none;place-items:center;background:color-mix(in srgb,var(--page) 62%,transparent);padding:12px}
 body.making #making{display:grid}
 .mk{width:min(380px,100%);background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:var(--pop);display:flex;flex-direction:column;gap:6px}
@@ -330,13 +346,14 @@ body.making #making{display:grid}
 <section id="how" aria-label="how this works"><ol>
  <li><b>1. Watch and note</b>Pause where something is off and leave a note. It is pinned to that moment, with the frame. Paste or drop an image to show what you mean.</li>
  <li><b>2. Send notes</b>Claude reads every note, fixes the video and renders the next round. You see each step here while it works, and the page switches to the new round by itself.</li>
- <li><b>3. Approve</b>When it is right, approve. The cut moves on to the styled edit. The edit is finished.</li>
+ <li><b>3. Approve</b>When it is right, approve. The cut moves on to the styled edit. The edit is finished, and your notes can update your style for the next video.</li>
 </ol><div id="keys"></div></section>
 
 <main>
 <div class="left">
  <div class="stagewrap">
  <div id="stagebar" role="status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="4" cy="4.5" r="2.2"/><circle cx="4" cy="11.5" r="2.2"/><path d="M5.8 5.6L14 11.5M5.8 10.4L14 4.5"/></svg><span id="stagetext"></span></div>
+ <div id="intro" role="note"><span>Your first videos teach it your style. Leave notes on anything that is off: each video comes out closer.</span><button id="introx">Got it</button></div>
  <div id="cmprow"><div class="seg" id="wc"><button data-m="watch">Watch</button><button data-m="compare">Compare</button></div>
   <div class="hint"><select id="ver2" aria-label="compare with"></select><span>Both play together from the playhead</span></div></div>
  <div id="stage">
@@ -525,6 +542,8 @@ function render(){
   const sbar=isCur()&&!mk&&S.round>0&&(S.rounds||[]).some(r=>r.stage==='cut')&&p!=='approve'&&(S.stage==='cut'||view.round===1);
   document.body.classList.toggle('staged',sbar);
   $('stagetext').innerHTML=S.stage==='cut'?(S.final?'<b>This is the cut.</b> It is the finished video. Approve it when it is right.':'<b>This is the cut.</b> Captions, zooms and sound come next, once you approve it.'):'<b>This is the edit.</b> Captions, zooms and sound are in. Leave notes or approve.';
+  document.body.classList.toggle('learning',!!S.learn&&p==='approve'&&isCur());
+  document.body.classList.toggle('intro',!!S.intro&&isCur()&&!introOff&&!mk);
   renderMaking();
   $('msend').textContent=sb.querySelector('span').textContent;$('msend').disabled=sb.disabled;
   $('ncount').textContent=S.comments.filter(c=>onAlt(c)&&c.stage===view.stage&&(c.round===view.round||c.round===view.round-1)).length||'';
@@ -634,13 +653,27 @@ function workHtml(){
       :`<li class="todo"><span class="ic"><i></i></span>${esc(m.steps[k])}</li>`).join('')
       +(m.extra?`<li class="now"><span class="ic"><i></i></span>${esc(m.extra)}</li>`:'');
     return `<div class="claude"><div><b>Claude</b><p>${esc(m.idle?'The cut is approved. '+m.idle:'The cut is approved. Claude is making the edit in '+m.style+'.')}</p></div><ol class="steps">${li}</ol>${m.at&&!m.idle?`<span class="since" data-since="${esc(m.at)}">Working for ${dur((Date.now()-new Date(m.at))/1000)}</span>`:''}</div>`}
-  if(p==='approve')return `<div class="claude"><div><b>Claude</b><p>${S.stage==='cut'?'The cut is approved. It is the finished video.':'Approved. The edit is finished.'}</p></div></div>`;
+  if(p==='approve')return `<div class="claude"><div><b>Claude</b><p>${S.stage==='cut'?'The cut is approved. It is the finished video.':'Approved. The edit is finished.'}</p></div></div>`+learnHtml();
   if(p!=='send'&&!live)return '';
   const head=S.raw?'Making the cut. Your clip plays meanwhile. Notes you leave now go on the cut.':p==='send'?(act.length?`Making round ${S.round+1}.`:picked?`Claude has your notes and is starting round ${S.round+1}.`:'Notes sent. Waiting for Claude to pick them up.'+(S.listening||!S.busy?'':' Claude is finishing something and takes them next.')):'Still coming in this round:';
   const li=act.map(x=>x.done?`<li><span class="ic">${TICK}</span>${esc(x.text)}</li>`
     :`<li class="now"><span class="ic"><i></i></span>${esc(x.text)}</li>`+(x.pct!=null?`<li class="pb"><em><i style="width:${x.pct}%"></i></em>${x.pct}%</li>`:'')).join('');
   const sent=e&&e.type==='send'?e.at:null;
   return `<div class="claude"><div><b>Claude</b><p>${esc(head)}</p></div>${li?`<ol class="steps">${li}</ol>`:''}${sent&&p==='send'?`<span class="since" data-since="${esc(sent)}">Working for ${dur((Date.now()-new Date(sent))/1000)}</span>`:''}</div>`;
+}
+// the final approve: Claude's rules from this video's notes, each ticked, into the style on Update
+let untick=new Set(),introOff=false;
+function learnHtml(){
+  const L=S.learn;if(!L)return '';const head=`<b>Teach ${esc(L.style||'your style')} from this video</b>`;
+  const say={none:'No notes this time. Your style stays as it is.',empty:'Nothing in your notes was about the style. It stays as it is.',skipped:'Not saved. Your style stays as it is.'}[L.state];
+  if(say)return `<div class="learn">${head}<p>${say}</p></div>`;
+  if(L.state==='reading')return `<div class="learn">${head}<p class="wait"><i></i>Claude is reading your notes...</p></div>`;
+  const open=L.state==='proposed',rs=(L.rules||[]).map((r,i)=>[r,i]).filter(([,i])=>open||L.chosen.includes(i));
+  const rows=rs.map(([r,i])=>`<label class="lrule${open&&untick.has(i)?' off':''}"><input type="checkbox" data-li="${i}"${open&&untick.has(i)?'':' checked'}${open?'':' disabled'}><span>${esc(r.rule)}</span></label>`).join('');
+  if(open)return `<div class="learn">${head}<p>From your notes. Untick anything it should not keep.</p>${rows}
+    <div class="erow"><button class="go" data-lsave${rs.every(([,i])=>untick.has(i))?' disabled':''}>Update my style</button><button data-lskip>Not now</button></div></div>`;
+  if(L.state==='chosen')return `<div class="learn">${head}${rows}<p class="wait"><i></i>Saving to ${esc(L.style)}...</p></div>`;
+  return `<div class="learn">${head}${rows}<p class="ok">${TICK}${esc(L.summary||'Saved.')}</p></div>`;
 }
 const EDIT_STEPS={captions:'Writing the captions',visuals:'Finding the visuals',plan:'Planning zooms, cards and sound',render:'Rendering the edit'};
 function makeState(){   // the edit's steps from Claude's status reports (review.py EDIT_STEPS); nothing made up
@@ -698,6 +731,7 @@ function renderList(){
   if(isCur()&&!p&&mine.length)h+=`<span class="unsent">${plural(mine.length,'note')}, not sent yet</span>`;
   const keepScroll=$('list').scrollTop,hadFocus=document.activeElement&&document.activeElement.classList.contains('edta');
   $('list').innerHTML=h;$('list').scrollTop=isCur()&&p&&!editing?$('list').scrollHeight:keepScroll;
+  const lp=$('list').querySelector('.learn');if(lp&&!keepScroll)lp.scrollIntoView({block:'end'});
   const ea=$('list').querySelector('.edta');
   if(ea){ea.oninput=()=>editing.text=ea.value;ea.onkeydown=ev=>{if(ev.key==='Enter'&&!ev.shiftKey){ev.preventDefault();saveEdit()}if(ev.key==='Escape'){ev.preventDefault();editing=null;renderList()}};
     ea.onpaste=ev=>{const fs=[...(ev.clipboardData?.files||[])];if(fs.length){ev.preventDefault();editFiles(fs)}};
@@ -722,7 +756,12 @@ async function saveEdit(){const c=S.comments.find(c=>c.id===editing.id);if(!c){e
   editing=null;if(!r.ok)alert((await r.json().catch(()=>({}))).error||'Could not save the note');await load(true)}
 function editFiles(fs){[...fs].filter(f=>/^image\/(png|jpeg|gif|webp)$/.test(f.type)).slice(0,6-editing.images.length).forEach(f=>{const r=new FileReader();r.onload=()=>{if(editing){editing.images.push(r.result);renderList()}};r.readAsDataURL(f)})}
 $('editpic').onchange=e=>{if(editing)editFiles(e.target.files);e.target.value=''};
+$('list').addEventListener('change',e=>{const cb=e.target.closest('[data-li]');if(!cb)return;
+  cb.checked?untick.delete(+cb.dataset.li):untick.add(+cb.dataset.li);renderList()});
+$('introx').onclick=()=>{introOff=true;document.body.classList.remove('intro');post('/intro',{})};
 $('list').addEventListener('click',async e=>{
+  if(e.target.closest('[data-lsave],[data-lskip]')){const L=S.learn,save=!!e.target.closest('[data-lsave]');
+    await post('/learn',save?{chosen:L.rules.map((r,i)=>i).filter(i=>!untick.has(i))}:{skip:true});return load(true)}
   if(e.target.closest('.editing')){
     if(e.target.closest('[data-save]'))return saveEdit();
     if(e.target.closest('[data-cancel]')){editing=null;return renderList()}

@@ -26,6 +26,10 @@ product video). Notes save with the edit, never in the plugin:
                                      none. Each note records it: "taste": rule id | video-only | suggested | one-off.
                                      this-style: the creator style the edit used (<folder>/style.json "source", or
                                      --style <style.json>): its overrides and its edit-like-<slug> skill
+    python3 review.py <folder> learn --propose '<json>'   the final approve's LEARN block: candidate rules
+                                     [{"rule", "section", "set"?}] onto the page's "Teach <style>" panel
+    python3 review.py <folder> learn --done ["summary"]   save the rules the user ticked (styleskill.learn) and
+                                     show "Saved to <style>. Next video uses it."
     python3 review.py demo                         self-check on a generated 6 s clip
 
 Each round also gets review/data-<stage><round>.json for the page, built from the edit folder when
@@ -279,21 +283,51 @@ def _ui_json():
     return Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "ui.json"
 
 
+def ui():
+    """$AI_EDITOR_HOME/ui.json: the theme, the first videos (the first-edit notice) and whether it was dismissed."""
+    try:
+        d = load(_ui_json())
+    except (OSError, ValueError):
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
+def set_ui(**kw):
+    _ui_json().parent.mkdir(parents=True, exist_ok=True)
+    with FileLock(_ui_json()):
+        save(_ui_json(), {**ui(), **kw})
+
+
 def theme():
     """The light/dark choice, one for the window and every review page (they run on different ports, so
     a browser's per-origin storage cannot share it). "system" until the user picks."""
-    try:
-        t = load(_ui_json()).get("theme")
-    except (OSError, ValueError, AttributeError):
-        t = None
+    t = ui().get("theme")
     return t if t in THEMES else "system"
 
 
 def set_theme(t):
     if t not in THEMES:
         raise ValueError(t)
-    _ui_json().parent.mkdir(parents=True, exist_ok=True)
-    save(_ui_json(), {"theme": t})
+    set_ui(theme=t)
+
+
+INTRO_VIDEOS = 3   # the first-edit notice shows on round 1 of the cut and of the edit of the user's first 3 videos
+
+
+def seen(folder):
+    """Count this edit among the user's first videos. Never raises: the notice is a nicety."""
+    try:
+        vs = ui().get("videos") or []
+        if str(folder) not in vs and len(vs) < INTRO_VIDEOS:
+            set_ui(videos=vs + [str(folder)])
+    except (OSError, TimeoutError):
+        pass
+
+
+def intro(folder, d):
+    """Show "Your first videos teach it your style": round 1 of a stage, one of the first videos, not dismissed."""
+    u = ui()
+    return bool(not u.get("intro_off") and str(folder) in (u.get("videos") or []) and d.get("round") == 1 and not d.get("raw"))
 
 
 def themed(html):
@@ -486,6 +520,7 @@ def make_handler(folder, token):
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
                 d["cutcheck"] = (folder / "cut-check.html").exists()
                 d["home"] = home_url()   # the Home button: back to the editor's window, or how to start it
+                d["intro"] = intro(folder, d)
                 for x in d.get("activity", [])[-1:]:
                     if x.get("log") and not x.get("done"):
                         x["pct"] = log_pct(x["log"])
@@ -531,6 +566,18 @@ def make_handler(folder, token):
                 except ValueError:
                     return self.send(400, {"error": "light, dark or system"})
                 return self.send(200, {"theme": theme()})
+            if path == "/intro":   # "Got it" on the first-edit notice: never again
+                set_ui(intro_off=True)
+                return self.send(200, {})
+            if path == "/learn":   # the learn panel: the ticked rules, or Not now. `wait` hands them to Claude
+                def lc(d):
+                    lr = d.get("learn") or {}
+                    if lr.get("state") != "proposed":
+                        return False
+                    ids = sorted({i for i in body.get("chosen") or [] if isinstance(i, int) and 0 <= i < len(lr["rules"])})
+                    lr.update(state="chosen" if ids and not body.get("skip") else "skipped", chosen=ids, handled=False)
+                    return True
+                return self.send(200, {}) if update(rj, lc) else self.send(409, {"error": "nothing to choose"})
             if path == "/comment":
                 return self.comment(body)
             if path == "/edit":
@@ -577,11 +624,15 @@ def make_handler(folder, token):
                                 x["done"] = True
                     update(rj, st)
                     return self.send(200, {})
+                style = style_label(folder) if body["type"] == "approve" else None
+
                 def ev(d):
                     d["events"].append({"type": body["type"], "stage": d["stage"], "round": d["round"],
                                         "at": now(), "handled": False})
                     d["sent"] = True
                     d.pop("stopped", None)
+                    if body["type"] == "approve" and (d["stage"] == "edit" or d.get("final")):   # the finished video
+                        d["learn"] = {"state": "reading" if session_notes(d) else "none", "style": style}
                 update(rj, ev)
                 return self.send(200, {})
             self.send(404, {})
@@ -758,6 +809,8 @@ def cmd_start(a, folder):
     d["data"] = round_data(folder, d["video"], d["stage"], d["round"], d["plan"])
     log_round(d)
     save(rj, d)
+    if not raw:
+        seen(folder)
     try:   # the home page's library lists this edit wherever it was made
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         import library
@@ -817,6 +870,7 @@ def cmd_round(a, folder):
         log_round(d)
         return d
     d = update(folder / "review.json", f)
+    seen(folder)
     still = [str(c["id"]) for c in d["comments"]
              if c["status"] == "open" and c["stage"] == d["stage"] and c["round"] < d["round"]]
     print(f"{stage_name(d['stage'])}, round {d['round']}" + (f"; still open: {', '.join(still)}" if still else ""))
@@ -940,7 +994,8 @@ def cmd_wait(folder, poll=1.0):
         while True:
             beat.touch()
             # read only: a write here could drop a note the page saves in the same instant
-            if any(not e["handled"] for e in load(rj)["events"]):
+            d0 = load(rj)
+            if any(not e["handled"] for e in d0["events"]) or (d0.get("learn") or {}).get("handled") is False:
                 break
             time.sleep(poll)
     finally:
@@ -952,8 +1007,12 @@ def cmd_wait(folder, poll=1.0):
         ev = [e for e in d["events"] if not e["handled"]]
         for e in ev:
             e["handled"] = True
+        if not ev:   # the user answered the learn panel
+            d["learn"]["handled"] = True
         return ev, d
     ev, d = update(rj, take)
+    if not ev:
+        return learn_chosen(folder, d)
     e = ev[-1]
     r = next((r for r in d.get("rounds", []) if (r["stage"], r["round"]) == (e["stage"], e["round"])), d)
     cs = sorted((c for c in d["comments"] if c["stage"] == e["stage"] and c["round"] == e["round"]), key=lambda c: c["t"])
@@ -970,9 +1029,108 @@ def cmd_wait(folder, poll=1.0):
         print(f"#{c['id']} {span} ({c['t']}s){ver}{card}: {c['text']}\n    said: \"{c['words']}\""
               f"\n    frame: {folder / 'review' / c['frame']}"
               + "".join(f"\n    image: {folder / 'review' / x}" for x in c.get("images") or []))
-    if cs:
+    if e["type"] == "approve" and d.get("learn"):
+        print(learn_prompt(folder, d))
+    elif cs:
         print(learn_hint(folder))
     return e["type"]
+
+
+def session_notes(d):
+    return [c for c in d["comments"] if c.get("text") and not c.get("queued")]
+
+
+def style_label(folder):
+    """What the learn panel calls the style the edit used: its name on the home page, else My style."""
+    try:
+        from ai_editor import styleskill
+        return styleskill.display(edit_style(folder))
+    except Exception:
+        return "My style"
+
+
+def learn_prompt(folder, d):
+    """The final approve: Claude turns the whole session's notes into rules the page offers with checkboxes."""
+    if d["learn"]["state"] == "none":
+        return "LEARN: no notes this session, so nothing to learn. The page says so; say nothing about it."
+    st = d["learn"]["style"]
+    lines = [f"LEARN: the video is approved. Turn this session's notes and your replies (below) into at most 6 "
+             f"one-line rules for how {st} edits next time, e.g. \"Captions one size smaller\", \"Fewer zooms in the "
+             f"first 5 s\". Leave out one-off fixes (a word cut at 0:12) and notes already saved as rules. Post them "
+             f"([] when none is about the style); the page shows them with checkboxes:",
+             f"  python3 {Path(__file__).resolve()} {folder} learn --propose "
+             f"'[{{\"rule\": \"...\", \"section\": \"cut|captions|visuals|sound|layout\", \"set\": \"captions.size_pct=4.5\"}}]'",
+             "  (or a path to a .json file holding that list). \"set\" only when a taste setting maps (the taste "
+             "skill's table). Then run `wait` again: it returns with the rules the user ticked."]
+    for c in sorted(session_notes(d), key=lambda c: (c["stage"] != "cut", c["round"], c["t"])):
+        saved = f" [saved as rule {c['taste']}]" if isinstance(c.get("taste"), int) else ""
+        lines.append(f"#{c['id']} {stage_name(c['stage'])} r{c['round']}: {c['text']}"
+                     + (f" -> reply: {c['reply']}" if c.get("reply") else "") + saved)
+    return "\n".join(lines)
+
+
+def learn_chosen(folder, d):
+    lr = d["learn"]
+    if lr["state"] == "skipped":
+        print("LEARN: the user pressed Not now. Nothing is saved; say nothing more about it.")
+        return "learn"
+    rules = [lr["rules"][i] for i in lr["chosen"]]
+    print(f"LEARN: the user ticked {len(rules)} rule{'s' if len(rules) != 1 else ''} for {lr['style']}:")
+    for r in rules:
+        print(f"  - [{r['section']}] {r['rule']}" + (f" ({r['set']})" if r.get("set") else ""))
+    print(f"Save them (styleskill.learn: the style's overrides, rules and skill) and tell the page:\n"
+          f"  python3 {Path(__file__).resolve()} {folder} learn --done")
+    return "learn"
+
+
+SECTIONS = ("cut", "captions", "visuals", "sound", "layout")
+
+
+def learn_propose(folder, raw):
+    """Claude's candidate rules onto the page's learn panel."""
+    try:
+        f = Path(raw)
+        rules = json.loads(f.read_text(encoding="utf-8") if raw.endswith(".json") and f.is_file() else raw)
+    except (OSError, ValueError) as e:
+        sys.exit(f"--propose takes a JSON list: {e}")
+    if not isinstance(rules, list):
+        sys.exit("--propose takes a JSON list")
+    out = []
+    for r in rules[:8]:
+        if not isinstance(r, dict) or not str(r.get("rule", "")).strip():
+            sys.exit(f"each rule needs a \"rule\": {r}")
+        sec = str(r.get("section", "")).lower()
+        if sec not in SECTIONS:
+            sys.exit(f"section must be one of {', '.join(SECTIONS)}: {r}")
+        st = r.get("set") or None
+        if st is not None and (not isinstance(st, str) or "=" not in st):
+            sys.exit(f"\"set\" is key.path=value: {r}")
+        out.append({"rule": str(r["rule"]).strip().rstrip("."), "section": sec, "set": st})
+
+    def f(d):
+        if not d.get("learn"):
+            sys.exit("learn --propose comes after the final approve")
+        d["learn"].update(state="proposed" if out else "empty", rules=out, chosen=[], handled=None)
+    update(folder / "review.json", f)
+    print(f"{len(out)} rule{'s' if len(out) != 1 else ''} on the page" + ("; run `wait` for the user's pick" if out else ""))
+
+
+def learn_done(folder, summary):
+    """Save the ticked rules into the edit's style (one creator style, else My style) and show it on the page."""
+    from ai_editor import styleskill, taste
+    lr = load(folder / "review.json").get("learn") or {}
+    if lr.get("state") != "chosen":
+        sys.exit("nothing ticked to save: run `wait` for the user's pick first")
+    sp = edit_style(folder)
+    for r in (lr["rules"][i] for i in lr["chosen"]):
+        setting, _, raw = (r.get("set") or "").partition("=")
+        status, x = styleskill.learn(sp, r["section"], r["rule"], setting or None, taste.parse(raw) if setting else None,
+                                     edit=folder, source="review")
+        print(f"{status} rule #{x['id']} {x['section']}: {x['rule']} (skill {styleskill.name(sp)})")
+    style = styleskill.display(sp)
+    update(folder / "review.json", lambda d: d["learn"].update(state="done", style=style,
+                                                                 summary=summary or f"Saved to {style}. Next video uses it."))
+    print(f"saved to {style}")
 
 
 def edit_style(folder):
@@ -1002,6 +1160,10 @@ def cmd_learn(a, folder):
     """Review notes into the user's taste: each --rule note saved with taste.add (scope asked once for the
     batch), every other note of the round marked one-off, and each note records what happened to it."""
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    if getattr(a, "propose", None) is not None:
+        return learn_propose(folder, a.propose)
+    if getattr(a, "done", None) is not None:
+        return learn_done(folder, a.done)
     from ai_editor import taste
     rules = {}
     for r in a.rule or []:
@@ -1140,6 +1302,18 @@ def demo():
     post("/delete", {"id": ci["id"]})
     assert [x["id"] for x in load(folder / "review.json")["comments"]] == [c["id"]]
     assert not json.loads(get("/state").read())["listening"]
+    # the first-edit notice: round 1 of the user's first videos, until dismissed; the theme keeps the count
+    assert json.loads(get("/state").read())["intro"], "round 1 of the first video: the notice shows"
+    set_theme("dark")
+    assert ui()["videos"] == [str(folder)] and theme() == "dark"
+    set_theme("system")
+    post("/intro", {})
+    assert not json.loads(get("/state").read())["intro"] and ui()["intro_off"]
+    set_ui(intro_off=False)
+    for i in range(4):
+        seen(tmp / f"v{i}")
+    assert len(ui()["videos"]) == INTRO_VIDEOS and intro(tmp / "v0", {"round": 1}), ui()
+    assert not intro(tmp / "v2", {"round": 1}) and not intro(tmp / "v0", {"round": 2}), "after 3 videos, and after round 1: never"
     assert json.loads(get("/state").read())["home"] is None   # no home page running: the button says how to start it
     hs = ThreadingHTTPServer(("127.0.0.1", 0), type("H", (BaseHTTPRequestHandler,), {
         "do_GET": lambda self: (self.send_response(200), self.end_headers(), self.wfile.write(b"{}")), "log_message": lambda *a: None}))
@@ -1254,6 +1428,9 @@ def demo():
     assert out.startswith("APPROVE: demo the edit, round 1, 4 notes.") and f"also wide: {folder / 'review' / 'v-edit1-wide.mp4'}" in out, out
     assert f"#{c4['id']} 0:01.0 (1.0s) [all videos]: on all of them" in out, out
     assert f"#{c3['id']} 0:05.1 (5.1s) [wide] [card 0 image 'later']: louder here" in out, out
+    # the final approve: LEARN asks Claude for rules from every note of the session, the page waits for them
+    assert "LEARN: the video is approved" in out and "#1 the cut r1: cut the hello, please -> reply: cut it" in out, out
+    assert json.loads(get("/state").read())["learn"] == {"state": "reading", "style": "My style"}
     try:
         post("/comment", {"t": 2, "text": "after approve"})
         raise AssertionError("a note after approve")
@@ -1299,6 +1476,40 @@ def demo():
     assert "size_pct" not in taste.read_json().get("captions", {})
     assert "- Captions too big." in (tmp / "skills" / "edit-like-alice" / "SKILL.md").read_text(encoding="utf-8")
     assert "Cards fill the space they have" in (tmp / "skills" / "my-style" / "SKILL.md").read_text(encoding="utf-8")
+    # propose -> the page ticks two of three -> wait prints them -> done saves them into the edit's style
+    props = [{"rule": "Captions one size smaller.", "section": "captions", "set": "captions.size_pct=4"},
+             {"rule": "Fewer zooms in the first 5 s", "section": "visuals"}, {"rule": "Keep the pauses short", "section": "Cut"}]
+    for bad in ("not json", '[{"rule": "x", "section": "colour"}]', '[{"rule": "x", "section": "cut", "set": "size"}]'):
+        try:
+            learn(propose=bad)
+            raise AssertionError(f"propose {bad}")
+        except SystemExit as e:
+            assert e.code, bad
+    with contextlib.redirect_stdout(io.StringIO()):
+        learn(propose=json.dumps(props))
+    lr = json.loads(get("/state").read())["learn"]
+    assert lr["state"] == "proposed" and [r["rule"] for r in lr["rules"]][0] == "Captions one size smaller", lr
+    try:
+        learn(done="")
+        raise AssertionError("done before the user ticked")
+    except SystemExit as e:
+        assert "nothing ticked" in str(e)
+    post("/learn", {"chosen": [0, 2, 9]})
+    out = waited()
+    assert out.startswith("LEARN: the user ticked 2 rules for My style:") and "Captions one size smaller (captions.size_pct=4)" in out, out
+    assert "Fewer zooms" not in out and "learn --done" in out, out
+    with contextlib.redirect_stdout(io.StringIO()):
+        learn(done="")
+    lr = load(folder / "review.json")["learn"]
+    assert lr["state"] == "done" and lr["summary"] == "Saved to @alice. Next video uses it.", lr
+    sk = (tmp / "skills" / "edit-like-alice" / "SKILL.md").read_text(encoding="utf-8")
+    assert "- Keep the pauses short." in sk and "Fewer zooms" not in sk, sk
+    assert json.loads((sp.parent / "style.overrides.json").read_text(encoding="utf-8"))["captions"]["size_pct"] == 4
+    try:
+        post("/learn", {"chosen": [1]})
+        raise AssertionError("a second pick")
+    except urllib.error.HTTPError as e:
+        assert e.code == 409
     if old_skills is None:
         os.environ.pop("AI_EDITOR_SKILLS", None)
     else:
@@ -1421,6 +1632,15 @@ def demo():
     assert (d1["round"], d1["sent"], "raw" in d1) == (1, False, False) and [r["round"] for r in d1["rounds"]] == [0, 1], d1
     assert (c["round"], c["t"], c["moved"], "queued" in c) == (1, 2.0, "words", False), c
     p2("/event", {"type": "approve"})
+    assert "learn" not in load(rf / "review.json"), "the cut's approve is not the end: nothing to learn yet"
+    # the final approve with no notes all session: the panel says so, LEARN asks nothing
+    update(rf / "review.json", lambda d: d.update(final=True, sent=False, comments=[]))
+    p2("/event", {"type": "approve"})
+    assert load(rf / "review.json")["learn"]["state"] == "none"
+    o = io.StringIO()
+    with contextlib.redirect_stdout(o):
+        cmd_wait(rf, poll=0.01)
+    assert "LEARN: no notes this session" in o.getvalue(), o.getvalue()
     srv2.shutdown()
     srv2.server_close()
     srv.shutdown()
@@ -1474,6 +1694,8 @@ def main():
     s.add_argument("--style", help="this-style: the creator style.json (default: the one the edit used)")
     s.add_argument("--rule", nargs="+", action="append", metavar="ARG", help='<id> <section> "<rule>" [key=value]')
     s.add_argument("--none", action="store_true", help="no note in this round is a preference")
+    s.add_argument("--propose", metavar="JSON", help="after the final approve: candidate rules for the page's learn panel")
+    s.add_argument("--done", nargs="?", const="", metavar="SUMMARY", help="save the rules the user ticked into the style")
     a = ap.parse_args()
     folder = Path(a.folder).resolve()
     if getattr(a, "stage", None) == "edit":  # an edit round reads the edit folder's own files

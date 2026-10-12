@@ -60,6 +60,24 @@ the round one-off, and writes on each note what happened: `"taste"` = rule id, `
 `suggested` or `one-off`. Tell the user in one line what was saved. On `everyone`, offer the GitHub
 issue as the taste skill does (`taste.py issue`). `round` lists notes not learned yet.
 
+## The final approve: teach the style
+
+The edit's approve (or the cut's, after `final`) ends the video. Its `LEARN:` block replaces the one
+above: it lists every note of the session with your replies, and the page shows "Teach <style> from
+this video" with "Claude is reading your notes...". Turn them into at most 6 one-line rules
+("Captions one size smaller", "Fewer zooms in the first 5 s"), leaving out one-off fixes, and post them:
+
+```bash
+python3 "$R" edits/<name> learn --propose '[{"rule": "Captions one size smaller", "section": "captions", "set": "captions.size_pct=4.5"}]'
+```
+
+`[]` when none is about the style; `set` only when a taste setting maps. Run `wait` again. The user
+ticks rules and presses Update my style (or Not now). `wait` prints the ticked rules; then
+`learn --done` saves them with `styleskill.learn` into the style the edit used (one creator style,
+else My style) and the page says "Saved to <style>. Next video uses it." No notes all session: the
+page says so and LEARN asks nothing. Round 1 of the user's first 3 videos also shows a one-time line:
+their first videos teach it their style (dismissed for good with Got it; count in `ui.json`).
+
 With no `wait` running the page says Claude is not listening, and notes still save. The next
 `wait` returns at once with them.
 

@@ -5,9 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ai editor</title>
 <link rel="icon" href="data:,">
+<script>try{const t=localStorage.getItem('ave-home-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 <style>
 :root{--bg:#FAFAF9;--panel:#FFFFFF;--ink:#0C0A09;--t2:#57534E;--t3:#78716C;--t4:#A8A29E;--line:#E7E5E4;--soft:#F5F5F4;--ring:#D6D3D1;
-  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  --onink:#FFFFFF;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color-scheme:light}
+/* dark: the OS setting until the user picks with the header switch (html[data-theme]), as on the review page */
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#100E0E;--panel:#161413;--ink:#F2F0EB;--t2:rgba(242,240,235,.80);--t3:rgba(242,240,235,.58);--t4:rgba(242,240,235,.42);
+  --line:rgba(255,255,255,.10);--soft:rgba(255,255,255,.06);--ring:rgba(255,255,255,.22);--onink:#100E0E;color-scheme:dark}}
+:root[data-theme=dark]{--bg:#100E0E;--panel:#161413;--ink:#F2F0EB;--t2:rgba(242,240,235,.80);--t3:rgba(242,240,235,.58);--t4:rgba(242,240,235,.42);
+  --line:rgba(255,255,255,.10);--soft:rgba(255,255,255,.06);--ring:rgba(255,255,255,.22);--onink:#100E0E;color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--ink);font:14px/20px system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
@@ -15,13 +21,14 @@ button{font:inherit;color:inherit;cursor:pointer}
 a{color:var(--ink);text-decoration:underline 1px;text-underline-offset:3px}
 .app{display:flex;flex-direction:column;min-height:100vh}
 header{display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 28px;flex-shrink:0;gap:16px}
-.brand{display:flex;align-items:baseline;gap:10px;width:260px;flex-shrink:0}
-.brand b{font-size:17px;line-height:22px;font-weight:600;letter-spacing:-.01em;color:#000}
+.brandrow{display:flex;align-items:center;gap:18px;width:260px;flex-shrink:0}
+.brand{display:flex;align-items:baseline;gap:10px;flex-shrink:0}
+.brand b{font-size:17px;line-height:22px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
 .brand span{font-size:14px;color:var(--t3)}
 .steps{display:flex;gap:6px;padding:4px;background:var(--soft);border-radius:12px}
 .step{display:flex;gap:8px;align-items:center;padding:7px 14px;border-radius:9px;border:0;background:none;color:var(--t4);font-size:14px;line-height:18px}
 .step i{font-style:normal;font-size:13px}
-.step.on{background:#fff;color:#000;font-weight:600;box-shadow:0 1px 2px #0C0A0914}
+.step.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px #0C0A0914}
 .step.done{color:var(--t2)}
 .step:disabled{cursor:default}
 .bars{display:none}
@@ -34,7 +41,7 @@ main{flex:1;display:flex;gap:20px;padding:12px 20px 20px;min-height:0}
 .grow{flex:1 1 0;min-width:0}
 h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025em;color:var(--ink)}
 .lede{font-size:16px;line-height:24px;color:var(--t2);margin:14px 0 0}
-.h{font-size:15px;line-height:18px;font-weight:600;color:#000}
+.h{font-size:15px;line-height:18px;font-weight:600;color:var(--ink)}
 .sub{color:var(--t2);font-size:14px;line-height:21px}
 .muted{color:var(--t3);font-size:13px;line-height:16px}
 .faint{color:var(--t4)}
@@ -43,15 +50,15 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 .check{width:16px;display:flex;justify-content:center;flex-shrink:0}
 .dot{width:7px;height:7px;border-radius:4px;background:var(--ink)}
 .ring{width:7px;height:7px;border-radius:4px;border:1.5px solid var(--ring)}
-.btn{white-space:nowrap;height:42px;padding:0 22px;border-radius:12px;border:1px solid var(--ink);background:#fff;font-weight:600;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
-.btn.dark{background:var(--ink);color:#fff}
+.btn{white-space:nowrap;height:42px;padding:0 22px;border-radius:12px;border:1px solid var(--ink);background:var(--panel);font-weight:600;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn.dark{background:var(--ink);color:var(--onink)}
 .btn.quiet{border-color:var(--line);background:var(--bg);color:var(--t2);font-weight:500;padding:0 18px}
 .btn:disabled{opacity:.45;cursor:default}
 .wide{width:100%;height:58px;border-radius:14px;font-size:16px}
-.input{height:40px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:0 12px;font:13px/16px var(--mono);color:var(--ink);flex:1;min-width:0}
+.input{height:40px;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:0 12px;font:13px/16px var(--mono);color:var(--ink);flex:1;min-width:0}
 .input:focus{outline:none;border:1.5px solid var(--ink)}
-.small{height:40px;width:96px;border-radius:10px;border:1px solid var(--line);background:#fff;font-weight:500;color:var(--t2);flex-shrink:0}
-.small.dark{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:600}
+.small{height:40px;width:96px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-weight:500;color:var(--t2);flex-shrink:0}
+.small.dark{background:var(--ink);border-color:var(--ink);color:var(--onink);font-weight:600}
 .lock{display:flex;gap:8px;align-items:center;background:var(--soft);border-radius:10px;padding:6px 10px;font-size:13px;line-height:16px;flex-shrink:0}
 .krow{display:flex;gap:28px;padding:18px 24px;border-top:1px solid var(--line)}
 .krow.focus{background:var(--bg)}
@@ -62,23 +69,23 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 .msg.ok,.msg.bad{color:var(--ink)}
 .foot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 24px;border-top:1px solid var(--line);margin-top:auto}
 .mono{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:12px;line-height:16px;color:var(--t3)}
-.big-input{display:flex;align-items:center;gap:10px;height:72px;border:1.5px solid var(--ink);border-radius:14px;background:#fff;padding:0 16px 0 22px}
+.big-input{display:flex;align-items:center;gap:10px;height:72px;border:1.5px solid var(--ink);border-radius:14px;background:var(--panel);padding:0 16px 0 22px}
 .big-input input{flex:1;min-width:0;border:0;outline:0;font:17px/24px system-ui,sans-serif;background:none;color:var(--ink)}
 .tag{display:inline-flex;align-items:center;gap:6px;background:var(--soft);border-radius:8px;padding:5px 10px;font-size:14px;line-height:18px;flex-shrink:0;border:0}
 .chips{display:flex;flex-wrap:wrap;gap:10px}
 .chip{height:48px;padding:0 20px;border-radius:12px;border:1px solid transparent;background:var(--soft);color:var(--t2);font-size:16px;display:inline-flex;gap:8px;align-items:center}
-.chip.on{background:#fff;border:1.5px solid var(--ink);color:var(--ink);font-weight:600}
+.chip.on{background:var(--panel);border:1.5px solid var(--ink);color:var(--ink);font-weight:600}
 .likes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.like{display:flex;gap:12px;align-items:flex-start;text-align:left;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:#fff}
+.like{display:flex;gap:12px;align-items:flex-start;text-align:left;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:var(--panel)}
 .like b{display:block;font-size:15px;line-height:20px;font-weight:600}.like span{font-size:13px;line-height:18px;color:var(--t3)}
 .like .box{width:20px;height:20px;border-radius:6px;margin-top:1px}
-.like.on{border:1.5px solid var(--ink);padding:13.5px 15.5px}.like.on .box{background:var(--ink);border-color:var(--ink);color:#fff}
+.like.on{border:1.5px solid var(--ink);padding:13.5px 15.5px}.like.on .box{background:var(--ink);border-color:var(--ink);color:var(--onink)}
 .tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) 1px repeat(2,minmax(0,1fr));gap:10px 10px;padding:0 24px 24px;align-items:start}
 .glabel{font-size:13px;line-height:16px;color:var(--t3);grid-column:1/6}.glabel b{color:var(--ink);font-weight:600}
 .glabel.g2{grid-column:7/9;grid-row:1}.tdiv{grid-column:6;grid-row:1/3;background:var(--line);align-self:stretch;margin:0 4px}
 .tile.m0{grid-column:7;grid-row:2}.tile.m1{grid-column:8;grid-row:2}
 .tile .pic{position:relative;aspect-ratio:9/16;border-radius:12px;overflow:hidden;background:#45403C center/cover no-repeat}
-.tile .badge{position:absolute;top:8px;right:8px;background:#fff;border-radius:6px;padding:2px 7px;font-size:13px;font-weight:600;line-height:18px}
+.tile .badge{position:absolute;top:8px;right:8px;background:var(--panel);border-radius:6px;padding:2px 7px;font-size:13px;font-weight:600;line-height:18px}
 .tile .views{position:absolute;left:10px;bottom:9px;color:#fff;font-weight:600;font-size:14px;text-shadow:0 1px 3px #0008}
 .tile .tdur{font-size:12px;line-height:16px;color:var(--t4);margin-top:6px}
 .mrow{display:grid;grid-template-columns:134px 1fr;gap:0 0;padding:14px 20px;border-radius:14px}
@@ -92,18 +99,18 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 .slist .row{gap:12px}
 .slist .t{flex:1;color:var(--t2)}
 .slist .s{color:var(--t4);font-size:13px}
-.slist .cur .t{color:#000;font-weight:600}
+.slist .cur .t{color:var(--ink);font-weight:600}
 .slist .later .t{color:var(--t4)}
 .prog{height:4px;background:var(--line);border-radius:2px;overflow:hidden;width:166px;flex-shrink:0}
 .prog div{height:4px;background:var(--ink)}
 .cost{border:1px solid var(--line);border-radius:16px;padding:16px 20px;display:flex;flex-direction:column;gap:10px;background:var(--bg)}
 .cost .between{font-size:14px;color:var(--t2)}
 .cost b{color:var(--ink)}
-.strip{display:grid;gap:10px;padding:14px 24px;border:1px solid var(--line);border-radius:16px;background:#fff}
+.strip{display:grid;gap:10px;padding:14px 24px;border:1px solid var(--line);border-radius:16px;background:var(--panel)}
 .strip .bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
 .strip .bar div{height:6px;background:var(--ink)}
 .strip span{font-size:13px;color:var(--t3)}
-.strip .cur span{color:#000;font-weight:600}
+.strip .cur span{color:var(--ink);font-weight:600}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .stats>div{padding:24px 0 22px 28px;border-left:1px solid var(--line)}
 .stats>div:first-child{border-left:0;padding-left:0}
@@ -113,22 +120,22 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 .facts .k{color:var(--t3);font-size:14px}
 .facts .k.b{color:var(--ink);font-weight:600}
 .pick{display:flex;gap:14px;padding:16px 0;border-top:1px solid var(--line);align-items:flex-start;cursor:pointer}
-.box{width:24px;height:24px;border-radius:7px;border:1.5px solid var(--ring);display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#fff}
+.box{width:24px;height:24px;border-radius:7px;border:1.5px solid var(--ring);display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--panel)}
 .pick.on .box{border-color:var(--ink)}
 .pick .ttl{font-weight:600;font-size:15px}
 .pick:not(.on) .ttl{font-weight:400;color:var(--t2)}
 .dash{display:flex;gap:14px;font-size:14px;line-height:19px;color:var(--t2);padding:6px 0}
 .dash::before{content:"";width:10px;height:1.5px;background:var(--t3);margin-top:9px;flex-shrink:0}
 .prompt{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 28px;border-top:1px solid var(--line)}
-.prompt code{font:15px/20px var(--mono);color:#000}
-.copy{height:40px;min-width:92px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--t2);flex-shrink:0}
+.prompt code{font:15px/20px var(--mono);color:var(--ink)}
+.copy{height:40px;min-width:92px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--t2);flex-shrink:0}
 .tool{display:flex;justify-content:space-between;gap:16px;padding:18px 0;border-top:1px solid var(--line)}
 .drop{flex:1;border:1.5px dashed var(--ring);border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:280px;background:none;width:100%}
-.drop.over{border-color:var(--ink);background:#fff}
+.drop.over{border-color:var(--ink);background:var(--panel)}
 .seg{display:flex;background:var(--soft);border-radius:12px;padding:4px}
 .seg button{flex:1;height:40px;border:0;border-radius:9px;background:none;color:var(--t3);font-size:15px}
-.seg button.on{background:#fff;color:#000;font-weight:600;box-shadow:0 1px 2px #0C0A0914}
-.file{display:flex;align-items:center;gap:16px;border:1.5px solid var(--ink);border-radius:16px;padding:14px 20px;background:#fff}
+.seg button.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px #0C0A0914}
+.file{display:flex;align-items:center;gap:16px;border:1.5px solid var(--ink);border-radius:16px;padding:14px 20px;background:var(--panel)}
 .empty{color:var(--t3);font-size:14px;line-height:21px;padding:24px}
 .hide{display:none!important}
 .tick{width:18px;height:18px;border-radius:9px;background:#16A34A;color:#fff;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -138,26 +145,40 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 /* returning user: New video, Pick a style, Making, Home, Your videos, My style, Settings (Paper "J launcher + pick") */
 .tabs{display:flex;gap:6px;padding:4px;background:var(--soft);border-radius:12px}
 .tabs button{padding:7px 16px;border-radius:9px;border:0;background:none;color:var(--t4);font-size:14px;line-height:18px}
-.tabs button.on{background:#fff;color:var(--ink);font-weight:600}
+.tabs button.on{background:var(--panel);color:var(--ink);font-weight:600}
 .hlink{white-space:nowrap;flex-shrink:0;border:0;background:none;color:var(--t3);font-size:13px;line-height:16px;padding:0}
-.pill{border-radius:999px;padding:7px 14px;background:var(--soft);color:#44403C;font-size:13px;line-height:16px;border:1px solid transparent}
-.pill.on{background:#fff;border-color:var(--ink);color:var(--ink);font-weight:500;padding:6px 13px}
-.choose{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border:1px solid var(--ring);border-radius:10px;background:#fff;font-weight:500;cursor:pointer;flex-shrink:0}
+.pill{border-radius:999px;padding:7px 14px;background:var(--soft);color:var(--t2);font-size:13px;line-height:16px;border:1px solid transparent}
+.pill.on{background:var(--panel);border-color:var(--ink);color:var(--ink);font-weight:500;padding:6px 13px}
+.choose{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border:1px solid var(--ring);border-radius:10px;background:var(--panel);font-weight:500;cursor:pointer;flex-shrink:0}
 .grid{display:flex;flex-wrap:wrap;gap:16px 12px}
-.clip{width:108px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;border:0;background:none;padding:0;text-align:left}
+.clip{position:relative;width:108px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;border:0;background:none;padding:0;text-align:left;cursor:pointer}
+.upic{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:10px;color:#fff;font-size:12px;line-height:16px;text-align:center}
+.upbar{width:80%;height:4px;border-radius:2px;background:#ffffff40;overflow:hidden}.upbar div{height:4px;background:#fff;transition:width .2s}
+.clip.flash .pic{animation:flash 1.6s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 4px var(--ink)}100%{box-shadow:0 0 0 0 transparent}}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--onink);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50;max-width:calc(100vw - 32px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#toast.on{opacity:1}
+#dropov{position:fixed;inset:12px;border:2px dashed var(--ink);border-radius:20px;background:color-mix(in srgb,var(--bg) 88%,transparent);display:none;align-items:center;justify-content:center;flex-direction:column;gap:8px;font-size:22px;font-weight:600;z-index:40;pointer-events:none}
+body.dragging #dropov{display:flex}
 .clip .pic{position:relative;width:108px;height:192px;border-radius:10px;overflow:hidden;background:#45403C center/cover no-repeat}
 .clip.on .pic{outline:2px solid var(--ink);outline-offset:2px}
 .clip .ring2{position:absolute;right:7px;top:7px;width:20px;height:20px;border-radius:10px;border:1.5px solid #fff;background:#0C0A0940}
-.clip .num{position:absolute;right:6px;top:6px;height:22px;border-radius:11px;background:var(--ink);color:#fff;display:flex;align-items:center;gap:3px;padding:0 7px 0 6px;font-size:12px;font-weight:700}
+.clip .num{position:absolute;right:6px;top:6px;height:22px;border-radius:11px;background:var(--ink);color:var(--onink);display:flex;align-items:center;gap:3px;padding:0 7px 0 6px;font-size:12px;font-weight:700}
 .clip .dur{position:absolute;left:7px;bottom:6px;color:#fff;font-size:11px;font-weight:600;line-height:14px;text-shadow:0 1px 3px #0009}
-.clip .nm{font-size:12px;line-height:16px;font-weight:500;color:#292524;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clip .nm{font-size:12px;line-height:16px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .clip.on .nm{font-weight:600;color:var(--ink)}
 .clip .wh{font-size:12px;line-height:16px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
-.droptile{width:108px;height:192px;border:1.5px dashed var(--ring);border-radius:10px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 10px;text-align:center;flex-shrink:0;cursor:pointer}
+.clip .more{position:absolute;left:6px;top:6px;width:26px;height:26px;border-radius:13px;border:0;background:#0C0A09a6;color:#fff;display:grid;place-items:center;padding:0;opacity:0;font-size:14px;line-height:1}
+.clip:hover .more,.clip .more:focus-visible,.clip.menu .more{opacity:1}
+@media (hover:none){.clip .more{opacity:1}}
+.cmenu{position:absolute;left:6px;top:36px;z-index:5;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px #0C0A0926;padding:4px;display:flex;flex-direction:column;min-width:160px}
+.cmenu button{border:0;background:none;text-align:left;padding:8px 10px;border-radius:7px;font-size:13px;color:var(--ink);white-space:nowrap}
+.cmenu button:hover{background:var(--soft)}
+.droptile{width:108px;height:192px;border:1.5px dashed var(--ring);border-radius:10px;background:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 10px;text-align:center;flex-shrink:0;cursor:pointer}
 .droptile.over{border-color:var(--ink)}
 .sec{display:flex;flex-direction:column;gap:12px;padding:20px 24px;border-top:1px solid var(--line)}
 .sec:first-child{border-top:0;padding-top:22px}
-.opt{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#fff;text-align:left;width:100%}
+.opt{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--panel);text-align:left;width:100%}
 .opt.on{border:1.5px solid var(--ink)}
 .radio{width:18px;height:18px;border-radius:9px;border:1.5px solid var(--ring);flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .on>.radio,.radio.on{border-color:var(--ink)}.on>.radio::after,.radio.on::after{content:"";width:9px;height:9px;border-radius:5px;background:var(--ink)}
@@ -165,27 +186,27 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 .order{display:flex;gap:10px;flex-wrap:wrap}
 .order>div{flex:1 1 120px;display:flex;align-items:center;gap:10px;padding:8px;background:var(--soft);border-radius:12px;cursor:grab;min-width:0}
 .order .th{width:36px;height:64px;border-radius:6px;background:#45403C center/cover;flex-shrink:0}
-.shape{flex:1;display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:#fff;text-align:left}
+.shape{flex:1;display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--panel);text-align:left}
 .shape.on{border:1.5px solid var(--ink)}
 .shape i{display:block;border:2px solid var(--t4);border-radius:4px}.shape.on i{border-color:var(--ink)}
-.go{height:52px;border-radius:14px;background:var(--ink);color:#fff;border:0;font-size:16px;font-weight:600;width:100%}
+.go{height:52px;border-radius:14px;background:var(--ink);color:var(--onink);border:0;font-size:16px;font-weight:600;width:100%}
 .go:disabled{opacity:.4;cursor:default}
-.scard{width:300px;flex-shrink:0;border:1px solid var(--line);border-radius:20px;background:#fff;padding:12px;display:flex;flex-direction:column;text-align:left;cursor:pointer}
+.scard{width:300px;flex-shrink:0;border:1px solid var(--line);border-radius:20px;background:var(--panel);padding:12px;display:flex;flex-direction:column;text-align:left;cursor:pointer}
 .scard.on{border:1.5px solid var(--ink);padding:11.5px}
 .scard .pic{position:relative;height:340px;border-radius:14px;overflow:hidden;background:#45403C center/cover no-repeat}
 .cap{position:absolute;left:8%;right:8%;text-align:center;font-weight:600;font-size:21px;line-height:27px;transform:translateY(-50%)}
 .capsm .cap{font-size:12px;line-height:16px}
 .cap span{padding:2px 10px;border-radius:8px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
-.scard .studying{position:absolute;inset:auto 12px 12px 12px;background:#fffffff0;border-radius:10px;padding:8px 10px;font-size:13px}
+.scard .studying{position:absolute;inset:auto 12px 12px 12px;background:#fffffff0;color:#0C0A09;border-radius:10px;padding:8px 10px;font-size:13px}
 .frow{display:flex;justify-content:space-between;gap:10px;font-size:13px;line-height:18px;padding:3px 0}
 .frow span:first-child{color:var(--t3)}.frow span:last-child{color:var(--ink);text-align:right}
 .create{flex:1 1 360px;min-width:300px;border:1.5px dashed var(--ring);border-radius:20px;padding:28px 24px;display:flex;flex-direction:column;gap:16px}
-.box2{border:1px solid var(--line);border-radius:16px;background:#fff;padding:18px 18px}
-.bar2{display:flex;align-items:center;justify-content:space-between;gap:20px;border:1px solid var(--line);border-radius:20px;background:#fff;padding:14px 14px 14px 24px}
+.box2{border:1px solid var(--line);border-radius:16px;background:var(--panel);padding:18px 18px}
+.bar2{display:flex;align-items:center;justify-content:space-between;gap:20px;border:1px solid var(--line);border-radius:20px;background:var(--panel);padding:14px 14px 14px 24px}
 .steps2{display:flex;flex-direction:column;gap:22px;max-width:560px}
 .steps2 .row{align-items:flex-start;gap:16px}
 .steps2 .t{font-size:16px;line-height:22px;color:var(--t2)}
-.steps2 .cur .t{color:#000;font-weight:600}
+.steps2 .cur .t{color:var(--ink);font-weight:600}
 .steps2 .later .t{color:var(--t3)}
 .steps2 .s{margin-left:auto;color:var(--t4);font-size:14px}
 .vrow{display:flex;align-items:center;gap:20px;padding:14px 0;border-top:1px solid var(--line)}
@@ -197,10 +218,38 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 .kv{display:flex;flex-direction:column;gap:2px}.kv span{font-size:13px;color:var(--t3)}.kv b{font-weight:500;font-size:15px}
 .codebox{display:flex;justify-content:space-between;align-items:center;background:var(--soft);border-radius:10px;padding:10px 14px;font:14px var(--mono)}
 .brand{cursor:pointer;border:0;background:none;padding:0;text-align:left;font:inherit}
-.homelink{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:none;color:var(--t2);font-size:13px;flex-shrink:0}
-.homelink:hover{border-color:var(--ring);color:var(--ink)}
+.homelink{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px 0 13px;border:1px solid var(--ring);border-radius:10px;background:var(--panel);color:var(--ink);font-size:14px;font-weight:600;flex-shrink:0}
+.homelink:hover,.homelink.on{border-color:var(--ink)}
+.homelink.on{box-shadow:inset 0 0 0 .5px var(--ink)}
+.themebtn{width:36px;height:36px;border-radius:18px;border:0;background:none;display:grid;place-items:center;color:var(--t3);flex-shrink:0;padding:0}
+.themebtn:hover{background:var(--soft);color:var(--ink)}
+.sdot{display:inline-block;width:7px;height:7px;border-radius:4px;background:var(--ink);margin-left:6px;vertical-align:2px}
+/* the creator box: one row per pasted link, an empty input at the end */
+.lbox{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+.lbox:focus-within{border-color:var(--ink)}
+.lbox.big{border:1.5px solid var(--ink);border-radius:14px}
+.lrow{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 6px 0 12px;border-top:1px solid var(--line)}
+.lrow:first-child{border-top:0}
+.lbox.big .lrow{min-height:54px;padding:0 10px 0 20px;gap:12px}
+.lurl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:13px/18px var(--mono);color:var(--ink)}
+.lbox.big .lurl{font-size:14px}
+.lx{width:30px;height:30px;border:0;border-radius:8px;background:none;color:var(--t3);display:grid;place-items:center;flex-shrink:0;padding:0}
+.lx:hover{background:var(--soft);color:var(--ink)}
+.ladd{color:var(--t3)}
+.ladd input{flex:1;min-width:0;border:0;outline:0;background:none;font:14px/20px system-ui,sans-serif;color:var(--ink);height:38px;padding:0}
+.lbox.big .ladd input{font-size:17px;height:69px}
+.lbox.big .lrow+.ladd input{height:54px;font-size:16px}
+.lcount{font-size:13px;line-height:18px;color:var(--t2)}
+/* demo photos and example rows: shown until the user has their own */
+.extag{position:absolute;top:10px;left:10px;background:#0C0A09a6;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;line-height:16px}
+.picbtns{position:absolute;top:10px;right:10px;display:flex;gap:6px;opacity:0;transition:opacity .15s}
+.pic:hover .picbtns,.picbtns:focus-within{opacity:1}
+@media (hover:none){.picbtns{opacity:1}}
+.picbtns button{height:28px;padding:0 10px;border-radius:8px;border:0;background:#fffffff0;color:#0C0A09;font-size:12px;font-weight:500}
+.ex{opacity:.62}
+.delrow{border:1.5px solid var(--ink);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;margin-top:10px;cursor:default}
 .nowg{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
-.ncard{display:flex;gap:16px;padding:12px;border:1px solid var(--line);border-radius:18px;background:#fff;min-width:0}
+.ncard{display:flex;gap:16px;padding:12px;border:1px solid var(--line);border-radius:18px;background:var(--panel);min-width:0}
 .ncard .th{width:112px;height:200px;border-radius:12px;background:#45403C center/cover;flex-shrink:0}
 .doneg{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:18px 14px}
 .dtile{display:flex;flex-direction:column;gap:6px;min-width:0;color:var(--ink);text-decoration:none}
@@ -210,7 +259,7 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 .recrow{flex-wrap:wrap}
 .crow{display:flex;align-items:center;gap:14px;margin-top:14px;width:100%;border:0;background:none;padding:0;text-align:left}
 .crow:hover .cn{text-decoration:underline}
-.confirm{border:1.5px solid var(--ink);border-radius:14px;padding:14px 16px;background:#fff;display:flex;flex-direction:column;gap:10px}
+.confirm{border:1.5px solid var(--ink);border-radius:14px;padding:14px 16px;background:var(--panel);display:flex;flex-direction:column;gap:10px}
 @media (max-width:1100px){.rv-side{width:400px!important}.sp-side{width:100%!important}.spwrap{flex-wrap:wrap}.setcols .krow{flex-direction:column;gap:12px}.setcols .kl{width:auto}}
 @media (max-width:760px){.tabs{order:3;width:100%}.tabs button{flex:1;padding:7px 4px;white-space:nowrap}.ncard .th{width:88px;height:156px}.setcols{flex-direction:column}.rv-side{width:auto!important}.scard{width:100%}.vrow .st,.vrow .act{width:auto}.vrow{flex-wrap:wrap}.bar2{flex-direction:column;align-items:stretch}}
 @media (max-width:1100px){.brand,.live{width:auto}.step{padding:7px 10px}}
@@ -246,12 +295,14 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 <body>
 <div class="app">
 <header>
-  <button class="brand" data-home onclick="goHome()" title="Home"><b>ai editor</b><span id="who">first run</span></button>
+  <div class="brandrow"><button class="brand" data-home onclick="goHome()" title="Home"><b>ai editor</b></button><button class="homelink" id="homebtn" data-home onclick="goHome()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.3 2.7a1 1 0 0 1 1.4 0l9 8.4a1 1 0 0 1-.7 1.7H19V20a1 1 0 0 1-1 1h-4v-6h-4v6H6a1 1 0 0 1-1-1v-7.2H3a1 1 0 0 1-.7-1.7z"/></svg>Home</button></div>
   <nav class="steps" id="steps"></nav>
   <div class="live" id="live"></div>
   <div class="bars" id="bars"></div>
 </header>
 <main id="main"></main>
+<div id="dropov">Drop to add<span class="muted" style="font-size:14px;font-weight:400">Each clip is added and picked</span></div><div id="toast" role="status"></div>
+<input type="file" id="coverf" accept="image/*,video/*" class="hide" onchange="this.files[0]&&setCover(this.files[0]);this.value=''">
 </div>
 <script>
 const $=s=>document.querySelector(s);
@@ -259,21 +310,21 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const CHECK='<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6.2l2.6 2.6L10 3.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const TICK=`<span class="tick">${'<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6.2l2.6 2.6L10 3.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'}</span>`,TODO='<span class="todo"></span>';
 const CROSS='<svg width="12" height="12" viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
-const LOCK='<svg width="13" height="13" viewBox="0 0 14 14"><rect x="2.5" y="6" width="9" height="6.5" rx="1.5" fill="none" stroke="#0C0A09" stroke-width="1.4"/><path d="M4.5 6V4.5a2.5 2.5 0 015 0V6" fill="none" stroke="#0C0A09" stroke-width="1.4"/></svg>';
-const LOGO_PATHS={"elevenlabs": "M4.6035 0v24h4.9317V0zm9.8613 0v24h4.9317V0z", "gemini": "M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81", "modal": "M4.89 5.57 0 14.002l2.521 4.4h5.05l4.396-7.718 4.512 7.709 4.996.037L24 14.057l-4.857-8.452-5.073-.015-2.076 3.598L9.94 5.57Zm.837.729h3.787l1.845 3.252H7.572Zm9.189.021 3.803.012 4.228 7.355-3.736-.027zm-9.82.346L6.94 9.914l-4.209 7.389-1.892-3.3Zm9.187.014 4.297 7.343-1.892 3.282-4.3-7.344zm-6.713 3.6h3.79l-4.212 7.394H3.361Zm11.64 4.109 3.74.027-1.893 3.281-3.74-.027z", "python": "M14.25.18l.9.2.73.26.59.3.45.32.34.34.25.34.16.33.1.3.04.26.02.2-.01.13V8.5l-.05.63-.13.55-.21.46-.26.38-.3.31-.33.25-.35.19-.35.14-.33.1-.3.07-.26.04-.21.02H8.77l-.69.05-.59.14-.5.22-.41.27-.33.32-.27.35-.2.36-.15.37-.1.35-.07.32-.04.27-.02.21v3.06H3.17l-.21-.03-.28-.07-.32-.12-.35-.18-.36-.26-.36-.36-.35-.46-.32-.59-.28-.73-.21-.88-.14-1.05-.05-1.23.06-1.22.16-1.04.24-.87.32-.71.36-.57.4-.44.42-.33.42-.24.4-.16.36-.1.32-.05.24-.01h.16l.06.01h8.16v-.83H6.18l-.01-2.75-.02-.37.05-.34.11-.31.17-.28.25-.26.31-.23.38-.2.44-.18.51-.15.58-.12.64-.1.71-.06.77-.04.84-.02 1.27.05zm-6.3 1.98l-.23.33-.08.41.08.41.23.34.33.22.41.09.41-.09.33-.22.23-.34.08-.41-.08-.41-.23-.33-.33-.22-.41-.09-.41.09zm13.09 3.95l.28.06.32.12.35.18.36.27.36.35.35.47.32.59.28.73.21.88.14 1.04.05 1.23-.06 1.23-.16 1.04-.24.86-.32.71-.36.57-.4.45-.42.33-.42.24-.4.16-.36.09-.32.05-.24.02-.16-.01h-8.22v.82h5.84l.01 2.76.02.36-.05.34-.11.31-.17.29-.25.25-.31.24-.38.2-.44.17-.51.15-.58.13-.64.09-.71.07-.77.04-.84.01-1.27-.04-1.07-.14-.9-.2-.73-.25-.59-.3-.45-.33-.34-.34-.25-.34-.16-.33-.1-.3-.04-.25-.02-.2.01-.13v-5.34l.05-.64.13-.54.21-.46.26-.38.3-.32.33-.24.35-.2.35-.14.33-.1.3-.06.26-.04.21-.02.13-.01h5.84l.69-.05.59-.14.5-.21.41-.28.33-.32.27-.35.2-.36.15-.36.1-.35.07-.32.04-.28.02-.21V6.07h2.09l.14.01zm-6.47 14.25l-.23.33-.08.41.08.41.23.33.33.23.41.08.41-.08.33-.23.23-.33.08-.41-.08-.41-.23-.33-.33-.23-.41-.08-.41.08z", "ffmpeg": "M21.72 17.91V6.5l-.53-.49L9.05 18.52l-1.29-.06L24 1.53l-.33-.95-11.93 1-5.75 6.6v-.23l4.7-5.39-1.38-.77-9.11.77v2.85l1.91.46v.01l.19-.01-.56.66v10.6c.609-.126 1.22-.241 1.83-.36L14.12 5.22l.83-.04L0 21.44l9.67.82 1.35-.77 6.82-6.74v2.15l-5.72 5.57 11.26.95.35-.94v-3.16l-3.29-.18c.434-.403.858-.816 1.28-1.23z", "node": "M11.998,24c-0.321,0-0.641-0.084-0.922-0.247l-2.936-1.737c-0.438-0.245-0.224-0.332-0.08-0.383 c0.585-0.203,0.703-0.25,1.328-0.604c0.065-0.037,0.151-0.023,0.218,0.017l2.256,1.339c0.082,0.045,0.197,0.045,0.272,0l8.795-5.076 c0.082-0.047,0.134-0.141,0.134-0.238V6.921c0-0.099-0.053-0.192-0.137-0.242l-8.791-5.072c-0.081-0.047-0.189-0.047-0.271,0 L3.075,6.68C2.99,6.729,2.936,6.825,2.936,6.921v10.15c0,0.097,0.054,0.189,0.139,0.235l2.409,1.392 c1.307,0.654,2.108-0.116,2.108-0.89V7.787c0-0.142,0.114-0.253,0.256-0.253h1.115c0.139,0,0.255,0.112,0.255,0.253v10.021 c0,1.745-0.95,2.745-2.604,2.745c-0.508,0-0.909,0-2.026-0.551L2.28,18.675c-0.57-0.329-0.922-0.945-0.922-1.604V6.921 c0-0.659,0.353-1.275,0.922-1.603l8.795-5.082c0.557-0.315,1.296-0.315,1.848,0l8.794,5.082c0.57,0.329,0.924,0.944,0.924,1.603 v10.15c0,0.659-0.354,1.273-0.924,1.604l-8.794,5.078C12.643,23.916,12.324,24,11.998,24z M19.099,13.993 c0-1.9-1.284-2.406-3.987-2.763c-2.731-0.361-3.009-0.548-3.009-1.187c0-0.528,0.235-1.233,2.258-1.233 c1.807,0,2.473,0.389,2.747,1.607c0.024,0.115,0.129,0.199,0.247,0.199h1.141c0.071,0,0.138-0.031,0.186-0.081 c0.048-0.054,0.074-0.123,0.067-0.196c-0.177-2.098-1.571-3.076-4.388-3.076c-2.508,0-4.004,1.058-4.004,2.833 c0,1.925,1.488,2.457,3.895,2.695c2.88,0.282,3.103,0.703,3.103,1.269c0,0.983-0.789,1.402-2.642,1.402 c-2.327,0-2.839-0.584-3.011-1.742c-0.02-0.124-0.126-0.215-0.253-0.215h-1.137c-0.141,0-0.254,0.112-0.254,0.253 c0,1.482,0.806,3.248,4.655,3.248C17.501,17.007,19.099,15.91,19.099,13.993z", "git": "M13.09 23.549a1.54 1.54 0 0 1-2.18 0L.451 13.089a1.54 1.54 0 0 1 0-2.179l7.191-7.19 2.733 2.733a1.85 1.85 0 0 0 .964 2.326v6.66a1.849 1.849 0 1 0 1.54 0V8.957l2.508 2.508a1.85 1.85 0 1 0 1.09-1.09l-2.634-2.634a1.85 1.85 0 0 0-2.378-2.377L8.73 2.63 10.91.451a1.54 1.54 0 0 1 2.179 0l10.459 10.46a1.54 1.54 0 0 1 0 2.179z"};
+const LOCK='<svg width="13" height="13" viewBox="0 0 14 14"><rect x="2.5" y="6" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 6V4.5a2.5 2.5 0 015 0V6" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>';
+const LOGO_PATHS={"tiktok": "M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z", "youtube": "M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z", "instagram": "M7.0301.084c-1.2768.0602-2.1487.264-2.911.5634-.7888.3075-1.4575.72-2.1228 1.3877-.6652.6677-1.075 1.3368-1.3802 2.127-.2954.7638-.4956 1.6365-.552 2.914-.0564 1.2775-.0689 1.6882-.0626 4.947.0062 3.2586.0206 3.6671.0825 4.9473.061 1.2765.264 2.1482.5635 2.9107.308.7889.72 1.4573 1.388 2.1228.6679.6655 1.3365 1.0743 2.1285 1.38.7632.295 1.6361.4961 2.9134.552 1.2773.056 1.6884.069 4.9462.0627 3.2578-.0062 3.668-.0207 4.9478-.0814 1.28-.0607 2.147-.2652 2.9098-.5633.7889-.3086 1.4578-.72 2.1228-1.3881.665-.6682 1.0745-1.3378 1.3795-2.1284.2957-.7632.4966-1.636.552-2.9124.056-1.2809.0692-1.6898.063-4.948-.0063-3.2583-.021-3.6668-.0817-4.9465-.0607-1.2797-.264-2.1487-.5633-2.9117-.3084-.7889-.72-1.4568-1.3876-2.1228C21.2982 1.33 20.628.9208 19.8378.6165 19.074.321 18.2017.1197 16.9244.0645 15.6471.0093 15.236-.005 11.977.0014 8.718.0076 8.31.0215 7.0301.0839m.1402 21.6932c-1.17-.0509-1.8053-.2453-2.2287-.408-.5606-.216-.96-.4771-1.3819-.895-.422-.4178-.6811-.8186-.9-1.378-.1644-.4234-.3624-1.058-.4171-2.228-.0595-1.2645-.072-1.6442-.079-4.848-.007-3.2037.0053-3.583.0607-4.848.05-1.169.2456-1.805.408-2.2282.216-.5613.4762-.96.895-1.3816.4188-.4217.8184-.6814 1.3783-.9003.423-.1651 1.0575-.3614 2.227-.4171 1.2655-.06 1.6447-.072 4.848-.079 3.2033-.007 3.5835.005 4.8495.0608 1.169.0508 1.8053.2445 2.228.408.5608.216.96.4754 1.3816.895.4217.4194.6816.8176.9005 1.3787.1653.4217.3617 1.056.4169 2.2263.0602 1.2655.0739 1.645.0796 4.848.0058 3.203-.0055 3.5834-.061 4.848-.051 1.17-.245 1.8055-.408 2.2294-.216.5604-.4763.96-.8954 1.3814-.419.4215-.8181.6811-1.3783.9-.4224.1649-1.0577.3617-2.2262.4174-1.2656.0595-1.6448.072-4.8493.079-3.2045.007-3.5825-.006-4.848-.0608M16.953 5.5864A1.44 1.44 0 1 0 18.39 4.144a1.44 1.44 0 0 0-1.437 1.4424M5.8385 12.012c.0067 3.4032 2.7706 6.1557 6.173 6.1493 3.4026-.0065 6.157-2.7701 6.1506-6.1733-.0065-3.4032-2.771-6.1565-6.174-6.1498-3.403.0067-6.156 2.771-6.1496 6.1738M8 12.0077a4 4 0 1 1 4.008 3.9921A3.9996 3.9996 0 0 1 8 12.0077", "elevenlabs": "M4.6035 0v24h4.9317V0zm9.8613 0v24h4.9317V0z", "gemini": "M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81", "modal": "M4.89 5.57 0 14.002l2.521 4.4h5.05l4.396-7.718 4.512 7.709 4.996.037L24 14.057l-4.857-8.452-5.073-.015-2.076 3.598L9.94 5.57Zm.837.729h3.787l1.845 3.252H7.572Zm9.189.021 3.803.012 4.228 7.355-3.736-.027zm-9.82.346L6.94 9.914l-4.209 7.389-1.892-3.3Zm9.187.014 4.297 7.343-1.892 3.282-4.3-7.344zm-6.713 3.6h3.79l-4.212 7.394H3.361Zm11.64 4.109 3.74.027-1.893 3.281-3.74-.027z", "python": "M14.25.18l.9.2.73.26.59.3.45.32.34.34.25.34.16.33.1.3.04.26.02.2-.01.13V8.5l-.05.63-.13.55-.21.46-.26.38-.3.31-.33.25-.35.19-.35.14-.33.1-.3.07-.26.04-.21.02H8.77l-.69.05-.59.14-.5.22-.41.27-.33.32-.27.35-.2.36-.15.37-.1.35-.07.32-.04.27-.02.21v3.06H3.17l-.21-.03-.28-.07-.32-.12-.35-.18-.36-.26-.36-.36-.35-.46-.32-.59-.28-.73-.21-.88-.14-1.05-.05-1.23.06-1.22.16-1.04.24-.87.32-.71.36-.57.4-.44.42-.33.42-.24.4-.16.36-.1.32-.05.24-.01h.16l.06.01h8.16v-.83H6.18l-.01-2.75-.02-.37.05-.34.11-.31.17-.28.25-.26.31-.23.38-.2.44-.18.51-.15.58-.12.64-.1.71-.06.77-.04.84-.02 1.27.05zm-6.3 1.98l-.23.33-.08.41.08.41.23.34.33.22.41.09.41-.09.33-.22.23-.34.08-.41-.08-.41-.23-.33-.33-.22-.41-.09-.41.09zm13.09 3.95l.28.06.32.12.35.18.36.27.36.35.35.47.32.59.28.73.21.88.14 1.04.05 1.23-.06 1.23-.16 1.04-.24.86-.32.71-.36.57-.4.45-.42.33-.42.24-.4.16-.36.09-.32.05-.24.02-.16-.01h-8.22v.82h5.84l.01 2.76.02.36-.05.34-.11.31-.17.29-.25.25-.31.24-.38.2-.44.17-.51.15-.58.13-.64.09-.71.07-.77.04-.84.01-1.27-.04-1.07-.14-.9-.2-.73-.25-.59-.3-.45-.33-.34-.34-.25-.34-.16-.33-.1-.3-.04-.25-.02-.2.01-.13v-5.34l.05-.64.13-.54.21-.46.26-.38.3-.32.33-.24.35-.2.35-.14.33-.1.3-.06.26-.04.21-.02.13-.01h5.84l.69-.05.59-.14.5-.21.41-.28.33-.32.27-.35.2-.36.15-.36.1-.35.07-.32.04-.28.02-.21V6.07h2.09l.14.01zm-6.47 14.25l-.23.33-.08.41.08.41.23.33.33.23.41.08.41-.08.33-.23.23-.33.08-.41-.08-.41-.23-.33-.33-.23-.41-.08-.41.08z", "ffmpeg": "M21.72 17.91V6.5l-.53-.49L9.05 18.52l-1.29-.06L24 1.53l-.33-.95-11.93 1-5.75 6.6v-.23l4.7-5.39-1.38-.77-9.11.77v2.85l1.91.46v.01l.19-.01-.56.66v10.6c.609-.126 1.22-.241 1.83-.36L14.12 5.22l.83-.04L0 21.44l9.67.82 1.35-.77 6.82-6.74v2.15l-5.72 5.57 11.26.95.35-.94v-3.16l-3.29-.18c.434-.403.858-.816 1.28-1.23z", "node": "M11.998,24c-0.321,0-0.641-0.084-0.922-0.247l-2.936-1.737c-0.438-0.245-0.224-0.332-0.08-0.383 c0.585-0.203,0.703-0.25,1.328-0.604c0.065-0.037,0.151-0.023,0.218,0.017l2.256,1.339c0.082,0.045,0.197,0.045,0.272,0l8.795-5.076 c0.082-0.047,0.134-0.141,0.134-0.238V6.921c0-0.099-0.053-0.192-0.137-0.242l-8.791-5.072c-0.081-0.047-0.189-0.047-0.271,0 L3.075,6.68C2.99,6.729,2.936,6.825,2.936,6.921v10.15c0,0.097,0.054,0.189,0.139,0.235l2.409,1.392 c1.307,0.654,2.108-0.116,2.108-0.89V7.787c0-0.142,0.114-0.253,0.256-0.253h1.115c0.139,0,0.255,0.112,0.255,0.253v10.021 c0,1.745-0.95,2.745-2.604,2.745c-0.508,0-0.909,0-2.026-0.551L2.28,18.675c-0.57-0.329-0.922-0.945-0.922-1.604V6.921 c0-0.659,0.353-1.275,0.922-1.603l8.795-5.082c0.557-0.315,1.296-0.315,1.848,0l8.794,5.082c0.57,0.329,0.924,0.944,0.924,1.603 v10.15c0,0.659-0.354,1.273-0.924,1.604l-8.794,5.078C12.643,23.916,12.324,24,11.998,24z M19.099,13.993 c0-1.9-1.284-2.406-3.987-2.763c-2.731-0.361-3.009-0.548-3.009-1.187c0-0.528,0.235-1.233,2.258-1.233 c1.807,0,2.473,0.389,2.747,1.607c0.024,0.115,0.129,0.199,0.247,0.199h1.141c0.071,0,0.138-0.031,0.186-0.081 c0.048-0.054,0.074-0.123,0.067-0.196c-0.177-2.098-1.571-3.076-4.388-3.076c-2.508,0-4.004,1.058-4.004,2.833 c0,1.925,1.488,2.457,3.895,2.695c2.88,0.282,3.103,0.703,3.103,1.269c0,0.983-0.789,1.402-2.642,1.402 c-2.327,0-2.839-0.584-3.011-1.742c-0.02-0.124-0.126-0.215-0.253-0.215h-1.137c-0.141,0-0.254,0.112-0.254,0.253 c0,1.482,0.806,3.248,4.655,3.248C17.501,17.007,19.099,15.91,19.099,13.993z", "git": "M13.09 23.549a1.54 1.54 0 0 1-2.18 0L.451 13.089a1.54 1.54 0 0 1 0-2.179l7.191-7.19 2.733 2.733a1.85 1.85 0 0 0 .964 2.326v6.66a1.849 1.849 0 1 0 1.54 0V8.957l2.508 2.508a1.85 1.85 0 1 0 1.09-1.09l-2.634-2.634a1.85 1.85 0 0 0-2.378-2.377L8.73 2.63 10.91.451a1.54 1.54 0 0 1 2.179 0l10.459 10.46a1.54 1.54 0 0 1 0 2.179z"};
 const TS_MARK='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAFU0lEQVR42t2aW4hVVRjHf+fsmcnRxgZzIjCFhKKQjCgoogvWPER0YR5F68HwoaKMqJimFEKKSh8EcSAfBiIwIwiyNAyEwkwifRkjjOliYZmW2mU058y59NB/wZ/FOjNj7X1maMFi7732t9b+Luu7rg35trI6wGLgQ/XFifczrrXZ/UPAcaChflxjKdhpb2WgpPsrgR2GeE09PO8Elgi2NN3SKEWcfBIYFaLjhnQjGhsV7LRKI7P7G4A9xvGA8G9N7gPMHs3FJNgSrmfGubXAmBAK12PA/cAWQ3qLxoJeVOw6oDXLreT6LcD+xHYZAi4VzFYb36qxhYJxIs4Ac4qUhHN9NrDBEAtIfAf02Zz2BAHt9n6FCK8DR4skwMV6NzAcId4ANgHdJqVO3W82mM0amyOY+cA523KFEBAW6wYGE9ZkGOg1+A6bcw1wyMzoIY2FdkXRBATbfiswog9VzYq8CMwyZW43BJ7Svo79wBngacFcHCl97gQE27xeHzmr6+fAzRHXQ7sR2BcR6z2M7ZO+/NkKAvrFwbqsTtn2eskU9gXbWmORYvdJUWPdGTcC5mq93AkYsA/uiPZ6CVgGHNT7emR15tl6PZFVctifi/DKKQI+iMKHTuBXvTsnSR0Gbot8h/uPZcA3IiDox7gsWVdCuudlJidrgRCfWxEybSadWROsEaTXsGAuA9ZIkvea0md5S2BX9G6O9m8j0bcBi2y9RRprNOmu9K/Z9sv+rV6cLwEVQyIo8QlgufqJ6F01ofSu5N9rXsskMArcoXg/VtJYcXcKNoTePwC3Ax8npPEmsCDKOQqTQI/GnwBOGzIBoV+Ax8wqVRJWyJ1g8NTPT2ShyjkEeIi73RrfBFwHHLAc+IBi/82C6dKcYBzm6n4jcBPwrRCuGRx5EVDWR/+IrNJJPV8IHJHjC/5iv/b1bAsxvIXnCxQ3fZEwwbkQkEn0AM/IWlTljddovVE9d9q8Tr2rTrJ+TXAdRfmBGrAU+Ah4RWJuk5jXAXuV7Iyr+xarT/E79UiyuRHQISX7TFZjPEovqwr09gLParu0pCQylVYF7lQ21mFB3DYp56BZiRrwEvDAFLZM4QQ0IstT1ZwjwH1KDQ8CjwJ3KXfIbC+n1mkpAW0Wm9RFxEYVp96zakIG7FbWtc7MX9Cb9uki4Hch12YEzFfHgrKGObcejdXNFJ5skq5SZDWirMjSvWOIX04BqyP4FQoLGlGc85wUumwEXWae9id9JzM92mURwEAeucJVUZzjcU0v8Hai8vYJcH3EkIDEUvmTmphxiTmyUt4E+MSHLc6pRMFaxTz049F8X2O5UsyaJFQHvgLuMZjdeUvA6/qXA29ZsFazgG2npOXF3zBvwSQ5QQN4HbgIeCdvAlLSeFC6ESLORybg+upETjAKvGG6EMZHgK9tKw7knS97IfZHC33niesd0XnBu4mc4H3gaqtu75ugHJ87AQG5uZYPnOOfY6Rm5wWBu6elR7FE22Ttjgnxml37iyLAE5oxy4GvbXJesF36E+uUO7lVtiX/0rz1rSDgrErn/U3OC1YmuO4lmi7gZUls3IzCiMqbuR5HNSPgcCKnHZL1iXXHE5Ve4MvE3EGrehdStU6VVepNzguyRCrarfQz9iPDKuX/17R3SgQctSpbVUr6qqrPcV3Hud4nImOHuMHyiKzIE5tAgFcQ6sCnlqB3mLJm5syGEqZyvzK51HFWYVFsJhtdiTh5QslM3FZGVitc15oyZ60+sYyPWRuR2Vyovn2SY9aWcH2y0CLluE6pxyFEfNBdgpnxq8ESC7tTfYfCixnxq8H/5mePaf3d5m82blqfTlfIrgAAAABJRU5ErkJggg==';
-// Brand marks: Simple Icons 16.34.0 (CC0) paths, and TypeSafe's own favicon mark (typesafe.ai), vendored so the page works offline.
+// Brand marks: Simple Icons 16.34.0 (CC0) paths (TikTok, YouTube, Instagram too, for pasted links), and TypeSafe's own favicon mark (typesafe.ai), vendored so the page works offline.
 // Monochrome (currentColor) to keep the page calm. Rows that are not a brand get a plain glyph, never an invented logo.
 const GLYPH={'python packages':'<path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z M4 7.5 12 12l8-4.5 M12 12v9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
  'transcription model':'<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
  'renderer':'<rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 9.5v5l4.5-2.5z" fill="currentColor"/>',
  'free disk':'<rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16.5" cy="12" r="1.3" fill="currentColor"/>'};
 // each brand in its own colours (ElevenLabs and TypeSafe are black marks); Gemini is its gradient
-const BRAND={elevenlabs:'#000',gemini:'url(#gem)',modal:'#62DE61',python:'#3776AB',ffmpeg:'#007808',node:'#5FA04E',git:'#F05032'};
+const BRAND={elevenlabs:'var(--ink)',tiktok:'var(--ink)',youtube:'#FF0000',instagram:'#FF0069',gemini:'url(#gem)',modal:'#62DE61',python:'#3776AB',ffmpeg:'#007808',node:'#5FA04E',git:'#F05032'};
 const GEM='<defs><linearGradient id="gem" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4796E3"/><stop offset=".55" stop-color="#9168C0"/><stop offset="1" stop-color="#D96570"/></linearGradient></defs>';
 function logo(id,px=20){
-  if(LOGO_PATHS[id])return `<span class="logo"><svg width="${px}" height="${px}" viewBox="0 0 24 24" fill="${BRAND[id]||'currentColor'}" aria-hidden="true">${id==='gemini'?GEM:''}<path d="${LOGO_PATHS[id]}"/></svg></span>`;
-  if(id==='typesafe')return `<span class="logo"><span style="width:${px}px;height:${px}px;background:#000;-webkit-mask:url(${TS_MARK}) center/contain no-repeat;mask:url(${TS_MARK}) center/contain no-repeat"></span></span>`;
+  if(LOGO_PATHS[id])return `<span class="logo"><svg width="${px}" height="${px}" viewBox="0 0 24 24" style="fill:${BRAND[id]||'currentColor'}" aria-hidden="true">${id==='gemini'?GEM:''}<path d="${LOGO_PATHS[id]}"/></svg></span>`;
+  if(id==='typesafe')return `<span class="logo"><span style="width:${px}px;height:${px}px;background:var(--ink);-webkit-mask:url(${TS_MARK}) center/contain no-repeat;mask:url(${TS_MARK}) center/contain no-repeat"></span></span>`;
   return `<span class="logo"><svg width="${px}" height="${px}" viewBox="0 0 24 24" aria-hidden="true">${GLYPH[id]||''}</svg></span>`;
 }
 const STEPS=['Setup','Creator','Study','Your skill','Your video'];
@@ -298,7 +349,13 @@ const secs=s=>s==null?'':s<60?`${s}s`:`${Math.floor(s/60)}m ${String(s%60).padSt
 const PLAT={tiktok:'TikTok',youtube:'YouTube',instagram:'Instagram'};
 // Home from every page: the dashboard once set up (a profile or a video), else step 1 of the first run.
 function goHome(){if(returning()){ui.onboard=false;rgo('home')}else go(0)}
-const HOMEBTN='<button class="homelink" data-home onclick="goHome()"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.2 8 2.5l5.5 4.7V13a.5.5 0 0 1-.5.5H9.8V10H6.2v3.5H3a.5.5 0 0 1-.5-.5z"/></svg>Home</button>';
+// light or dark: the OS setting until the user picks; the pick is remembered in this browser (review page: the same)
+const MOON='<svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1z"/></svg>';
+const SUN='<svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3 3l1.1 1.1M11.9 11.9L13 13M3 13l1.1-1.1M11.9 4.1L13 3"/></svg>';
+const OS=matchMedia('(prefers-color-scheme: dark)'),isDark=()=>{const t=document.documentElement.dataset.theme;return t?t==='dark':OS.matches};
+const themeBtn=()=>`<button class="themebtn" title="${isDark()?'Light mode':'Dark mode'}" aria-label="${isDark()?'Light mode':'Dark mode'}" onclick="toggleTheme()">${isDark()?SUN:MOON}</button>`;
+function toggleTheme(){const t=isDark()?'light':'dark';document.documentElement.dataset.theme=t;try{localStorage.setItem('ave-home-theme',t)}catch(e){}render()}
+OS.addEventListener('change',()=>render());
 function go(n){view=n;try{localStorage.setItem('ave-home-view',n)}catch(e){}render()}
 function autoView(){
   const td=latest('teardown'),sk=latest('skill'),vd=latest('video');
@@ -311,8 +368,7 @@ function header(v){
   const r=reached();
   $('#steps').innerHTML=STEPS.map((s,i)=>`<button class="step ${i===v?'on':i<r||i<v?'done':''}" ${i<=r?'':'disabled'} onclick="go(${i})">${i<v||(i<r&&i!==v)?CHECK:`<i>${i+1}</i>`}${s}</button>`).join('');
   $('#bars').innerHTML=STEPS.map((s,i)=>`<div class="${i===v?'on':i<v?'done':''}"></div>`).join('');
-  const td=latest('teardown');
-  $('#who').textContent=td&&v>=2?'@'+td.args.handle:v>0&&window.innerWidth<760?`step ${v+1} of 5`:'first run';
+  const td=latest('teardown');$('#homebtn').classList.toggle('on',v===0);
   const live=$('#live');let t='',on=false;
   const busy=S.jobs.filter(j=>j.state==='taken'||j.state==='queued').pop();
   const setup=latest('setup');
@@ -322,7 +378,7 @@ function header(v){
   else if(v===2&&td&&td.state==='done'){t=`Done in ${secs(Math.round(td.finished-td.started))}`}
   else if(v===4&&td&&td.state==='done'){const sk=latest('skill');t='Style: '+((sk&&sk.result.name)||'@'+td.args.handle)}
   else t=S.listening?'Claude is listening':'';
-  live.innerHTML=`<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="${esc(t)}">${esc(t)}</span>${HOMEBTN}`;live.className='live'+(on?' on':'');
+  live.innerHTML=`<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="${esc(t)}">${esc(t)}</span>${themeBtn()}`;live.className='live'+(on?' on':'');
 }
 
 // ---------------------------------------------------------------- H1
@@ -346,7 +402,7 @@ async function verify(id){
 function h1(){
   const d=S.doctor,rows=d?d.rows:[];const ready=rows.filter(r=>r.ok).length;
   const setup=latest('setup');const sstep=setup&&setup.state==='taken'?setup.steps.at(-1):null;
-  const tools=!d?`<div class="muted">Checking this computer...</div>`:rows.map(r=>`<div class="row">${r.ok?TICK:TODO}${logo(r.id)}<div style="width:166px;flex-shrink:0;color:${r.ok?'var(--t2)':'#000'};font-weight:${r.ok?400:600}">${esc(r.name)}</div><div class="muted" style="color:${r.ok?'var(--t4)':'var(--t2)'}">${r.ok?esc(r.what):'not ready yet'}</div></div>`).join('')
+  const tools=!d?`<div class="muted">Checking this computer...</div>`:rows.map(r=>`<div class="row">${r.ok?TICK:TODO}${logo(r.id)}<div style="width:166px;flex-shrink:0;color:${r.ok?'var(--t2)':'var(--ink)'};font-weight:${r.ok?400:600}">${esc(r.name)}</div><div class="muted" style="color:${r.ok?'var(--t4)':'var(--t2)'}">${r.ok?esc(r.what):'not ready yet'}</div></div>`).join('')
     +(sstep?`<div class="row" style="padding-left:60px"><div class="prog" style="width:160px"><div style="width:${Math.round((sstep.progress||0)*100)}%"></div></div><span class="muted" style="color:var(--t2)">${esc(sstep.text)}${sstep.progress!=null?' · '+Math.round(sstep.progress*100)+'%':''}</span></div>`:'');
   const missing=rows.length&&ready<rows.length;
   const unset=KEYS.filter(k=>!(S.keys[k.id]||{}).set).map(k=>k.id);
@@ -373,6 +429,41 @@ function modalRow(){
 async function skip(names){await post('/later',{names});if(names.length>1)go(1);else load()}
 async function queue(b){const r=await post('/job',b);if(!r._ok)alert(r.msg||r.error||'That did not work.');await load();return r}
 
+// ---------------------------------------------------------------- several links, one row each
+// Each pasted link is a row (platform logo, a short form, remove). A profile or a bare handle is the only row.
+const LB={};const lbOf=k=>LB[k]||(LB[k]={rows:[],draft:''});
+const PLUS='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+const LINKG='<span class="logo" style="color:var(--t3)"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>';
+const platOf=u=>/tiktok\.com/i.test(u)?'tiktok':/youtu\.?be/i.test(u)?'youtube':/instagram\.com/i.test(u)?'instagram':null;
+const isLink=u=>/[./]/.test(u);
+const isProfile=u=>!isLink(u)||/(tiktok|youtube)\.com\/@[\w.-]+\/?(\?.*)?$/i.test(u)||/instagram\.com\/(?!(reels?|p|tv)\/)[\w.]+\/?(\?.*)?$/i.test(u);
+const shortLink=u=>isLink(u)?u.replace(/^https?:\/\/(www\.|m\.|vm\.)?/i,'').replace(/\?.*$/,'').replace(/\/$/,''):'@'+u.replace(/^@/,'');
+const lbText=k=>{const b=lbOf(k);return [...b.rows,b.draft.trim()].filter(Boolean).join(' ')};
+function lbAdd(k,text){
+  const b=lbOf(k);
+  for(const t of text.split(/\s+/).filter(Boolean)){if(isProfile(t))b.rows=[t];else{b.rows=b.rows.filter(r=>!isProfile(r));if(!b.rows.includes(t))b.rows.push(t)}}
+  b.draft='';const e=$('#lb-'+k);if(e)e.value='';lbChanged(k);
+}
+function lbChanged(k){if(k==='paste')onPaste(lbText(k));render()}
+function lbRemove(k,i){lbOf(k).rows.splice(i,1);lbChanged(k);const e=$('#lb-'+k);if(e)e.focus()}
+function lbInput(k,v){lbOf(k).draft=v;if(k==='paste')onPaste(lbText(k))}
+function lbKey(e,k){
+  const b=lbOf(k),v=e.target.value;
+  if(e.key==='Enter'){e.preventDefault();if(v.trim())lbAdd(k,v);else if(k==='study')studyLink()}
+  else if(e.key==='Backspace'&&!v&&b.rows.length){e.preventDefault();b.rows.pop();lbChanged(k)}
+}
+function lbPaste(e,k){const t=(e.clipboardData||{getData:()=>''}).getData('text');if(!t.trim())return;e.preventDefault();lbAdd(k,e.target.value+' '+t)}
+function linkBox(k,big){
+  const b=lbOf(k),n=b.rows.length,px=big?20:18;
+  const rows=b.rows.map((r,i)=>`<div class="lrow">${platOf(r)?logo(platOf(r),px):LINKG}<span class="lurl" title="${esc(r)}">${esc(shortLink(r))}</span><button class="lx" aria-label="Remove this link" title="Remove" onclick="lbRemove('${k}',${i})">${CROSS}</button></div>`).join('');
+  const ph=!n?(big?'tiktok.com/@name, or links to their videos':'Paste a profile or links to their videos'):isProfile(b.rows[0])?'Or paste video links instead':'Add another link';
+  return `<div class="lbox ${big?'big':''}">${rows}<label class="lrow ladd">${n?`<span class="logo">${PLUS}</span>`:''}<input id="lb-${k}" placeholder="${ph}" value="${esc(b.draft)}" oninput="lbInput('${k}',this.value)" onkeydown="lbKey(event,'${k}')" onpaste="lbPaste(event,'${k}')" autocomplete="off" spellcheck="false"></label></div>`;
+}
+function lbCount(k){
+  const v=lbOf(k).rows.filter(r=>!isProfile(r));
+  return v.length?`${v.length} video${v.length>1?'s':''}.${v.length<5?' 5 or more gives a truer style.':''}${v.some(r=>platOf(r)==='instagram')?' Instagram ranks by likes, not views.':''}`:'';
+}
+
 // ---------------------------------------------------------------- H2
 let lookT=null;
 function onPaste(v){ui.paste=v;clearTimeout(lookT);lookT=setTimeout(lookup,450)}
@@ -387,13 +478,12 @@ function tilesHTML(lk){
 }
 function h2(){
   const L=ui.look,lk=S.lookup||{},listing=lk.listing&&L&&lk.handle===L.handle?lk.listing:null;
-  const badge=L&&L.kind==='creator'?`<span class="tag">${CHECK}${PLAT[L.platform]||L.platform}</span>`:'';
-  const ask=L&&L.kind==='creator'&&L.ask_platform?`<div class="row" style="gap:8px;margin-top:10px"><span class="muted">Which app is @${esc(L.handle)} on?</span>${['tiktok','youtube'].map(p=>`<button class="tag" style="${L.platform===p?'background:#fff;outline:1.5px solid var(--ink)':''}" onclick="lookup('${p}')">${PLAT[p]}</button>`).join('')}</div>`:'';
+  const ask=L&&L.kind==='creator'&&L.ask_platform?`<div class="row" style="gap:8px;margin-top:10px"><span class="muted">Which app is @${esc(L.handle)} on?</span>${['tiktok','youtube'].map(p=>`<button class="tag" style="${L.platform===p?'background:var(--panel);outline:1.5px solid var(--ink)':''}" onclick="lookup('${p}')">${PLAT[p]}</button>`).join('')}</div>`:'';
   const note=L&&L.note&&!L.urls?`<div class="muted" style="margin-top:10px;color:var(--ink)">${esc(L.note)}</div>`:'';
   let right;
   if(!L||L.kind!=='creator')right=`<div class="empty">Their most viewed videos show here once you paste a handle or a profile link.</div>`;
   else if(L.platform==='instagram'&&!L.urls)right=`<div class="empty">Instagram hides profiles behind a login. Paste links to their reels instead, separated by spaces.</div>`;
-  else if(L.urls)right=`<div class="empty"><div class="h" style="font-size:17px">${L.handle?'@'+esc(L.handle):'Your links'}</div><div style="margin-top:4px">${esc(L.note||'')}</div><ol style="margin:14px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:6px">${L.urls.map(u=>`<li class="mono" style="font-size:13px;white-space:normal">${esc(u.replace(/^https?:\/\/(www\.)?/,''))}</li>`).join('')}</ol></div>`;
+  else if(L.urls)right=`<div class="empty"><div class="h" style="font-size:17px">${L.handle?'@'+esc(L.handle):'Your links'}</div></div>`;
   else if(listing&&listing.videos.length)right=tilesHTML(listing);
   else if(lk.status==='failed'&&lk.handle===L.handle)right=`<div class="empty">Could not read @${esc(L.handle)} on ${PLAT[L.platform]}: ${esc(lk.msg)}. Check the handle, or start anyway and Claude tries again.</div>`;
   else if(lk.status==='nofetch')right=`<div class="empty">The creator-teardown plugin is not installed, so the videos cannot be listed here. Claude installs it when you start.</div>`;
@@ -401,15 +491,13 @@ function h2(){
   const head=L&&L.kind==='creator'&&!L.urls?`<div class="between" style="padding:24px 24px 20px;align-items:center"><div class="row" style="gap:14px"><div style="width:44px;height:44px;border-radius:22px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--t2)">${esc((L.handle||'').slice(0,2).toUpperCase())}</div><div><div class="h" style="font-size:17px">@${esc(L.handle)}</div><div class="muted" style="margin-top:3px">${PLAT[L.platform]||''}${listing?` · ${listing.count} recent videos · median ${fmtN(listing.median)} ${listing.ranked_by||'views'}`:''}</div></div></div></div>`:'<div style="height:20px"></div>';
   const can=L&&L.kind==='creator'&&(L.platform!=='instagram'||L.urls);
   return `<div class="col" style="width:520px;padding:28px 28px 0 14px;gap:0">
-    <h1>Pick a creator you like.</h1><p class="lede">Paste their profile, or links to videos you like. The editor measures them and copies how they cut, not what they say.</p>
-    <div class="big-input" style="margin-top:32px"><input id="paste" placeholder="tiktok.com/@name, or links to their videos" value="${esc(ui.paste)}" oninput="onPaste(this.value)" autocomplete="off" spellcheck="false">${badge}</div>${ask}${note}
-    <div class="muted" style="margin-top:12px;line-height:18px">Paste a profile, or links to the videos you like (TikTok, YouTube or Instagram), separated by spaces.</div>
+    <h1>Pick a creator you like.</h1><p class="lede">The editor copies how they cut, not what they say.</p>
+    <div style="margin-top:32px">${linkBox('paste',true)}</div>${lbCount('paste')?`<div class="lcount" style="margin-top:10px">${lbCount('paste')}</div>`:''}${ask}${note}
     <div class="between" style="margin-top:40px"><span class="h" style="font-size:17px">What do you like about them?</span><span class="muted">optional</span></div>
     <div class="likes" style="margin-top:14px">${PARTS.map(([k,n])=>`<button class="like ${ui.likes.has(k)?'on':''}" onclick="ui.likes.has('${k}')?ui.likes.delete('${k}'):ui.likes.add('${k}');render()"><span class="box">${ui.likes.has(k)?CHECK:''}</span><div><b>${n}</b><span>${PART_WHAT[k]}</span></div></button>`).join('')}</div>
-    <div class="muted" style="margin-top:14px">Not sure? You choose again after you see the numbers.</div>
   </div>
   <div class="panel grow" style="align-self:flex-start">${head}<div style="overflow:auto">${right}</div>
-    <div class="foot"><div class="sub">${L&&L.urls?`Claude measures these ${L.urls.length} video${L.urls.length>1?'s':''}.`:'Claude measures their top 5 and 2 typical videos. The typical ones show what is habit, not why a video won.'}</div>
+    <div class="foot"><div class="sub">${L&&L.urls?`Claude measures these ${L.urls.length} video${L.urls.length>1?'s':''}.`:'Claude measures their top 5 and 2 typical videos.'}</div>
     <div class="row" style="gap:20px"><span class="muted" style="font-size:14px;white-space:nowrap">about 3 min · ${(S.keys.elevenlabs||{}).set?'under 1 cent':'free'}</span><button class="btn dark" ${can?'':'disabled'} onclick="study()">Study their videos</button></div></div>
   </div>`;
 }
@@ -432,7 +520,7 @@ function h3(td){
   const keys=S.keys||{};
   const status=td.state==='failed'?`<div class="msg bad" style="font-size:14px">${CROSS}<span>${esc(td.error)}</span></div>`:td.state==='cancelled'?`<div class="muted">Cancelled.</div>`:td.state==='queued'?`<div class="muted" style="font-size:14px">${S.listening?'Claude is picking this up.':'Waiting for Claude. Say "edit my video" in Claude Code and it picks this up.'}</div>`:'';
   return `<div class="col grow" style="gap:20px;min-width:0"><div style="display:flex;gap:28px;flex:1;min-height:0">
-    <div class="col" style="width:400px"><div style="position:relative;flex:1;border-radius:20px;overflow:hidden;background:#45403C ${vid&&vid.thumbnail?`url('${esc(vid.thumbnail)}') center/cover`:''};min-height:420px">${vid?`<div class="badge" style="position:absolute;top:14px;left:14px;background:#fff;border-radius:6px;padding:3px 9px;font-weight:600;font-size:14px">${esc(vid.role)} · ${fmtN(vid.view_count||vid.like_count)}${cur!=null?' · now':''}</div>`:''}</div></div>
+    <div class="col" style="width:400px"><div style="position:relative;flex:1;border-radius:20px;overflow:hidden;background:#45403C ${vid&&vid.thumbnail?`url('${esc(vid.thumbnail)}') center/cover`:''};min-height:420px">${vid?`<div class="badge" style="position:absolute;top:14px;left:14px;background:var(--panel);border-radius:6px;padding:3px 9px;font-weight:600;font-size:14px">${esc(vid.role)} · ${fmtN(vid.view_count||vid.like_count)}${cur!=null?' · now':''}</div>`:''}</div></div>
     <div class="grow"><div class="between" style="padding:6px 20px 12px"><span class="h" style="font-size:17px">Measured so far</span><span class="muted" style="font-size:14px">${m.videos?`from ${m.videos} of ${n||m.videos} videos · numbers settle as more finish`:'empty until the first video is measured'}</span></div>
       ${order.map(([k,lab])=>m.rows[k]?`<div class="mrow ${k===nowKey?'now':''}"><span class="k">${lab}</span><span class="v">${esc(m.rows[k])}</span></div>`:`<div class="mrow next ${k===nowKey?'now':''}"><span class="k">${lab}</span><span class="v">${k===nowKey&&cv?`Reading video ${cv[0]} now`:'Next'}</span></div>`).join('')}
     </div></div>
@@ -527,7 +615,7 @@ function h6(){
     :VIDEO_PLAN.map(([t,s])=>`<div class="row later"><div class="check"><div class="ring"></div></div><span class="t" style="color:var(--t2)">${t}</span><span class="s">${s}</span></div>`).join('');
   return `<div class="col grow" style="min-width:0;padding:16px 28px 0 14px">
     <h1>Drop your video.</h1><p class="lede" style="margin-top:10px">A raw take straight off your phone is fine. Retakes and pauses get cut first.</p>
-    <button class="drop" id="drop" style="margin-top:28px" onclick="$('#pickf').click()"><div style="width:52px;height:52px;border-radius:26px;background:var(--soft);display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 12V3M5 7l4-4 4 4M3 12v3h12v-3" fill="none" stroke="#0C0A09" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="h" style="font-size:17px">Drop a video file here</div><div class="muted" style="font-size:14px">.mov, .mp4 or .mkv · it stays on this computer</div></button>
+    <button class="drop" id="drop" style="margin-top:28px" onclick="$('#pickf').click()"><div style="width:52px;height:52px;border-radius:26px;background:var(--soft);display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 12V3M5 7l4-4 4 4M3 12v3h12v-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="h" style="font-size:17px">Drop a video file here</div><div class="muted" style="font-size:14px">.mov, .mp4 or .mkv · it stays on this computer</div></button>
     <input type="file" id="pickf" accept="video/*,.mov,.mkv" class="hide" onchange="this.files[0]&&upload(this.files[0])">
     ${F?`<div class="file" style="margin-top:20px"><div style="width:32px;height:44px;border-radius:6px;background:#57534E;flex-shrink:0"></div><div class="grow"><div style="font-size:16px;font-weight:500">${esc(F.name)}</div><div class="muted" style="font-size:14px;margin-top:4px;${F.bad?'color:var(--ink)':''}">${esc(F.bad||F.label)}</div></div>${F.ok?`<span class="row" style="gap:6px">${CHECK} Ready</span>`:''}<button style="border:0;background:none;color:var(--t3);font-size:18px" onclick="ui.file=null;render()" aria-label="Remove">×</button></div>`:''}
     <div class="row" style="margin:16px 0 0;gap:16px"><span class="muted" style="font-size:14px;flex-shrink:0">or paste a path</span><input class="input" style="height:42px" placeholder="~/Movies/raw-take.MOV" onchange="probePath(this.value)"></div>
@@ -552,8 +640,8 @@ async function startCut(){const r=await queue({type:'video',path:ui.file.path,as
 let L=null, R=null, rv=null;
 const nv={sel:[],clips:{},join:true,aspect:'9:16',style:'mine',filter:'all',making:[],up:[]};
 const CMD='nextwork-editor';
-const UP='<svg width="22" height="22" viewBox="0 0 22 22"><path d="M11 15V5M7 9l4-4 4 4M4 15v2a1 1 0 001 1h12a1 1 0 001-1v-2" fill="none" stroke="#57534E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const FOLDER='<svg width="14" height="14" viewBox="0 0 14 14"><path d="M1.5 3.5a1 1 0 011-1h3l1.2 1.5h4.8a1 1 0 011 1v5.5a1 1 0 01-1 1h-9a1 1 0 01-1-1z" fill="none" stroke="#44403C" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+const UP='<svg width="22" height="22" viewBox="0 0 22 22"><path d="M11 15V5M7 9l4-4 4 4M4 15v2a1 1 0 001 1h12a1 1 0 001-1v-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const FOLDER='<svg width="14" height="14" viewBox="0 0 14 14"><path d="M1.5 3.5a1 1 0 011-1h3l1.2 1.5h4.8a1 1 0 011 1v5.5a1 1 0 01-1 1h-9a1 1 0 01-1-1z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
 const WCHECK='<svg width="10" height="10" viewBox="0 0 12 12"><path d="M2 6.2l2.6 2.6L10 3.4" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const returning=()=>!!(L&&S&&(S.profile||L.videos.length||S.jobs.some(j=>j.type==='video')));   // set up before, or has a video
 const ago=t=>{const d=(Date.now()/1000-t)/86400,dt=new Date(t*1000);if(d<1&&dt.getDate()===new Date().getDate())return 'today';if(d<2)return 'yesterday';if(d<7)return dt.toLocaleDateString(undefined,{weekday:'short'});return dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})};
@@ -566,91 +654,156 @@ async function loadRecent(){try{const r=await fetch('/recent');if(r.ok){R=await 
 
 function rheader(){
   const flow=['new','style','making'].includes(rv);
-  const sub={home:'home',new:'new video',style:'pick a style',making:'making your video',videos:'your videos',mystyle:'my styles',stylepage:'my styles',settings:'settings'}[rv];
-  $('#who').textContent=sub;
+  $('#homebtn').classList.toggle('on',rv==='home');
   $('#steps').className='tabs';
-  $('#steps').innerHTML=[['Home','home'],['New video',flow?rv:'new'],['Your videos','videos'],['My styles',rv==='stylepage'?'stylepage':'mystyle']].map(([n,v])=>`<button class="${rv===v?'on':''}" ${v==='home'?'data-home':''} onclick="rgo('${v}')">${n}</button>`).join('');
+  $('#steps').innerHTML=[['New video',flow?rv:'new'],['Your videos','videos'],['My styles',rv==='stylepage'?'stylepage':'mystyle']].map(([n,v])=>`<button class="${rv===v?'on':''}" ${v==='home'?'data-home':''} onclick="rgo('${v}')">${n}</button>`).join('');
   $('#bars').innerHTML='';
   const busy=S.jobs.filter(j=>j.state==='queued').length;
   $('#live').className='live';$('#live').style.width='auto';$('#live').style.minWidth='260px';$('#live').style.maxWidth='560px';
   const making=(L?L.videos:[]).filter(v=>v.status==='making'||v.status==='cutting').length;
-  $('#live').innerHTML=`${busy&&!S.listening?`<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="Claude is not listening. Type ${CMD} in Terminal.">Claude is not listening. Type ${CMD} in Terminal.</span>`:making?`<button class="hlink row" style="gap:8px;color:var(--ink)" onclick="rgo('videos')"><span class="dot"></span>Making ${making} video${making>1?'s':''}</button>`:''}<button class="hlink" style="color:${rv==='settings'?'var(--ink)':'var(--t3)'}" onclick="rgo('settings')">Settings</button>`;
+  $('#live').innerHTML=`${busy&&!S.listening?`<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="Claude is not listening. Type ${CMD} in Terminal.">Claude is not listening. Type ${CMD} in Terminal.</span>`:making?`<button class="hlink row" style="gap:8px;color:var(--ink)" onclick="rgo('videos')"><span class="dot"></span>Making ${making} video${making>1?'s':''}</button>`:''}<button class="hlink" style="color:${rv==='settings'?'var(--ink)':'var(--t3)'}" onclick="rgo('settings')" ${S.update&&S.update.newer?'title="A new version is out"':''}>Settings${S.update&&S.update.newer?'<span class="sdot"></span>':''}</button>${themeBtn()}`;
 }
 
 // ---- step 1: pick the clips
 function clipCard(v){
-  const i=nv.sel.indexOf(v.path);
-  return `<button class="clip ${i>=0?'on':''}" onclick="toggleClip(${esc(JSON.stringify(v.path))})"><div class="pic" style="background-image:url('${esc(v.thumb)}')">${i>=0?`<div class="num">${WCHECK}${i+1}</div>`:'<div class="ring2"></div>'}${v.duration?`<div class="dur">${fmtT(v.duration)}</div>`:''}</div><div style="padding-top:2px"><div class="nm">${esc(v.name)}</div><div class="wh">${esc(v.where||'')} · ${ago(v.mtime)}</div></div></button>`;
+  const i=nv.sel.indexOf(v.path),P=esc(JSON.stringify(v.path)),menu=ui.clipmenu===v.path;
+  return `<div class="clip ${i>=0?'on':''} ${menu?'menu':''} ${nv.flash===v.path?'flash':''}" role="button" tabindex="0" onclick="toggleClip(${P})" onkeydown="if(event.key==='Enter')toggleClip(${P})"><div class="pic" style="background-image:url('${esc(v.thumb)}')">${i>=0?`<div class="num">${WCHECK}${i+1}</div>`:'<div class="ring2"></div>'}${v.duration?`<div class="dur">${fmtT(v.duration)}</div>`:''}<button class="more" aria-label="More for this clip" title="More" onclick="event.stopPropagation();ui.clipmenu=ui.clipmenu===${P}?null:${P};render()">&middot;&middot;&middot;</button></div>
+    ${menu?`<div class="cmenu" onclick="event.stopPropagation()">${v.where!=='Your videos'?`<button onclick="clipAct('hide',${P})">Hide from this list</button>`:''}<button onclick="ui.clipmenu=null;ui.cliptrash=${P};render()">Move to Trash</button></div>`:''}
+    <div style="padding-top:2px"><div class="nm">${esc(v.name)}</div><div class="wh">${esc(v.where||'')} · ${ago(v.mtime)}</div></div></div>`;
+}
+async function clipAct(kind,path){
+  const r=await post('/clip/'+kind,{path});ui.clipmenu=null;ui.cliptrash=null;
+  if(!r.ok){ui.clipmsg=r.msg||'That did not work.'}else{ui.clipmsg=null;const i=nv.sel.indexOf(path);if(i>=0)nv.sel.splice(i,1)}
+  await loadRecent();render();
+}
+function trashRow(){
+  const p=ui.cliptrash;if(!p)return ui.clipmsg?`<div class="msg bad">${CROSS}<span>${esc(ui.clipmsg)}</span></div>`:'';
+  const c=clipOf(p);
+  return `<div class="confirm"><b>Move ${esc(c.name)} to the Trash?</b><div class="sub">It leaves ${esc(c.where||'its folder')}. You can put it back from the Trash.</div><div class="row"><button class="btn dark sm" onclick="clipAct('trash',${esc(JSON.stringify(p))})">Move to Trash</button><button class="btn quiet sm" onclick="ui.cliptrash=null;render()">Keep</button></div></div>`;
 }
 function toggleClip(p){const i=nv.sel.indexOf(p);if(i>=0)nv.sel.splice(i,1);else nv.sel.push(p);render()}
 function vNew(){
-  const vids=(R?R.videos:[]).filter(v=>nv.filter==='all'||v.where===nv.filter);
+  const fresh=Object.values(nv.clips).filter(c=>c.fresh&&!(R&&R.videos.some(v=>v.path===c.path)));
+  const vids=[...fresh,...(R?R.videos:[])].filter(v=>nv.filter==='all'||v.where===nv.filter);
   const n=nv.sel.length,places=R&&R.scan_home?['Movies','Desktop','Downloads']:[];
   const chips=R&&R.scan_home?`<button class="pill ${nv.filter==='all'?'on':''}" onclick="nv.filter='all';render()">All recent</button>${places.map(p=>`<button class="pill ${nv.filter===p?'on':''}" onclick="nv.filter='${p}';render()">${p}</button>`).join('')}<span class="muted" style="padding-left:8px">Your newest clips</span>`
     :`<button class="pill" onclick="scanHome(true)">Show recent clips from Movies, Desktop and Downloads</button>`;
-  const ups=nv.up.map(u=>`<div class="clip"><div class="pic" style="display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;text-align:center;padding:8px">${esc(u.msg)}</div><div class="nm">${esc(u.name)}</div></div>`).join('');
+  const ups=nv.up.map(u=>`<div class="clip" id="up-${u.id}"><div class="pic upic">${u.bad?`<span>${esc(u.bad)}</span><button class="more" style="opacity:1" aria-label="Dismiss" title="Dismiss" onclick="nv.up=nv.up.filter(x=>x.id!==${u.id});render()">${CROSS}</button>`
+    :`<span class="uptxt">${u.msg==='Adding...'?`Adding... ${u.pct}%`:esc(u.msg)}</span><div class="upbar"><div style="width:${u.pct}%"></div></div>`}</div><div class="nm">${esc(u.name)}</div></div>`).join('');
   const side=`<div class="panel rv-side" style="width:520px;flex-shrink:0">
     ${n>=2?`<div class="sec"><div class="h">These ${n} clips are</div><div style="display:flex;flex-direction:column;gap:8px">
       <button class="opt ${nv.join?'on':''}" onclick="nv.join=true;render()"><div class="radio"></div><div class="grow"><div class="row" style="gap:8px"><b style="font-size:14px">One video, joined in this order</b><span class="rec">Recommended</span></div><div class="sub" style="font-size:13px;line-height:18px">${nv.sel.map((p,i)=>i+1).join(', ')} play back to back.${total()?` About ${fmtT(total())} long.`:''}</div></div></button>
       <button class="opt ${nv.join?'':'on'}" onclick="nv.join=false;render()"><div class="radio"></div><div class="grow"><b style="font-size:14px">Separate videos</b><div class="sub" style="font-size:13px;line-height:18px">Each clip becomes its own video. ${n} in total.</div></div></button></div></div>`:''}
     ${n?`<div class="sec"><div class="between"><span class="h">In this order</span>${n>1?'<span class="muted">Drag to change</span>':''}</div><div class="order" id="order">${nv.sel.map((p,i)=>{const c=clipOf(p);return `<div draggable="true" data-i="${i}"><div class="th" style="background-image:url('${esc(c.thumb||'')}')"></div><div style="min-width:0"><div style="font-weight:600;font-size:13px">${i+1}</div><div class="muted" style="color:var(--t2);font-size:12px">${c.duration?fmtT(c.duration):esc(c.name)}</div></div></div>`}).join('')}</div></div>`
-      :`<div class="sec"><div class="h">Your clips</div><div class="sub">Click the clips you want, choose files, or drop them anywhere on this window.</div></div>`}
+      :`<div class="sec"><div class="h">Your clips</div><div class="sub">Click clips, or drop files anywhere here.</div></div>`}
     <div class="sec"><div class="h">Shape</div><div class="row">${[['9:16','Tall · 9:16','TikTok, Reels, Shorts',18,32],['16:9','Wide · 16:9','YouTube',28,17]].map(([a,t,s,w,h])=>`<button class="shape ${nv.aspect===a?'on':''}" onclick="nv.aspect='${a}';render()"><div style="width:28px;height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i style="width:${w}px;height:${h}px"></i></div><div><b style="font-size:14px">${t}</b><div class="sub" style="font-size:12px;line-height:16px">${s}</div></div></button>`).join('')}</div></div>
     <div class="sec" style="margin-top:auto;padding:18px 24px 22px"><div class="between"><span class="sub" style="font-size:13px">${n?summary():'No clips picked yet'}</span><span class="muted">Step 1 of 2</span></div>
-      <button class="go" id="next" ${n&&!nv.up.length?'':'disabled'} onclick="rgo('style')">Next: pick a style</button>
+      <button class="go" id="next" ${n&&!nv.up.some(u=>!u.bad)?'':'disabled'} onclick="rgo('style')">Next: pick a style</button>
       <div class="muted faint" style="line-height:18px">Nothing starts until you pick a style.</div></div></div>`;
   return `<div class="col grow" style="gap:22px;min-width:0;padding:12px 14px 0">
     <div><h1>New video</h1><p class="lede" style="margin-top:8px;font-size:16px;line-height:22px">Click the clips you want, in the order they play.</p></div>
     <div class="between" style="align-items:center;flex-wrap:wrap"><div class="row" style="gap:8px;flex-wrap:wrap">${chips}</div><label class="choose">${FOLDER}Choose files...<input type="file" id="pickm" multiple accept="video/*,.mov,.mkv,.mp4" class="hide" onchange="chooseFiles(this.files);this.value=''"></label></div>
-    <div class="grid"><div class="droptile" id="droptile" onclick="$('#pickm').click()">${UP}<div style="font-weight:500;font-size:13px;line-height:17px">Drop files here</div><div class="muted" style="font-size:12px">or anywhere on this window</div></div>${ups}${vids.map(clipCard).join('')}</div>
+    ${trashRow()}<div class="grid"><div class="droptile" id="droptile" onclick="$('#pickm').click()">${UP}<div style="font-weight:500;font-size:13px;line-height:17px">Drop files here</div><div class="muted" style="font-size:12px">or anywhere on this window</div></div>${ups}${vids.map(clipCard).join('')}</div>
     ${!vids.length&&R?`<div class="muted">No clips here yet. Choose files or drop them in.</div>`:''}
     <div class="row" style="gap:8px"><b style="font-weight:500;font-size:13px;white-space:nowrap;flex-shrink:0">${n} picked</b><span class="muted">Click a clip again to take it out. The numbers are the order they play.</span></div>
   </div>${side}`;
 }
 const summary=()=>{const n=nv.sel.length;return `${n>1?(nv.join?`${n} clips joined`:`${n} separate videos`):'1 clip'}${total()?' · '+fmtT(total()):''} · ${nv.aspect==='9:16'?'Tall':'Wide'} ${nv.aspect}`};
 async function scanHome(on){await post('/scanhome',{on});await loadRecent()}
+// dropped or chosen files: a card at the front of the grid right away, with its copy progress; once in, it is
+// picked (that is why it was dropped), flashes once, and a toast names it. Problems stay on the card in words.
+let upN=0,toastT=null;
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('on'),2000)}
+function paintUp(u){const e=$('#up-'+u.id);if(!e)return;const t=e.querySelector('.uptxt'),b=e.querySelector('.upbar div');if(t)t.textContent=`Adding... ${u.pct}%`;if(b)b.style.width=u.pct+'%'}
+function sendFile(u){return new Promise(res=>{const x=new XMLHttpRequest();x.open('POST','/upload?name='+encodeURIComponent(u.f.name));
+  x.upload.onprogress=e=>{if(e.lengthComputable){u.pct=Math.round(e.loaded/e.total*100);paintUp(u)}};
+  x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}res(j)};x.onerror=()=>res({ok:false,msg:'The copy stopped. Try again.'});x.send(u.f)})}
 async function chooseFiles(files){
   // the Mac dialog hands files back in its own order: sort them by when they were filmed (file date), then drag to change
-  const fs=[...files].filter(f=>/\.(mov|mp4|m4v|mkv|webm|avi|mts|3gp)$/i.test(f.name)).sort((a,b)=>a.lastModified-b.lastModified);
-  for(const f of fs)nv.up.push({name:f.name,msg:'Waiting'});
-  render();
-  for(const f of fs){
-    const u=nv.up.find(x=>x.name===f.name);u.msg='Copying into your library...';render();
-    try{const r=await fetch('/upload?name='+encodeURIComponent(f.name),{method:'POST',body:f});const j=await r.json();
-      if(j.ok){nv.clips[j.path]={path:j.path,name:j.name,duration:j.duration,where:'Your videos',mtime:Date.now()/1000,thumb:'/thumb?p='+encodeURIComponent(j.path)};if(!nv.sel.includes(j.path))nv.sel.push(j.path)}
-      else alert(j.msg||'That file could not be copied.')}catch(e){alert('The copy stopped. Try again.')}
-    nv.up=nv.up.filter(x=>x!==u);render();
+  const fs=[...files].sort((a,b)=>a.lastModified-b.lastModified);
+  const items=fs.map(f=>({id:++upN,name:f.name,f,pct:0,msg:'Waiting',bad:/\.(mov|mp4|m4v|mkv|webm|avi|mts|3gp)$/i.test(f.name)?null:'Not a video. Add a .mov, .mp4 or .mkv file.'}));
+  nv.up=[...items,...nv.up];render();
+  for(const u of items){
+    if(u.bad)continue;
+    u.msg='Adding...';paintUp(u);render();
+    const j=await sendFile(u);
+    if(j.ok){
+      nv.clips[j.path]={path:j.path,name:j.name,duration:j.duration,where:'Your videos',mtime:Date.now()/1000,raw:true,fresh:true,thumb:'/thumb?p='+encodeURIComponent(j.path)};
+      if(!nv.sel.includes(j.path))nv.sel.push(j.path);
+      nv.up=nv.up.filter(x=>x!==u);nv.flash=j.path;toast('Added '+j.name);
+      setTimeout(()=>{if(nv.flash===j.path){nv.flash=null;render()}},1700);
+    }else u.bad=j.msg||'That file could not be added.';
+    render();
   }
   loadRecent();
 }
 
 // ---- step 2: pick a style
+// A style's 9:16 preview: the image the user chose for it, else their newest raw take (never a finished render,
+// its own captions would clash), else one of the demo photos (demo/CREDITS.md), a different one per card.
+const DEMO=i=>`/demo/person-${i%3+1}.jpg`;
+const rawThumb=()=>{const c=nv.sel.length?clipOf(nv.sel[0]):null;return (c&&c.raw!==false&&c.thumb)||((R?R.videos:[]).find(v=>v.raw&&v.thumb)||{}).thumb||null};
+const picOf=(c,i)=>c.cover?{url:c.cover,mine:1}:rawThumb()?{url:rawThumb(),clip:1}:{url:DEMO(i),demo:1};
+function picBtns(c){return c.studying?'':`<div class="picbtns"><button onclick="event.stopPropagation();pickCover(${esc(JSON.stringify(c.id))})">Change image</button>${c.cover?`<button onclick="event.stopPropagation();removeCover(${esc(JSON.stringify(c.id))})">Remove image</button>`:''}</div>`}
+function pickCover(id){ui.coverFor=id;$('#coverf').click()}
+async function setCover(f){
+  const id=ui.coverFor;if(!id)return;
+  const r=await fetch('/style/cover?id='+encodeURIComponent(id),{method:'POST',body:f,headers:{'Content-Type':f.type||'image/jpeg'}});
+  const j=await r.json().catch(()=>({}));if(!j.ok)ui.covermsg={id,msg:j.msg||'That image did not work.'};else ui.covermsg=null;
+  await loadLib();if(rv==='stylepage')await loadStyle();render();
+}
+async function removeCover(id){await post('/style/cover/remove',{id});ui.covermsg=null;await loadLib();if(rv==='stylepage')await loadStyle();render()}
+const PENCIL='<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.2 2.3a1.6 1.6 0 0 1 2.3 2.3L5.3 12.8 2.5 13.5l.7-2.8z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+// rename and "Use it for": a pencil turns the text into a field; Enter saves, Esc puts it back
+function editField(kind,id,val,style=''){
+  if(ui.edit&&ui.edit.kind===kind&&ui.edit.id===id)return `<span style="display:inline-flex;flex-direction:column;gap:6px;min-width:0;flex:1"><input class="input" id="ed-${kind}" style="font:inherit;height:auto;padding:4px 8px;${style}" value="${esc(ui.edit.val??val)}" onclick="event.stopPropagation()" oninput="ui.edit.val=this.value" onkeydown="event.stopPropagation();if(event.key==='Enter')saveEdit();if(event.key==='Escape'){ui.edit=null;render()}" placeholder="${kind==='use'?'talking-head reels about AI tools':''}">${ui.edit.msg?`<span class="msg bad" style="font-size:13px">${CROSS}<span>${esc(ui.edit.msg)}</span></span>`:''}</span>`;
+  return `<button class="hlink row" style="gap:6px;color:var(--t3);font-size:inherit;padding:2px" title="${kind==='use'?'Change when Claude uses it':'Rename'}" aria-label="${kind==='use'?'Change when Claude uses it':'Rename'}" onclick="event.stopPropagation();ui.edit={kind:'${kind}',id:${esc(JSON.stringify(id))},val:null};render();setTimeout(()=>{const e=$('#ed-${kind}');if(e){e.focus();e.select()}},0)">${PENCIL}</button>`;
+}
+async function saveEdit(){
+  const e=ui.edit;if(!e)return;const val=($('#ed-'+e.kind)||{}).value??e.val??'';
+  const r=await post(e.kind==='use'?'/style/usefor':'/style/rename',e.kind==='use'?{id:e.id,text:val}:{id:e.id,name:val});
+  if(!r._ok){ui.edit={...e,val,msg:r.error||'That did not save.'};return render()}
+  ui.edit=null;if(rv==='stylepage')ui.spage=r;await loadLib();render();
+}
+function delRow(c,note){
+  const h=c.id.slice(1),m=ui.del&&ui.del.measured;
+  return `<div class="delrow" onclick="event.stopPropagation()"><b style="font-size:14px">Delete ${esc(c.name)}'s style? Its skill goes too.</b>${note?`<div class="sub" style="font-size:13px">${esc(note)}</div>`:''}
+    <label class="row" style="gap:8px;font-size:13px;color:var(--t2);cursor:pointer"><input type="checkbox" ${m?'checked':''} onchange="ui.del.measured=this.checked" style="accent-color:var(--ink)">Also delete what was measured (@${esc(h)}'s downloaded videos)</label>
+    <div class="row" style="gap:8px"><button class="btn dark sm" onclick="delStyle(${esc(JSON.stringify(c.id))})">Delete</button><button class="btn quiet sm" onclick="ui.del=null;render()">Keep</button></div></div>`;
+}
+async function delStyle(id){
+  const r=await post('/style/delete',{id,measured:!!(ui.del&&ui.del.measured)});ui.del=null;
+  if(!r._ok){alert(r.error||'That did not delete.');return}
+  if(nv.style===id)nv.style='mine';await loadLib();if(rv==='stylepage')rgo('mystyle');else render();
+}
 function capSample(lk){
   if(!lk)return '';
   const t='how it looks',txt=lk.case==='upper'?t.toUpperCase():lk.case==='lower'?t.toLowerCase():t;
   const bg=lk.box?`background:${esc(lk.box_color||'#000')};`:'';
   return `<div class="cap" style="top:${lk.y_pct!=null?Math.min(88,Math.max(12,lk.y_pct)):66}%"><span style="${bg}color:${esc(lk.color||'#fff')};font-weight:${+lk.weight||600};${lk.box?'':'text-shadow:0 1px 4px #0008'}">${esc(txt)}</span></div>`;
 }
-function styleCard(c,pick){
-  const first=nv.sel.length?clipOf(nv.sel[0]):(R&&R.videos[0])||{};
-  const on=pick&&nv.style===c.id;
-  return `<div class="scard ${on?'on':''}" onclick="${pick?`nv.style='${esc(c.id)}';render()`:`openStyle('${esc(c.id)}')`}"><div class="pic" style="${first.thumb?`background-image:url('${esc(first.thumb)}')`:''}">${capSample(c.look)}${c.studying?'<div class="studying">Studying their videos now</div>':''}</div>
-    <div class="between" style="align-items:center;margin-top:16px;padding:0 6px"><span style="font-size:18px;font-weight:600">${esc(c.name)}</span>${pick?`<div class="radio ${on?'on':''}"></div>`:''}</div>
+function styleCard(c,pick,i){
+  const pic=picOf(c,i),on=pick&&nv.style===c.id,editing=ui.edit&&ui.edit.kind==='name'&&ui.edit.id===c.id;
+  const del=c.id!=='mine'&&!c.studying&&ui.del&&ui.del.id===c.id;
+  const base=L&&L.styles[0]&&L.styles[0].base;
+  return `<div class="scard ${on?'on':''}" onclick="${pick?`nv.style='${esc(c.id)}';render()`:`openStyle('${esc(c.id)}')`}"><div class="pic" style="background-image:url('${esc(pic.url)}')">${pic.demo?'<span class="extag">Example photo</span>':''}${capSample(c.look)}${picBtns(c)}${c.studying?'<div class="studying">Studying their videos now</div>':''}</div>
+    ${ui.covermsg&&ui.covermsg.id===c.id?`<div class="msg bad" style="margin:10px 6px 0">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
+    <div class="between" style="align-items:center;margin-top:16px;padding:0 6px"><span class="row" style="gap:6px;min-width:0;flex:1">${editing?'':`<span style="font-size:18px;font-weight:600">${esc(c.name)}</span>`}${c.studying?'':editField('name',c.id,c.name,'font-size:16px')}</span>${pick?`<div class="radio ${on?'on':''}"></div>`:''}</div>
     <div class="sub" style="padding:8px 6px 10px;font-size:14px;line-height:21px">${esc(c.line)}</div>
     <div style="padding:0 6px 4px">${c.facts.map(([k,v])=>`<div class="frow"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}</div>
-    ${c.skill?`<div class="between" style="margin-top:auto;padding:12px 6px 2px;border-top:1px solid var(--line)"><span class="mono" style="font-size:12px">${esc(c.skill)}</span><button class="hlink" style="color:var(--ink);font-size:13px" onclick="event.stopPropagation();openStyle('${esc(c.id)}')">Edit style ›</button></div>`:''}</div>`;
+    ${del?delRow(c,base&&'@'+base===c.id?'My style started from this one. It goes back to the default style.':''):c.skill?`<div class="between" style="margin-top:auto;padding:12px 6px 2px;border-top:1px solid var(--line)"><span class="mono" style="font-size:12px">/${esc(c.skill)}</span><span class="row" style="gap:14px">${c.id!=='mine'&&!c.studying?`<button class="hlink" style="font-size:13px" onclick="event.stopPropagation();ui.del={id:${esc(JSON.stringify(c.id))},measured:false};render()">Delete</button>`:''}<button class="hlink" style="color:var(--ink);font-size:13px" onclick="event.stopPropagation();openStyle('${esc(c.id)}')">Edit style ›</button></span></div>`:''}</div>`;
 }
 function createCard(){
   const st=ui.study||{};
   return `<div class="create"><div class="row" style="gap:12px"><span style="font-size:24px;line-height:24px">+</span><span style="font-size:22px;font-weight:600">Create a new style</span></div>
-    <div class="sub" style="margin-top:-8px">Saved next to My style. Use it on any video after this.</div>
-    <div class="box2"><div class="between"><b style="font-size:16px">Copy a creator</b><span class="muted">about 3 min</span></div><div class="sub" style="margin-top:6px">Paste their profile or one of their videos. The editor measures how they cut, caption and zoom.</div>
-      <div class="row" style="margin-top:14px;gap:8px"><input class="input" id="studylink" style="font-family:inherit;font-size:14px" placeholder="Paste a profile or links to their videos" onkeydown="if(event.key==='Enter')studyLink()"><button class="small" style="color:var(--ink)" ${st.busy?'disabled':''} onclick="studyLink()">Study</button></div>
+    <div class="box2"><div class="between"><b style="font-size:16px">Copy a creator</b><span class="muted">about 3 min</span></div>
+      <div style="margin-top:14px">${linkBox('study',false)}</div>
+      <div class="between" style="margin-top:12px;align-items:center"><span class="lcount">${lbCount('study')}</span><button class="small" style="color:var(--ink)" ${st.busy?'disabled':''} onclick="studyLink()">Study</button></div>
       ${st.msg?`<div class="muted" style="margin-top:10px;color:var(--ink)">${esc(st.msg)}</div>`:''}</div>
-    <button class="box2 row" style="text-align:left;justify-content:space-between" onclick="buildYourself()"><div><b style="font-size:16px">Build it yourself</b><div class="sub" style="margin-top:6px">Pick captions, zooms, cut and sound one by one. Opens the page for My style.</div></div><span style="font-size:20px;color:var(--t2)">›</span></button></div>`;
+    <button class="box2 row" style="text-align:left;justify-content:space-between" onclick="buildYourself()"><div><b style="font-size:16px">Build it yourself</b><div class="sub" style="margin-top:6px">Pick captions, zooms, cut and sound yourself.</div></div><span style="font-size:20px;color:var(--t2)">›</span></button></div>`;
 }
 async function studyLink(){
-  const v=($('#studylink')||{}).value||'';if(!v.trim())return;
+  const v=lbText('study');if(!v.trim())return;
   ui.study={busy:1};render();
   let r=await post('/lookup',{text:v.trim()});
   const m=/(?:tiktok\.com|youtube\.com)\/@([\w.-]+)/i.exec(v);
@@ -659,7 +812,7 @@ async function studyLink(){
   const j=await post('/job',{type:'teardown',handle:r.handle,platform:r.platform,urls:r.urls,take:PARTS.map(p=>p[0])});
   if(!j._ok){ui.study={msg:j.error||'That did not start.'};return render()}
   const h=j.handle||r.handle;nv.style='@'+h;ui.study={msg:`Studying @${h}. It is picked for this video: the cut starts now and the style waits for the study.`};
-  const i=$('#studylink');if(i)i.value='';await load();await loadLib();
+  LB.study={rows:[],draft:''};await load();await loadLib();
 }
 function buildYourself(){nv.style='mine';openStyle('mine')}
 function vStyle(){
@@ -667,9 +820,9 @@ function vStyle(){
   const cards=(L?L.styles:[]);if(!cards.some(c=>c.id===nv.style)&&nv.style!=='defaults')nv.style='mine';
   const n=nv.sel.length,busy=nv.making.some(id=>{const j=S.jobs.find(x=>x.id===id);return j&&j.state==='queued'});
   return `<div class="col grow" style="min-width:0;padding:4px 14px 0;gap:24px">
-    <div class="between" style="align-items:flex-end;flex-wrap:wrap;gap:16px"><div><button class="hlink" style="font-size:14px;color:var(--t2)" onclick="rgo('new')">‹ Back to your clips</button><h1 style="margin-top:12px">Pick a style</h1><p class="lede" style="margin-top:8px">Each one is shown on your first clip, so you see how yours will look.</p></div>
+    <div class="between" style="align-items:flex-end;flex-wrap:wrap;gap:16px"><div><button class="hlink" style="font-size:14px;color:var(--t2)" onclick="rgo('new')">‹ Back to your clips</button><h1 style="margin-top:12px">Pick a style</h1></div>
       <div class="row" style="gap:6px">${nv.sel.slice(0,3).map(p=>`<div style="width:26px;height:46px;border-radius:4px;background:#45403C url('${esc(clipOf(p).thumb||'')}') center/cover"></div>`).join('')}<div style="margin-left:6px"><div style="font-weight:500">${n>1?`${n} clips, ${nv.join?'joined':'separate'}`:'1 clip'}</div><div class="muted">${total()?fmtT(total())+' · ':''}${nv.aspect==='9:16'?'Tall':'Wide'} ${nv.aspect}</div></div></div></div>
-    <div style="display:flex;flex-wrap:wrap;gap:24px">${cards.map(c=>styleCard(c,true)).join('')}${createCard()}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:24px">${cards.map((c,i)=>styleCard(c,true,i)).join('')}${createCard()}</div>
     <div class="bar2"><div><div style="font-size:15px;font-weight:500">${summary()} · ${esc(styleName(nv.style))}</div><div class="muted" style="margin-top:4px;font-size:14px">Runs on this computer. Free.</div></div><button class="go" id="make" style="width:300px" onclick="makeVideo()">Make my video</button></div>
   </div>`;
 }
@@ -706,9 +859,9 @@ function vMaking(){
   const others=(L?L.videos:[]).filter(v=>!mine.has(v.dir)).slice(0,3);
   return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:34px"><div><h1>Making your video${js.length>1?'s':''}</h1><p class="lede" style="margin-top:10px">The review page opens from here when the cut is ready.</p></div>${js.map(jobBlock).join('<div style="border-top:1px solid var(--line)"></div>')}</div>
   <div class="panel rv-side" style="width:420px;flex-shrink:0">
-    <div class="sec"><div class="h" style="font-size:16px">Make another while you wait</div><div class="sub" style="margin-top:-4px">Pick new clips. They wait in line behind this one.</div><button class="btn" style="height:44px;border-color:var(--ring)" onclick="rgo('new')">+ Make another</button></div>
+    <div class="sec"><div class="h" style="font-size:16px">Make another while you wait</div><button class="btn" style="height:44px;border-color:var(--ring)" onclick="rgo('new')">+ Make another</button></div>
     <div class="sec"><div class="h" style="font-size:16px">Also on your list</div>${others.length?others.map(v=>`<div class="row" style="gap:14px"><div style="width:36px;height:64px;border-radius:6px;flex-shrink:0;background:#45403C ${v.thumb?`url('${esc(v.thumb)}') center/cover`:''}"></div><div class="grow" style="min-width:0"><div style="font-size:15px">${esc(v.name)}</div><div class="muted" style="margin-top:2px;font-size:14px">${STATUS[v.status]} · ${ago(v.updated)}</div></div>${v.review?`<a href="/review?dir=${encodeURIComponent(v.dir)}">Watch</a>`:''}</div>`).join(''):'<div class="muted">Nothing else yet.</div>'}</div>
-    <div class="sec" style="margin-top:auto;background:var(--bg)"><div class="h">You can close this window</div><div class="sub" style="font-size:14px">The video keeps going while Claude Code stays open. To come back, type this in Terminal. The same window opens.</div><div class="codebox"><span>${CMD}</span><button class="hlink" onclick="copyText('${CMD}',this)">Copy</button></div></div>
+    <div class="sec" style="margin-top:auto;background:var(--bg)"><div class="h">You can close this window</div><div class="sub" style="font-size:14px">The video keeps going. Type this in Terminal to come back.</div><div class="codebox"><span>${CMD}</span><button class="hlink" onclick="copyText('${CMD}',this)">Copy</button></div></div>
   </div>`;
 }
 
@@ -719,23 +872,24 @@ function vRow(v){
   const act=v.status==='ready'||(v.status==='making'&&v.review)?`<a class="btn sm" style="text-decoration:none" href="/review?dir=${encodeURIComponent(v.dir)}">Watch and review</a>`:v.status==='done'&&v.media?`<a href="${esc(v.media)}" download style="text-decoration:none;font-size:15px">Download</a>`:'';
   return `<div class="vrow"><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}"></div><div class="grow" style="min-width:0"><div style="font-size:16px">${esc(v.name)}</div><div class="sub" style="margin-top:4px">${v.kind==='edits'?'':esc(v.kind)+' · '}${v.round?`round ${v.round} · `:''}${ago(v.updated)}</div></div><div class="st">${st}</div><div class="act">${act}</div></div>`;
 }
+const EXROW=`<div class="vrow ex"><div class="th" style="background-image:url('/demo/person-2.jpg')"></div><div class="grow" style="min-width:0"><div style="font-size:16px">my-first-video</div><div class="sub" style="margin-top:4px">Example. Your videos show here.</div></div><div class="st"><span class="tagq">Example</span></div></div>`;
 function styleSide(){
-  const st=L?L.styles:[],me=st[0],first=(L.videos.find(v=>v.thumb)||{}).thumb||(R&&R.videos[0]||{}).thumb;
-  return `<div class="col rv-side" style="width:500px;gap:24px">${me?`<div class="panel"><div class="between" style="padding:22px 28px 0"><span class="h" style="font-size:17px">My style</span><a href="#" onclick="openStyle('mine');return false">Change</a></div>
-    <div class="row" style="gap:28px;padding:18px 28px 22px;align-items:flex-start"><div style="position:relative;width:138px;height:246px;flex-shrink:0;border-radius:14px;overflow:hidden;background:#45403C ${first?`url('${esc(first)}') center/cover`:''}"><div class="capsm">${capSample(me.look)}</div></div><div style="display:flex;flex-direction:column;gap:16px">${me.facts.map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div></div>
-    <div class="muted" style="border-top:1px solid var(--line);padding:16px 28px;font-size:14px;color:var(--t2);background:var(--bg)">${esc(me.line)}</div></div>`:''}
+  const st=L?L.styles:[],me=st[0],pic=me&&picOf(me,0);
+  return `<div class="col rv-side" style="width:500px;gap:24px">${me?`<div class="panel"><div class="between" style="padding:22px 28px 0"><span class="h" style="font-size:17px">${esc(me.name)}</span><a href="#" onclick="openStyle('mine');return false">Change</a></div>
+    <div class="row" style="gap:28px;padding:18px 28px 22px;align-items:flex-start"><div class="pic" style="position:relative;width:138px;height:246px;flex-shrink:0;border-radius:14px;overflow:hidden;background:#45403C url('${esc(pic.url)}') center/cover">${pic.demo?'<span class="extag">Example photo</span>':''}<div class="capsm">${capSample(me.look)}</div></div><div style="display:flex;flex-direction:column;gap:16px">${me.facts.map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div></div></div>`:''}
     <div class="panel" style="padding:22px 28px"><div class="between"><span class="h" style="font-size:17px">Creators you studied</span><span class="muted">${st.length-1}</span></div>
-    ${st.slice(1).map(c=>`<button class="crow" ${c.studying?'disabled':''} onclick="openStyle(${esc(JSON.stringify(c.id))})"><div class="ini">${esc(c.name.slice(1,3).toUpperCase())}</div><div class="grow" style="min-width:0"><div class="cn" style="font-size:15px;font-weight:500">${esc(c.name)}</div><div class="muted" style="font-size:14px;margin-top:2px">${c.studying?'being studied now':[c.videos?`${c.videos} video${c.videos>1?'s':''}`:'',c.facts[0]?c.facts[0].join(' '):''].filter(Boolean).join(' · ')}</div></div>${me&&me.base&&'@'+me.base===c.id?'<span class="tagq">In my style</span>':''}</button>`).join('')||'<div class="muted" style="margin-top:12px">None yet.</div>'}
-    <button class="hlink" style="margin-top:18px;font-size:14px;color:var(--ink)" onclick="rgo('mystyle')">+ Study someone new from a link</button></div>
-    <div style="margin-top:auto;padding:0 8px 4px"><div style="font-weight:500">Same window every time</div><div class="muted" style="font-size:14px;line-height:20px;margin-top:6px">Bookmark ${esc(location.host)} or type ${CMD}. Keys and styles stay on this computer.</div></div></div>`;
+    ${st.length>1?'':`<div class="crow ex"><div class="ini">EX</div><div class="grow" style="min-width:0"><div style="font-size:15px;font-weight:500">@example.creator</div><div class="muted" style="font-size:14px;margin-top:2px">Example. The creators you study show here.</div></div><span class="tagq">Example</span></div>`}
+    ${st.slice(1).map(c=>`<button class="crow" ${c.studying?'disabled':''} onclick="openStyle(${esc(JSON.stringify(c.id))})"><div class="ini">${esc(c.id.slice(1,3).toUpperCase())}</div><div class="grow" style="min-width:0"><div class="cn" style="font-size:15px;font-weight:500">${esc(c.name)}</div><div class="muted" style="font-size:14px;margin-top:2px">${c.studying?'being studied now':[c.videos?`${c.videos} video${c.videos>1?'s':''}`:'',c.facts[0]?c.facts[0].join(' '):''].filter(Boolean).join(' · ')}</div></div>${me&&me.base&&'@'+me.base===c.id?'<span class="tagq">In my style</span>':''}</button>`).join('')}
+    <button class="hlink" style="margin-top:18px;font-size:14px;color:var(--ink)" onclick="rgo('mystyle')">+ Study a creator</button></div></div>`;
 }
 function vHome(){
   const vids=L.videos,ready=vids.filter(v=>v.status==='ready').length,making=vids.filter(v=>v.status==='making'||v.status==='cutting').length;
   const rec=(R?R.videos:[]).slice(0,4);
-  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:28px"><div><h1>Welcome back</h1><p class="lede" style="margin-top:10px">${[ready?`${ready} ready for you to watch.`:'',making?`${making} still being made.`:'','Your style and creators are where you left them.'].filter(Boolean).join(' ')}</p></div>
-    <div class="panel" style="padding:24px 28px;gap:22px"><div class="between" style="align-items:flex-start;flex-wrap:wrap"><div><div style="font-size:22px;font-weight:600">New video</div><div class="sub" style="margin-top:6px;font-size:15px">${rec.length?'Your newest clips.':'Pick clips from this computer.'}</div></div><button class="btn dark" style="height:52px;padding:0 40px;font-size:16px" onclick="rgo('new')">+ New video</button></div>
-      <div class="row recrow" style="gap:12px;align-items:flex-end"><div class="droptile" id="droptile" style="width:150px;height:150px" onclick="rgo('new')">${UP}<div style="font-weight:500;font-size:13px">Drop files here</div><div class="muted" style="font-size:12px">or choose files</div></div>${rec.map(v=>`<button class="clip" style="width:84px" onclick="nv.sel=[${esc(JSON.stringify(v.path))}];rgo('new')"><div class="pic" style="width:84px;height:150px;background-image:url('${esc(v.thumb)}')"></div></button>`).join('')}${rec[0]?`<div class="reclabel" style="padding-left:12px;min-width:140px"><div style="font-size:15px">${esc(rec[0].name)}</div><div class="muted" style="margin-top:4px;font-size:14px">${esc(rec[0].where)} · ${ago(rec[0].mtime)}</div></div>`:''}</div></div>
-    <div><div class="between" style="padding-bottom:12px"><span class="h" style="font-size:17px">Your videos</span>${vids.length>3?`<a href="#" onclick="rgo('videos');return false">See all ${vids.length}</a>`:''}</div>${vids.slice(0,3).map(vRow).join('')||'<div class="muted">No videos yet.</div>'}</div>
+  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:28px"><div><h1>Welcome back</h1>${ready||making?`<p class="lede" style="margin-top:10px">${[ready?`${ready} ready for you to watch.`:'',making?`${making} still being made.`:''].filter(Boolean).join(' ')}</p>`:''}</div>
+    <div class="panel" style="padding:24px 28px;gap:22px"><div class="between" style="align-items:flex-start;flex-wrap:wrap"><div><div style="font-size:22px;font-weight:600">New video</div></div><button class="btn dark" style="height:52px;padding:0 40px;font-size:16px" onclick="rgo('new')">+ New video</button></div>
+      <div class="row recrow" style="gap:12px;align-items:flex-end"><div class="droptile" id="droptile" style="width:150px;height:150px" onclick="rgo('new')">${UP}<div style="font-weight:500;font-size:13px">Drop files here</div><div class="muted" style="font-size:12px">or choose files</div></div>${rec.map(v=>`<button class="clip" style="width:84px" onclick="nv.sel=[${esc(JSON.stringify(v.path))}];rgo('new')"><div class="pic" style="width:84px;height:150px;background-image:url('${esc(v.thumb)}')"></div></button>`).join('')}${rec[0]?`<div class="reclabel" style="padding-left:12px;min-width:140px"><div style="font-size:15px">${esc(rec[0].name)}</div><div class="muted" style="margin-top:4px;font-size:14px">${esc(rec[0].where)} · ${ago(rec[0].mtime)}</div></div>`
+        :[0,1,2].map(i=>`<div class="clip ex" style="width:84px"><div class="pic" style="width:84px;height:150px;background-image:url('${DEMO(i)}')"></div></div>`).join('')+`<div class="reclabel muted" style="padding-left:12px;min-width:140px;font-size:14px;line-height:20px">Example clips. Your newest clips show here.</div>`}</div></div>
+    <div><div class="between" style="padding-bottom:12px"><span class="h" style="font-size:17px">Your videos</span>${vids.length>3?`<a href="#" onclick="rgo('videos');return false">See all ${vids.length}</a>`:''}</div>${vids.slice(0,3).map(vRow).join('')||EXROW}</div>
   </div>${styleSide()}`;
 }
 const NOWLINE={ready:v=>v.stage==='edit'?'The edit is ready. Leave notes or approve it.':'The cut is ready. Leave notes or approve it.',
@@ -744,40 +898,48 @@ function nowCard(v){
   const st=v.status==='ready'?'<span class="dot"></span> Ready to watch':'<span class="ring"></span> Being made';
   return `<div class="ncard"><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}"></div><div style="display:flex;flex-direction:column;gap:6px;min-width:0;flex:1;padding:4px 4px 2px 0">
     <div class="row" style="gap:8px;font-size:13px;font-weight:${v.status==='ready'?600:400};color:${v.status==='ready'?'var(--ink)':'var(--t2)'}">${st}</div>
-    <div style="font-size:17px;line-height:22px;font-weight:600">${esc(v.name)}</div><div class="muted">${v.round?`round ${v.round} · `:''}${ago(v.updated)}</div>
+    <div style="font-size:17px;line-height:22px;font-weight:600">${esc(v.name)}</div><div class="muted">${v.round?`round ${v.round} · `:''}${ago(v.updated)} · ${rmLink(v)}</div>
     <div class="sub" style="font-size:13px;line-height:18px;margin-top:auto">${esc(NOWLINE[v.status](v))}</div>
     ${v.review?`<a class="btn sm" style="text-decoration:none;margin-top:6px" href="/review?dir=${encodeURIComponent(v.dir)}">Watch and review</a>`:''}</div></div>`;
 }
+function editTrashRow(){
+  const v=ui.edittrash&&L.videos.find(x=>x.dir===ui.edittrash);if(!v)return ui.editmsg?`<div class="msg bad">${CROSS}<span>${esc(ui.editmsg)}</span></div>`:'';
+  return `<div class="confirm"><b>Remove ${esc(v.name)} from your videos?</b><div class="sub">Its folder in your library goes to the Trash: the cut, the renders and your notes. Your original clip stays.</div><div class="row"><button class="btn dark sm" onclick="trashEdit(${esc(JSON.stringify(v.dir))})">Move to Trash</button><button class="btn quiet sm" onclick="ui.edittrash=null;render()">Keep</button></div></div>`;
+}
+async function trashEdit(dir){const r=await post('/edit/trash',{dir});ui.edittrash=null;ui.editmsg=r.ok?null:(r.msg||'That did not work.');await loadLib();render()}
+const rmLink=v=>`<button class="hlink" style="font-size:13px" onclick="event.stopPropagation();event.preventDefault();ui.edittrash=${esc(JSON.stringify(v.dir))};render();window.scrollTo(0,0)">Remove</button>`;
 function vVideos(){
   const now=L.videos.filter(v=>v.status!=='done'),done=L.videos.filter(v=>v.status==='done');
-  const lede=[now.filter(v=>v.status==='ready').length?`${now.filter(v=>v.status==='ready').length} ready for you to watch.`:'',now.filter(v=>v.status!=='ready').length?`${now.filter(v=>v.status!=='ready').length} still being made.`:'',done.length?`${done.length} done.`:''].filter(Boolean).join(' ')||'No videos yet.';
-  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:26px"><div class="between" style="align-items:flex-end;flex-wrap:wrap;gap:12px"><div><h1>Your videos</h1><p class="lede" style="margin-top:10px">${lede}</p></div><div class="row"><button class="btn quiet" onclick="post('/reveal',{})">Show in ${/Mac/.test(navigator.platform)?'Finder':'Explorer'}</button><button class="btn dark" onclick="rgo('new')">+ New video</button></div></div>
+  const lede=[now.filter(v=>v.status==='ready').length?`${now.filter(v=>v.status==='ready').length} ready for you to watch.`:'',now.filter(v=>v.status!=='ready').length?`${now.filter(v=>v.status!=='ready').length} still being made.`:'',done.length?`${done.length} done.`:''].filter(Boolean).join(' ');
+  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:26px"><div class="between" style="align-items:flex-end;flex-wrap:wrap;gap:12px"><div><h1>Your videos</h1>${lede?`<p class="lede" style="margin-top:10px">${lede}</p>`:''}</div><div class="row"><button class="btn quiet" onclick="post('/reveal',{})">Show in ${/Mac/.test(navigator.platform)?'Finder':'Explorer'}</button><button class="btn dark" onclick="rgo('new')">+ New video</button></div></div>
+    ${editTrashRow()}
     ${now.length?`<div><div class="h" style="margin-bottom:12px">Now</div><div class="nowg">${now.map(nowCard).join('')}</div></div>`:''}
-    ${done.length?`<div><div class="between" style="margin-bottom:12px"><span class="h">Done</span><span class="muted">newest first</span></div><div class="doneg">${done.map(v=>`<div class="dtile"><a href="${v.review?'/review?dir='+encodeURIComponent(v.dir):esc(v.media||'#')}" style="text-decoration:none"><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${TICK}</div></a><div style="font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.name)}</div><div class="between"><span class="muted">${ago(v.updated)}</span>${v.media?`<a class="muted" style="color:var(--ink)" href="${esc(v.media)}" download>Download</a>`:''}</div></div>`).join('')}</div></div>`:''}
-    ${L.videos.length?'':'<div class="muted">Make one from New video.</div>'}
-    <div class="muted">Saved in ${esc(L.place||L.path)}</div></div>`;
+    ${done.length?`<div><div class="between" style="margin-bottom:12px"><span class="h">Done</span><span class="muted">newest first</span></div><div class="doneg">${done.map(v=>`<div class="dtile"><a href="${v.review?'/review?dir='+encodeURIComponent(v.dir):esc(v.media||'#')}" style="text-decoration:none"><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${TICK}</div></a><div style="font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.name)}</div><div class="between"><span class="muted">${ago(v.updated)}</span><span class="row" style="gap:10px">${v.media?`<a class="muted" style="color:var(--ink)" href="${esc(v.media)}" download>Download</a>`:''}${rmLink(v)}</span></div></div>`).join('')}</div></div>`:''}
+    ${L.videos.length?'':`<div>${EXROW}</div>`}</div>`;
 }
 function vMyStyle(){
-  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:24px"><div><h1>My styles</h1><p class="lede" style="margin-top:10px">Every style you can pick for a video, shown on your newest clip. Open one to change it and see its skill.</p></div>
-    <div style="display:flex;flex-wrap:wrap;gap:24px">${(L.styles||[]).map(c=>styleCard(c,false)).join('')}${createCard()}</div></div>`;
+  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:24px"><div><h1>My styles</h1></div>
+    <div style="display:flex;flex-wrap:wrap;gap:24px">${(L.styles||[]).map((c,i)=>styleCard(c,false,i)).join('')}${createCard()}</div></div>`;
 }
-const POWER=['edit my newest video like @sample.creator','make my last video\'s captions bold','study this reel and save it as my style'];
+function updateSec(){
+  const u=S.update||{},j=latest('update'),busy=j&&(j.state==='queued'||j.state==='taken');
+  const st=!j?'':j.state==='queued'?(S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal.`):j.state==='taken'?`Claude: ${(j.steps.at(-1)||{}).text||'updating'}`:j.state==='done'?'Updated. Type /reload-plugins in Claude Code.':j.state==='failed'?j.error:'';
+  return `<div class="sec"><div class="h">Updates</div>${u.newer?`<div class="between" style="align-items:center;flex-wrap:wrap"><div><div style="font-size:15px;font-weight:600">Version ${esc(u.latest)} is out</div><div class="sub">You have ${esc(u.installed)}.</div></div><button class="btn dark sm" ${busy?'disabled':''} onclick="queue({type:'update'})">${busy?'Updating...':'Update'}</button></div><div>${(u.notes||[]).map(n=>`<div class="dash">${esc(n)}</div>`).join('')}</div>`
+    :`<div class="sub">Version ${esc(u.installed||'')}${u.latest?'. Up to date.':''}</div>`}${st?`<div class="msg ${j.state==='failed'?'bad':''}">${esc(st)}</div>`:''}</div>`;
+}
 function vSettings(){
   const d=ui.disk,c=ui.clean;
   const mb=b=>b==null?'':b>=1e9?(b/1e9).toFixed(1)+' GB':Math.round(b/1e6)+' MB';
   const on=KEYS.filter(k=>(S.keys[k.id]||{}).set).length+(latest('modal')&&latest('modal').state==='done'?1:0);
   return `<div class="row setcols" style="align-items:stretch;gap:24px;flex:1;min-width:0">
-    <div class="col rv-side" style="width:380px;gap:24px;padding:12px 14px 0"><div><h1>Settings</h1><p class="lede">Nothing here is needed. Each extra makes your edits faster or better. Skip any of them and the editor still works.</p></div>
-      <div class="panel" style="padding:20px;gap:12px;margin-top:28px"><div class="h">For power users</div><div class="sub">Everything here runs on Claude Code. Type what you want in plain words:</div>
-        ${POWER.map(t=>`<div class="codebox" style="font-size:13px;gap:10px"><span style="min-width:0">${esc(t)}</span><button class="hlink" onclick="copyText(${esc(JSON.stringify(t))},this)">Copy</button></div>`).join('')}
-        <div class="muted">Changes you make there show up here.</div></div></div>
+    <div class="col rv-side" style="width:380px;gap:24px;padding:12px 14px 0"><div><h1>Settings</h1><p class="lede">Everything here is optional.</p></div></div>
     <div class="col grow" style="min-width:0;gap:24px">
     <div class="panel"><div class="between" style="padding:22px 24px 16px;align-items:flex-start;flex-wrap:wrap"><div><div class="h">Extras</div><div class="sub" style="margin-top:4px">${on} of ${KEYS.length+1} on</div></div><div class="lock">${LOCK}Keys stay on this computer. Never sent to the chat.</div></div>
       ${KEYS.map(keyRow).join('')}
       <div class="krow"><div class="kl"><div class="row" style="gap:8px">${latest('modal')&&latest('modal').state==='done'?TICK:TODO}${logo('modal')}<span class="kname">Modal</span><span class="muted">cloud renders</span></div><div style="color:var(--t2)">Splits a long video across many computers so it finishes faster. You see the time and cost first.</div><span class="muted">$30 free credit a month</span></div><div class="kr">${modalRow()}</div></div></div>
-    <div class="panel"><div class="sec"><div class="h">Where your videos live</div><div style="font-size:15px" title="${esc(L.path)}">${esc(L.place||L.path)}</div>
+    <div class="panel">${updateSec()}<div class="sec"><div class="h">Where your videos live</div><div style="font-size:15px" title="${esc(L.path)}">${esc(L.place||L.path)}</div>
       <div class="row" style="flex-wrap:wrap"><button class="btn quiet" onclick="post('/reveal',{})">Show in ${/Mac/.test(navigator.platform)?'Finder':'Explorer'}</button>${L.env?'<span class="muted">Set by AI_EDITOR_LIBRARY.</span>':`<input class="input" id="libpath" placeholder="Another folder, like ~/Videos/AI Editor"><button class="small" onclick="setLib()">Move</button>`}</div>
-      <div class="muted" style="line-height:18px">New videos go here. Videos made before stay where they are and stay on the list.</div>${ui.libmsg?`<div class="msg bad">${esc(ui.libmsg)}</div>`:''}</div>
+      ${ui.libmsg?`<div class="msg bad">${esc(ui.libmsg)}</div>`:''}</div>
     <div class="sec"><div class="h">Disk use</div>${d?`<div class="row" style="gap:40px;flex-wrap:wrap"><div class="kv"><span>Your library</span><b>${mb(d.library)}</b></div><div class="kv"><span>Working files</span><b>${mb(d.working)}</b></div><div class="kv"><span>Free on this disk</span><b>${mb(d.free)}</b></div></div>`:'<div class="muted">Measuring...</div>'}
       ${c&&c.ask?`<div class="confirm"><b>Delete ${c.files} working files (${mb(c.bytes)})?</b><div class="sub">Render pieces, sound caches and old review copies. Your clips, each cut, each final video and your notes stay.</div><div class="row"><button class="btn dark sm" onclick="cleanNow(true)">Delete them</button><button class="btn quiet sm" onclick="ui.clean=null;render()">Cancel</button></div></div>`
         :`<div class="row"><button class="btn quiet" ${d&&d.working?'':'disabled'} onclick="cleanNow(false)">Clear working files</button>${c&&c.deleted?`<span class="muted">Deleted ${c.files} files, ${mb(c.bytes)}.</span>`:''}</div>`}</div>
@@ -797,12 +959,12 @@ async function tellChange(){const t=($('#tell')||{}).value||'';if(!t.trim())retu
 const ZOOMS=[[0,'None','Camera stays still'],[3,'A few','About 3 a minute'],[6,'Some','About 6 a minute'],[10,'Lots','About 10 a minute']];
 const CUTS=[[0.25,'Relaxed','Keeps your pauses'],[0.15,'Natural','Short breaths stay'],[0.12,'Tight','Cuts every pause']];
 function preview(P){
-  const first=(nv.sel.length?clipOf(nv.sel[0]):null)||(R&&R.videos[0])||(L.videos.find(v=>v.thumb)||{});
+  const pic=picOf(P,0);
   const v=P.values,lk=P.look||{},words='here is how your captions look'.split(' ').slice(0,Math.max(1,v['captions.words_per_caption']||3)).join(' ');
   const txt=lk.case==='upper'?words.toUpperCase():lk.case==='lower'?words.toLowerCase():words;
   const fs=Math.round((v['captions.size_pct']||4.2)/100*560*1.35);
-  return `<div style="position:relative;width:315px;height:560px;border-radius:20px;overflow:hidden;background:#45403C ${first.thumb?`url('${esc(first.thumb)}') center/cover`:''};flex-shrink:0">
-    ${first.thumb?`<div style="position:absolute;top:12px;left:12px;background:#0C0A09b3;color:#fff;border-radius:8px;padding:3px 9px;font-size:13px">Your video</div>`:''}
+  return `<div class="pic" style="position:relative;width:315px;height:560px;border-radius:20px;overflow:hidden;background:#45403C url('${esc(pic.url)}') center/cover;flex-shrink:0">
+    <span class="extag">${pic.demo?'Example photo':pic.clip?'Your video':'Your image'}</span>${picBtns(P)}
     ${P.look===null?'':`<div class="cap" style="top:${v['captions.y_pct']||66}%;font-size:${fs}px;line-height:${Math.round(fs*1.25)}px"><span style="${lk.box?`background:${esc(lk.box_color||'#000')};`:''}color:${esc(lk.color||'#fff')};font-weight:${+lk.weight||600};${lk.box?'':'text-shadow:0 1px 4px #0008'}">${esc(txt)}</span></div>`}</div>`;
 }
 function vStylePage(){
@@ -811,25 +973,27 @@ function vStylePage(){
   const seg=(key,opts)=>`<div class="row" style="gap:10px;flex-wrap:wrap">${opts.map(([val,t,s])=>`<button class="shape ${Math.abs((v[key]??-1)-val)<1e-6?'on':''}" style="flex:1 1 120px;flex-direction:column;align-items:flex-start;gap:2px" onclick="setCtl('${key}',${val})"><b style="font-size:14px">${t}</b><span class="muted" style="font-size:12px">${s}</span></button>`).join('')}</div>`;
   const job=P.job,jr=job&&job.result||{};
   const jobLine=!job?'':job.state==='queued'?(S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal.`):job.state==='taken'?`Claude: ${esc((job.steps.at(-1)||{}).text||'working on it')}`:job.state==='done'?`Changed: ${esc((jr.changed||[]).join('; ')||'nothing')}`:job.state==='failed'?esc(job.error):'';
-  return `<div class="col" style="width:340px;gap:18px;padding:12px 14px 0"><button class="hlink" style="font-size:14px;color:var(--t2);align-self:flex-start" onclick="rgo('mystyle')">‹ All your styles</button><div><h1>${esc(P.name)}</h1><p class="lede" style="margin-top:8px">${P.id==='mine'?'How your videos get edited.':'Copied from their videos, with your changes.'} Shown on your own video.</p></div>${preview(P)}</div>
+  return `<div class="col" style="width:340px;gap:18px;padding:12px 14px 0"><button class="hlink" style="font-size:14px;color:var(--t2);align-self:flex-start" onclick="rgo('mystyle')">‹ All your styles</button><div><div class="row" style="gap:8px;align-items:center">${ui.edit&&ui.edit.kind==='name'&&ui.edit.id===P.id?'':`<h1>${esc(P.name)}</h1>`}${editField('name',P.id,P.name,'font-size:28px;font-weight:700')}</div><p class="lede" style="margin-top:8px">${P.id==='mine'?'How your videos get edited.':'Copied from their videos, with your changes.'}</p></div>${preview(P)}${ui.covermsg&&ui.covermsg.id===P.id?`<div class="msg bad">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
+    ${P.id==='mine'?'':ui.del&&ui.del.id===P.id?delRow(P,P.delete_note):`<button class="hlink" style="align-self:flex-start;font-size:14px" onclick="ui.del={id:${esc(JSON.stringify(P.id))},measured:false};render()">Delete this style</button>`}</div>
   <div class="col grow" style="gap:20px;min-width:0">
-    <div class="panel"><div class="sec" style="flex-direction:row;align-items:center;gap:12px"><div class="ini">${esc((P.base||'ds').slice(0,2).toUpperCase())}</div><div class="sub">${P.id!=='mine'?`Copied from ${esc(P.name)}'s videos.`:P.base?`Started from @${esc(P.base)}.`:'Started from the default style.'} ${P.changed.length?`You changed ${P.changed.length} thing${P.changed.length>1?'s':''}.`:'You have not changed anything yet.'}</div></div>
+    <div class="panel"><div class="sec" style="flex-direction:row;align-items:center;gap:12px"><div class="ini">${esc((P.base||'ds').slice(0,2).toUpperCase())}</div><div class="sub">${P.id!=='mine'?`Copied from @${esc(P.base)}'s videos.`:P.base?`Started from @${esc(P.base)}.`:'Started from the default style.'} ${P.changed.length?`You changed ${P.changed.length} thing${P.changed.length>1?'s':''}.`:'You have not changed anything yet.'}</div></div>
     <div class="sec"><div class="between"><span class="h">Captions</span>${ch('captions.size_pct')||ch('captions.words_per_caption')||ch('captions.y_pct')}</div>
       <div class="row" style="gap:14px;flex-wrap:wrap"><span class="muted spl" style="width:120px;flex-shrink:0;white-space:nowrap">Words at a time</span>${[1,2,3,4].map(n=>`<button class="pill ${v['captions.words_per_caption']===n?'on':''}" onclick="setCtl('captions.words_per_caption',${n})">${n}</button>`).join('')}</div>
-      <label class="row" style="gap:14px"><span class="muted spl" style="width:120px;flex-shrink:0;white-space:nowrap">Size</span><input type="range" min="3" max="8" step="0.2" value="${v['captions.size_pct']||4.2}" style="flex:1;min-width:0;accent-color:#0C0A09" onchange="setCtl('captions.size_pct',+this.value)"><span class="spv" style="width:110px;flex-shrink:0;white-space:nowrap">${(+(v['captions.size_pct']||4.2)).toFixed(1)}% tall</span></label>
-      <label class="row" style="gap:14px"><span class="muted spl" style="width:120px;flex-shrink:0;white-space:nowrap">Height on screen</span><input type="range" min="45" max="82" step="1" value="${v['captions.y_pct']||66}" style="flex:1;min-width:0;accent-color:#0C0A09" onchange="setCtl('captions.y_pct',+this.value)"><span class="spv" style="width:110px;flex-shrink:0;white-space:nowrap">${Math.round(v['captions.y_pct']||66)}% down</span></label></div>
+      <label class="row" style="gap:14px"><span class="muted spl" style="width:120px;flex-shrink:0;white-space:nowrap">Size</span><input type="range" min="3" max="8" step="0.2" value="${v['captions.size_pct']||4.2}" style="flex:1;min-width:0;accent-color:var(--ink)" onchange="setCtl('captions.size_pct',+this.value)"><span class="spv" style="width:110px;flex-shrink:0;white-space:nowrap">${(+(v['captions.size_pct']||4.2)).toFixed(1)}% tall</span></label>
+      <label class="row" style="gap:14px"><span class="muted spl" style="width:120px;flex-shrink:0;white-space:nowrap">Height on screen</span><input type="range" min="45" max="82" step="1" value="${v['captions.y_pct']||66}" style="flex:1;min-width:0;accent-color:var(--ink)" onchange="setCtl('captions.y_pct',+this.value)"><span class="spv" style="width:110px;flex-shrink:0;white-space:nowrap">${Math.round(v['captions.y_pct']||66)}% down</span></label></div>
     <div class="sec"><div class="between"><span class="h">Zooms</span>${ch('zoom.per_min')||(v['zoom.per_min']!=null?`<span class="muted">now ${v['zoom.per_min']} a minute</span>`:'')}</div>${seg('zoom.per_min',ZOOMS)}</div>
     <div class="sec"><div class="between"><span class="h">Cut</span>${ch('cut.max_pause')||`<span class="muted">pauses up to ${v['cut.max_pause']} s</span>`}</div>${seg('cut.max_pause',CUTS)}</div>
-    <div class="sec"><div class="between"><span class="h">Sound</span>${ch('sfx')}</div><label class="between" style="cursor:pointer"><div><div>Sound effects</div><div class="muted" style="margin-top:2px">A soft whoosh when a card or zoom lands</div></div><input type="checkbox" ${v.sfx?'checked':''} style="width:20px;height:20px;accent-color:#0C0A09" onchange="setCtl('sfx',this.checked)"></label></div>
-    <div class="sec" style="background:var(--bg)"><div class="muted" style="color:var(--t2)">${CHECK} Saved as you go. Your next videos in this style use it. Videos already made stay as they are.</div></div></div>
-    <div class="panel"><div class="sec"><div class="h">Tell it what to change</div><div class="sub" style="margin-top:-4px">Say it in your words. Claude turns it into settings and rules for this style only. The same works in the Claude chat; both land in this style's skill.</div>
+    <div class="sec"><div class="between"><span class="h">Sound</span>${ch('sfx')}</div><label class="between" style="cursor:pointer"><div><div>Sound effects</div><div class="muted" style="margin-top:2px">A soft whoosh when a card or zoom lands</div></div><input type="checkbox" ${v.sfx?'checked':''} style="width:20px;height:20px;accent-color:var(--ink)" onchange="setCtl('sfx',this.checked)"></label></div>
+    <div class="sec" style="background:var(--bg)"><div class="muted" style="color:var(--t2)">${CHECK} Saved as you go.</div></div></div>
+    <div class="panel"><div class="sec"><div class="h">Tell it what to change</div>
       <div class="row" style="align-items:stretch"><textarea id="tell" class="input" style="height:64px;padding:10px 12px;font:14px/20px system-ui,sans-serif;resize:vertical" placeholder="captions a bit bigger, fewer zooms"></textarea><button class="btn dark" style="height:auto" onclick="tellChange()">Send</button></div>
       ${jobLine?`<div class="muted" style="color:var(--ink)">${jobLine}</div>`:''}</div></div>
   </div>
   <div class="panel rv-side sp-side" style="width:400px;flex-shrink:0">
-    <div class="sec"><div class="h">Its skill</div><div style="font:500 18px var(--mono)">${esc(P.skill.name)}</div>
+    <div class="sec"><div class="h">Its skill</div><div class="row" style="gap:6px">${ui.edit&&ui.edit.kind==='skill'&&ui.edit.id===P.id?'':`<span style="font:500 18px var(--mono)">${esc(P.skill.name)}</span>`}${editField('skill',P.id,P.skill.name,'font:500 16px var(--mono)')}</div>
       <div class="row"><button class="btn quiet sm" onclick="post('/style/reveal',{id:ui.sp}).then(loadStyle)">Open the skill file</button>${P.skill.exists?'':'<span class="muted">made on first open</span>'}</div>
-      <div class="muted" style="color:var(--t2);line-height:19px">Say "/${esc(P.skill.name)}" in Claude Code to edit a video in this style.</div></div>
+      <div class="muted" style="color:var(--t2);line-height:19px">Say "/${esc(P.skill.name)}" in Claude Code to edit a video in this style.</div>
+      <div><div class="muted">Use it for</div><div class="row" style="gap:6px;margin-top:4px;font-size:14px">${ui.edit&&ui.edit.kind==='use'&&ui.edit.id===P.id?'':`<span style="color:${P.use_for?'var(--ink)':'var(--t3)'}">${esc(P.use_for||'Any video. Say when Claude should pick it.')}</span>`}${editField('use',P.id,P.use_for||'')}</div></div></div>
     <div class="sec"><div class="h">It copies</div>${P.copies.map(c=>`<div class="dash">${esc(c)}</div>`).join('')||'<div class="muted">Nothing measured yet.</div>'}</div>
     <div class="sec" style="flex:1"><div class="between"><span class="h">Learned from your feedback</span><span class="muted">${P.rules.length}</span></div>
       ${P.rules.map(r=>`<div class="row" style="align-items:flex-start;gap:12px"><div class="grow"><div style="font-size:14px;line-height:20px">${esc(r.rule)}</div><div class="muted" style="margin-top:3px">Said ${r.said}x${r.last?` · last ${esc(r.last)}`:''}${r.applied?` · used ${r.applied}x`:''}${r.regressions?` · came back ${r.regressions}x`:''}</div></div><button class="hlink" onclick="forgetRule(${r.id})">Forget</button></div>`).join('')||'<div class="muted" style="line-height:19px">Nothing yet. Changes here, notes on the review page and corrections in the Claude chat land here.</div>'}</div>
@@ -845,7 +1009,12 @@ function rrender(){
     el.ondragstart=e=>{e.dataTransfer.setData('text/plain',el.dataset.i)};el.ondragover=e=>e.preventDefault();
     el.ondrop=e=>{e.preventDefault();e.stopPropagation();const a=+e.dataTransfer.getData('text/plain'),b=+el.dataset.i;if(isNaN(a)||a===b)return;const [x]=nv.sel.splice(a,1);nv.sel.splice(b,0,x);render()}});
 }
-window.addEventListener('drop',e=>{if(returning()&&!ui.onboard&&e.dataTransfer.files.length){if(rv!=='new')rv='new';chooseFiles(e.dataTransfer.files)}});
+window.addEventListener('drop',e=>{if(returning()&&!ui.onboard&&e.dataTransfer.files.length){if(rv!=='new')rgo('new');chooseFiles(e.dataTransfer.files)}});
+// while files are dragged over the window: one overlay, so it is clear where they go
+let dragN=0;const hasFiles=e=>[...((e.dataTransfer||{}).types||[])].includes('Files');
+window.addEventListener('dragenter',e=>{if(hasFiles(e)&&returning()&&!ui.onboard){dragN++;document.body.classList.add('dragging')}});
+window.addEventListener('dragleave',()=>{if(dragN&&--dragN===0)document.body.classList.remove('dragging')});
+window.addEventListener('drop',()=>{dragN=0;document.body.classList.remove('dragging')},true);
 
 // ---------------------------------------------------------------- render loop
 function render(){
@@ -870,15 +1039,22 @@ function render(){
 }
 async function load(){
   try{const r=await fetch('/state');if(!r.ok)throw 0;S=await r.json()}catch(e){const lv=$('#live');lv.className='live';lv.style.width='auto';lv.style.maxWidth='520px';lv.style.whiteSpace='normal';lv.textContent='The editor stopped. Run nextwork-editor to start it again.';return}
+  // live reload: a new page version (home.html, ask.js or the Python changed) reloads this tab, keeping the view
+  if(S.page){if(PV&&S.page!==PV&&canReload()){keepView();location.reload();return}PV=PV||S.page}
   const lk=S.lookup||{};
-  if(!ui.look&&lk.handle){ui.look={kind:'creator',handle:lk.handle,platform:lk.platform};if(!ui.paste)ui.paste='@'+lk.handle}
+  if(!ui.look&&lk.handle){ui.look={kind:'creator',handle:lk.handle,platform:lk.platform};if(!ui.paste){ui.paste='@'+lk.handle;lbOf('paste').rows=[lk.handle]}}
   // typing in a key box: do not redraw under the cursor
   const a=document.activeElement;if(a&&a.id&&a.id.startsWith('k-')&&a.value)return returning()&&!ui.onboard?rheader():header(view??autoView());
   if(a&&a.type==='range')return;   // dragging a slider: do not redraw under the hand
   if(!L)await loadLib();
   if(rv==='stylepage')await loadStyle();
   render();
+  if(keepY!=null){window.scrollTo(0,keepY);keepY=null}
 }
+let PV=null,keepY=null;
+const canReload=()=>{const a=document.activeElement;return !(a&&/^(INPUT|TEXTAREA)$/.test(a.tagName)&&a.value)&&!nv.up.some(u=>!u.bad)&&!ui.edit};
+function keepView(){try{sessionStorage.setItem('ave-home-keep',JSON.stringify({rv,sp:ui.sp,y:scrollY,nv:{sel:nv.sel,style:nv.style,aspect:nv.aspect,join:nv.join}}))}catch(e){}}
+try{const k=JSON.parse(sessionStorage.getItem('ave-home-keep')||'null');sessionStorage.removeItem('ave-home-keep');if(k){rv=k.rv;ui.sp=k.sp;Object.assign(nv,k.nv);keepY=k.y}}catch(e){}
 window.addEventListener('dragover',e=>e.preventDefault());window.addEventListener('drop',e=>e.preventDefault());
 load().then(loadRecent);setInterval(load,1500);setInterval(loadLib,4000);
 </script>

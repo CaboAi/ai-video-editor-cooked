@@ -33,7 +33,7 @@ button:disabled{cursor:default}
 
 header{position:relative;height:64px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 28px}
 .brand{width:260px;display:flex;align-items:baseline;gap:10px;flex-shrink:0;min-width:0}
-.homebtn{display:inline-flex;align-items:center;gap:6px;align-self:center;height:32px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:none;color:var(--ink2);font:inherit;font-size:14px;cursor:pointer;flex-shrink:0}
+.homebtn{display:inline-flex;align-items:center;gap:8px;align-self:center;height:40px;padding:0 16px 0 13px;border:1px solid var(--line2);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit;font-size:14px;font-weight:600;cursor:pointer;flex-shrink:0}
 .homebtn:hover{border-color:var(--strong)}
 .homemsg{position:absolute;top:56px;left:28px;z-index:30;max-width:340px;white-space:normal!important;background:var(--panel,#fff);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:13px!important;line-height:18px!important;color:var(--ink2)!important;box-shadow:var(--pop)}
 .brand b{font-size:17px;line-height:22px;font-weight:600;letter-spacing:-.01em;color:var(--strong)}
@@ -297,7 +297,7 @@ aside{width:400px;flex-shrink:0;background:var(--panel);border:1px solid var(--l
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style></head><body>
 <header>
- <div class="brand"><button id="homebtn" class="homebtn" title="Back to your videos"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.2 8 2.5l5.5 4.7V13a.5.5 0 0 1-.5.5H9.8V10H6.2v3.5H3a.5.5 0 0 1-.5-.5z"/></svg>Home</button><b>review</b><span id="name"></span><span id="homemsg" class="homemsg" hidden></span></div>
+ <div class="brand"><button id="homebtn" class="homebtn" title="Back to your videos"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.3 2.7a1 1 0 0 1 1.4 0l9 8.4a1 1 0 0 1-.7 1.7H19V20a1 1 0 0 1-1 1h-4v-6h-4v6H6a1 1 0 0 1-1-1v-7.2H3a1 1 0 0 1-.7-1.7z"/></svg>Home</button><b>review</b><span id="name"></span><span id="homemsg" class="homemsg" hidden></span></div>
  <div class="seg" id="stages"><button id="st1" data-go="cut"></button><button id="st2" data-go="edit"></button></div>
  <div class="status" id="statusbox"><i></i><span id="listen"></span><button class="themebtn"></button><button id="howbtn" aria-label="how this works and shortcuts" title="how this works (?)"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="10" r="8.3"/><path d="M7.7 7.6a2.4 2.4 0 1 1 3.3 2.2c-.6.3-1 .8-1 1.5v.4"/><circle cx="10" cy="14.4" r=".4" fill="currentColor"/></svg></button></div>
  <div class="mhead"><b id="mstage"></b><span id="msub"></span></div><button class="themebtn mtheme"></button><button id="mapprove"></button>
@@ -390,10 +390,13 @@ document.getElementById('homebtn').onclick=()=>{
   if(S&&S.home){location.href=S.home;return}   // the same tab: back to the editor's window at its fixed address
   const m=document.getElementById('homemsg');m.textContent='The editor\'s home page is not running. Type nextwork-editor in Terminal to open it again.';m.hidden=false;setTimeout(()=>m.hidden=true,6000);
 };
+let PV=null;
 async function load(force){
   const raw=await (await fetch('/state')).text();
   if(raw===lastRaw&&!force)return;lastRaw=raw;
   const d=JSON.parse(raw),was=S&&key(cur());
+  // live reload: the page or the server changed; never while a note is being typed
+  if(d.page){const t=document.activeElement;if(PV&&d.page!==PV&&!(t&&/^(INPUT|TEXTAREA)$/.test(t.tagName)&&t.value)){location.reload();return}PV=PV||d.page}
   S=d;
   if(!view||(was&&was!==key(cur())&&key(view)===was)){view=cur();if(was&&was!==key(cur()))tab='notes'}   // follow a new round when it lands
   for(const r of S.rounds||[])if(!(key(r) in DATA)){DATA[key(r)]=null;fetch('/data?k='+key(r)).then(x=>x.json()).then(j=>{DATA[key(r)]=j;txKey='';render()}).catch(()=>{})}

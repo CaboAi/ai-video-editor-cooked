@@ -9,6 +9,12 @@
                                   a correction at the "this style" scope (taste.py add --style does the same)
     python3 styleskill.py demo                  self-check
 
+Names: the home page can rename a style ("Fast cuts" -> skill fast-cuts) and give it a "Use it for" line.
+Both live in <taste folder>/style-names.json, keyed "mine" or the creator slug, with the style's path.
+Every write regenerates the description from the current names: what the style copies, its trigger
+phrases (from its own name only), "Use for:" and a "Not for:" that names the other saved styles, so two
+styles never claim the same phrase. A rename or a Use-for edit rewrites every saved style's skill.
+
 Where: AI_EDITOR_SKILLS (a self-check that moves taste.HOME: <that folder>/skills), else <cwd>/.claude/skills when the user works in a project that has a .claude
 folder, else ~/.claude/skills. The skill is thin: triggers, how to run the editor with that style, what it
 copies, and "## Learned from your feedback", rebuilt from rules.json (taste.py) on every save, so a rule is
@@ -52,8 +58,109 @@ def slug(style_path):
     return re.sub(r"[^a-z0-9]+", "-", s).strip("-") or "creator"
 
 
+def key(style_path=None):
+    return "mine" if style_path is None else slug(style_path)
+
+
+def names_path():
+    return taste.HOME / "style-names.json"
+
+
+def names():
+    try:
+        return json.loads(names_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_names(d):
+    names_path().parent.mkdir(parents=True, exist_ok=True)
+    names_path().write_text(json.dumps(d, indent=2), encoding="utf-8")
+
+
 def name(style_path=None):
-    return MINE if style_path is None else f"edit-like-{slug(style_path)}"[:64].rstrip("-")
+    n = names().get(key(style_path), {}).get("skill")
+    return n or (MINE if style_path is None else f"edit-like-{slug(style_path)}"[:64].rstrip("-"))
+
+
+def display(style_path=None):
+    """What the page and the triggers call it: the name the user gave, else My style / @handle."""
+    n = names().get(key(style_path), {}).get("name")
+    if n:
+        return n
+    if style_path is None:
+        return "My style"
+    return "@" + re.sub(r"-mine$", "", Path(style_path).resolve().parent.name)
+
+
+def use_for(style_path=None):
+    return names().get(key(style_path), {}).get("use_for") or ""
+
+
+def plugin_skill_names():
+    return {p.parent.name for p in Path(__file__).resolve().parents[3].glob("*/skills/*/SKILL.md")}
+
+
+def rename(style_path, new):
+    """A style's new name: the display name as typed, the skill as its slug (3-40 of a-z, 0-9, hyphens).
+    Refused when the slug is taken by another skill folder or a plugin skill. Every style skill is rewritten."""
+    new = " ".join(str(new or "").split())
+    if not re.fullmatch(r"[A-Za-z0-9@][A-Za-z0-9 ._-]{0,39}", new):
+        raise ValueError("Use letters, numbers, spaces or hyphens, up to 40.")
+    sl = re.sub(r"[^a-z0-9]+", "-", new.lower()).strip("-")
+    if not 3 <= len(sl) <= 40:
+        raise ValueError("Use at least 3 letters or numbers.")
+    old = name(style_path)
+    if sl != old and ((skills_dir() / sl).exists() or sl in plugin_skill_names()
+                      or any(v.get("skill") == sl for v in names().values())):
+        raise ValueError(f"/{sl} is already a skill. Pick another name.")
+    d = names()
+    d[key(style_path)] = {**d.get(key(style_path), {}), "name": new, "skill": sl,
+                          "path": str(preferred(style_path)) if style_path else None}
+    _save_names(d)
+    src = skills_dir() / old
+    if sl != old and src.is_dir():
+        src.rename(skills_dir() / sl)
+    write(style_path)
+    rewrite_all()
+    return sl
+
+
+def set_use_for(style_path, text):
+    text = " ".join(str(text or "").split())[:160].rstrip(".")
+    d = names()
+    d[key(style_path)] = {**d.get(key(style_path), {}), "use_for": text, "path": str(preferred(style_path)) if style_path else None}
+    _save_names(d)
+    write(style_path)
+    rewrite_all()
+
+
+def saved():
+    """Every saved style skill this folder knows: [(style path or None, skill name)]."""
+    out = []
+    for k, v in names().items():
+        sp = None if k == "mine" else Path(v.get("path") or "")
+        if (sp is None or sp.is_file()) and (skills_dir() / name(sp) / "SKILL.md").exists():
+            out.append((sp, name(sp)))
+    return out
+
+
+def rewrite_all():
+    for sp, _ in saved():
+        write(sp)
+
+
+def remove(style_path):
+    """A deleted style: its skill folder and its names entry go; the other skills stop naming it."""
+    sk = skills_dir() / name(style_path)
+    d = names()
+    d.pop(key(style_path), None)
+    _save_names(d)
+    if sk.is_dir() and sk.parent == skills_dir() and sk.name != MINE:
+        import shutil
+        shutil.rmtree(sk)
+    rewrite_all()
+    return sk
 
 
 def scope(style_path=None):
@@ -145,10 +252,8 @@ def body(style_path=None, fmt=None):
         who = ", ".join("@" + c["handle"] + (f" ({', '.join(c['take'])})" if c.get("take") else "")
                         for c in prof.get("creators") or [] if c.get("handle")) or "no creator (the default style)"
         cap = (prof.get("captions") or {}).get("style") or "creator"
-        desc = ("Edits the user's video in their own saved style: their editing profile (creators to copy, captions, "
-                "sound) and every correction they saved as \"my style\". Use when the user says \"edit my video in my "
-                "style\", \"use my style\", \"edit it the way I like\" or \"/my-style\". Not for copying one creator "
-                "(the edit-like-<handle> skills), not for studying a creator (creator-teardown).")
+        desc = describe(None, f"the user's own saved style (copies {who}; captions: {cap})",
+                        ["edit it the way I like"], "the user's own videos, their profile and every correction saved as My style")
         head = (f"# My style\n\nEdits the user's video in their own style with the ai-editor plugin.\n\n"
                 f"- Profile: `{taste.HOME / 'profile.json'}` (copies {who}; captions: {cap})\n"
                 f"- Taste: `{taste.HOME / 'taste.md'}` and `taste.json` (the settings the scripts read)\n\n"
@@ -160,15 +265,12 @@ def body(style_path=None, fmt=None):
         sp = Path(style_path).resolve()
         style = json.loads(sp.read_text(encoding="utf-8") or "{}")
         h = re.sub(r"-mine$", "", style.get("handle") or sp.parent.name)   # editplan --take names it <h>-mine
-        n = name(sp)
         parts = copies(style)
         mix = list((style.get("blend") or {}).get("weights") or [])
         who, said = (f"the {h} blend of " + " and ".join("@" + x for x in mix), h) if len(mix) > 1 else (f"@{h}'s style", "@" + h)
-        desc = (f"Edits the user's video in {who}, measured from their videos"
-                + (f" ({', '.join(p.split(' (')[0] for p in parts)})" if parts else "")
-                + f", with the corrections the user gave on that style. Use when the user says \"edit my video like {said}\", "
-                f"\"in {said}'s style\", \"make it look like {h}'s videos\" or \"/{n}\". Not for studying a new creator "
-                "(creator-teardown) and not for a correction meant for every video (taste).")
+        desc = describe(sp, f"{who}, measured from their videos" + (f" ({', '.join(p.split(' (')[0] for p in parts)})" if parts else ""),
+                        [f"edit my video like {said}", f"in {said}'s style", f"make it look like {h}'s videos"],
+                        "videos meant to look like that creator's, with the corrections given on this style")
         h = said.lstrip("@") if len(mix) > 1 else h
         head = (f"# Edit like {said}\n\nEdits the user's video in {who} (measured) with the ai-editor plugin.\n\n"
                 f"- Style: `{sp}` (measured by creator-teardown; never edit it by hand)\n"
@@ -190,6 +292,26 @@ def body(style_path=None, fmt=None):
     return front + head + "\n## Learned from your feedback\n\n" + ("\n".join(rules) if rules else empty) + "\n"
 
 
+def describe(style_path, what, extra, default_use):
+    """The skill's description, from the current names: what it is, its phrases, Use for, Not for (the other styles)."""
+    n, disp = name(style_path), display(style_path)
+    low = disp.lower()
+    phrases = [f"edit my video in {low}", f"use {low}"] + ([] if low.endswith("style") else [f"{low} style"]) + [f"/{n}"]
+    if style_path is not None and low.startswith("@"):
+        phrases = phrases[:2] + [f"/{n}"]
+    phrases += [x for x in extra if x.lower() not in phrases]
+    if style_path is not None and not low.startswith("@"):
+        phrases = [x for x in phrases if "@" not in x]   # renamed: the creator's handle stays in "what", not in a phrase
+    others = [f"{display(sp)} (/{nm})" for sp, nm in saved() if nm != n]
+    text = (f"Edits the user's video in {what}. Use when the user says " + ", ".join(f'"{x}"' for x in phrases)
+            + f". Use for: {use_for(style_path) or default_use}. Not for: "
+            + (", ".join(others) + ", " if others else "") + "studying a new creator (creator-teardown), a correction meant for every video (taste).")
+    while len(text) > 1024 and others:   # Claude Code's description limit: drop the longest tail of other names
+        others.pop()
+        text = text[:text.index("Not for: ") + 9] + ", ".join(others) + (", " if others else "") + "studying a new creator (creator-teardown)."
+    return text[:1024]
+
+
 def write(style_path=None, fmt=None):
     """Write or refresh the thin skill; returns its SKILL.md path. A format skill linked before is kept."""
     if style_path is not None:
@@ -199,6 +321,11 @@ def write(style_path=None, fmt=None):
         m = FORMAT_LINE.search(out.read_text(encoding="utf-8"))
         fmt = m.group(1) if m else None
     out.parent.mkdir(parents=True, exist_ok=True)
+    d = names()   # remember where the style lives, so a rename of another style can rewrite this skill
+    want = {**d.get(key(style_path), {}), "path": str(style_path) if style_path else None}
+    if d.get(key(style_path)) != want:
+        d[key(style_path)] = want
+        _save_names(d)
     out.write_text(body(style_path, fmt), encoding="utf-8")
     return out
 
@@ -271,6 +398,36 @@ def demo():
         assert "name: my-style" in my.read_text(encoding="utf-8") and "Captions bigger." in my.read_text(encoding="utf-8")
         taste.forget(r["id"])
         assert load_overrides(sp) == {"captions": {}} and "Nothing yet" in md.read_text(encoding="utf-8")
+        # rename: the skill folder moves, every style's description is rebuilt from the current names
+        sp2 = d / "creator-teardowns" / "other.one" / "style.json"
+        sp2.parent.mkdir()
+        sp2.write_text(json.dumps({"handle": "other.one", "pace": {"median_shot_s": 1.2}}), encoding="utf-8")
+        write(sp2)
+        desc = lambda nm: (d / "skills" / nm / "SKILL.md").read_text(encoding="utf-8").split("description: ")[1].split("\n")[0]
+        quoted = lambda t: set(re.findall(r'"([^"]+)"', t.split("Not for:")[0]))
+        assert rename(sp, "Fast cuts") == "fast-cuts" and not md.exists() and display(sp) == "Fast cuts"
+        new = d / "skills" / "fast-cuts" / "SKILL.md"
+        t = new.read_text(encoding="utf-8")
+        assert t.startswith("---\nname: fast-cuts\n") and '"/fast-cuts"' in t and '"edit my video in fast cuts"' in t and "edit-like-some-creator" not in t, t
+        assert "Fast cuts (/fast-cuts)" in desc("edit-like-other-one") and "Fast cuts (/fast-cuts)" in desc("my-style")
+        assert "edit-like-some-creator" not in desc("edit-like-other-one")
+        assert not quoted(desc("fast-cuts")) & quoted(desc("edit-like-other-one")), "two styles claim one phrase"
+        assert not quoted(desc("fast-cuts")) & quoted(desc("my-style"))
+        set_use_for(sp, "talking-head reels about AI tools.")
+        assert "Use for: talking-head reels about AI tools. Not for:" in desc("fast-cuts") and all(len(desc(n)) <= 1024 for n in ("fast-cuts", "my-style"))
+        for bad, why in (("x", "at least 3"), ("../etc", "letters"), ("edit like other one", "already"), ("cut", "already")):
+            try:   # too short, bad characters, another style's skill, a plugin skill
+                rename(sp, bad)
+                raise AssertionError(bad)
+            except ValueError as e:
+                assert why in str(e), (bad, e)
+        try:
+            rename(sp2, "Fast cuts")
+            raise AssertionError("clash accepted")
+        except ValueError as e:
+            assert "already a skill" in str(e)
+        remove(sp2)
+        assert not (d / "skills" / "edit-like-other-one").exists() and "other.one" not in names() and "other.one" not in desc("fast-cuts")
         # a temp taste folder keeps its skills beside it; a project with a .claude folder gets them there
         del os.environ["AI_EDITOR_SKILLS"]
         assert skills_dir() == taste.HOME / "skills"

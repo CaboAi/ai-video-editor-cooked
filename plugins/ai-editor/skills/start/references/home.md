@@ -49,7 +49,7 @@ Report progress with `status`. A new `--step` closes the step before it; `--done
 `--failed "<plain sentence>"` ends the job:
 
 ```bash
-python3 "$H" status <teardown|skill|video|modal|setup> --step "..." [--detail "video 3 of 7"] [--progress 0.4]
+python3 "$H" status <teardown|skill|video|modal|setup|update> --step "..." [--detail "video 3 of 7"] [--progress 0.4]
 python3 "$H" status <job> --result '<json>' --done
 ```
 
@@ -145,6 +145,15 @@ and need no job.
 
 The user pressed "Log in with your browser". Follow the setup skill's step 6 (Modal), reporting
 each of its steps with `status modal --step "..."`, and `status modal --done` when it works.
+
+### `JOB update`
+
+The user pressed Update in Settings (the page saw a newer version on GitHub main than this plugin.json).
+The update skill handles it when it is installed. Without it: for a marketplace install run
+`claude plugin marketplace update nextwork` then `claude plugin update ai-editor@nextwork` from the shell,
+each reported with `status update --step "..."`; if the `claude plugin` commands are missing, tell the user
+to type `/plugin marketplace update nextwork` and `/plugin update ai-editor@nextwork`. Then
+`status update --done` and ask them to type `/reload-plugins`. A git clone: `git pull` in the plugin folder.
 
 ### `JOB cancel teardown`
 

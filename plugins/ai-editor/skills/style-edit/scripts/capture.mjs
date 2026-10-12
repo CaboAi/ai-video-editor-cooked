@@ -634,7 +634,13 @@ async function source(edit, b) {
       d = await get(`https://cdn.syndication.twimg.com/tweet-result?id=${id}&token=${token}&lang=en`, "json").catch(() => null);
       if (d?.text) break;
     }
-    if (!d?.text) throw new Error(`X post ${id}: the embed endpoint returned nothing (deleted, private or rate limited)`);
+    if (!d?.text) {   // the embed endpoint rate limits and skips some posts: the public fxtwitter API, same fields
+      const t = (await get(`https://api.fxtwitter.com/status/${id}`, "json").catch(() => null))?.tweet;
+      if (t?.text) d = { text: t.text, favorite_count: t.likes, conversation_count: t.replies,
+        created_at: t.created_timestamp && new Date(t.created_timestamp * 1000).toISOString(),
+        user: { name: t.author?.name, screen_name: t.author?.screen_name, profile_image_url_https: t.author?.avatar_url } };
+    }
+    if (!d?.text) throw new Error(`X post ${id}: X's embed endpoint and fxtwitter returned nothing (deleted, private or rate limited: wait a few minutes and run it again)`);
     const text = d.text.replace(/\s*https:\/\/t\.co\/\w+\s*$/g, "").trim();
     for (const k of ["text", "highlight"]) {
       if (b[k] && !norm(text).includes(norm(b[k]))) throw new Error(`X post ${id}: "${b[k]}" is not in the post. It reads: "${text}"`);

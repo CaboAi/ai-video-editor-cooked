@@ -10,7 +10,7 @@ Each phrase is found in cut.transcript.json (else words.json), after the previou
 re-cut re-times every chapter. The first chapter is always 0:00.
 
 Writes edits/NAME/chapters.txt ("0:00 title" lines). With --intro, also description.txt: the intro,
-a blank line, the chapters; without it an older description.txt is removed (its chapters would be stale).
+a blank line, the chapters, then credits.txt (source.py credits) when there is one; without it an older description.txt is removed (its chapters would be stale).
 Exit 1 on a failed check, writing nothing: fewer than 3 chapters, the first not at 0:00, a chapter
 under 10 s, times out of order, a < or > (YouTube rejects them in descriptions).
 """
@@ -87,7 +87,9 @@ def write(edit, words, chapters, total, intro=None):
         return text, p
     (edit / "chapters.txt").write_text(text, encoding="utf-8")
     if intro:
-        (edit / "description.txt").write_text(f"{intro.strip()}\n\n{text}", encoding="utf-8")
+        cr = edit / "credits.txt"   # source.py credits: every clip and post shown, credited under the chapters
+        sources = f"\n{cr.read_text(encoding='utf-8')}" if cr.exists() and cr.stat().st_size else ""
+        (edit / "description.txt").write_text(f"{intro.strip()}\n\n{text}{sources}", encoding="utf-8")
     else:
         (edit / "description.txt").unlink(missing_ok=True)
     return text, p
@@ -115,6 +117,9 @@ def demo():
         text, p = write(d, words, [["Hi", "Intro"], ["So firstly", "What it is"], ["now here's", "When not to"]], 90, "A plain intro.")
         assert text == "0:00 Intro\n0:30 What it is\n1:01 When not to\n" and p == []
         assert (d / "description.txt").read_text(encoding="utf-8") == "A plain intro.\n\n" + text
+        (d / "credits.txt").write_text("Sources:\n- jack (@jack) on X, 2006-03-21: https://x.com/jack/status/20\n", encoding="utf-8")
+        write(d, words, [["Hi", "Intro"], ["So firstly", "What it is"], ["now here's", "When not to"]], 90, "A plain intro.")
+        assert (d / "description.txt").read_text(encoding="utf-8").endswith(text + "\nSources:\n- jack (@jack) on X, 2006-03-21: https://x.com/jack/status/20\n")
         assert round(duration(d, words), 2) == 61.4, "no cut.mp4: the last word's end"
         # a passing run without --intro removes the old description.txt (its chapters would be stale)
         write(d, words, [["Hi", "Intro"], ["So firstly", "Start"], ["now here's", "End"]], 90)

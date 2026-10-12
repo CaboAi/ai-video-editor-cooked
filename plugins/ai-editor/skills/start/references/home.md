@@ -121,11 +121,24 @@ no question: the page asked it). "Separate videos" arrives as one JOB per clip; 
 `profile.py set 'creators=[{"handle":"<h>","take":["captions","pace","visuals"]}]'`. When
 `creator-teardowns/<h>/style.json` is not there yet, that creator is still being studied: cut now
 (the cut needs no style) and start the styled pass once the teardown job is done.
-`aspect`: `profile.py set aspect=<a>`. Then the start skill from step 2 on, with this file (or
-joined.mp4) as the video. Report these steps, in this order and these words (the page lists the ones
-still to come): `Joined your clips in order` (takes only), `Wrote down every word you said`,
-`Cutting out the mistakes`, then the review page's URL:
-`--result '{"review_url": "<url review.py serve printed>"}'`. The rest happens on the review page.
+`aspect`: `profile.py set aspect=<a>`.
+
+The window turns into the review page as soon as it has a URL, so open it FIRST, on the raw clip
+(after the join for `takes=`), before transcribing:
+
+```bash
+R="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/review.py"
+python3 "$R" <edit> start --raw --video <the clip or joined.mp4> --stage cut   # round 0: "Your clip, before the cut"
+python3 "$R" <edit> serve --no-open                                            # background; prints the URL
+python3 "$H" status video --result '{"review_url": "<that URL>"}'
+```
+
+Round 0 has no Approve; notes left on it wait for the cut. Then the start skill from step 2 on, with
+this file (or joined.mp4) as the video. Report each step on both pages, in these words:
+`Joined your clips in order` (takes only), `Wrote down every word you said`, `Cutting out the mistakes`,
+as `python3 "$R" <edit> status "<step>"` and `python3 "$H" status video --step "<step>"`. The cut's
+own `start` (cut skill step 6) then opens round 1 on the same page, with the round 0 notes moved onto
+the cut: run `wait` and carry on there. `status video --done` once round 1 is up.
 
 ### `JOB style-change <my-style|@handle> [style=<style.json>] text=<the user's words>`
 

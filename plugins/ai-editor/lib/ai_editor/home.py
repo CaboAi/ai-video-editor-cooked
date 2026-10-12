@@ -363,7 +363,7 @@ def style_cards(root):
             line = (f"Measured from {st['videos']} of their videos." if st.get("videos") else "Studied by the editor.") + \
                 (f" {n} change{'s' if n != 1 else ''} from your feedback." if n else "")
         out.append({"id": sid, "name": ss.display(sp), "facts": facts(st), "look": look(st), "base": base,
-                    "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "cover": cover_of(root, sid),
+                    "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "cover": cover_of(root, sid), "face": face_of(root, base),
                     "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False})
     return out
 
@@ -409,7 +409,7 @@ def style_page(root, sid):
     return {"id": sid, "name": ss.display(sp), "use_for": ss.use_for(sp), "base": base, "values": vals,
             "changed": [k for k in CONTROLS if dig(changed, k) is not None], "look": look(st), "facts": facts(st),
             "copies": copies, "rules": rules, "style_path": str(sp) if sp else None,
-            "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid),
+            "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid), "face": face_of(root, base),
             "delete_note": f"My style started from @{base}. It goes back to the default style." if sp and base and style_of(root, "mine")[2] == base else None}
 
 
@@ -496,6 +496,51 @@ def cover_of(root, sid):
     d = style_dir(root, sid)
     f = d / "cover.jpg" if d else None
     return f"/style/cover?id={quote(sid)}&v={int(f.stat().st_mtime)}" if f and f.is_file() else None
+
+
+def make_face(d):
+    """creator-teardowns/<h>/face.jpg, once: the brightest of 1, 2 and 4 s into their top downloaded video
+    (videos.json order), else the first cell of a contact sheet (visual.py's 3 x 3). False when neither is there."""
+    try:
+        ids = [v.get("id") for v in json.loads((d / "videos.json").read_text(encoding="utf-8")).get("videos") or []]
+    except (OSError, ValueError, AttributeError):
+        ids = []
+    fit = "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280"
+    mp4 = next((d / "video" / f"{i}.mp4" for i in ids if i and (d / "video" / f"{i}.mp4").is_file()), None)
+    sheet = next((d / "sheets" / f"{i}.jpg" for i in ids if i and (d / "sheets" / f"{i}.jpg").is_file()), None)
+    if mp4:
+        def light(t):   # mean brightness of a 16x16 grey thumbnail; 0 when the frame cannot be read
+            px = subprocess.run(["ffmpeg", "-v", "error", "-ss", str(t), "-i", str(mp4), "-frames:v", "1", "-vf",
+                                 "scale=16:16,format=gray", "-f", "rawvideo", "-"], capture_output=True, timeout=30).stdout
+            return sum(px) / len(px) if px else 0
+        src, pre = ["-ss", str(max((1, 2, 4), key=light)), "-i", str(mp4)], fit
+    elif sheet:
+        src, pre = ["-i", str(sheet)], "crop=iw/3:ih/3:0:0," + fit
+    else:
+        return False
+    tmp = d / "face.tmp.jpg"
+    tmp.unlink(missing_ok=True)
+    r = subprocess.run(["ffmpeg", "-v", "error", "-n", *src, "-frames:v", "1", "-vf", pre, "-q:v", "4", str(tmp)],
+                       capture_output=True, timeout=60)
+    if r.returncode or not tmp.is_file():
+        tmp.unlink(missing_ok=True)
+        return False
+    os.replace(tmp, d / "face.jpg")
+    return True
+
+
+def face_of(root, h):
+    """The URL of a studied creator's face (make_face), made the first time it is asked for. None without one."""
+    d = style_dir(root, "@" + h) if h else None
+    if d is None or not (d / "style.json").is_file():
+        return None
+    f = d / "face.jpg"
+    if not f.is_file():
+        try:
+            make_face(d)
+        except (OSError, subprocess.SubprocessError):
+            return None
+    return f"/style/face?id={quote('@' + h)}&v={int(f.stat().st_mtime)}" if f.is_file() else None
 
 
 def save_cover(root, sid, src):
@@ -764,9 +809,9 @@ def make_handler(token):
                 f = DEMO / name
                 ok = re.fullmatch(r"person-\d\.jpg", name) and f.is_file()
                 return self.send(200, f.read_bytes(), "image/jpeg", cache="private, max-age=86400") if ok else self.send(404, {})
-            if path == "/style/cover":
+            if path in ("/style/cover", "/style/face"):
                 d = style_dir(read()["root"], q.get("id", [""])[0])
-                f = d / "cover.jpg" if d else None
+                f = d / ("face.jpg" if path.endswith("face") else "cover.jpg") if d else None
                 return self.send(200, f.read_bytes(), "image/jpeg", cache="private, max-age=86400") if f and f.is_file() else self.send(404, {})
             if path == "/style":
                 try:
@@ -1548,6 +1593,18 @@ def demo():
             raise AssertionError(bad)
         except urllib.error.HTTPError as e:
             assert e.code == code, (bad, e.code)
+    # a creator's card shows the creator: a bright frame of their top downloaded video (black first second skipped)
+    (td / "video").mkdir(exist_ok=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-n", "-f", "lavfi", "-i", "color=black:size=320x568:duration=1.5", "-f", "lavfi",
+                    "-i", "color=white:size=320x568:duration=4", "-filter_complex", "[0][1]concat=n=2:v=1", "-pix_fmt", "yuv420p",
+                    str(td / "video" / "1.mp4")], check=True)   # "0" has no download: the next one in videos.json order
+    fc = next(c for c in get("/library")["styles"] if c["id"] == "@sample.creator")["face"]
+    m = library.meta(td / "face.jpg")
+    assert fc.startswith("/style/face?id=%40sample.creator") and (m["w"], m["h"]) == (720, 1280), (fc, m)
+    px = subprocess.run(["ffmpeg", "-v", "error", "-i", str(td / "face.jpg"), "-vf", "scale=4:4,format=gray", "-f", "rawvideo", "-"],
+                        capture_output=True, check=True).stdout
+    assert min(px) > 200, "the face frame is the bright one"
+    assert urllib.request.urlopen(base + fc + "&t=" + tok).read()[:2] == b"\xff\xd8"
     # a style's own preview image: an image (or a clip's frame) cropped to 720x1280 in the style's folder
     img = tmp / "pick.png"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=red:size=400x300", "-frames:v", "1", str(img)], check=True)

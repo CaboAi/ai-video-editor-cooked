@@ -9,6 +9,9 @@ product video). Notes save with the edit, never in the plugin:
 
     python3 review.py <folder> start --video cut.mp4 [--stage cut|edit] [--transcript words.json] [--plan plan.json]
                                      [--name NAME] [--note "..."]
+    python3 review.py <folder> start --raw --video raw.mov --stage cut   round 0: the raw clip, open while the cut runs.
+                                     No Approve or Stop; notes queue for round 1, which the next `start` or
+                                     `round` opens (each raw time moved onto the cut by decisions.json)
     python3 review.py <folder> serve [--no-open]   serve the page and open it (run in the background)
     python3 review.py <folder> wait                block until the user presses send or approve (run in the background)
     python3 review.py <folder> status "rendering" [--log render.log] [--done]   what Claude is doing, live on the page
@@ -327,6 +330,21 @@ def remap(t, old, new):
     return round(b[j]["t"] + (t - a[i]["t"] if j == i else 0), 2)
 
 
+def raw_to_cut(folder, t):
+    """A time on the raw clip moved onto the cut by decisions.json (the kept source spans). A moment the cut
+    removed lands where the cut picks up again. None without decisions.json."""
+    try:
+        spans = sorted(load(folder / "decisions.json"), key=lambda s: s["start"])
+    except (OSError, ValueError, TypeError, KeyError):
+        return None
+    off = 0.0
+    for s in spans:
+        if t < s["end"]:
+            return round(off + max(0.0, t - s["start"]), 2)
+        off += s["end"] - s["start"]
+    return round(off, 2) if spans else None
+
+
 def fmt(t):
     return f"{int(t // 60)}:{t % 60:04.1f}"
 
@@ -474,6 +492,10 @@ def make_handler(folder, token):
             if path == "/event":
                 if body.get("type") not in ("send", "approve", "stop"):
                     return self.send(400, {})
+                if body["type"] == "approve" and load(rj).get("raw"):   # nothing to approve before the first cut
+                    return self.send(409, {"error": "the cut is not ready yet"})
+                if body["type"] == "stop" and load(rj).get("raw"):   # the first cut cannot be stopped from here
+                    return self.send(409, {"error": "the first cut is on its way"})
                 if body["type"] == "stop":   # the round's notes open again; `status` tells Claude to stop
                     def st(d):
                         if d.get("sent") and d["events"] and d["events"][-1]["type"] == "send":
@@ -651,12 +673,20 @@ def cmd_start(a, folder):
     (folder / "review").mkdir(parents=True, exist_ok=True)
     rj = folder / "review.json"
     d = load(rj) if rj.exists() else {"folder": str(folder), "name": folder.name, "comments": [], "events": []}
-    d.update(folder=str(folder), stage=a.stage, round=d.get("round", 0) + 1 if d.get("stage") == a.stage else 1,
+    raw = getattr(a, "raw", False)
+    if d.get("raw") and not raw:   # the cut after the raw clip: round 1, with the notes left on the raw clip
+        return cmd_round(a, folder)
+    d.update(folder=str(folder), stage=a.stage, round=0 if raw else d.get("round", 0) + 1 if d.get("stage") == a.stage else 1,
              video=str(Path(a.video).resolve()), note=a.note or "", sent=False, alts=[],
              transcript=str(Path(a.transcript).resolve()) if a.transcript else None,
              plan=str(Path(a.plan).resolve()) if a.plan else None, vertical=probe(a.video), label=a.name)
     d.pop("stopped", None)
-    d["video"] = keep(folder, a.video, d["stage"], d["round"])
+    d.pop("raw", None)
+    if raw:   # with Claude from the start: notes queue for the cut, as after a send
+        d.update(raw=True, sent=True)
+        d["events"].append({"type": "send", "stage": d["stage"], "round": 0, "at": now(), "handled": True, "raw": True})
+    # the raw clip is a source, never rewritten: played where it is, not copied (it can be gigabytes)
+    d["video"] = d["video"] if raw else keep(folder, a.video, d["stage"], d["round"])
     d["data"] = round_data(folder, d["video"], d["stage"], d["round"], d["plan"])
     log_round(d)
     save(rj, d)
@@ -684,11 +714,12 @@ def cmd_round(a, folder):
         d["note"], d["sent"], d["alts"] = a.note or "", False, []   # versions belong to a round: add them again
         d["label"] = a.name or d.get("label")
         old = data_of(folder, d.get("data"))
+        raw = d.pop("raw", False)
         d["data"] = round_data(folder, d["video"], d["stage"], d["round"], d.get("plan"))
         new = data_of(folder, d["data"])
         for c in d["comments"]:   # notes queued while Claude worked open on this round, where their words are said
             if c.pop("queued", None):
-                nt = remap(c["t"], old.get("transcript"), new.get("transcript"))
+                nt = raw_to_cut(folder, c["t"]) if raw else remap(c["t"], old.get("transcript"), new.get("transcript"))
                 if nt is None:
                     nt = min(c["t"], new.get("duration") or c["t"])
                     if old.get("duration") and new.get("duration") and abs(old["duration"] - new["duration"]) > 0.05:
@@ -1154,6 +1185,39 @@ def demo():
         o = subprocess.run(["node", "-e", js.group(0) + "for(const s of " + json.dumps([ev("approve", 0), ev("send", 1), mid])
                             + ")console.log(listenText(s))"], capture_output=True, text=True, check=True).stdout
         assert o.splitlines() == ["Approved", "Claude is working on round 2", "Claude is working. Notes you send now are next."], o
+    # round 0: the raw clip opens before the cut. No approve or stop; a note waits for round 1, moved onto the cut
+    vid.unlink()
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30:duration=6",
+                    "-pix_fmt", "yuv420p", str(vid)], check=True)
+    rf = tmp / "edits" / "raw"
+    with contextlib.redirect_stdout(io.StringIO()):
+        cmd_start(ns(video=str(vid), stage="cut", transcript=None, plan=None, note=None, name=None, raw=True), rf)
+    d0 = load(rf / "review.json")
+    assert (d0["round"], d0["raw"], d0["sent"]) == (0, True, True) and d0["events"][-1]["handled"], d0
+    srv2, url2 = serve(rf, 0, open_browser=False)
+    threading.Thread(target=srv2.serve_forever, daemon=True).start()
+    b2, t2 = url2.split("/?t=")
+    p2 = lambda p, b: urllib.request.urlopen(urllib.request.Request(b2 + p + "?t=" + t2, json.dumps(b).encode(), method="POST"))
+    for t in ("approve", "stop"):
+        try:
+            p2("/event", {"type": t})
+            raise AssertionError(t + " on the raw clip")
+        except urllib.error.HTTPError as e:
+            assert e.code == 409, e
+    n0 = json.loads(p2("/comment", {"t": 4.0, "text": "cut this bit"}).read())
+    assert n0["queued"] and n0["round"] == 1, n0
+    (rf / "decisions.json").write_text(json.dumps([{"start": 0.0, "end": 1.0}, {"start": 3.0, "end": 6.0}]), encoding="utf-8")
+    cut = tmp / "rawcut.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(vid), "-t", "4", str(cut)], check=True)
+    with contextlib.redirect_stdout(io.StringIO()):
+        cmd_start(ns(video=str(cut), stage="cut", transcript=None, plan=None, note=None, name=None, raw=False), rf)
+    d1 = load(rf / "review.json")
+    c = next(c for c in d1["comments"] if c["id"] == n0["id"])
+    assert (d1["round"], d1["sent"], "raw" in d1) == (1, False, False) and [r["round"] for r in d1["rounds"]] == [0, 1], d1
+    assert (c["round"], c["t"], c["moved"], "queued" in c) == (1, 2.0, "words", False), c
+    p2("/event", {"type": "approve"})
+    srv2.shutdown()
+    srv2.server_close()
     srv.shutdown()
     srv.server_close()
     shutil.rmtree(tmp, ignore_errors=True)
@@ -1173,6 +1237,7 @@ def main():
     s.add_argument("--plan", help="plan.json, so each note names the card on screen")
     s.add_argument("--name", help="what to call this video when the round has others (default main)")
     s.add_argument("--note")
+    s.add_argument("--raw", action="store_true", help="round 0: the raw clip, shown while the cut is made")
     s = sp.add_parser("serve")
     s.add_argument("--port", type=int, default=0)
     s.add_argument("--no-open", action="store_true", help="do not open the browser (tests, headless checks)")

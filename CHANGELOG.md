@@ -10,7 +10,9 @@ What changed for every user, newest first.
   (Speech to Text on, everything else No access, a credit quota) next to the link. Updates shows the
   installed and latest version, what changed and a Check now button. The videos folder has Show in Finder
   and Change. Light, Dark or System is on the page too. New routes `/key/check`, `/key/remove` and
-  `/update/check`; key checks are kept by the key's last 4 characters, never the key.
+  `/update/check` (at most one GitHub check a minute); key checks are kept by the key's last 4 characters,
+  never the key. Saving or removing a key now takes a lock and writes a 0600 temp file that replaces the
+  old one, so two saves at once no longer lose a key and a reader never sees half a file.
 - The home window shows progress on its own. A tester pressed Copy and the window sat blank while Claude
   installed and ran the teardown, because steps only reached it when Claude ran `home.py status`. Now the
   long scripts report themselves while Claude has that job taken (a script never takes a queued job, so

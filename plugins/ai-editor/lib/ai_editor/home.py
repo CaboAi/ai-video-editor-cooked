@@ -647,10 +647,8 @@ def remove_key(name):
     k, where = keys.get(name)
     if k and not str(where).endswith(".env"):
         return False
-    f, var = keys.key_file(), keys.VARS[name]
-    if f.exists():
-        keep = [ln for ln in f.read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.startswith(f"{var}=")]
-        keys.write_private(f, "\n".join(keep) + "\n" if keep else "")
+    if keys.key_file().exists():
+        keys.remove(name)
     update(lambda d: (d.get("keychecks") or {}).pop(name, None))
     return True
 
@@ -969,7 +967,7 @@ def make_handler(token):
                 note_check(name, k, ok, msg)
                 return self.send(200, {"ok": ok, "msg": msg})
             if path == "/update/check":   # Settings: ask GitHub now instead of within the hour
-                if not _UPD["busy"]:
+                if not _UPD["busy"] and time.time() - _UPD["at"] > 60:   # a minute between checks, however often it is pressed
                     _UPD["at"] = 0.0
                 update_info()
                 return self.send(200, {})
@@ -1503,6 +1501,19 @@ def demo():
         time.sleep(0.02)
     u = get("/state")["update"]
     assert u["latest"] == "99.0.0" and u["newer"] and u["checked"] and u["notes"] == ["Dark mode in the window"], u
+    seen = []
+    globals()["fetch_latest"] = lambda: seen.append(1) or ("99.0.0", ["Dark mode in the window"])
+    for _ in range(5):   # pressed again and again within the minute: no new GitHub check
+        post("/update/check", {})
+    time.sleep(0.1)
+    assert not seen and get("/state")["update"]["checked"] == u["checked"], seen
+    _UPD["at"] -= 61   # a minute later: one press checks again
+    post("/update/check", {})
+    for _ in range(50):
+        if seen:
+            break
+        time.sleep(0.02)
+    assert seen == [1], seen
     # the paste: a profile link names the platform; a bare name is a handle; a website is not a creator
     r = post("/lookup", {"text": "https://www.tiktok.com/@sample.creator"})
     assert r["kind"] == "creator" and r["handle"] == "sample.creator" and r["platform"] == "tiktok" and calls, r

@@ -89,7 +89,8 @@ Do each step in order, skipping what is already done. Read each skill's SKILL.md
    approval, then style). The user approves the cut page. This is approval 1 of 2.
 5. **style-edit** with `edits/<name>/style.json`. Its stills sheet is approval 2 of 2. It reads the
    profile itself: the brand kit sets the look, `names` get real logos and captures, `assets_dir`
-   images go on screen first, `avoid` is enforced by plan.py.
+   images go on screen first, `avoid` is enforced by plan.py. Letterbox (wide take, title on top):
+   cut `--max-pause 0.5`, `--layout letterbox`.
 
 Between steps say one line about what is happening next. Never ask the user to do a step the skill
 can do itself.

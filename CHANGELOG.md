@@ -31,6 +31,12 @@ What changed for every user, newest first.
   shows the false-cut trend. `verify_cut.py` now lists joins that land inside loud speech;
   `splice_check.py <edit> --fix` moves each to a quiet trough within 0.12 s and says what moved.
   Test: `transcribe.py demo`, `trend.py demo`, `splice_check.py demo`.
+- Letterbox layout: `plan.py --layout letterbox` (or `"layout": {"mode": "letterbox"}` in style.json) turns a
+  landscape take into a vertical reel: a black 9:16 frame, the take as a centred band, a lowercase title
+  above it (`--title`, else the first sentence), captions one word at a time in the band (yellow unless the
+  creator highlights in another colour), and one of your own photos or a capture beside your head over the
+  opening line. All of it inside the reels safe zone. creator-teardown's look pass picks it for a creator
+  whose videos are letterboxed (a 16:9 band between black bars). Test: `plan.py demo`, `look.py demo`.
 - Review page: while Claude is making a round (it ran `status`, `round` or `resolve` in the last 15 min) the
   page says "Claude is working. Notes you send now are next." instead of "Claude is not listening".
 - Claude's questions in the window: when Claude asks a question (AskUserQuestion) and the home page or a

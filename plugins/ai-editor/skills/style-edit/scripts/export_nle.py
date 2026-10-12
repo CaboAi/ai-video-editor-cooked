@@ -201,7 +201,7 @@ def render_cards(ctx, todo, media):
             c, out = it["card"], media / f"card-{it['i']:02d}.mov"
             t0 = it["start_f"] / fps   # the clip starts here; the card's own times shift with it
             props = {"composition": "Preview", "width": plan["width"], "height": plan["height"],
-                     "dur": it["len_f"] / fps, "bg": "transparent", "light": bool(plan.get("layout")),
+                     "dur": it["len_f"] / fps, "bg": "transparent", "light": (plan.get("layout") or {}).get("mode") == "split",
                      "look": plan.get("look"), "motion": plan.get("motion"),
                      "card": {**c, "start": round(c["start"] - t0, 4), "end": round(c["end"] - t0, 4)}}
             frames = media / f".card-{it['i']:02d}"

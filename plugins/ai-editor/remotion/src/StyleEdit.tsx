@@ -63,6 +63,15 @@ type Layout = {
   speaker: { scale: number; x: number; y: number; origin: [number, number] };
   caption_full_y: number;
 };
+// "letterbox": black 9:16, the landscape cut as a band, a title above it, one photo over the opening line. % of the frame.
+type Letterbox = {
+  mode: "letterbox";
+  band: [number, number, number, number];
+  title: string;
+  title_box: [number, number, number, number];
+  title_px: number;
+  card?: { src: string; to: number; box: [number, number, number, number] };
+};
 export type Plan = {
   video: string;
   width: number;
@@ -72,7 +81,7 @@ export type Plan = {
   captions: { style: CaptionStyle; chunks: Chunk[] };
   zooms: Zoom[];
   cards: Card[];
-  layout?: Layout;
+  layout?: Layout | Letterbox;
   look?: Partial<Look>; // references/motion.md; default: the editorial look
   motion?: string | { personality?: string }; // snappy | smooth | punchy | calm
   cutouts?: Cutout[];
@@ -303,6 +312,26 @@ const sceneCaptions = (style: CaptionStyle, chunks: Chunk[], cards: Card[], t: n
   return { ...style, color: g.ink, highlight_color: g.ink, emphasis_color: g.ink, stroke: false, box: false, flat: true };
 };
 
+/** The letterbox layout: plain on purpose (no zoom, no card styling), the title and the photo hard on and off. */
+const LetterboxView: React.FC<Letterbox & { video: string; captions: Plan["captions"]; t: number; m: Motion; font: string | null }> = (
+  { title, title_box, title_px, card, video, captions, t, m, font }) => {
+  const { height } = useVideoConfig();
+  const at = (b: number[]): React.CSSProperties => ({ position: "absolute", left: `${b[0]}%`, top: `${b[1]}%`, width: `${b[2]}%`, height: `${b[3]}%` });
+  return (
+    <AbsoluteFill style={{ backgroundColor: "#000" }}>
+      {/* the render proxy already is the cut in its band on black (edit.py footage_filter) */}
+      {video ? <OffthreadVideo src={staticFile(video)} style={{ width: "100%", height: "100%" }} /> : null}
+      {card && t < card.to ? <Img src={staticFile(card.src)} style={{ ...at(card.box), objectFit: "cover", objectPosition: "50% 40%" }} /> : null}
+      {font ? <div style={{ ...at(title_box), display: "flex", flexDirection: "column", justifyContent: "flex-end", overflow: "hidden" }}>
+        <div style={{ fontFamily: font, fontWeight: 400, fontSize: (title_px / 1920) * height, lineHeight: 1.1, color: "#fff",
+          textAlign: "center", textWrap: "balance" } as React.CSSProperties}>{title}</div>
+      </div> : null}
+      <Captions style={captions.style} chunks={captions.chunks} t={t} m={m} />
+      <Sfx />
+    </AbsoluteFill>
+  );
+};
+
 export const StyleEdit: React.FC<Plan> = ({ video, captions, zooms, cards, layout, look: lookIn, motion, cutouts, pans, cover }) => {
   const frame = useCurrentFrame();
   const { fps, width, height, durationInFrames } = useVideoConfig();
@@ -311,6 +340,7 @@ export const StyleEdit: React.FC<Plan> = ({ video, captions, zooms, cards, layou
   const m = pickMotion(motion);
   const fonts = useFonts(look);
   const split = layout?.mode === "split";
+  if (layout?.mode === "letterbox") return <LetterboxView {...layout} video={video} captions={captions} t={t} m={m} font={fonts.ready ? fonts.body : null} />;
   const grounds = sceneGrounds(cards);
   const capAt = (tt: number) => sceneCaptions(captions.style, captions.chunks, cards, tt, look, grounds, m, width, height,
     split && layout ? layout.caption_full_y : captions.style.y_pct ?? 70, split);

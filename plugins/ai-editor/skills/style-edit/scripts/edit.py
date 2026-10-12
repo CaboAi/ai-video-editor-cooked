@@ -79,6 +79,17 @@ def proxy_filter(sw, sh, w, h):
             f"[bg][fg]overlay=(W-w)/2:0,setsar=1")
 
 
+def footage_filter(plan, sw, sh):
+    """The cut as the render draws it under everything: proxy_filter, or for the letterbox layout the cut
+    scaled into its band on black (the render proxy is that frame; the checks read the same)."""
+    w, h = plan["width"], plan["height"]
+    lay = plan.get("layout") or {}
+    if lay.get("mode") != "letterbox":
+        return proxy_filter(sw, sh, w, h)
+    y, bh = (round(v / 100 * h / 2) * 2 for v in lay["band"][1::2])
+    return f"scale={w}:{bh},setsar=1,pad={w}:{h}:0:{y}:black"
+
+
 def prepare_public(edit, plan, tag):
     """A folder with only what the render reads: the cut at output size (keyframe every
     15 frames, which keeps frame seeking fast) and the card images."""
@@ -87,23 +98,25 @@ def prepare_public(edit, plan, tag):
     cut, proxy = edit / plan["video"], pub / plan["video"]
     if not cut.exists():
         sys.exit(f"ERROR: {cut} missing")
-    if not proxy.exists() or proxy.stat().st_mtime < cut.stat().st_mtime:
-        sys.dont_write_bytecode = True
-        sys.path.insert(0, str(Path(__file__).parent))
-        from plan import probe
-        m = probe(cut)
+    sys.dont_write_bytecode = True
+    sys.path.insert(0, str(Path(__file__).parent))
+    from plan import probe
+    m = probe(cut)
+    vf, made = footage_filter(plan, m["width"], m["height"]), pub / f"{plan['video']}.vf"   # a new layout remakes it
+    if not proxy.exists() or proxy.stat().st_mtime < cut.stat().st_mtime or not made.exists() or made.read_text(encoding="utf-8") != vf:
         print(f"preparing {plan['width']}x{plan['height']} copy of {cut.name}", flush=True)
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(cut), "-filter_complex",
-                        proxy_filter(m["width"], m["height"], plan["width"], plan["height"]),
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(cut), "-filter_complex", vf,
                         "-c:v", "libx264", "-crf", "18", "-preset", "veryfast", "-g", "15",
                         "-keyint_min", "15", "-sc_threshold", "0", "-pix_fmt", "yuv420p",
                         "-c:a", "copy", str(proxy)], check=True)
+        made.write_text(vf, encoding="utf-8")
     # Card images, plus every image an anim's or a capture card's props name (a logo card, a diagram's logos, props.logo_src).
     rels = [c["src"] for c in plan["cards"] if c.get("src")]
     rels += re.findall(r'"(images/[^"]+)"', json.dumps([[c.get("anim"), c.get("props")] for c in plan["cards"]]))
     rels += [c["src"] for c in plan.get("sfx", [])]   # sound cues, from sfx.py
     rels += [plan["music"]["src"]] if plan.get("music") else []   # the music bed, from sfx.py music
     rels += [plan["cover"]["src"]] if plan.get("cover") else []   # an audio clip's cover, from clips.py trim
+    rels += [plan["layout"]["card"]["src"]] if (plan.get("layout") or {}).get("card") else []   # the letterbox photo
     for c in plan.get("cutouts", []):   # the speaker cut out for behind cards: a folder of PNGs from matte.py
         if not (edit / c["src"]).is_dir():
             sys.exit(f"ERROR: {edit / c['src']} missing (run matte.py)")
@@ -1058,6 +1071,8 @@ def demo():
     assert "crop=1080:1920" in proxy_filter(1920, 1080, 1080, 1920)
     assert "gblur" in proxy_filter(1080, 1920, 1920, 1080)
     assert proxy_filter(3840, 2160, 1920, 1080).startswith("scale=1920:1080")
+    lb = {"width": 1080, "height": 1920, "layout": {"mode": "letterbox", "band": [0, 34.18, 100, 31.64]}}
+    assert footage_filter(lb, 1920, 1080) == "scale=1080:608,setsar=1,pad=1080:1920:0:656:black", footage_filter(lb, 1920, 1080)
     import tempfile, zipfile
     with tempfile.TemporaryDirectory() as t:
         edit, pub = Path(t) / "fake", Path(t) / "fake" / ".render"

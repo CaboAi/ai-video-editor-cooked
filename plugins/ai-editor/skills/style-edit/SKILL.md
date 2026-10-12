@@ -106,10 +106,10 @@ Find the speaker's head first, so no box covers the face, then plan with the sty
 
 ```bash
 python3 "$VPY" "$S/face.py" edits/<name>
-python3 "$S/plan.py" edits/<name>/style.json edits/<name>/captions.json [--aspect 9:16|16:9] [--layout overlay|split]
+python3 "$S/plan.py" edits/<name>/style.json edits/<name>/captions.json [--aspect 9:16|16:9] [--layout overlay|split|letterbox]
 ```
 
-Writes `edits/<name>/plan.json`. Read every warning it prints. What it does (look, contrast, layout,
+Writes `edits/<name>/plan.json`. Read every warning. What it does (look, contrast, layouts,
 timing, captions, zooms, a second shape with `--out`): `references/plan.md`.
 
 1. **Music:** unless the profile says `sound.music: false`, ask the music question and lay the bed

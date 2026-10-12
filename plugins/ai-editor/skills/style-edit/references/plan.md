@@ -73,6 +73,15 @@ that fails to load stops the render. Cards still come from visuals.json (step 3)
   transition; logos, arrow callouts and caption pages stay boxes. There are no type cards. A beat's
   `layout` overrides, except that an explaining card on vertical is never a box. `--layout overlay`
   never opens the panel.
+- **Letterbox** (`--layout letterbox`, or `"layout": {"mode": "letterbox"}` in style.json; creator-teardown
+  sets it for a creator whose videos are letterboxed): a landscape take only. A black 9:16 frame, the take as
+  a centred full-width band, one plain lowercase title above it (`--title "..."`, else the first sentence, at
+  most 8 words), captions one word at a time inside the bottom of the band in the highlight colour (the
+  creator's, else yellow `#F7D21C`; `layout.highlight` overrides), and ONE photo beside the head (the side
+  face.json says it is not) until the first sentence ends. The photo is the first image in images.json: the
+  user's own photo (`assets_dir`) or a capture, never a generated image; none means no photo. No zooms, no
+  other cards, visuals.json is not drawn. Everything stays inside x 60-940, y 250-1440 of 1080x1920. Cut
+  lightly for it: `--max-pause 0.5` on the cut.
 - **Timing:** each card lands 0.1 s before its word, landing as the render check measures it (an
   overlay starts `OVERLAY_LEAD_S` earlier, the time it takes to carry half its ink; both read it); every part, bar, item and capture mark lands on
   its own word (`word` / `at_word`); a caption_page gets the words said while it is up.

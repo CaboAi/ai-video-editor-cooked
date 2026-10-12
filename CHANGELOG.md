@@ -65,11 +65,12 @@ What changed for every user, newest first.
   ffprobe prints a frame count as `16,` when the stream carries an ICC profile (every iPhone take, copied
   into each segment), and `render.py` failed on `int()`; it now reads the first number. The two whole-file
   frame counts decode on every core (`-threads 0`). A Mac that already decodes with VideoToolbox now
-  encodes with it too (`h264_videotoolbox -q:v 65`); if that fails, every span is redone with x264, which
-  Windows, Linux and `--no-hw` still use. A failed render no longer leaves its `cut_render_*` temp folder
+  encodes with it too (`h264_videotoolbox -q:v 65`, 4 spans at a time); if any step of that render fails
+  (a span, the join, the frame check), the whole render is redone with x264, which Windows, Linux and
+  `--no-hw` still use. A failed render no longer leaves its `cut_render_*` temp folder
   (24-66 MB) behind. The review page's copy of each round's cut is an APFS clone on a Mac (`cp -c`), not a
   full copy. `clips.py` reads ffprobe's `width,height` the same tolerant way. Measured on a 60 s iPhone
-  clip cut to 42 s: 21.3 s and 68 MB before (with the parse fix alone), 8.3 s and 40 MB after, 44.9 dB
+  clip cut to 42 s: 21.3 s and 68 MB before (with the parse fix alone), 8.7 s and 40 MB after, 44.9 dB
   PSNR between them. Test: `test_media.py` (the parse, a VideoToolbox render on a Mac, and a failed
   render cleaning up).
 - Settings is two columns that fit the window, with no "Settings" heading. Each key shows its status

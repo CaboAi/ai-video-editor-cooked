@@ -230,6 +230,16 @@ body.dragging #dropov{display:flex}
 .lbox.big{border:1.5px solid var(--ink);border-radius:14px}
 .lrow{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 6px 0 12px;border-top:1px solid var(--line)}
 .lrow:first-child{border-top:0}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes shim{0%{background-position:-400px 0}100%{background-position:400px 0}}
+@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}@keyframes pulse{50%{opacity:.45}}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--ink);animation:spin .8s linear infinite;flex-shrink:0}
+.spin.big{width:22px;height:22px;border-width:2.5px}
+.shimbox{background:linear-gradient(90deg,#3a3633 0,#55504c 40%,#3a3633 80%) !important;background-size:800px 100% !important;animation:shim 1.4s linear infinite}
+.indet{position:relative;overflow:hidden}.indet>div{position:absolute;inset:0;width:40% !important;animation:slide 1.3s ease-in-out infinite}
+.starting{display:flex;gap:14px;align-items:center;padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:var(--bg);margin-top:18px}
+.starting b{display:block;font-size:15px}.starting span{font-size:13px;color:var(--t3)}
+.mrow.now .v{animation:pulse 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.spin,.shimbox,.indet>div,.mrow.now .v{animation:none}}
 .lslot{color:var(--t4);cursor:text}.lslot .lnum{width:20px;text-align:center;font-size:13px;flex-shrink:0}
 .lmore{border:0;background:none;color:var(--ink);font-weight:600;font-size:14px;padding:10px 2px 0;display:inline-flex;gap:6px;align-items:center}
 .lhint{font-size:13px;color:var(--t2);margin:0 0 8px}
@@ -529,24 +539,25 @@ function h3(td){
   const lk=td.listing,m=td.measured||{rows:{}},cv=curVideo(td),n=lk?lk.videos.length:0;
   const cur=cv?cv[0]-1:null,vid=lk&&cur!=null?lk.videos[cur]:lk&&lk.videos[0];
   const reported=td.steps.length,elapsed=Math.round(Date.now()/1000-(td.started||Date.now()/1000));
-  const steps=td.steps.map(s=>`<div class="row ${s.done?'':'cur'}"><div class="check" style="color:var(--t4)">${s.done?CHECK:'<div class="dot"></div>'}</div><span class="t">${esc(s.text)}</span><span class="s">${s.done?secs(s.secs):''}</span></div>${!s.done&&(s.detail||s.progress!=null)?`<div class="row" style="padding-left:28px"><div class="prog"><div style="width:${Math.round((s.progress||0)*100)}%"></div></div><span class="muted" style="color:var(--t2);font-size:14px">${esc(s.detail||'')}</span></div>`:''}`).join('')
+  const steps=td.steps.map(s=>`<div class="row ${s.done?'':'cur'}"><div class="check" style="color:var(--t4)">${s.done?CHECK:'<div class="spin"></div>'}</div><span class="t">${esc(s.text)}</span><span class="s">${s.done?secs(s.secs):''}</span></div>${!s.done&&(s.detail||s.progress!=null)?`<div class="row" style="padding-left:28px"><div class="prog"><div style="width:${Math.round((s.progress||0)*100)}%"></div></div><span class="muted" style="color:var(--t2);font-size:14px">${esc(s.detail||'')}</span></div>`:''}`).join('')
     +(td.state==='taken'||td.state==='queued'?PLAN.slice(reported).map(p=>`<div class="row later"><div class="check"><div class="ring"></div></div><span class="t">${p}</span></div>`).join(''):'');
   const order=[['pace','Pace'],['zooms','Zooms'],['captions','Captions'],['hook','Hook'],['graphics','Graphics'],['sound','Sound']];
   const curStep=(td.steps.filter(s=>!s.done).at(-1)||{}).text||'';
   const nowKey=/caption/i.test(curStep)?'captions':/graphic/i.test(curStep)?'graphics':/sound/i.test(curStep)?'sound':/cut|zoom/i.test(curStep)?'pace':'';
   const keys=S.keys||{};
-  const status=td.state==='failed'?`<div class="msg bad" style="font-size:14px">${CROSS}<span>${esc(td.error)}</span></div>`:td.state==='cancelled'?`<div class="muted">Cancelled.</div>`:td.state==='queued'?`<div class="muted" style="font-size:14px">${S.listening?'Claude is picking this up.':'Waiting for Claude. Say "edit my video" in Claude Code and it picks this up.'}</div>`:'';
+  const status=td.state==='failed'?`<div class="msg bad" style="font-size:14px">${CROSS}<span>${esc(td.error)}</span></div>`:td.state==='cancelled'?`<div class="muted">Cancelled.</div>`:td.state==='queued'?`<div class="muted" style="font-size:14px;margin-top:16px;line-height:20px">${S.listening?'Claude is picking this up.':'Waiting for Claude. Say "edit my video" in Claude Code and it picks this up.'}</div>`:'';
   return `<div class="col grow" style="gap:20px;min-width:0"><div style="display:flex;gap:28px;flex:1;min-height:0">
-    <div class="col" style="width:400px"><div style="position:relative;flex:1;border-radius:20px;overflow:hidden;background:#45403C ${vid&&vid.thumbnail?`url('${esc(vid.thumbnail)}') center/cover`:''};min-height:420px">${vid?`<div class="badge" style="position:absolute;top:14px;left:14px;background:var(--panel);border-radius:6px;padding:3px 9px;font-weight:600;font-size:14px">${esc(vid.role)} · ${fmtN(vid.view_count||vid.like_count)}${cur!=null?' · now':''}</div>`:''}</div></div>
+    <div class="col" style="width:400px"><div class="${vid&&vid.thumbnail?'':'shimbox'}" style="position:relative;flex:1;border-radius:20px;overflow:hidden;background:#45403C ${vid&&vid.thumbnail?`url('${esc(vid.thumbnail)}') center/cover`:''};min-height:420px">${vid?`<div class="badge" style="position:absolute;top:14px;left:14px;background:var(--panel);border-radius:6px;padding:3px 9px;font-weight:600;font-size:14px">${esc(vid.role)} · ${fmtN(vid.view_count||vid.like_count)}${cur!=null?' · now':''}</div>`:''}</div></div>
     <div class="grow"><div class="between" style="padding:6px 20px 12px"><span class="h" style="font-size:17px">Measured so far</span><span class="muted" style="font-size:14px">${m.videos?`from ${m.videos} of ${n||m.videos} videos · numbers settle as more finish`:'empty until the first video is measured'}</span></div>
       ${order.map(([k,lab])=>m.rows[k]?`<div class="mrow ${k===nowKey?'now':''}"><span class="k">${lab}</span><span class="v">${esc(m.rows[k])}</span></div>`:`<div class="mrow next ${k===nowKey?'now':''}"><span class="k">${lab}</span><span class="v">${k===nowKey&&cv?`Reading video ${cv[0]} now`:'Next'}</span></div>`).join('')}
     </div></div>
-    ${lk&&lk.videos.length?`<div class="strip" style="grid-template-columns:repeat(${n},1fr)">${lk.videos.map((v,i)=>`<div class="${i===cur?'cur':''}"><div class="bar"><div style="width:${cur==null?(td.state==='done'?100:0):i<cur?100:i===cur?50:0}%"></div></div><span>${fmtN(v.view_count||v.like_count)}${i===cur?' now':v.role.startsWith('Control')?' median':''}</span></div>`).join('')}</div>`:''}
+    ${lk&&lk.videos.length?`<div class="strip" style="grid-template-columns:repeat(${n},1fr)">${lk.videos.map((v,i)=>`<div class="${i===cur?'cur':''}"><div class="bar ${i===cur&&td.state==='taken'?'indet':''}"><div style="width:${cur==null?(td.state==='done'?100:0):i<cur?100:i===cur?50:0}%"></div></div><span>${fmtN(v.view_count||v.like_count)}${i===cur?' now':v.role.startsWith('Control')?' median':''}</span></div>`).join('')}</div>`:''}
   </div>
   <div class="panel" style="width:400px;flex-shrink:0;padding:24px 24px 20px">
     <div class="h">Claude</div><div class="sub" style="font-size:15px;line-height:22px;margin-top:6px">Studying @${esc(td.args.handle)}. ${n||7} videos, all on this computer.</div>
-    <div class="slist" style="margin-top:22px">${steps||'<span class="muted">No steps yet.</span>'}</div>
-    ${td.state==='taken'?`<div class="muted" style="margin-top:18px">Working for ${secs(elapsed)}</div>`:''}${status}
+    ${(td.state==='queued'||td.state==='taken')&&!reported?`<div class="starting"><div class="spin big"></div><div><b>${td.state==='taken'?'Getting their videos':'Starting'}</b><span>${td.state==='queued'&&!S.listening&&elapsed>20?'Claude has not started yet. In Claude Code, say "open the home page".':`<span data-since="${td.started||Date.now()/1000}">0s</span> · this takes about 3 minutes`}</span></div></div>`:''}
+    <div class="slist" style="margin-top:22px">${steps}</div>
+    ${td.state==='taken'&&reported?`<div class="muted" style="margin-top:18px">Working for <span data-since="${td.started}">${secs(elapsed)}</span></div>`:''}${status}
     <div style="flex:1"></div>
     <div class="cost"><div class="h">What this costs</div>
       <div class="between"><span>Transcripts, ${keys.elevenlabs&&keys.elevenlabs.set?'ElevenLabs ($0.22 an hour of audio)':'on this computer'}</span><b>${keys.elevenlabs&&keys.elevenlabs.set?'under $0.05':'$0.00'}</b></div>
@@ -594,7 +605,7 @@ function h5(){
   const busy=sk.state==='queued'||sk.state==='taken';
   const prompts=(R.prompts||[]).map(p=>`<div class="prompt"><div><code>${esc(p.text)}</code><div class="sub" style="margin-top:4px">${esc(p.what||'')}</div></div><button class="copy" onclick="copyText(${esc(JSON.stringify(p.text))},this)">Copy</button></div>`).join('');
   let left;
-  if(busy)left=`<div class="h" style="font-size:17px;margin-top:12px">Claude is building your skill</div><div class="slist" style="margin-top:20px">${sk.steps.map(s=>`<div class="row ${s.done?'':'cur'}"><div class="check" style="color:var(--t4)">${s.done?CHECK:'<div class="dot"></div>'}</div><span class="t">${esc(s.text)}</span><span class="s">${s.done?secs(s.secs):''}</span></div>`).join('')||`<span class="muted">${S.listening?'Starting...':'Waiting for Claude. Say "edit my video" in Claude Code.'}</span>`}</div>`;
+  if(busy)left=`<div class="h" style="font-size:17px;margin-top:12px">Claude is building your skill</div><div class="slist" style="margin-top:20px">${sk.steps.map(s=>`<div class="row ${s.done?'':'cur'}"><div class="check" style="color:var(--t4)">${s.done?CHECK:'<div class="spin"></div>'}</div><span class="t">${esc(s.text)}</span><span class="s">${s.done?secs(s.secs):''}</span></div>`).join('')||`<span class="muted">${S.listening?'Starting...':'Waiting for Claude. Say "edit my video" in Claude Code.'}</span>`}</div>`;
   else if(sk.state==='failed')left=`<div class="msg bad" style="font-size:15px;margin-top:12px">${CROSS}<span>${esc(sk.error)}</span></div>`;
   else if(R.passed)left=`<div class="row" style="gap:10px"><span class="muted" style="font-size:14px">Your new skill</span>${R.check?`<span class="tag" style="font-size:13px">${CHECK}passed the check: ${esc(R.check)}</span>`:''}</div>
     <div style="font:500 44px/52px var(--mono);letter-spacing:-.02em;margin-top:14px">${esc(R.name)}</div>
@@ -628,7 +639,7 @@ function h6(){
   const td=latest('teardown'),sk=latest('skill'),vd=latest('video'),F=ui.file,R=(vd&&vd.result)||{};
   const hasCreator=td&&td.state==='done';
   const running=vd&&(vd.state==='queued'||vd.state==='taken');
-  const plan=vd&&vd.steps.length?vd.steps.map(s=>`<div class="row ${s.done?'':'cur'}"><div class="check" style="color:var(--t4)">${s.done?CHECK:'<div class="dot"></div>'}</div><span class="t">${esc(s.text)}</span><span class="s">${s.done?secs(s.secs):esc(s.detail||'')}</span></div>`).join('')
+  const plan=vd&&vd.steps.length?vd.steps.map(s=>`<div class="row ${s.done?'':'cur'}"><div class="check" style="color:var(--t4)">${s.done?CHECK:'<div class="spin"></div>'}</div><span class="t">${esc(s.text)}</span><span class="s">${s.done?secs(s.secs):esc(s.detail||'')}</span></div>`).join('')
     :VIDEO_PLAN.map(([t,s])=>`<div class="row later"><div class="check"><div class="ring"></div></div><span class="t" style="color:var(--t2)">${t}</span><span class="s">${s}</span></div>`).join('');
   return `<div class="col grow" style="min-width:0;padding:16px 28px 0 14px">
     <h1>Drop your video.</h1><p class="lede" style="margin-top:10px">A raw take straight off your phone is fine. Retakes and pauses get cut first.</p>
@@ -1056,6 +1067,7 @@ function render(){
   }
   if(keep){const e=document.getElementById(keep);if(e&&'value' in e&&!e.matches(':focus')){if(e.type!=='file')e.value=val;e.focus();try{e.setSelectionRange(pos,pos)}catch(x){}}}
 }
+setInterval(()=>{for(const e of document.querySelectorAll('[data-since]')){const t=+e.dataset.since;if(t)e.textContent=secs(Math.max(0,Math.round(Date.now()/1000-t)))}},1000);
 async function load(){
   try{const r=await fetch('/state');if(!r.ok)throw 0;S=await r.json()}catch(e){const lv=$('#live');lv.className='live';lv.style.width='auto';lv.style.maxWidth='520px';lv.style.whiteSpace='normal';lv.textContent='The editor stopped. Run nextwork-editor to start it again.';return}
   // live reload: a new page version (home.html, ask.js or the Python changed) reloads this tab, keeping the view

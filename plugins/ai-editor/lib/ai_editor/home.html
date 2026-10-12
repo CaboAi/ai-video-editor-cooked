@@ -230,6 +230,9 @@ body.dragging #dropov{display:flex}
 .lbox.big{border:1.5px solid var(--ink);border-radius:14px}
 .lrow{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 6px 0 12px;border-top:1px solid var(--line)}
 .lrow:first-child{border-top:0}
+.lslot{color:var(--t4);cursor:text}.lslot .lnum{width:20px;text-align:center;font-size:13px;flex-shrink:0}
+.lmore{border:0;background:none;color:var(--ink);font-weight:600;font-size:14px;padding:10px 2px 0;display:inline-flex;gap:6px;align-items:center}
+.lhint{font-size:13px;color:var(--t2);margin:0 0 8px}
 .lbox.big .lrow{min-height:54px;padding:0 10px 0 20px;gap:12px}
 .lurl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:13px/18px var(--mono);color:var(--ink)}
 .lbox.big .lurl{font-size:14px}
@@ -465,12 +468,17 @@ function lbPaste(e,k){const t=(e.clipboardData||{getData:()=>''}).getData('text'
 function linkBox(k,big){
   const b=lbOf(k),n=b.rows.length,px=big?20:18;
   const rows=b.rows.map((r,i)=>`<div class="lrow">${platOf(r)?logo(platOf(r),px):LINKG}<span class="lurl" title="${esc(r)}">${esc(shortLink(r))}</span><button class="lx" aria-label="Remove this link" title="Remove" onclick="lbRemove('${k}',${i})">${CROSS}</button></div>`).join('');
-  const ph=!n?(big?'tiktok.com/@name, or links to their videos':'Paste a profile or links to their videos'):isProfile(b.rows[0])?'Or paste video links instead':'Add another link';
-  return `<div class="lbox ${big?'big':''}">${rows}<label class="lrow ladd">${n?`<span class="logo">${PLUS}</span>`:''}<input id="lb-${k}" placeholder="${ph}" value="${esc(b.draft)}" oninput="lbInput('${k}',this.value)" onkeydown="lbKey(event,'${k}')" onpaste="lbPaste(event,'${k}')" autocomplete="off" spellcheck="false"></label></div>`;
+  const prof=n&&isProfile(b.rows[0]);
+  const ph=prof?'Or paste video links instead':`Video ${n+1}: paste a link`+(!n?' (or their profile)':'');
+  // empty numbered boxes up to 5 (or more after "Add more links"): several links is the point, so show it
+  const slots=prof?0:Math.max(0,Math.max(5,n+1+(b.extra||0))-n-1);
+  const empty=Array.from({length:slots},(_,i)=>`<div class="lrow lslot" onclick="const e=document.getElementById('lb-${k}');if(e)e.focus()"><span class="lnum">${n+2+i}</span><span>Video ${n+2+i}</span></div>`).join('');
+  const hint=prof?'':`<div class="lhint">Paste 5 or more of their videos for the best result.</div>`;
+  return `${hint}<div class="lbox ${big?'big':''}">${rows}<label class="lrow ladd"><span class="logo">${n?PLUS:`<span class="lnum">1</span>`}</span><input id="lb-${k}" placeholder="${ph}" value="${esc(b.draft)}" oninput="lbInput('${k}',this.value)" onkeydown="lbKey(event,'${k}')" onpaste="lbPaste(event,'${k}')" autocomplete="off" spellcheck="false"></label>${empty}</div>${prof?'':`<button class="lmore" onclick="lbOf('${k}').extra=(lbOf('${k}').extra||0)+1;render();const e=document.getElementById('lb-${k}');if(e)e.focus()">${PLUS} Add more links</button>`}`;
 }
 function lbCount(k){
   const v=lbOf(k).rows.filter(r=>!isProfile(r));
-  return v.length?`${v.length} video${v.length>1?'s':''}.${v.length<5?' 5 or more gives a truer style.':''}${v.some(r=>platOf(r)==='instagram')?' Instagram ranks by likes, not views.':''}`:'';
+  return v.length?`${v.length} of 5 videos.${v.length<5?' More links give a truer style.':' Enough for a good read.'}${v.some(r=>platOf(r)==='instagram')?' Instagram ranks by likes, not views.':''}`:'';
 }
 
 // ---------------------------------------------------------------- H2

@@ -298,6 +298,8 @@ def body(style_path=None, fmt=None):
                 "   instead of the profile's creators (`$P` is the plugin's `lib/ai_editor/profile.py`):\n"
                 f"   `python3 \"$P\" style edits/<name> --from \"{sp}\"`\n"
                 "2. Then cut and style-edit as start says. plan.py and the cut lay the corrections over the style themselves.\n"
+                "   Cards come at this creator's rate, kinds and place (route.py marks the `want` lines); fix every `style:`\n"
+                "   line plan.py's style check prints before the stills.\n"
                 f"3. Review notes that are preferences: ask the scope with `This style (@{h}) (Recommended)` first, then\n"
                 "   `review.py edits/<name> learn --scope this-style ...`. They land in the section below.\n\n"
                 "Follow every rule in \"Learned from your feedback\". Where one disagrees with the user's general taste,\n"

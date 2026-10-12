@@ -80,11 +80,11 @@ Do each step in order, skipping what is already done. Read each skill's SKILL.md
 2. **creator-teardown** in quick mode (its SKILL.md "Quick mode") for every profile creator without
    `creator-teardowns/<handle>/style.json`. Say the time first (about a minute per creator). Run
    several creators in parallel when the platform allows.
-3. **Blend the style**: `python3 "$P" style edits/<name>` writes `edits/<name>/style.json`, each part
-   (captions, pace, visuals) from the creator the user picked for it, with the caption and sound
-   answers laid over. With no creator it writes the default style (a smooth zoom move at least every 5 s,
-   3-word captions). If it stops with `no creator style.json found`, step 2 did not finish for a
-   creator: run it again.
+3. **Blend the style**: `python3 "$P" style edits/<name>` writes `edits/<name>/style.json` from the
+   parts the user ticked for each creator, with the caption and sound answers laid over (no creator:
+   the default style). It prints the copied style's skill (`skill: edit-like-<h> -> <path>`): read
+   it and follow its learned rules through the cut and the edit. `no creator style.json found`:
+   run step 2 again.
 4. **cut** on the raw take, from its step 0b (start has already decided: cut, wait for the cut page
    approval, then style). The user approves the cut page. This is approval 1 of 2.
 5. **style-edit** with `edits/<name>/style.json`. Its stills sheet is approval 2 of 2. It reads the

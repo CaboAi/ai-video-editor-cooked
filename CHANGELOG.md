@@ -51,6 +51,22 @@ What changed for every user, newest first.
   `review.py serve` skips it when the home window holds that edit's job and goes there in its own tab. Test:
   `askhook.py demo` (two sessions, two pages), `home.py demo`, `review.py demo`, `progress.py demo`,
   `launcher.py demo` (the terminal command per OS, recorded, never run).
+- A copied creator's style now reaches the edit. A tester copied @alexhormozi, made a video, and the edit
+  looked nothing like him: no images where he puts them, captions boxed for contrast, a 2x punch zoom held
+  16 s. Fixes: `profile.py style` uses the parts the user ticked (`<handle>-mine`, the same file the
+  `edit-like-<handle>` skill and its corrections use) and keeps camera, face, hook and sound, which the
+  blend dropped; it prints the style's skill, and start now reads its learned rules. The home page's
+  "graphics" box also copies her entrance motion and layout (an older `-mine` gets them back from the study).
+  `route.py beats` prints her cards a minute (under the user's own Cards cap, if they picked one; the default
+  style's 4 a minute never caps a creator), kinds and place, and marks that many sentences `want`;
+  style-edit gives each a real card there (the user's photo, a capture, their own clip). A creator with plain
+  captions keeps a shadow or glow before any stroke or backing. Her punch zoom comes back out after about
+  one of her shots. Vertical cards go in the centred band above the head, the only place `check.py plan`
+  passes. New `style_check.py`, run at the end of every plan: one `style:` line per way the plan differs
+  from her (caption size, place, words, case, font and plain look; zooms, cards, kinds and zone; sound cues
+  and pans a minute), against her style with the style page's presets and the user's own changes laid over (user > creator > default). `sfx.py` no longer stops a
+  plan on a loud take (the cues stay under -1 dBFS).
+
 - Jev is gone: the editor no longer uses TypeSafe or asks for its key. On a real skit Jev marked
   0.44-99.8 s (85% of the video) as one retake, because skits repeat lines on purpose. `retakes.py
   propose` now writes `transcript.txt` and `candidates.md` (what code flagged) and Claude writes

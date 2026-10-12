@@ -110,9 +110,11 @@ every part it has). Absent, the defaults above and in motion.md stand unchanged.
 | `graphics.entrances[]` | entrances | one measured entrance per box card, dealt in her shares (smooth weighted round robin, deterministic): kind, GSAP ease, duration, overshoot (inside the ease), side and distance, fade. Replaces the default drop-in; a `cut` shows the card on its word | plan.py `creator_motion` -> `props.enter`; motion.ts `fitIn` |
 | `graphics.exits[]` | entrances | the same for leaving, ending as the card's time runs out | `props.exit`; motion.ts `fitOut` |
 | `graphics.secondary_motion` | entrances | what a card does while up: `still` (no camera), `push` (scale only), `drift` (move only), `video` (the default push and drift stand in for a moving picture) | `props.ambient`; motion.ts `camera` |
-| `graphics.kinds` | graphics | the formats preferred for her mix: UI recording -> `capture:browser` / `video_card`, real screenshot -> `capture:shot` / `capture:sticker`, text card and chart -> `capture:sticker` of the real source (text cards are never built), photo -> `capture:shot`, logo -> `logo` / `logo_cluster`, b-roll -> `video_card`. route.py weights Jev's picks by 1 + her share (a clear `none` stays); plan.py deals a format to a capture that has none | route.py `prefer`; plan.py `kind_formats` |
+| `graphics.kinds` | graphics | the formats preferred for her mix: UI recording -> `capture:browser` / `video_card`, real screenshot -> `capture:shot` / `capture:sticker`, text card and chart -> `capture:sticker` of the real source (text cards are never built), photo -> `capture:shot`, logo -> `logo` / `logo_cluster`, b-roll -> `video_card`. route.py prints her mix for Claude to lean towards; plan.py deals a format to a capture that has none | route.py `prefer`; plan.py `kind_formats` |
 | `graphics.layout` (`grid`, else `zones_pct`; `median_box`) | layout | each free region round the head is scored by its area x (0.25 + how much of her graphics sat there), so her regions win when they fit. Same free regions as always: never over the head, inside the app's safe zones. `median_box` is the box when there is no face.json | plan.py `place_overlays` / `heat` |
+| `graphics.per_min` | graphics | her rate (under the user's own `cards.per_min` / `cards.on`, never the default style's cap; plan.py `card_rate`): route.py marks that many sentences `want` for this length (named first, then the longest, spread out); the style check counts the plan's cards against it, and her kinds and zone too | route.py `want`; style_check.py |
 | `pace.cut_kinds` | pace | with `zoom.on: every_cut`, only her `zoom-punch` share of the cuts may change the zoom; the rest are hard holds. `zoom.per_min` still spaces them | plan.py `place_zooms` |
+| `pace.median_shot_s` | pace | a punch zoom holds about one of her shots, then comes back out by itself (each change is a punch) | plan.py `place_zooms` |
 | `zoom.ease` | pace | a push zoom plays on her fitted ease, at least 0.8 s each way (a punch keeps its 0.16 s eased move; motion.md "Zooms") | plan `zooms[].ease`; StyleEdit `zoomScale` |
 | `camera.pan_per_min` | pace | that many slow sideways drifts of the footage a minute, 1.5 s each, 2.5% of the width, out and back (overlay layout only) | plan `pans`; StyleEdit `panAt` |
 | `sound.sfx_per_min` | sound | the cue budget (0 is allowed: she uses none) | plan.py `place_sfx` |
@@ -129,9 +131,9 @@ text cards become stickers of real sources.
 ## Beats
 
 Every beat anchors to a word as it appears in captions.json (the transcript may misspell a name:
-anchor on its spelling). Always set `nth`. Pacing is one rule (SKILL.md step 3, "Pacing"): a card
-where a sentence names something real, never two at once, none in the first second unless it is the
-hook's subject. Set `hold_s` so the card is still up on its last
+anchor on its spelling). Always set `nth`. Pacing (SKILL.md step 3): a card on each beats.json `want`
+(a copied creator's rate), else where a sentence names something real; never two at once, none in the
+first second unless it is the hook's subject. Set `hold_s` so the card is still up on its last
 word (plan.py warns when it is not); leave it out to use the creator's measured hold. Leave the
 speaker alone for a few seconds between runs of scenes.
 

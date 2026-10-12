@@ -106,8 +106,8 @@ A step that stops: say why with `--failed`, in the words of the skill's "If a sc
 The user ticked what to copy and pressed "Build my skill".
 
 1. `--step "Saving your style"`: `profile.py set 'creators=[{"handle":"<h>","take":[...]}]'`, the
-   parts mapped `captions`->captions, `pace`->pace, `graphics`->visuals, `sound` kept for the
-   sound answer (`sound.sfx=true`). Then creator-teardown's
+   parts mapped `captions`->captions, `pace`->pace, `graphics` (with `entrances` and `layout`)->visuals,
+   `sound` kept for the sound answer (`sound.sfx=true`). Then creator-teardown's
    `editplan.py blend <h>-mine --from <h> --take <parts>`: it refreshes the style's skill
    `edit-like-<h>` on the ticked parts and prints its name.
 2. `--step "Checking whether it is a format of its own"`: creator-teardown's

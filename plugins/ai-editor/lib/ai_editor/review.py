@@ -1010,6 +1010,16 @@ def asker(folder, started):
     return owner
 
 
+def _free(port):
+    import socket
+    with socket.socket() as s:
+        try:
+            s.bind(("127.0.0.1", port))
+            return True
+        except OSError:
+            return False
+
+
 def serve(folder, port=0, open_browser=True):
     """(server, url). An already running server for this folder is reused: (None, its url)."""
     url = running(folder)
@@ -1017,7 +1027,13 @@ def serve(folder, port=0, open_browser=True):
         if open_browser:
             show(url, folder)
         return None, url
-    token = secrets.token_urlsafe(32)
+    token, last = secrets.token_urlsafe(32), (folder / "review" / ".server")
+    if last.is_file():   # the same address as last time, so an open tab or a saved link keeps working
+        m = re.match(r"http://127\.0\.0\.1:(\d+)/\?t=([\w-]+)$", last.read_text(encoding="utf-8").strip())
+        if m:
+            token = m.group(2)
+            if not port and _free(int(m.group(1))):
+                port = int(m.group(1))
     # exclusive bind on Windows, where SO_REUSEADDR (HTTPServer's default) lets two servers share a port
     srv = type("Server", (ThreadingHTTPServer,), {"allow_reuse_address": os.name != "nt"})(("127.0.0.1", port),
                                                                                       make_handler(folder, token))
@@ -1784,6 +1800,9 @@ def demo():
     d0 = load(rf / "review.json")
     assert (d0["round"], d0["raw"], d0["sent"]) == (0, True, True) and d0["events"][-1]["handled"], d0
     srv2, url2 = serve(rf, 0, open_browser=False)
+    srv2.server_close()
+    srv2, again = serve(rf, 0, open_browser=False)   # a restart keeps the same address, so open tabs keep working
+    assert again == url2, (again, url2)
     threading.Thread(target=srv2.serve_forever, daemon=True).start()
     b2, t2 = url2.split("/?t=")
     p2 = lambda p, b: urllib.request.urlopen(urllib.request.Request(b2 + p + "?t=" + t2, json.dumps(b).encode(), method="POST"))

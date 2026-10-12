@@ -67,6 +67,8 @@ What changed for every user, newest first.
   installed and latest version, what changed and a Check now button. The videos folder has Show in Finder
   and Change. Light, Dark or System is on the page too. New routes `/key/check`, `/key/remove` and
   `/update/check`; key checks are kept by the key's last 4 characters, never the key.
+- A review page keeps its address when its server restarts (same port when free, same token), so an open tab or a
+  saved link keeps working. Before, every restart gave a new port and token and the open tab went dead.
 - The home window shows progress on its own. A tester pressed Copy and the window sat blank while Claude
   installed and ran the teardown, because steps only reached it when Claude ran `home.py status`. Now the
   long scripts report themselves while Claude has that job taken (a script never takes a queued job, so

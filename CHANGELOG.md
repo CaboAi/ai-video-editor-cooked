@@ -4,6 +4,13 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Saving a key, transcribing and every other web request now work on python.org's macOS Python before
+  "Install Certificates.command" has been run. They failed with `CERTIFICATE_VERIFY_FAILED`. Every HTTPS
+  call goes through `lib/ai_editor/net.py` (creator-teardown: `scripts/_net.py`), which still verifies
+  certificates and adds trusted roots: certifi when importable, else the editor venv's certifi bundle by
+  path, else the OS bundle (`/etc/ssl/cert.pem` on macOS). A certificate error now says "fix my
+  certificates" instead of the raw error. Doctor has a "secure web" row, and `setup.py certs` is the
+  cleaner fix. Test: `net.py demo`, `setup.py demo`.
 - Your changes survive updates: `<library>/custom/` holds your own rule files (`rules/*.md`, printed by
   `taste.py show` so every skill follows them), caption styles (`captions/<name>.json`, on with
   `taste.py set captions.preset <name>`), template defaults (`templates/<type>.json`) and the cut critic's

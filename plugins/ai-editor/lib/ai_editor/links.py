@@ -44,6 +44,11 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse, urlunparse
 
+try:
+    from ai_editor import net
+except ImportError:   # run as a script from this folder
+    import net
+
 LONG_S = 8 * 60          # a video at least this long goes to clips
 CLIPS_MIN_S = 3 * 60     # shorter than this, "make clips" is not offered
 VIDEO_EXT = (".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".mts", ".3gp")
@@ -417,7 +422,7 @@ def handle_of(d):
 
 def _get(url, timeout=30, cap=FEED_CAP):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 ai-video-editor"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with net.urlopen(req, timeout) as r:
         data = r.read(cap + 1)
     if len(data) > cap:
         raise ValueError(f"{url} is over {cap >> 20} MB")
@@ -446,7 +451,7 @@ def file_name(url, timeout=15):
     """The file name a download link serves (Content-Disposition), or None. One ranged GET, no body read."""
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 ai-video-editor", "Range": "bytes=0-0"})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with net.urlopen(req, timeout) as r:
             cd = r.headers.get("Content-Disposition", "")
     except (urllib.error.URLError, OSError, ValueError):
         return None
@@ -698,12 +703,12 @@ def http_get(url, edit, max_gb, note=None):
     edit.mkdir(parents=True, exist_ok=True)
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 ai-video-editor"})
     try:
-        r = urllib.request.urlopen(req, timeout=60)
+        r = net.urlopen(req, 60)
     except urllib.error.HTTPError as e:
         why = {401: "needs a login", 403: "is private", 404: "does not exist (or is private)"}.get(e.code, f"failed (HTTP {e.code})")
         return 1, f"That link {why}. " + (note or "Share it so anyone with the link can view, then paste it again.")
     except (urllib.error.URLError, OSError) as e:
-        return 1, f"Could not reach that link: {e}"
+        return 1, f"Could not reach that link: {net.friendly(e)}"
     with r:
         ctype = r.headers.get("Content-Type", "").lower()
         size = int(r.headers.get("Content-Length") or 0)

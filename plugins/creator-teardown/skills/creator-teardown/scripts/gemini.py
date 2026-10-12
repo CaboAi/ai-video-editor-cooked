@@ -46,6 +46,7 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _net  # noqa: E402
 from fetch import OUT_ROOT, slug  # noqa: E402
 from transcribe import find_key  # noqa: E402
 
@@ -143,7 +144,7 @@ def post(key, payload, model=None):
                                  {"Content-Type": "application/json", "x-goog-api-key": key})
     for wait in (10, 30, 60, None):
         try:
-            with urllib.request.urlopen(req, timeout=180) as r:
+            with _net.urlopen(req, 180) as r:
                 return json.loads(r.read())
         except urllib.error.HTTPError as e:
             msg = e.read().decode(errors="replace")[:400]

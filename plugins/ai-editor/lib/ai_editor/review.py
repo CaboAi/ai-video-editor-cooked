@@ -231,6 +231,22 @@ def data_of(folder, name):
         return {}
 
 
+def upgrade_transcript(folder, p):
+    """A cut round's data file written before words carried their raw-take times (s/e): every word looked untimed, so
+    the page could neither edit nor follow it. Rebuilt from decisions.json + words.raw.json when they still add up."""
+    try:
+        data = load(p)
+        toks = [x for ln in (data.get("transcript") or {}).get("lines", []) for x in ln["tokens"] if "w" in x]
+        if not toks or any("s" in x or x.get("nt") for x in toks):
+            return
+        tx = cut_transcript(folder, data.get("duration"))
+        if tx:
+            data["transcript"] = tx
+            save(p, data)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        pass
+
+
 def round_data(folder, video, stage, rnd, plan):
     """review/data-<stage><round>.json: what the page draws beside the video. Every part optional."""
     dur = duration(video)
@@ -712,6 +728,8 @@ def make_handler(folder, token):
                 d = load(rj)
                 r = next((r for r in d.get("rounds", []) if f"{r['stage']}-{r['round']}" == q.get("k")), None)
                 p = folder / "review" / Path(r.get("data") or "-").name if r else None
+                if p and p.is_file() and (r["stage"], r["round"]) == (d["stage"], d["round"]) == ("cut", d["round"]):
+                    upgrade_transcript(folder, p)
                 return self.send(200, p.read_bytes() if p and p.is_file() else {})
             if path.startswith("/frames/"):
                 p = folder / "review" / Path(unquote(path)).name
@@ -1807,6 +1825,14 @@ def demo():
     threading.Thread(target=srv3.serve_forever, daemon=True).start()
     b3, t3 = url3.split("/?t=")
     p3 = lambda b: json.loads(urllib.request.urlopen(urllib.request.Request(b3 + "/edits?t=" + t3, json.dumps(b).encode(), method="POST")).read())
+    # a data file from before words had raw times: /data rebuilds it, so the page can edit and follow the words
+    dp = ef / "review" / load(ef / "review.json")["data"]
+    old = load(dp)
+    for ln in old["transcript"]["lines"]:
+        ln["tokens"] = [{k: v for k, v in x.items() if k not in ("s", "e", "k", "g", "n")} for x in ln["tokens"] if not x.get("nt")]
+    save(dp, old)
+    got = json.loads(urllib.request.urlopen(b3 + "/data?k=cut-1&t=" + t3).read())
+    assert got["transcript"]["lines"][0]["tokens"][1]["s"] == 0.5, got
     try:
         urllib.request.urlopen(urllib.request.Request(b3 + "/edits", b"{}", method="POST"))
         raise AssertionError("/edits without the token")

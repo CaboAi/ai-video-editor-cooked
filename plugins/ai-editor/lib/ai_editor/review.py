@@ -639,7 +639,8 @@ def keep(folder, video, stage, rnd, name=None):
     never changes what an earlier round's tab replays. A copy, not a hardlink: ffmpeg and Remotion rewrite
     the file in place, and a hardlink would change with it."""
     src = Path(video).resolve()
-    dst = folder / "review" / f"v-{stage}{rnd}{'-' + re.sub(r'[^\w-]', '_', name) if name else ''}{src.suffix}"
+    tag = "-" + re.sub(r"[^\w-]", "_", name) if name else ""   # outside the f-string: Python 3.9 (a Mac's built-in) has no backslash there
+    dst = folder / "review" / f"v-{stage}{rnd}{tag}{src.suffix}"
     if src != dst.resolve():
         # ponytail: a full copy per round; a copy-on-write clone (APFS cp -c, btrfs reflink) if disk use matters
         shutil.copyfile(src, dst)

@@ -399,18 +399,27 @@ async function verify(id){
   const r=await post('/key',{name:id,value});
   ui.keys[id]=r.ok?{msg:r.msg}:{bad:1,edit:1,msg:r.msg||'Not saved.'};await load();render();
 }
+// One bar while setup installs (setup.py install-all --report sends the overall share as each step's progress).
+// The tool rows sit under "See details". Studying a creator needs no renderer, so the next step stays open.
+const toolsReady=()=>!!(S.doctor&&S.doctor.rows.length&&S.doctor.rows.every(r=>r.ok));
+function readyPct(){const j=latest('setup'),s=j&&j.steps.at(-1);return j&&j.state==='done'?100:Math.round(((s&&s.progress)||0)*100)}
+function readyBox(){
+  const d=S.doctor,rows=d?d.rows:[],j=latest('setup'),run=j&&j.state==='taken',s=run&&j.steps.at(-1);
+  if(!d)return `<div class="muted">Checking this computer...</div>`;
+  const tools=rows.map(r=>`<div class="row">${r.ok?TICK:TODO}${logo(r.id)}<div style="width:166px;flex-shrink:0;color:${r.ok?'var(--t2)':'var(--ink)'};font-weight:${r.ok?400:600}">${esc(r.name)}</div><div class="muted" style="color:${r.ok?'var(--t4)':'var(--t2)'}">${r.ok?esc(r.what):'not ready yet'}</div></div>`).join('');
+  const more=`<button class="hlink" style="align-self:flex-start" onclick="ui.details=!ui.details;render()">${ui.details?'Hide details':'See details'}</button>${ui.details?`<div style="display:flex;flex-direction:column;gap:9px;margin-top:4px">${tools}</div>`:''}`;
+  if(toolsReady()&&!run)return `<div class="row" style="gap:8px">${TICK}<span>Your computer is ready.</span></div>${more}`;
+  const now=run?`Now: ${esc(s?s.text:'starting')}${s&&s.detail?' · '+esc(s.detail):''}`:j&&j.state==='failed'?'':'Waiting for Claude. Say "set up the editor" in Claude Code.';
+  return `<div class="between"><span class="h">Getting your computer ready</span><span class="muted">${readyPct()}%</span></div>
+    <div class="prog" style="width:100%"><div style="width:${readyPct()}%"></div></div>
+    ${j&&j.state==='failed'&&!run?`<div class="msg bad">${CROSS}<span>${esc(j.error)}</span></div>`:`<div class="muted">${now}</div>`}
+    <div class="muted">Pick a creator while this runs.</div>${more}`;
+}
 function h1(){
-  const d=S.doctor,rows=d?d.rows:[];const ready=rows.filter(r=>r.ok).length;
-  const setup=latest('setup');const sstep=setup&&setup.state==='taken'?setup.steps.at(-1):null;
-  const tools=!d?`<div class="muted">Checking this computer...</div>`:rows.map(r=>`<div class="row">${r.ok?TICK:TODO}${logo(r.id)}<div style="width:166px;flex-shrink:0;color:${r.ok?'var(--t2)':'var(--ink)'};font-weight:${r.ok?400:600}">${esc(r.name)}</div><div class="muted" style="color:${r.ok?'var(--t4)':'var(--t2)'}">${r.ok?esc(r.what):'not ready yet'}</div></div>`).join('')
-    +(sstep?`<div class="row" style="padding-left:60px"><div class="prog" style="width:160px"><div style="width:${Math.round((sstep.progress||0)*100)}%"></div></div><span class="muted" style="color:var(--t2)">${esc(sstep.text)}${sstep.progress!=null?' · '+Math.round(sstep.progress*100)+'%':''}</span></div>`:'');
-  const missing=rows.length&&ready<rows.length;
   const unset=KEYS.filter(k=>!(S.keys[k.id]||{}).set).map(k=>k.id);
   return `<div class="col" style="width:440px;padding:28px 28px 0 14px;gap:36px">
-    <div><h1>Edit like the creators you watch.</h1><p class="lede">Name a creator. The editor measures how they cut, then edits your video the same way. First it needs a few tools on this computer.</p></div>
-    <div style="display:flex;flex-direction:column;gap:12px"><div class="between"><span class="h">What the editor needs</span><span class="muted">${d?`free · ${ready} of ${rows.length} ready`:''}</span></div>
-    <div style="display:flex;flex-direction:column;gap:9px">${tools}</div>
-    <div class="muted" style="line-height:20px;padding-top:4px">${missing?'Claude installs what is missing. Say "set up the editor" in Claude Code. You can pick a creator while it runs: studying their videos does not need the renderer.':d?'Everything is installed.':''}</div></div>
+    <div><h1>Edit like the creators you watch.</h1><p class="lede">Name a creator. The editor measures how they cut, then edits your video the same way.</p></div>
+    <div style="display:flex;flex-direction:column;gap:12px;align-items:stretch">${readyBox()}</div>
   </div>
   <div class="panel grow">
     <div class="between" style="padding:22px 24px 16px;align-items:flex-start"><div><div class="h">Optional keys</div><div class="sub" style="margin-top:4px">Each one makes edits cheaper or better. Skip any: Claude does that job instead.</div></div><div class="lock">${LOCK}Saved on this computer only. Never sent to the chat.</div></div>
@@ -630,7 +639,7 @@ function h6(){
       ${vd&&vd.state==='failed'?`<div class="msg bad" style="margin-top:12px">${CROSS}<span>${esc(vd.error)}</span></div>`:''}
     </div>
     <div style="flex:1"></div>
-    <div style="padding:0 20px 20px;text-align:center"><button class="btn dark wide" ${F&&F.ok&&!running?'':'disabled'} onclick="startCut()">${running?(vd.state==='queued'&&!S.listening?'Waiting for Claude':'Cutting...'):'Start the cut'}</button><div class="muted" style="margin-top:12px;font-size:14px">or say "edit my video" in Claude Code</div></div>
+    <div style="padding:0 20px 20px;text-align:center"><button class="btn dark wide" ${F&&F.ok&&!running&&toolsReady()?'':'disabled'} onclick="startCut()">${running?(vd.state==='queued'&&!S.listening?'Waiting for Claude':'Cutting...'):'Start the cut'}</button><div class="muted" style="margin-top:12px;font-size:14px">${toolsReady()||running?'or say "edit my video" in Claude Code':`Making a video waits for the tools. ${readyPct()}% ready.`}</div></div>
   </div>`;
 }
 async function startCut(){const r=await queue({type:'video',path:ui.file.path,as:ui.as,aspect:ui.aspect});if(r._ok){nv.making=r.ids;ui.onboard=false;await loadLib();rgo('making')}}

@@ -4,6 +4,16 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- First run opens the editor's window first. Before, a new install went straight to several minutes of
+  installs in the terminal and the window never opened. Now the window opens at once (it needs nothing
+  installed, and runs on a Mac's built-in Python 3.9 too) and `setup.py install-all --report` installs the
+  Python packages, the transcription model and the renderer behind it, never asking. The window shows one
+  "Getting your computer ready" bar with "Now: <step>", real progress (packages, model MB, renderer
+  packages) and the tool rows under "See details". "Next: pick a creator" works during the install; "Start
+  the cut" waits for the tools and says so. A failed step is shown with its fix and the steps that do not
+  need it still run. The session-start check tells Claude to do this on a first run; setup no longer asks
+  a question before opening the window. A clean install took 48 s here (packages 7 s, model 29 s,
+  renderer 9 s, with a warm npm cache).
 - Home window: several creator links are easy to add. Each pasted link becomes its own row with the app's
   logo, a short form of the link and a remove x; pasting several at once splits them; Enter adds, Backspace
   on the empty box removes the last; a profile link stays one row and shows the profile. The count shows

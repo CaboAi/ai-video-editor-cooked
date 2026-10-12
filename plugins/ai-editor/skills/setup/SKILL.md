@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Installs and checks everything the AI video editor needs on Mac, Windows or Linux (Python, ffmpeg, Node, git, the Python packages, the free transcription model and the Remotion renderer), one step at a time with a check after each, then saves the user's style once (platform, creators, brand). Also walks through the optional API keys (TypeSafe for cheaper cuts, Gemini for reading a creator's look, ElevenLabs for verbatim transcripts), the optional CrisperWhisper model, cloud renders on Modal ($30 free credit a month), the GitHub CLI for free GitHub Actions renders and AWS Lambda. Use when the user says "set up the editor", "install ai-editor", "setup", "finish setup", "set up Modal", "cloud renders", "add my TypeSafe key", "add my Gemini key", "add my ElevenLabs key", when they have just installed the plugin, or when another ai-editor or creator-teardown step fails because a tool is missing. Not for editing a video (that is start) and not for changing one edit preference (that is taste).
+description: Installs and checks everything the AI video editor needs on Mac, Windows or Linux (Python, ffmpeg, Node, git, the Python packages, the free transcription model and the Remotion renderer): on a first run it opens the editor's window first, then installs in the background. Then saves the user's style once. Also walks through the optional API keys (TypeSafe for cheaper cuts, Gemini for reading a creator's look, ElevenLabs for verbatim transcripts), the optional CrisperWhisper model, cloud renders on Modal ($30 free credit a month), the GitHub CLI for free GitHub Actions renders and AWS Lambda. Use when the user says "set up the editor", "install ai-editor", "setup", "finish setup", "set up Modal", "cloud renders", "add my TypeSafe key", "add my Gemini key", "add my ElevenLabs key", when they have just installed the plugin, or when another ai-editor or creator-teardown step fails because a tool is missing. Not for editing a video (that is start) and not for changing one edit preference (that is taste).
 license: MIT
 compatibility: Claude Code or any agent with a shell, on Mac, Windows or Linux. Installs Python 3.10+, ffmpeg 4.4+, Node 20+, git and the Remotion renderer; needs internet. Runs from the full ai-editor plugin folder.
 ---
@@ -11,38 +11,39 @@ Paths: `${CLAUDE_SKILL_DIR}` means the folder containing this SKILL.md, and `${C
 
 Every question goes in the question box: the AskUserQuestion tool (2-4 options, recommended first). Only in an agent without it, ask numbered questions in text.
 
-The user may never have used a terminal. Go one step at a time. Before each install, say in one
-sentence what the tool is for. Run the command once they say yes. Check after every step.
+The user may never have used a terminal. In the terminal flow, say what each tool is for in one
+sentence before installing it, and check after every step.
 
 `U="${CLAUDE_SKILL_DIR}/scripts/setup.py"`. Run it with `python3` on Mac and Linux, `py` on Windows.
 
-## 0. Say the plan first
+## 0. Window first
 
-Before running anything, tell the user in plain words what setup does and why, as this list
-(the times are typical; say them as given):
+On a first run (no profile, or doctor not `Ready.`; the session-start line says "First run"), before
+any install or question, and with no question box (the page is the setup; keys are typed there):
 
-1. **Tools** (2-10 min, free): the programs that cut and draw the video. Required.
-2. **Keys** (about 5 min, free or under a cent a video): three accounts that make every edit
-   cheaper. Each is optional; skipping one means Claude does that job and uses more of your usage.
-3. **Cloud renders** (optional, 3 min): finish long videos faster on Modal.
-4. **Your style** (2 min): the creators and videos you like, so edits look like what you want.
+1. Open the window: `python3 "$H" serve` and `python3 "$H" wait`, both `run_in_background`,
+   `H="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/home.py"` (stdlib only: it needs nothing installed). Say one line: "The editor is open in your browser.
+   It is getting your computer ready; pick a creator there meanwhile."
+2. Install in the background: `python3 "$U" install-all --report` (`run_in_background`). It runs steps
+   3-4 in order, never asks, and shows each on the page's "Getting your computer ready" bar.
+3. Take the page's jobs as `${CLAUDE_PLUGIN_ROOT}/skills/start/references/home.md` says. A teardown
+   job needs the Python packages step done first (it uses yt-dlp).
+4. It exits 1 with `Not ready.` and one fix per line, also shown on the page: do each fix (step 2 for
+   ffmpeg, Node, git, Python), then run `install-all --report` again. Done steps take seconds.
 
-Then ask in the question box: **Open the setup page (Recommended)** / **Start with the tools here** /
-**Only add a key** / **Later**. The setup page is the home page in their browser: tool checks, keys
-typed there (saved and tested by the page, never seen in the chat), then a creator and a video.
-Follow `${CLAUDE_PLUGIN_ROOT}/skills/start/references/home.md`; still fix doctor's `FIX` lines here
-(steps 2-4), reporting each with its `status setup`.
+No browser, or the user wants the terminal: say the plan (**Tools** 2-10 min, required; **Keys** 5 min,
+optional; **Cloud renders** 3 min, optional; **Your style** 2 min), then steps 1-8 here.
 
 Every step can be skipped and finished later: on a skip, run `python3 "$U" later <step>`
 (`typesafe`, `gemini`, `elevenlabs`, `modal`, `style`, `matte`) and say "Saved. Say *finish setup*
 any time to add it." When the user says "finish setup" (or "add my <x> key"), run
-`python3 "$U" todo` and go straight to the steps it lists (every optional step not done yet).
+`python3 "$U" todo` and go to the steps it lists (every optional step not done yet).
 
 Put a header on every step, e.g. **Step 2 of 4, keys: TypeSafe (1 of 3)**, and say in one short
 line each what it is, why it helps, what it costs, what skipping means.
 
-If a script prints an error, say its message in plain words and ask again. Never open, grep or
-debug the setup scripts: their messages say what to do.
+If a script prints an error, say its message in plain words. Never open or debug the setup
+scripts: their messages say what to do.
 
 ## 1. Doctor
 
@@ -86,9 +87,9 @@ Claude Code after installing, then run doctor again.
 
 ## 3. Python packages and the transcription model
 
-Steps 3 and 4 are the steps of `setup.py bootstrap`, run one at a time so the user sees each.
-Every step is safe to re-run: done work prints `up to date` and downloads nothing. Without the
-user watching (CI, a re-install), `python3 "$U" bootstrap` runs all of them and ends with doctor.
+Steps 3 and 4 are what `install-all` runs (step 0). Every step is safe to re-run: done work prints
+`up to date` and downloads nothing. Without the user watching (CI), `python3 "$U" bootstrap` runs
+them and ends with doctor.
 
 ```bash
 python3 "$U" venv
@@ -96,8 +97,7 @@ python3 "$U" model
 ```
 
 `venv` installs faster-whisper (free transcription on this computer), numpy, pillow and yt-dlp
-into the venv in `~/.ai-video-editor` (`AI_EDITOR_HOME` moves it), at the exact versions in `requirements/requirements.lock` (11-33 s
-on GitHub's clean runners). `model` downloads the transcription model once, about 500 MB, and checks its sha256.
+into the venv in `AI_EDITOR_HOME`, at the exact versions in `requirements/requirements.lock`. `model` downloads the transcription model once, about 500 MB, and checks its sha256.
 `Python 3.10+ needed`: go back to step 1's Python line. `Run the venv step first.`: run `venv`.
 
 ## 4. The renderer
@@ -107,9 +107,8 @@ python3 "$U" remotion
 ```
 
 Copies the renderer to `~/.ai-video-editor/remotion` and installs exactly its `package-lock.json`
-with `npm ci` (about 700 MB; with Chrome's headless shell, 8-33 s on GitHub's clean runners). This is the biggest download: say so
-first. If the user wants to start a creator teardown while it runs, run it in the background and
-carry on: the teardown does not need it. `npm missing`: install Node (step 2) first.
+with `npm ci` (about 700 MB with Chrome's headless shell). This is the biggest download: say so
+first. A creator teardown can run meanwhile: it does not need the renderer. `npm missing`: install Node (step 2) first.
 
 Remotion is free for individuals and companies of up to 3 people. Bigger companies need a
 Remotion company licence (remotion.dev/license). Say this once.

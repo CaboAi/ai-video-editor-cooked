@@ -19,8 +19,8 @@ PATHS_LINE = "Paths: `${CLAUDE_SKILL_DIR}` means the folder containing this SKIL
 errors = []
 KEY_URLS = ("https://console.typesafe.ai/keys", "https://aistudio.google.com/apikey",
             "https://elevenlabs.io/app/settings/api-keys", "https://modal.com/signup")
-EVALS = [("plugins/ai-editor/evals/setup-plan-first", "AskUserQuestion"),
-         ("plugins/ai-editor/evals/setup-plan-first", "what each costs"),
+EVALS = [("plugins/ai-editor/evals/setup-window-first", "home.py serve"),
+         ("plugins/ai-editor/evals/setup-window-first", "install-all --report"),
          ("plugins/ai-editor/evals/start-asks", "AskUserQuestion"),
          ("plugins/ai-editor/evals/launch-video-url", "AskUserQuestion"),
          ("plugins/ai-editor/evals/launch-video-url", "what the video must show"),

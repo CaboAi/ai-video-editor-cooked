@@ -657,6 +657,8 @@ def cmd_status(a):
         j.setdefault("started", t)
         return j
     j = update(f)
+    if a.job == "setup" and (a.step or a.done or a.failed):   # a step finished: the tool rows tick as it goes
+        run_doctor()
     print(f"{j['id']}: {j['state']}" + (f", {a.step}" if a.step else ""))
 
 

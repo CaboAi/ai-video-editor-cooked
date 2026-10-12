@@ -18,6 +18,9 @@ Everything else is this skill's job.
 
 `P="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/profile.py"`. Run it with `python3` on Mac and Linux, `py` on Windows.
 
+**First run** (the session-start line says so, or `setup.py doctor --quiet` prints a line): the
+setup skill's step 0 first (window, then installs in the background), then carry on here.
+
 ## 0. Links first
 
 If the message has any link, @handle or file path, route it before anything else. Never ask what a
@@ -28,8 +31,7 @@ L="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/links.py"
 python3 "$L" route "<the user's whole message>" [--own]
 ```
 
-Pass `--own` only when the user says the video link is theirs ("my video", "my TikTok", "I posted
-this"). It prints a list, already in the order to handle it: questions, creators, own footage, long
+`--own` only when the user says the video link is theirs ("my video", "I posted this"). It prints a list, already in the order to handle it: questions, creators, own footage, long
 videos, websites, music. Each item has a `kind`:
 
 | kind | do |
@@ -46,8 +48,7 @@ An item with a `note` (Instagram profiles, Spotify, app stores, OneDrive): say t
 fetch exit 3 means the site wants a login: ask in the question box "Use your browser's login for
 this one download?" (No, I'll download it myself (Recommended) / Yes, Chrome / Yes, another
 browser), and only on a yes re-run with `--cookies-from-browser <browser>`. Exit 1: say its message.
-Only download what the user has the right to edit; a creator's video is for the teardown, not to
-re-edit.
+Only download what the user may edit; a creator's video is for the teardown, not to re-edit.
 
 ## 1. The video
 
@@ -62,13 +63,12 @@ python3 "$P" missing --video     # audience, names: asked for every video
 python3 "$P" missing --style     # normally answered at setup; ask here only if setup was skipped
 ```
 
-Prints the question ids with no saved answer. The style questions are asked once at the end of
-setup. When any id is printed, read `references/intake.md` (the questions, their calls and options, and the
+Prints the question ids with no saved answer. When any id is printed, read `references/intake.md` (the questions, their calls and options, and the
 `set` command for each) and ask only those ids. Save each answer as soon as it comes in.
 
 `audience` and `names` belong to this video (the audience answer also saves `goal`): ask "Same
 audience and names as last time?" on later videos (one question, yes as the first option) instead of
-the full intake. Everything else is asked once. Edits by hand already: taste's "Learn from a past edit".
+the full intake. Edits by hand already: taste's "Learn from a past edit".
 The profile lives in `~/.ai-video-editor/profile.json`; `python3 "$P" show` prints it. On "just edit
 it" or "use the defaults", run `python3 "$P" defaults` and go on.
 
@@ -92,11 +92,9 @@ Do each step in order, skipping what is already done. Read each skill's SKILL.md
    images go on screen first, `avoid` is enforced by plan.py. Letterbox (wide take, title on top):
    cut `--max-pause 0.5`, `--layout letterbox`.
 
-Between steps say one line about what is happening next. Never ask the user to do a step the skill
-can do itself.
+Between steps say one line about what is next. Never ask the user to do a step the skill can do.
 
 ## 4. After
 
-The render is handed over on the review page (style-edit step 8): the user leaves notes on it. Corrections go to the taste skill so they
-are never needed again; a change of brand, creators or platform goes back into the profile with
+The render is handed over on the review page (style-edit step 8). Corrections go to the taste skill; a change of brand, creators or platform goes back into the profile with
 `python3 "$P" set ...`.

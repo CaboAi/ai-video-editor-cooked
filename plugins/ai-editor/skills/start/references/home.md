@@ -161,5 +161,9 @@ Stop the running teardown commands (TaskStop) and say so in one line.
 
 ## Setup from the page
 
-When doctor shows `FIX` lines, the page says Claude installs them. Run the setup skill's steps 2-4
-and report each with `status setup --step "Installing the renderer" --progress 0.6`; `--done` at the end.
+A first run opens this page before anything is installed (setup skill step 0), then runs
+`setup.py install-all --report` in the background. It reports each step itself
+(`status setup --step "Installing the renderer" --progress 0.6`, the share of the whole bar) and ends
+with `--done`, or `--failed "<the fixes>"`. Each step also refreshes the page's tool rows. Install
+anything else (ffmpeg, Node) the same way: `status setup --step "..."`, then run `install-all --report`
+again. A `JOB video` waits for `Ready.`; the page says so too.

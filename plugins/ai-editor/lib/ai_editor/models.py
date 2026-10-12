@@ -55,8 +55,9 @@ def sha256(path):
     return h.hexdigest()
 
 
-def fetch(rel, check=True):
-    """The local path of a pinned file, downloaded and verified if missing (or wrong, when check)."""
+def fetch(rel, check=True, hook=None):
+    """The local path of a pinned file, downloaded and verified if missing (or wrong, when check).
+    hook(blocks, block_size, total) is urlretrieve's reporthook: setup.py install-all's progress bar."""
     url, want = PINS[rel]
     dest = DIR / rel
     if dest.exists() and (not check or sha256(dest) == want):
@@ -64,7 +65,7 @@ def fetch(rel, check=True):
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = dest.with_name(dest.name + ".part")
     print(f"downloading {rel}", flush=True)
-    urllib.request.urlretrieve(url, part)
+    urllib.request.urlretrieve(url, part, reporthook=hook)
     got = sha256(part)
     if got != want:
         part.unlink()
@@ -82,7 +83,7 @@ def whisper_dir(size):
     return d if all((d / f).exists() for f in WHISPER[size][1]) else None
 
 
-def whisper(size, check=True):
+def whisper(size, check=True, hook=None):
     """Download (or verify) a pinned faster-whisper model; returns its folder, or None if unpinned.
     Reuses a copy at the same commit from faster-whisper's own cache (installs before the pins)."""
     if size not in WHISPER:
@@ -94,7 +95,7 @@ def whisper(size, check=True):
         if not dest.exists() and (old / f).exists() and sha256(old / f) == want:
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(old / f, dest)
-        fetch(f"faster-whisper-{size}/{f}", check)
+        fetch(f"faster-whisper-{size}/{f}", check, hook)
     return DIR / f"faster-whisper-{size}"
 
 
@@ -119,7 +120,7 @@ def demo():
         PINS["t.bin"] = ("https://example.com/abc123def/t.bin", hashlib.sha256(b"x").hexdigest())
         real, out = urllib.request.urlretrieve, io.StringIO()
         try:
-            urllib.request.urlretrieve = lambda u, dest: Path(dest).write_bytes(b"x")
+            urllib.request.urlretrieve = lambda u, dest, reporthook=None: Path(dest).write_bytes(b"x")
             with contextlib.redirect_stdout(out):
                 fetch("t.bin")
         finally:

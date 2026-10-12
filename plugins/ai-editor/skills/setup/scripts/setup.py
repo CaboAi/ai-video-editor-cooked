@@ -629,17 +629,42 @@ def sync_tree(src, dst):
             shutil.copy2(f, to)
 
 
-def quiet(cmd, cwd, what, on_line=None):
+def kill_tree(p):
+    """Stop a process and everything it started (edit.py's node and its render browser)."""
+    if OS == "Windows":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], capture_output=True)
+    else:
+        import signal
+        try:
+            os.killpg(p.pid, signal.SIGKILL)   # its own group: start_new_session below
+        except OSError:
+            p.kill()
+
+
+def quiet(cmd, cwd, what, on_line=None, timeout=None, env=None):
     """A tool's own chatter ("added 369 packages in 3s", "Has browser at /private/...") kept back; shown
-    only when the step fails, then a one-line reason. on_line(line) sees each line as it comes (progress)."""
+    only when the step fails, then a one-line reason. on_line(line) sees each line as it comes (progress).
+    timeout: seconds before the tool and everything it started are stopped, said as a failure."""
     p = subprocess.Popen([str(c) for c in cmd], cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                         text=True, encoding="utf-8", errors="replace")
+                         text=True, encoding="utf-8", errors="replace", env=env,
+                         start_new_session=bool(timeout) and OS != "Windows")
+    timer = threading.Timer(timeout, kill_tree, [p]) if timeout else None
+    if timer:
+        timer.daemon = True
+        timer.start()
     tail = []
-    for line in p.stdout:
-        tail = (tail + [line])[-80:]
-        if on_line:
-            on_line(line)
-    if p.wait():
+    try:
+        for line in p.stdout:
+            tail = (tail + [line])[-80:]
+            if on_line:
+                on_line(line)
+        code = p.wait()
+    finally:
+        if timer:
+            timer.cancel()
+    if timer and timer.finished.is_set() and code:
+        sys.exit(f"ERROR: {what} took over {timeout} s and was stopped.")
+    if code:
         print("".join(tail).strip()[-3000:])
         sys.exit(f"ERROR: {what} failed (exit {p.returncode}); its output is above.")
 
@@ -681,6 +706,7 @@ def step_remotion(force=False, tick=None):
 
 
 WARM_IMPORTS = "import cv2, numpy, onnxruntime, faster_whisper, PIL.Image"
+WARM_S = 600   # each warm-up command; a stuck one is stopped and the step says skipped
 
 
 def step_warm(force=False, tick=None):
@@ -692,27 +718,34 @@ def step_warm(force=False, tick=None):
     import tempfile
     py = VPY if VPY.exists() else Path(sys.executable)
     sk = PLUGIN / "skills" / "style-edit" / "scripts"
+    t = Path(tempfile.mkdtemp(prefix="ave-warm-"))
+    # Every temp file the renderer makes (its bundle, the browser profile, frames) goes inside t, so nothing is left
+    # behind even when the warm-up is stopped. The webpack cache (about 640 MB) stays: it is the point.
+    env = dict(os.environ, TMPDIR=str(t), TEMP=str(t), TMP=str(t))
     try:
         if VPY.exists():
             if tick:
                 tick(0.05, "the Python libraries")
-            quiet([VPY, "-c", WARM_IMPORTS], None, "loading the Python libraries")
+            quiet([VPY, "-c", WARM_IMPORTS], None, "loading the Python libraries", timeout=WARM_S)
         if tick:
             tick(0.3, "a test frame")
-        with tempfile.TemporaryDirectory(prefix="ave-warm-") as t:
-            edit = Path(t) / "warm"
-            edit.mkdir()
-            quiet(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=540x960:r=30:d=2", "-f", "lavfi",
-                   "-i", "sine=f=220:d=2", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
-                   edit / "cut.mp4"], t, "making a test clip")
-            words = [{"text": w, "start": 0.2 + i * 0.4, "end": 0.5 + i * 0.4, "type": "word"}
-                     for i, w in enumerate("getting your computer ready".split())]
-            (edit / "captions.json").write_text(json.dumps(words), encoding="utf-8")
-            quiet([py, sk / "plan.py", edit / "style.json", edit / "captions.json", "--no-sfx"], t, "planning a test frame")
-            quiet([py, sk / "edit.py", "stills", edit, "--at", "1", "--no-check"], t, "drawing a test frame")
-    except SystemExit as e:
+        edit = t / "warm"
+        edit.mkdir()
+        quiet(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=540x960:r=30:d=2", "-f", "lavfi",
+               "-i", "sine=f=220:d=2", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+               edit / "cut.mp4"], t, "making a test clip", timeout=WARM_S)
+        words = [{"text": w, "start": 0.2 + i * 0.4, "end": 0.5 + i * 0.4, "type": "word"}
+                 for i, w in enumerate("getting your computer ready".split())]
+        (edit / "captions.json").write_text(json.dumps(words), encoding="utf-8")
+        quiet([py, sk / "plan.py", edit / "style.json", edit / "captions.json", "--no-sfx"], t, "planning a test frame",
+              timeout=WARM_S, env=env)
+        quiet([py, sk / "edit.py", "stills", edit, "--at", "1", "--no-check"], t, "drawing a test frame",
+              timeout=WARM_S, env=env)
+    except (SystemExit, Exception) as e:   # noqa: BLE001  optional: a full disk or a stuck browser never fails setup
         print(f"warm-up skipped, the first edit does it instead. {plain(e)}")
         return "skipped"
+    finally:
+        shutil.rmtree(t, ignore_errors=True)
     print("warmed up: the first edit pays no one-time costs")
     return "done"
 
@@ -1039,6 +1072,14 @@ def demo():
             raise AssertionError("no exit")
         except SystemExit as e:
             assert "npm ci failed" in str(e.code) and "E404" in out.getvalue(), (e.code, out.getvalue())
+    # a stuck tool is stopped with everything it started (a child holding the pipe), and said as a failure
+    t0 = time.time()
+    try:
+        quiet([sys.executable, "-c", "import subprocess, sys, time; subprocess.Popen([sys.executable, '-c', "
+               "'import time; time.sleep(60)']); time.sleep(60)"], ".", "a stuck tool", timeout=1)
+        raise AssertionError("no exit")
+    except SystemExit as e:
+        assert "took over 1 s" in str(e.code) and time.time() - t0 < 30, (e.code, time.time() - t0)
     miss = key_line("gemini", "x", "no look pass", None)
     assert "add my gemini key" in miss and "clipboard" in miss and "terminal" not in miss, miss
     assert key_line("gemini", "looks", "x", "the GEMINI_API_KEY variable").startswith("ok "), "found key row"
@@ -1207,6 +1248,13 @@ def demo_install_all():
             sys.exit("ERROR: drawing a test frame failed (exit 1); its output is above.")
         quiet = no_renderer
         assert step_warm() == "skipped"
+
+        def disk_full(*a, **k):
+            raise OSError(28, "No space left on device")
+        quiet = disk_full
+        import glob as g
+        before = set(g.glob(os.path.join(tempfile.gettempdir(), "ave-warm-*")))
+        assert step_warm() == "skipped" and set(g.glob(os.path.join(tempfile.gettempdir(), "ave-warm-*"))) == before
         models.fetch = lambda *a, **k: sys.exit("ERROR: no connection")
         with tempfile.TemporaryDirectory() as d:
             keep_dir, models.DIR = models.DIR, Path(d)

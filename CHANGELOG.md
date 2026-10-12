@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.3.0, creator-teardown 2.5.0 (2026-10-12)
+
 - First run opens the editor's window first. Before, a new install went straight to several minutes of
   installs in the terminal and the window never opened. Now the window opens at once (it needs nothing
   installed, and runs on a Mac's built-in Python 3.9 too) and `setup.py install-all --report` installs the

@@ -741,6 +741,9 @@ def main():
     elif a.cmd == "captions":
         if not (d / "cut.transcript.json").exists():
             sys.exit(f"ERROR: no cut.transcript.json in {d}: run the cut skill's verify step first")
+        sys.path.insert(0, str(HERE.parents[2] / "lib"))
+        from ai_editor import review   # the review page's "Making the edit" bar, when it waits on this edit
+        review.step(d, "captions")
         words, changed = captions(d)
         n = {}
         for x in changed:

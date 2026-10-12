@@ -137,7 +137,15 @@ tab follows the new round by itself; `round` never opens another.
 
 ## After approve
 
-- **The cut:** the cut is approved. Go on to style-edit (or stop, on "just the cut first").
+- **The cut:** the cut is approved. Go on to style-edit (or stop, on "just the cut first"). The page
+  turns at once: Approve goes green, the stepper moves to **The edit**, and the player shows a
+  **Making the edit** card over the dimmed cut, with a bar, a clock and the steps in the panel. The bar
+  moves only on real steps: `captions`, `visuals`, `plan`, `render` (the last by its log's percent).
+  `retakes.py captions`, `route.py beats`, `plan.py`, `edit.py stills` and `edit.py render` report their
+  own; before plan and render also run `python3 "$R" edits/<name> status --step plan|render`, which
+  exits 3 with `STOPPED` if the user pressed **Stop** (that takes the approve back and reopens the cut).
+  With no word from Claude for 15 minutes the card says so instead of a bar. When the edit's `round`
+  lands, the bar fills green and the page switches to it with "The edit is ready".
 - **The styled edit:** the same page moves on to it:
   `round --stage edit --video edits/<name>/render.mp4 --transcript edits/<name>/words.json --plan edits/<name>/plan.json`.
   Approve there finishes the video. Stop the background `serve`.

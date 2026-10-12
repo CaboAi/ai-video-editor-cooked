@@ -92,6 +92,9 @@ What changed for every user, newest first.
   say-twice so both are kept. Off-script words are listed, never cut for that. It never writes
   `spans.json`. Rules in `cut/references/script.md`. Test: `script_match.py demo`, `home.py demo`.
 
+  `/update/check` (at most one GitHub check a minute); key checks are kept by the key's last 4 characters,
+  never the key. Saving or removing a key now takes a lock and writes a 0600 temp file that replaces the
+  old one, so two saves at once no longer lose a key and a reader never sees half a file.
 - The home window shows progress on its own. A tester pressed Copy and the window sat blank while Claude
   installed and ran the teardown, because steps only reached it when Claude ran `home.py status`. Now the
   long scripts report themselves while Claude has that job taken (a script never takes a queued job, so

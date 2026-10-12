@@ -40,14 +40,22 @@ What changed for every user, newest first.
   word "review" and shows the video name in full beside Home, centred. Fixed: "to Nonex" in a zoom line
   with no measured scale, Done tiles breaking "today" letter by letter, and a style page heading
   breaking a handle mid-word.
-- Review page: change the cut from its transcript, like Tella. The new Transcript tab shows the whole take,
-  cut words struck and pauses marked. Drag across words and press Restore or Cut; changes wait,
-  highlighted with Undo, until Apply. "Preview with my changes" plays the raw take skipping every cut range
-  plus the pending changes (checked each frame), so the result is heard before any render. Apply rewrites
-  `spans.json` (restored words leave their span; cut words get a `manual` span; `spans.prev.json` keeps the
-  old one) and `wait` prints `EDITS ...` so Claude rebuilds, renders, verifies and opens the next round.
-  Read only on the edit stage. Notes Claude resolved now show green ("Done in round N"), left-as-is notes
-  grey, and the Notes tab counts "2 done · 1 open". Test: `review.py demo`.
+- Review page: change the cut from its transcript, like Tella, right in the transcript beside the player.
+  Cut words are struck and removed pauses marked. Each cut is flagged inline with its reason (a soft red
+  band: Filler, Retake, False start, Your cut, Cut with a pause, Pause 1.2s): the tick keeps it, the cross
+  brings it back. Selecting words shows one dark pill: Restore, Copy (to the clipboard), Cut; Backspace or
+  Delete cuts, Cmd/Ctrl+Z undoes the last change. Changes wait, highlighted, until Apply. Preview plays the
+  raw take skipping every cut range plus the pending changes (checked each frame), so the result is heard
+  before any render. Apply rewrites `spans.json` (restored words leave their span; cut words get a `manual`
+  span, merged with any span they overlap) and `wait` prints `EDITS ...` so Claude rebuilds, renders,
+  verifies and opens the next round. Words the pause trim took can be restored now, and a removed pause put
+  back: they go into a new `keep.json` that `build_timeline.py` leaves in. Every change is checked with
+  `build_timeline.py`'s own span check before it is written (atomic, one Apply at a time); a hidden `(cough)`
+  span is never swept in; untimed words count the same as in the build. Stop puts the old files back only
+  over what Apply wrote; `round` refuses while stopped, and send and approve wait until Claude has the
+  changes. Read only on the edit stage. Notes Claude resolved now show green ("Done in round N"),
+  left-as-is notes grey, and the Notes tab counts "2 done · 1 open". Test: `review.py demo`,
+  `test_build_timeline.py`.
 
 - First run opens the editor's window first. Before, a new install went straight to several minutes of
   installs in the terminal and the window never opened. Now the window opens at once (it needs nothing

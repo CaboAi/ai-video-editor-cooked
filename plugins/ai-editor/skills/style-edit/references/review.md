@@ -40,16 +40,22 @@ An edit-stage note started with `--plan plan.json` also names the card on screen
 
 ## Transcript edits (the cut): `EDITS`
 
-The **Transcript** tab (cut stage) shows the whole take: kept words, cut words struck, pauses as
-`(1.2s)`. The user drags across words and presses **Restore** or **Cut**; changes wait on the page
-(highlighted, each with Undo) until **Apply changes**. **Preview with my changes** plays the raw take
-skipping every cut range plus the pending changes, without a render. On the edit stage the tab is
-read only.
+The **transcript beside the player** (cut stage) shows the whole take: kept words, cut words struck,
+removed pauses as `1.2s` chips. Each cut is flagged inline with its reason (a red band: `Filler`,
+`Retake`, `False start`, `Your cut`, `Cut with a pause`, `Pause 1.2s`): the tick keeps it, the cross
+brings it back. Selecting words shows a dark pill: **Restore**, **Copy**, **Cut** (Backspace or Delete
+cuts too). Changes wait on the page (highlighted) until **Apply**; Cmd/Ctrl+Z undoes the last one.
+**Preview** plays the raw take skipping every cut range plus the pending changes, without a render.
+Clicking a word seeks. On the edit stage it is read only.
 
-Apply posts `/edits` `{"restore": [[start, end], ...], "cut": [[start, end], ...]}` (raw-take seconds).
-The server changes `spans.json` itself: a restored word leaves the span covering it (the span narrows
-or splits), a cut adds a span with `kind: "manual"` quoting those words (whole words, `occurrence`
-when the phrase repeats). The old file is kept as `spans.prev.json`. Then `wait` exits with:
+Apply posts `/edits` `{"restore": [[start, end], ...], "cut": [[start, end], ...], "pause": [[start, end], ...]}`
+(raw-take seconds). The server changes `spans.json` itself: a restored word leaves the span covering it
+(the span narrows or splits), a cut adds a span with `kind: "manual"` quoting those words (whole words,
+`occurrence` when the phrase repeats; spans that then overlap in time merge into one). A restored word
+no span covers was taken by the pause trim: its time goes into `keep.json` (`../../cut/references/shapes.md`),
+as does a pause put back. Only spoken words are picked, never a hidden `(cough)` span. The result is
+checked with `build_timeline.py`'s own span check before anything is written; a change that would not
+build is refused. The old files are kept as `spans.prev.json` and `keep.prev.json`. Then `wait` exits with:
 
 ```
 EDITS 2 transcript edits applied to spans.json: rebuild, render, verify, round
@@ -61,8 +67,9 @@ SEND: <name> the cut, round 1, 0 notes. ...
 
 Do exactly that, with `status` lines on the page: `build_timeline.py`, `render.py`, `verify_cut.py`
 (cut skill steps 3-5), fix any notes listed under the `SEND` line too, then `round --video
-<edit>/cut.mp4`. Never undo a `manual` span or re-cut a restored word. Stop on the page puts
-`spans.prev.json` back.
+<edit>/cut.mp4`. Never undo a `manual` span, re-cut a restored word or edit `keep.json`. Stop on the page
+puts `spans.prev.json` and `keep.prev.json` back, unless spans.json changed since the Apply; `round`
+refuses while stopped. Send and approve are refused while Claude has the changes.
 
 ## After send or approve: learn from the notes
 

@@ -145,7 +145,7 @@ reach the home page by themselves (join.py, transcribe.py, build_timeline.py, re
 review page with `python3 "$R" <edit> status "<step>"`. The cut's
 own `start` (cut skill step 6) then opens round 1 on the same page, with the round 0 notes moved onto
 the cut: run `wait` and carry on there. `status video --done` once round 1 is up. When that `wait` prints
-`EDITS <n> transcript edits applied to spans.json`, the user restored or cut words on the Transcript tab:
+`EDITS <n> transcript edits applied to spans.json`, the user restored or cut words in the transcript beside the player:
 run `build_timeline.py`, `render.py`, `verify_cut.py`, then `review.py <edit> round --video <edit>/cut.mp4`
 (`../../style-edit/references/review.md`, Transcript edits).
 

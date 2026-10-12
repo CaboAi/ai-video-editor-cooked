@@ -7,6 +7,8 @@ Reads   <edit_dir>/words.raw.json   the transcript of the source
         <edit_dir>/spans.json       what to remove, QUOTED from the transcript
         <edit_dir>/lead.json        optional, one quoted range that plays first (an alternate
                                     hook recorded after the body; retakes.py hook writes it)
+        <edit_dir>/keep.json        optional, [{"start": s, "end": e}] raw-take seconds no pause trim
+                                    may remove (words or pauses the user put back on the review page)
 Writes  <edit_dir>/decisions.json   kept spans in source seconds (docs/CONTRACTS.md)
         <edit_dir>/report.json      every cut with its kind, evidence and note
         <edit_dir>/words.json       the kept words re-timed onto cut.mp4's timeline
@@ -572,6 +574,40 @@ def fix_splices(frames, fps, lvl, quiet_db, total, removed=(), reach_s=SPLICE_RE
     return out, moved, left
 
 
+KEEP_PAD_S = 0.05   # room either side of a kept range, so its first and last word are not clipped
+
+
+def keep_ranges(d):
+    """keep.json as [(start, end)] sorted, [] when there is none."""
+    k = Path(d) / "keep.json"
+    if not k.exists():
+        return []
+    return sorted((float(r["start"]), float(r["end"])) for r in json.loads(k.read_text(encoding="utf-8")))
+
+
+def carve(cuts, keeps, pad=KEEP_PAD_S):
+    """Cuts with every keep range (padded) taken out: a cut over one shrinks or splits in two. The keep wins over a
+    pause trim and over the splice budget's widening; it never overlaps a spans.json cut (the review page drops the
+    span first). A piece keeps its cut's fields; only the last piece keeps _next (the next kept word's onset)."""
+    out = []
+    for c in cuts:
+        parts = [c]
+        for a, b in keeps:
+            a, b = a - pad, b + pad
+            nxt = []
+            for x in parts:
+                if b <= x["start"] or a >= x["end"]:
+                    nxt.append(x)
+                    continue
+                if a > x["start"]:
+                    nxt.append(dict(x, end=a, _next=None))
+                if b < x["end"]:
+                    nxt.append(dict(x, start=b))
+            parts = nxt
+        out += parts
+    return out
+
+
 def lead_first(frames, a, b):
     """Kept frame ranges with source frames [a, b) moved to the front, split at a and b."""
     cut = []
@@ -670,6 +706,11 @@ def main():
                     + silence_cuts(words, gap_max, gap_keep, heard)
                     + lead_trail_cuts(kept_words, dur, gap_keep))
     allcuts = enforce_splice_budget(allcuts, words, model_cuts, splice_max, lvl, splice_noise)
+    keeps = keep_ranges(d)
+    if keeps:
+        allcuts = carve(allcuts, keeps)
+        print(f"keep       {len(keeps)} range(s) from keep.json left in: "
+              + ", ".join(f"{a:.2f}-{b:.2f}s" for a, b in keeps[:5]))
     if kept_words and allcuts and allcuts[-1]["end"] >= dur:   # let the last word ring out
         last = max(w["end"] for w in kept_words)
         allcuts[-1]["start"] = max(allcuts[-1]["start"], min(dur, last + END_TAIL_S))
@@ -714,7 +755,7 @@ def main():
     (d / "report.json").write_text(json.dumps(
         {"source": str(Path(a.source).resolve()), "fps": fps, "duration": dur, "final_s": final,
          "max_pause_s": max_pause, "frames": frames, "model_cuts": model_cuts, "cuts": allcuts,
-         "labels": {str(i): v for i, v in labels.items()}, "splices_in_speech": left},
+         "labels": {str(i): v for i, v in labels.items()}, "splices_in_speech": left, "keep": keeps},
         indent=1), encoding="utf-8")
     (d / "words.json").write_text(json.dumps(retime(words, spans), indent=1), encoding="utf-8")
     import preview_cut

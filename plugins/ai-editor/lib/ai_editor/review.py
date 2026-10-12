@@ -35,8 +35,8 @@ are said when both rounds have the cut's transcript (else at the same time), wit
 Stop merges queued notes into the reopened round.
 `status` exits 3 with STOPPED when the user pressed Stop on the page: stop the round and run `wait`.
 The Transcript tab (cut stage) restores or cuts words: POST /edits {"restore": [[s, e]], "cut": [[s, e]]} in raw-take
-seconds rewrites spans.json (apply_edits; spans.prev.json kept) and `wait` prints "EDITS <n> transcript edits applied
-to spans.json: rebuild, render, verify, round". Stop puts spans.prev.json back.
+seconds (and "pause": removed pauses to put back) rewrites spans.json and keep.json (apply_edits; *.prev.json kept) and `wait` prints "EDITS <n> transcript edits applied
+to spans.json: rebuild, render, verify, round". Stop puts spans.prev.json and keep.prev.json back.
 
 `wait` exits when the user presses send or approve, and prints every note of the round: its time,
 the text, the words being said, the card on screen (from plan.json) and the frame still's path.
@@ -49,11 +49,16 @@ the notes or press send.
 """
 import argparse
 import base64
+import contextlib
+import hashlib
 import hmac
+import io
 import json
+import mimetypes
 import os
 import re
 import secrets
+import shlex
 import shutil
 import subprocess
 import sys
@@ -72,7 +77,7 @@ import askhook  # noqa: E402
 import live  # noqa: E402
 
 HTML = Path(__file__).with_name("review.html")
-LOCK = threading.Lock()
+LOCK = threading.RLock()   # re-entrant: /edits holds it across apply_edits and update
 BEAT_S = 6          # `wait` touches review/.listening at least this often; older = nobody listening
 IMAGE_TYPES = ("png", "jpeg", "gif", "webp")
 MAX_IMAGE = 15 << 20
@@ -147,6 +152,7 @@ def cut_transcript(folder, dur):
         i = max(range(len(spans)), key=lambda k: min(w["end"], spans[k]["end"]) - max(w["start"], spans[k]["start"]))
         return round(max(w["start"], spans[i]["start"]) - spans[i]["start"] + offs[i], 2)
 
+    why = span_times(folder)
     lines, line, prev = [], [], 0.0
     for w in words:
         if not all(isinstance(w.get(k), (int, float)) for k in ("start", "end")):   # no timing: shown, never editable
@@ -158,7 +164,11 @@ def cut_transcript(folder, dur):
             line.append({"p": round(removed, 1)})
         kept = kept_s(w, spans) >= min(0.1, (w["end"] - w["start"]) / 2)
         # s/e: the word on the raw take, for the transcript editor (select, restore or cut, preview)
-        line.append({"w": w["text"].strip(), "t": on_cut(w) if kept else None, "s": round(w["start"], 3), "e": round(w["end"], 3)})
+        x = {"w": w["text"].strip(), "t": on_cut(w) if kept else None, "s": round(w["start"], 3), "e": round(w["end"], 3)}
+        if not kept:   # why it is cut: g = the spans.json entry, k = its kind; no span = the pause trim
+            g = next((i for i, (a, b, _, _) in enumerate(why) if a - 1e-3 <= w["start"] and w["end"] <= b + 1e-3), None)
+            x.update({"k": why[g][2], "g": g, "n": why[g][3]} if g is not None else {"k": "pause"})
+        line.append(x)
         prev = w["end"]
         if w["text"].strip()[-1:] in ".?!" or len(line) >= 24:
             lines.append(line)
@@ -397,6 +407,10 @@ def _locate():
     return locate, nwords
 
 
+def timed(t):
+    return all(isinstance(t.get(k), (int, float)) for k in ("start", "end"))
+
+
 def span_range(sp, toks, locate):
     """The token range [a, b] a spans.json entry quotes, as build_timeline.resolve_spans picks it. None if it does not resolve."""
     hits = locate(sp.get("text", ""), toks)
@@ -408,24 +422,82 @@ def span_range(sp, toks, locate):
     return hits[0] if hits and ("after" in sp or len(hits) == 1) else None
 
 
-def apply_edits(folder, restore, cut):
-    """The review page's transcript edits onto spans.json, deterministically. restore/cut: [[start, end], ...] in
-    raw-take seconds. A token is in a range when its middle is, or the range sits inside it (a cut inside a word
-    takes the whole word). Restore drops those tokens from the spans covering them (a span loses them or splits);
-    cut adds a "manual" span quoting each run of kept tokens. Each new span quotes its words, with "occurrence"
-    when they are said more than once. spans.prev.json keeps what was there. Returns the counts, or raises ValueError."""
+def cut_toks(folder):
+    """The tokens spans.json quotes, exactly as build_timeline.py lists them (untimed ones too, so "occurrence"
+    counts the same words)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "skills" / "cut" / "scripts"))
+    from textnorm import load_words
+    return [t for t in load_words(folder / "words.raw.json") if isinstance(t, dict) and t.get("type") in ("word", "audio_event")]
+
+
+def files_sha(folder):
+    """One hash over spans.json and keep.json as they are now: Stop only puts the old ones back over what /edits wrote."""
+    h = hashlib.sha256()
+    for n in ("spans.json", "keep.json"):
+        f = folder / n
+        h.update(f.read_bytes() if f.exists() else b"-")
+    return h.hexdigest()
+
+
+def span_times(folder):
+    """[(start, end, kind, note)] in raw-take seconds for each spans.json entry that resolves; [] without the files."""
+    try:
+        locate, _ = _locate()
+        toks, spans = cut_toks(folder), load(folder / "spans.json")
+    except (OSError, ValueError, ImportError, KeyError, TypeError):
+        return []
+    out = []
+    for sp in spans if isinstance(spans, list) else []:
+        ab = span_range(sp, toks, locate) if isinstance(sp, dict) else None
+        if ab and timed(toks[ab[0]]) and timed(toks[ab[1]]):
+            out.append((toks[ab[0]]["start"], toks[ab[1]]["end"], sp.get("kind", "retake"), sp.get("note", "")))
+    return out
+
+
+def minus(ranges, cuts):
+    """[[s, e]] ranges with every [a, b] of cuts taken out."""
+    for a, b in cuts:
+        ranges = [r for s, e in ranges for r in ([s, min(e, a)], [max(s, b), e]) if r[1] - r[0] > 1e-3]
+    return ranges
+
+
+def merged(ranges):
+    out = []
+    for s, e in sorted(ranges):
+        if out and s <= out[-1][1] + 1e-3:
+            out[-1][1] = max(out[-1][1], e)
+        else:
+            out.append([s, e])
+    return out
+
+
+def apply_edits(folder, restore, cut, pause=()):
+    """The review page's transcript edits onto spans.json and keep.json, deterministically. restore/cut/pause:
+    [[start, end], ...] in raw-take seconds. A token is in a range when its middle is, or the range sits inside it (a
+    cut inside a word takes the whole word). Restore drops those tokens from the spans covering them (a span loses them
+    or splits); a restored word no span covers was taken by the pause trim, so its time goes into keep.json, which
+    build_timeline.py leaves in. pause: removed pauses to put back whole (keep.json too). Cut adds a "manual" span
+    quoting each run of kept tokens and takes those words out of keep.json. Each new span quotes its words, with
+    "occurrence" when they are said more than once. spans.prev.json and keep.prev.json keep what was there.
+    Spans that end up overlapping in time merge into one; the result is checked with build_timeline.resolve_spans
+    before anything is written. Writes are atomic. Returns the counts, or raises ValueError."""
     locate, nwords = _locate()
-    toks = [t for t in load(folder / "words.raw.json") if isinstance(t, dict) and t.get("type", "word") in ("word", "audio_event")
-            and all(isinstance(t.get(k), (int, float)) for k in ("start", "end"))]
-    sp_path = folder / "spans.json"
+    import build_timeline
+    toks = cut_toks(folder)
+    sp_path, kp_path = folder / "spans.json", folder / "keep.json"
     spans = load(sp_path) if sp_path.exists() else []
+    keep0 = load(kp_path) if kp_path.exists() else []
+    try:
+        dec = load(folder / "decisions.json")
+    except (OSError, ValueError):
+        dec = None   # no build yet: nothing tells which words the pause trim took
 
     def picked(ranges):
         out = set()
         for r in ranges or []:
             a, b = float(r[0]), float(r[1])
-            out |= {i for i, t in enumerate(toks) if a - 1e-3 <= (t["start"] + t["end"]) / 2 <= b + 1e-3
-                    or (t["start"] <= a and b <= t["end"])}
+            out |= {i for i, t in enumerate(toks) if t.get("type") == "word" and timed(t)   # never a hidden (cough) span
+                    and (a - 1e-3 <= (t["start"] + t["end"]) / 2 <= b + 1e-3 or (t["start"] <= a and b <= t["end"]))}
         return out
     R, C = picked(restore), picked(cut)
     C -= R
@@ -444,10 +516,11 @@ def apply_edits(folder, restore, cut):
                 out[-1].append(i)
             else:
                 out.append([i])
-        for r in out:   # trim tokens with no words (a lone dash): a quote cannot start or end on them
-            while r and not nwords(toks[r[0]]["text"]):
+        bad = lambda t: not nwords(t.get("text", "")) or not timed(t)
+        for r in out:   # trim tokens with no words (a lone dash) or no timing: a quote cannot start or end on them
+            while r and bad(toks[r[0]]):
                 r.pop(0)
-            while r and not nwords(toks[r[-1]]["text"]):
+            while r and bad(toks[r[-1]]):
                 r.pop()
         return [r for r in out if r]
 
@@ -463,14 +536,42 @@ def apply_edits(folder, restore, cut):
         keep = [i for i in range(a, b + 1) if i not in R]
         new += [sp] if len(keep) == b - a + 1 else [quote(r, sp) for r in runs(keep)]
     new += [quote(r, {"kind": "manual", "note": "cut on the review page"}) for r in runs(C - covered)]
+    rng = []
     for q in new:   # the new file must build: every quote lands on the words it was made from
-        if span_range(q, toks, locate) is None:
+        ab = span_range(q, toks, locate)
+        if ab is None or not (timed(toks[ab[0]]) and timed(toks[ab[1]])):
             raise ValueError(f"could not quote {q['text'][:40]!r} unambiguously")
-    out = {"restored": len(R & covered), "cut": len(C - covered), "not_restorable": len(R - covered), "spans": len(new)}
-    if out["restored"] or out["cut"]:
-        (folder / "spans.prev.json").write_text(json.dumps(spans, indent=1), encoding="utf-8")
-        new.sort(key=lambda q: toks[span_range(q, toks, locate)[0]]["start"])
-        sp_path.write_text(json.dumps(new, indent=1), encoding="utf-8")
+        rng.append([toks[ab[0]]["start"], toks[ab[1]]["end"], ab, q])
+    rng.sort(key=lambda x: x[0])
+    new = []
+    for x in rng:   # spans that overlap in time (a cut beside a sound token) become one, as build_timeline asks
+        if new and x[0] < new[-1][1]:
+            last = new[-1]
+            a, b = min(last[2][0], x[2][0]), max(last[2][1], x[2][1])
+            base = last[3] if last[3].get("kind") != "manual" else x[3]
+            last[:] = [min(last[0], x[0]), max(last[1], x[1]), (a, b), quote(list(range(a, b + 1)), base)]
+        else:
+            new.append(x)
+    new = [x[3] for x in new]
+    try:
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            build_timeline.resolve_spans(new, toks)
+    except SystemExit:
+        raise ValueError("the changed cut would not build: " + err.getvalue().strip().replace("ERROR: ", "")[:200])
+    # the pause trim's words: restored ones not in a span and not playing now (decisions.json), as runs of time
+    trimmed = runs({i for i in R - covered if dec is not None and kept_s(toks[i], dec) < min(0.1, (toks[i]["end"] - toks[i]["start"]) / 2)})
+    add = [[toks[r[0]]["start"], toks[r[-1]]["end"]] for r in trimmed] + [[float(a), float(b)] for a, b in pause or []]
+    keep = merged(minus([[k["start"], k["end"]] for k in keep0] + add, [[toks[i]["start"], toks[i]["end"]] for i in C]))
+    keep = [{"start": round(s, 3), "end": round(e, 3)} for s, e in keep]
+    out = {"restored": len(R & covered) + sum(map(len, trimmed)), "cut": len(C - covered), "pauses": len(pause or []),
+           "spans": len(new), "keep": len(keep)}
+    if out["restored"] or out["cut"] or out["pauses"]:
+        save(folder / "spans.prev.json", spans)
+        save(folder / "keep.prev.json", keep0)
+        save(sp_path, new)
+        if keep or kp_path.exists():
+            save(kp_path, keep)
+        out["sha"] = files_sha(folder)
     return out
 
 
@@ -571,7 +672,7 @@ def make_handler(folder, token):
                 d = load(rj)
                 if q.get("k") == "raw":
                     p = raw_video(folder, d)
-                    return self.file(p, "video/mp4") if p else self.send(404, {})
+                    return self.file(p, mimetypes.guess_type(p.name)[0] or "video/mp4") if p else self.send(404, {})
                 r = next((r for r in d.get("rounds", []) if f"{r['stage']}-{r['round']}" == q.get("k")), d)
                 p = Path(alt_of(d, q.get("alt", ""), r)["video"])
                 return self.file(p, "video/mp4") if p.exists() else self.send(404, {})
@@ -641,8 +742,12 @@ def make_handler(folder, token):
                 if body["type"] == "stop":   # the round's notes open again; `status` tells Claude to stop
                     def st(d):
                         if d.get("sent") and d["events"] and d["events"][-1]["type"] in ("send", "edits"):
-                            if d["events"][-1]["type"] == "edits" and (folder / "spans.prev.json").exists():
-                                shutil.copyfile(folder / "spans.prev.json", folder / "spans.json")   # stop undoes the edits
+                            e = d["events"][-1]
+                            # stop undoes the edits, but only over the files /edits wrote: never over Claude's later change
+                            if e["type"] == "edits" and e.get("sha") == files_sha(folder) and (folder / "spans.prev.json").exists():
+                                save(folder / "spans.json", load(folder / "spans.prev.json"))
+                                if (folder / "keep.prev.json").exists():
+                                    save(folder / "keep.json", load(folder / "keep.prev.json"))
                             d["events"].append({"type": "stop", "stage": d["stage"], "round": d["round"],
                                                 "at": now(), "handled": True})
                             d["sent"], d["stopped"] = False, now()
@@ -654,11 +759,15 @@ def make_handler(folder, token):
                     update(rj, st)
                     return self.send(200, {})
                 def ev(d):
+                    if d.get("sent") and d["events"] and d["events"][-1]["type"] == "edits":
+                        return False   # Claude is applying transcript changes: Stop first
                     d["events"].append({"type": body["type"], "stage": d["stage"], "round": d["round"],
                                         "at": now(), "handled": False})
                     d["sent"] = True
                     d.pop("stopped", None)
-                update(rj, ev)
+                    return True
+                if not update(rj, ev):
+                    return self.send(409, {"error": "Claude is applying your transcript changes"})
                 return self.send(200, {})
             self.send(404, {})
 
@@ -696,32 +805,33 @@ def make_handler(folder, token):
         def transcript_edits(self, body):
             """The transcript editor's Apply: restore/cut word ranges (raw-take seconds) into spans.json, then an
             "edits" event, so `wait` exits and Claude rebuilds, renders, verifies and opens the next round."""
-            d = load(rj)
-            if d.get("stage") != "cut" or d.get("raw"):
-                return self.send(409, {"error": "words change on the cut only"})
-            if d.get("sent"):
-                return self.send(409, {"error": "Claude has this round"})
             try:
-                restore, cut = list(body.get("restore") or []), list(body.get("cut") or [])
-                for r in restore + cut:
+                restore, cut, pause = (list(body.get(k) or []) for k in ("restore", "cut", "pause"))
+                for r in restore + cut + pause:
                     if len(r) != 2 or float(r[0]) > float(r[1]):
                         raise ValueError
-            except (TypeError, ValueError):
-                return self.send(400, {"error": "restore and cut take [[start, end], ...]"})
-            try:
-                with LOCK:
-                    out = apply_edits(folder, restore, cut)
-            except (OSError, ValueError) as e:
-                return self.send(409, {"error": str(e)})
-            if not (out["restored"] or out["cut"]):
-                return self.send(200, {**out, "event": False})
+            except (TypeError, ValueError, AttributeError):
+                return self.send(400, {"error": "restore, cut and pause take [[start, end], ...]"})
+            with LOCK:   # one Apply at a time: the sent check, the files and the event move together
+                d = load(rj)
+                if d.get("stage") != "cut" or d.get("raw"):
+                    return self.send(409, {"error": "words change on the cut only"})
+                if d.get("sent"):
+                    return self.send(409, {"error": "Claude has this round"})
+                try:
+                    out = apply_edits(folder, restore, cut, pause)
+                except Exception as e:   # a spans.json or transcript this cannot read: say so, never drop the connection
+                    return self.send(409, {"error": str(e) or type(e).__name__})
+                if not (out["restored"] or out["cut"] or out["pauses"]):
+                    return self.send(200, {**out, "event": False})
 
-            def ev(d):
-                d["events"].append({"type": "edits", "stage": d["stage"], "round": d["round"], "at": now(), "handled": False,
-                                    "n": len(restore) + len(cut), "restore": restore, "cut": cut, "counts": out})
-                d["sent"] = True
-                d.pop("stopped", None)
-            update(rj, ev)
+                def ev(d):
+                    d["events"].append({"type": "edits", "stage": d["stage"], "round": d["round"], "at": now(), "handled": False,
+                                        "n": len(restore) + len(cut) + len(pause), "restore": restore, "cut": cut, "pause": pause,
+                                        "counts": {k: v for k, v in out.items() if k != "sha"}, "sha": out["sha"]})
+                    d["sent"] = True
+                    d.pop("stopped", None)
+                update(rj, ev)
             return self.send(200, {**out, "event": True})
 
         def edit(self, body):
@@ -875,6 +985,9 @@ def cmd_start(a, folder):
 
 
 def cmd_round(a, folder):
+    if load(folder / "review.json").get("stopped"):
+        sys.exit("STOPPED: the user pressed Stop on the page. Do not open a round; run `wait` for their next send.")
+
     def f(d):
         if a.stage and a.stage != d["stage"]:
             d["stage"], d["round"] = a.stage, 1
@@ -998,8 +1111,9 @@ def cmd_wait(folder, poll=1.0):
     e = ev[-1]
     r = next((r for r in d.get("rounds", []) if (r["stage"], r["round"]) == (e["stage"], e["round"])), d)
     cs = sorted((c for c in d["comments"] if c["stage"] == e["stage"] and c["round"] == e["round"]), key=lambda c: c["t"])
-    if e["type"] == "edits":
-        print(edits_text(folder, e))
+    for x in ev:   # an Apply then a send: the edits still have to be built
+        if x["type"] == "edits":
+            print(edits_text(folder, x))
     print(f"{'SEND' if e['type'] == 'edits' else e['type'].upper()}: {d['name']} {stage_name(e['stage'])}, round {e['round']}, "
           f"{len(cs)} note{'' if len(cs) == 1 else 's'}. video {r['video']}")
     for x in r.get("alts") or []:
@@ -1035,10 +1149,12 @@ def edits_text(folder, e):
             f"  {e['counts']['restored']} word(s) restored, {e['counts']['cut']} cut (kind manual); the spans before are in {folder / 'spans.prev.json'}"]
     rows += [f"  restore {a:.2f}-{b:.2f}s: \"{said(a, b)}\"" for a, b in e["restore"]]
     rows += [f"  cut {a:.2f}-{b:.2f}s: \"{said(a, b)}\"" for a, b in e["cut"]]
-    if e["counts"].get("not_restorable"):
-        rows.append(f"  {e['counts']['not_restorable']} word(s) were cut by the pause trim, not a span: nothing to restore there")
-    rows.append(f"  then: python3 {cut / 'build_timeline.py'} {src} {folder}; python3 {cut / 'render.py'} {src} {folder}; "
-                f"verify_cut.py; python3 {Path(__file__).resolve()} {folder} round --video {folder / 'cut.mp4'}")
+    rows += [f"  pause back {a:.2f}-{b:.2f}s" for a, b in e.get("pause") or []]
+    if e["counts"].get("keep"):
+        rows.append(f"  keep.json: {e['counts']['keep']} range(s) the pause trim leaves in (build_timeline.py reads it)")
+    q = (lambda x: subprocess.list2cmdline([str(x)])) if os.name == "nt" else (lambda x: shlex.quote(str(x)))
+    rows.append(f"  then: python3 {q(cut / 'build_timeline.py')} {q(src)} {q(folder)}; python3 {q(cut / 'render.py')} {q(src)} {q(folder)}; "
+                f"verify_cut.py; python3 {q(Path(__file__).resolve())} {q(folder)} round --video {q(folder / 'cut.mp4')}")
     return "\n".join(rows)
 
 
@@ -1113,6 +1229,14 @@ def cmd_learn(a, folder):
         return out
     for line in update(folder / "review.json", f) or ["no preference notes: all marked one-off"]:
         print(line)
+
+
+def _post_code(url, body):
+    """The HTTP status of a POST (the demo's concurrency and refusal checks)."""
+    try:
+        return urllib.request.urlopen(urllib.request.Request(url, json.dumps(body).encode(), method="POST")).status
+    except urllib.error.HTTPError as err:
+        return err.code
 
 
 def demo():
@@ -1225,7 +1349,8 @@ def demo():
     (folder / "decisions.json").write_text(json.dumps([{"start": 0.0, "end": 0.45}, {"start": 1.95, "end": 7.5}]), encoding="utf-8")
     tx = cut_transcript(folder, 6.0)
     toks = [x for ln in tx["lines"] for x in ln["tokens"]]
-    assert [{k: x[k] for k in x if k not in ("s", "e")} for x in toks] == [{"w": "hello", "t": 0.0}, {"w": "um,", "t": None}, {"p": 1.1},
+    assert toks[1]["k"] == "pause"   # cut with no spans.json entry: the pause trim took it
+    assert [{k: x[k] for k in x if k not in ("s", "e", "k")} for x in toks] == [{"w": "hello", "t": 0.0}, {"w": "um,", "t": None}, {"p": 1.1},
                                                                           {"w": "world.", "t": 0.5}, {"w": "later", "t": 1.5}], toks
     assert toks[1]["s"] == 0.5 and toks[1]["e"] == 0.8 and tx["kept"] == [[0.0, 0.45], [1.95, 7.5]], tx
     assert [ln["t"] for ln in tx["lines"]] == [0.0, 1.5] and tx["points"] == [0.45] and tx["cuts"] == 2, tx
@@ -1436,7 +1561,7 @@ def demo():
         cmd_start(ns(video=str(tv), stage="cut", transcript=None, plan=None, note=None, name=None, raw=False), ef)
     tx = load(ef / "review" / load(ef / "review.json")["data"])["transcript"]
     flat = [x for ln in tx["lines"] for x in ln["tokens"] if "w" in x]
-    assert flat[1] == {"w": "the", "t": None, "s": 0.5, "e": 0.9} and flat[-1] == {"w": "untimed", "t": None, "nt": 1}, flat
+    assert flat[1] == {"w": "the", "t": None, "s": 0.5, "e": 0.9, "k": "retake", "g": 0, "n": "keeper after"} and flat[-1] == {"w": "untimed", "t": None, "nt": 1}, flat
     assert tx["kept"] == [[0.0, 0.45], [3.45, 6.0]], tx
     srv3, url3 = serve(ef, 0, open_browser=False)
     threading.Thread(target=srv3.serve_forever, daemon=True).start()
@@ -1473,6 +1598,78 @@ def demo():
     assert load(ef / "spans.json") == sp0 and not load(ef / "review.json")["sent"]
     # a whole span restored: it goes; the next span keeps its fields
     assert p3({"restore": [[5.5, 5.9]]})["restored"] == 1 and load(ef / "spans.json") == sp0[:1]
+    # the pause trim's words: Restore puts their time in keep.json (build_timeline.py leaves it in), a removed pause
+    # comes back whole, Stop puts keep.json back, and a later cut takes its words out of keep.json again
+    stop3 = lambda: urllib.request.urlopen(urllib.request.Request(b3 + "/event?t=" + t3, b'{"type": "stop"}', method="POST"))
+    stop3()
+    (ef / "decisions.json").write_text(json.dumps([{"start": 0.0, "end": 0.45}, {"start": 3.45, "end": 4.45}, {"start": 5.45, "end": 6.0}]),
+                                       encoding="utf-8")   # "it today" (4.5-5.4 s) fall in a trimmed pause
+    r = p3({"restore": [[4.5, 5.4]], "pause": [[0.4, 0.5]]})
+    assert (r["restored"], r["pauses"], r["event"]) == (2, 1, True), r
+    assert load(ef / "keep.json") == [{"start": 0.4, "end": 0.5}, {"start": 4.5, "end": 5.4}] and load(ef / "spans.json") == sp0
+    assert load(ef / "keep.prev.json") == []
+    o = edits_text(ef, load(ef / "review.json")["events"][-1])
+    assert 'restore 4.50-5.40s: "it today"' in o and "pause back 0.40-0.50s" in o and "keep.json: 2 range(s)" in o, o
+    stop3()
+    assert load(ef / "keep.json") == [] and load(ef / "spans.json") == sp0
+    assert apply_edits(ef, [[3.5, 3.9]], [])["restored"] == 0   # "we" plays already: nothing to keep
+    assert apply_edits(ef, [[4.5, 5.4]], [])["keep"] == 1
+    r = apply_edits(ef, [], [[5.0, 5.4]])
+    assert r["cut"] == 1 and load(ef / "keep.json") == [{"start": 4.5, "end": 5.0}], r
+    assert {"kind": "manual", "note": "cut on the review page", "text": "today"} in load(ef / "spans.json")
+    # two Applies at once: one wins, the other is refused, and spans.prev.json is what was there before both
+    before = load(ef / "spans.json")
+    outs = []
+    th = [threading.Thread(target=lambda c=c: outs.append(_post_code(b3 + "/edits?t=" + t3, {"cut": [c]}))) for c in ([0.0, 0.4], [3.5, 3.9])]
+    [x.start() for x in th]
+    [x.join() for x in th]
+    assert sorted(outs) == [200, 409] and load(ef / "spans.prev.json") == before, outs
+    # while Claude applies them: send and approve are refused (Stop first)
+    assert _post_code(b3 + "/event?t=" + t3, {"type": "send"}) == 409 and _post_code(b3 + "/event?t=" + t3, {"type": "approve"}) == 409
+    # Stop after Claude changed spans.json itself: nothing is put back over Claude's change; round refuses while stopped
+    mine = load(ef / "spans.json") + [{"text": "so", "kind": "filler", "occurrence": 1}]
+    save(ef / "spans.json", mine)
+    stop3()
+    assert load(ef / "spans.json") == mine
+    try:
+        cmd_round(ns(video=str(tv), stage=None, transcript=None, plan=None, note=None, name=None), ef)
+        raise AssertionError("round while stopped")
+    except SystemExit as err:
+        assert "STOPPED" in str(err)
+    # an Apply then a send in one `wait`: the EDITS block still prints
+    def two(d):
+        d["events"] += [{"type": "edits", "stage": "cut", "round": d["round"], "at": now(), "handled": False, "n": 1,
+                         "restore": [], "cut": [[0.0, 0.4]], "pause": [], "counts": {"restored": 0, "cut": 1, "keep": 0}},
+                        {"type": "send", "stage": "cut", "round": d["round"], "at": now(), "handled": False}]
+    update(ef / "review.json", two)
+    o = io.StringIO()
+    with contextlib.redirect_stdout(o):
+        cmd_wait(ef, poll=0.01)
+    assert "EDITS 1 transcript edit applied" in o.getvalue() and "\nSEND: tx" in o.getvalue(), o.getvalue()
+    # the reviewer's cases, straight on apply_edits: a restore never sweeps in a hidden (cough) span; a cut beside an
+    # overlapping (laughs) merges into one span that builds; an untimed "the" counts in "occurrence" as build counts it
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "skills" / "cut" / "scripts"))
+    import build_timeline
+
+    def mk(words, spans):
+        f = Path(tempfile.mkdtemp(dir=tmp))
+        (f / "words.raw.json").write_text(json.dumps(words), encoding="utf-8")
+        (f / "spans.json").write_text(json.dumps(spans), encoding="utf-8")
+        return f
+    W_ = lambda t, a, b, ty="word": {"text": t, "start": a, "end": b, "type": ty}
+    f = mk([W_("a", 0, .4), W_("b", .5, .9), W_("(cough)", 1.0, 1.3, "audio_event"), W_("c", 1.4, 1.8)],
+           [{"text": "b", "kind": "retake"}, {"text": "(cough)", "kind": "audio_event"}])
+    apply_edits(f, [[0.5, 1.8]], [])
+    assert load(f / "spans.json") == [{"text": "(cough)", "kind": "audio_event"}], load(f / "spans.json")
+    f = mk([W_("so", 0, .5), W_("(laughs)", .45, .9, "audio_event"), W_("yes", 1.0, 1.3)], [{"text": "(laughs)", "kind": "audio_event"}])
+    apply_edits(f, [], [[0, 0.5]])
+    assert load(f / "spans.json") == [{"kind": "audio_event", "text": "so (laughs)"}], load(f / "spans.json")
+    toks_ = [t for t in load(f / "words.raw.json") if t.get("type") in ("word", "audio_event")]
+    assert len(build_timeline.resolve_spans(load(f / "spans.json"), toks_)) == 1
+    f = mk([W_("the", 0, .2), {"text": "the", "type": "word"}, W_("the", 1, 1.2)], [])
+    apply_edits(f, [], [[1, 1.2]])
+    toks_ = [t for t in load(f / "words.raw.json") if t.get("type") in ("word", "audio_event")]
+    assert load(f / "spans.json")[0]["occurrence"] == 3 and build_timeline.resolve_spans(load(f / "spans.json"), toks_)[0]["start"] == 1
     srv3.shutdown()
     srv3.server_close()
     srv2.shutdown()

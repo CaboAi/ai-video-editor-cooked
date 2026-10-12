@@ -23,6 +23,17 @@ The one file Claude writes in the cut skill. Rules for what to cut: `retake-dete
 
 Two spans must not overlap. Merge them into one.
 
+## keep.json (written by the review page)
+
+```json
+[{"start": 4.5, "end": 5.4}, {"start": 12.31, "end": 13.05}]
+```
+
+Raw-take seconds that no pause trim may remove: words the pause trim took that the user restored, and removed
+pauses the user put back whole, on the review page's transcript. `build_timeline.py` takes each range (plus
+0.05 s either side) out of every pause, lead-in, tail and splice cut. A cut the user makes later takes its words
+out of it again. Never write it by hand, never delete it; `keep.prev.json` is the one before the last Apply.
+
 ## lead.json (hook variants only)
 
 `retakes.py hook <edit_dir> <n>` writes it into `<edit_dir>-hook<n>/`: one quoted range, the same

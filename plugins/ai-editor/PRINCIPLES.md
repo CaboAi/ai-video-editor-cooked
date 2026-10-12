@@ -12,11 +12,10 @@ The rules every skill follows. Each names where it is enforced; tests: `docs/fee
   always allowed. Pages show evidence and take notes, never answers; the home page
   alone takes a creator, its parts, keys. (every SKILL.md; where to render has none)
 - Ask what the video must cover before building it: a short brief first. (start, product-video)
-- Taste is asked once at setup and saved; each video asks only what belongs to that video.
-  (setup, `lib/ai_editor/profile.py`)
-- Any step can be skipped and finished later. (setup, `setup.py later`)
-- Say the plan and why before doing it: what each step is, why it helps, what it costs, what
-  skipping means. (setup)
+- Taste is asked once and saved; each video asks only what belongs to it. (setup, `profile.py`)
+- Any step can be skipped, finished later. (setup, `setup.py later`)
+- First run: the window opens before any install or question; installs go behind it. Otherwise
+  say the plan first: steps, why, cost, skipping. (setup)
 
 ## Looking real, never AI-made
 

@@ -9,6 +9,9 @@
   python3 setup.py venv       create ~/.ai-video-editor/venv and install requirements/requirements.lock
   python3 setup.py model      download the free transcription model (about 500 MB, once, sha256 checked)
   python3 setup.py remotion   copy the renderer to ~/.ai-video-editor/remotion and npm ci it
+  python3 setup.py install-all [--report]   venv, model, remotion in order, never asking; a failed step is
+                              said with its fix and the steps that do not need it still run. --report shows
+                              each step and its progress on the home page (home.py status setup)
 
 Pins: Python packages in plugins/ai-editor/requirements/requirements.lock (hashed, every OS);
 Node packages in remotion/package-lock.json; models in lib/ai_editor/models.py (URL + sha256).
@@ -41,6 +44,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -57,6 +61,7 @@ REMOTION_HOME = HOME / "remotion"
 LOCK = PLUGIN / "requirements" / "requirements.lock"   # uv pip compile --universal --generate-hashes
 NPM_LOCK = REMOTION_SRC / "package-lock.json"
 ENV = HOME / "env.json"           # what was installed, from which pins
+HOME_PY = PLUGIN / "lib" / "ai_editor" / "home.py"
 MODEL = os.environ.get("AI_EDITOR_WHISPER_MODEL", "small")
 PYTHON_MIN = (3, 10)   # current yt-dlp and numpy need it; macOS's built-in 3.9 gets a newer Python
 NODE_MIN = 20          # Remotion 4
@@ -533,7 +538,10 @@ def doctor_quiet():
     rows = [r for r in checks() if not r[1]]
     missing = [name for name, _, _, cmd in rows if not cmd.endswith("repair")]
     drifted = [name for name, _, _, cmd in rows if cmd.endswith("repair")]
-    if missing:
+    if missing and not profile.path().exists():   # first run: the window opens before anything installs
+        print("First run of the AI video editor: open its window first (home.py serve and wait in the background), "
+              "then install in the background with setup.py install-all --report (the setup skill's step 0).")
+    elif missing:
         print(f"AI video editor: {', '.join(missing)} not set up yet. Say \"set up the editor\" to install.")
     elif drifted:
         print(f"AI video editor: {', '.join(drifted)} moved off the pinned versions. "
@@ -550,7 +558,7 @@ def pip_optional(name):
     subprocess.run([str(VPY), "-m", "pip", "install", "-q", "-c", str(cons), OPTIONAL[name]], check=True)
 
 
-def step_venv(force=False):
+def step_venv(force=False, tick=None):
     """A venv holding exactly requirements.lock. Rebuilt from scratch on drift, so nothing stale stays."""
     if sys.version_info < PYTHON_MIN:
         sys.exit(f"Python {'.'.join(map(str, PYTHON_MIN))}+ needed, this is {sys.version.split()[0]}. "
@@ -566,8 +574,15 @@ def step_venv(force=False):
     subprocess.run([sys.executable, "-m", "venv", str(VENV)], check=True)
     # --no-deps: the lock is complete. It also keeps rapidocr's opencv-python out, which would
     # fight opencv-python-headless over the same cv2 folder.
-    subprocess.run([str(VPY), "-m", "pip", "install", "-q", "--disable-pip-version-check", "--no-deps",
-                    "--require-hashes", "-r", str(LOCK)], check=True)
+    from ai_editor import lock
+    total, seen = len(lock.blocks(LOCK.read_text(encoding="utf-8"))), [0]
+
+    def line(text):   # pip says Collecting (or Ignoring, for another OS's pin) once per lock entry
+        if tick and text.startswith(("Collecting ", "Ignoring ")):
+            seen[0] += 1
+            tick(min(0.95, seen[0] / total), f"{seen[0]} of {total} packages")
+    quiet([VPY, "-m", "pip", "install", "--disable-pip-version-check", "--progress-bar", "off", "--no-deps",
+           "--require-hashes", "-r", LOCK], None, "installing the Python packages (pip)", line)
     env_save(python_lock=file_sha(LOCK), python_packages=installed(),
              python=platform.python_version(), os=f"{OS} {platform.machine()}")
     for x in extras:
@@ -576,7 +591,7 @@ def step_venv(force=False):
     return "installed"
 
 
-def step_model(force=False):
+def step_model(force=False, tick=None):
     """The pinned transcription model, sha256 checked on download (and on every repair)."""
     if not venv_has("faster_whisper"):
         sys.exit("Run the venv step first.")
@@ -585,9 +600,12 @@ def step_model(force=False):
     rec = env_load().get("models", {})
     fresh = not model_cached() or not (models.DIR / "yunet.onnx").exists()
     check = force or any(rec.get(r) != v for r, v in pins.items())
+    def hook(blocks, size, total):   # the big file (model.bin, about 480 MB) is the bar
+        if tick and total > 5e6:
+            tick(min(1, blocks * size / total), f"{min(blocks * size, total) // 10**6} of {total // 10**6} MB")
     models.fetch("yunet.onnx", check)
     if whisper:
-        models.whisper(MODEL, check)
+        models.whisper(MODEL, check, hook)
     else:   # a size with no pin (AI_EDITOR_WHISPER_MODEL=medium...): faster-whisper's own download
         code = ("from faster_whisper import WhisperModel; "
                 f"WhisperModel('{MODEL}', device='cpu', compute_type='int8', download_root=r'{HOME / 'models'}')")
@@ -609,16 +627,22 @@ def sync_tree(src, dst):
             shutil.copy2(f, to)
 
 
-def quiet(cmd, cwd, what):
+def quiet(cmd, cwd, what, on_line=None):
     """A tool's own chatter ("added 369 packages in 3s", "Has browser at /private/...") kept back; shown
-    only when the step fails, then a one-line reason."""
-    r = subprocess.run([str(c) for c in cmd], cwd=cwd, capture_output=True, text=True)
-    if r.returncode:
-        print((r.stdout + r.stderr).strip()[-3000:])
-        sys.exit(f"ERROR: {what} failed (exit {r.returncode}); its output is above.")
+    only when the step fails, then a one-line reason. on_line(line) sees each line as it comes (progress)."""
+    p = subprocess.Popen([str(c) for c in cmd], cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         text=True, encoding="utf-8", errors="replace")
+    tail = []
+    for line in p.stdout:
+        tail = (tail + [line])[-80:]
+        if on_line:
+            on_line(line)
+    if p.wait():
+        print("".join(tail).strip()[-3000:])
+        sys.exit(f"ERROR: {what} failed (exit {p.returncode}); its output is above.")
 
 
-def step_remotion(force=False):
+def step_remotion(force=False, tick=None):
     npm = shutil.which("npm")
     if not npm:
         sys.exit(f"npm missing. Install Node first: {fix('node')}")
@@ -628,10 +652,24 @@ def step_remotion(force=False):
     if force or drift(env_load(), {}, remotion_installed() or "missing")["renderer"]:
         # npm ci: exactly package-lock.json, never a re-resolve. --ignore-scripts: the one install
         # script (esbuild's) only re-checks a binary npm already placed; newer npm warns about it.
-        quiet([npm, "ci", "--ignore-scripts", "--no-audit", "--no-fund", "--loglevel=error"], REMOTION_HOME,
-              "installing the renderer's packages (npm ci)")
+        stop = threading.Event()
+        if tick:   # npm prints no progress: count the lock's packages already on disk
+            pk = [k for k in json.loads(NPM_LOCK.read_text(encoding="utf-8"))["packages"] if k]
+
+            def poll():
+                while not stop.wait(1):
+                    n = sum((REMOTION_HOME / k).exists() for k in pk)
+                    tick(0.9 * n / len(pk), f"{n} of {len(pk)} packages")
+            threading.Thread(target=poll, daemon=True).start()
+        try:
+            quiet([npm, "ci", "--ignore-scripts", "--no-audit", "--no-fund", "--loglevel=error"], REMOTION_HOME,
+                  "installing the renderer's packages (npm ci)")
+        finally:
+            stop.set()
         done = "installed"
     if not list((REMOTION_HOME / "node_modules" / ".remotion").glob("chrome-headless-shell/*")):
+        if tick:
+            tick(0.92, "the render browser")
         quiet([shutil.which("npx"), "remotion", "browser", "ensure"], REMOTION_HOME, "downloading the render browser")
         done = "installed"
     env_save(node_lock=file_sha(NPM_LOCK), node=version(["node", "--version"]),
@@ -660,6 +698,65 @@ def bootstrap(force=False, matte=False):
         print(f"[{i}/{len(steps)}] {name}: {done} ({time.time() - t:.0f} s)", flush=True)
     env_save(ffmpeg=version(["ffmpeg", "-version"]), git=version(["git", "--version"]))
     return doctor()
+
+
+INSTALL_STEPS = [  # (doctor row, what the page says, step, share of the bar, the row it needs)
+    ("python packages", "Installing the Python packages", step_venv, 0.25, None),
+    ("transcription model", "Downloading the transcription model", step_model, 0.35, "python packages"),
+    ("renderer", "Installing the renderer", step_remotion, 0.40, None),
+]
+_said = {"t": 0.0, "p": -1.0}
+
+
+def report_status(step=None, progress=None, detail=None, done=False, failed=None):
+    """One `home.py status setup` call: the page's "Getting your computer ready" bar. Progress alone is sent
+    at most once a second and only when it moved 1%. A page that is not running never stops the install."""
+    t = time.time()
+    if not (step or done or failed) and (t - _said["t"] < 1 or abs((progress or 0) - _said["p"]) < 0.01):
+        return
+    _said.update(t=t, p=_said["p"] if progress is None else progress)
+    cmd = [sys.executable, str(HOME_PY), "status", "setup"] + (["--step", step] if step else []) + \
+        (["--detail", detail] if detail else []) + (["--progress", f"{progress:.3f}"] if progress is not None else []) + \
+        (["--done"] if done else []) + (["--failed", failed] if failed else [])
+    try:
+        subprocess.run(cmd, capture_output=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def plain(e):
+    """A step's failure as one sentence: its own sys.exit message, else what went wrong."""
+    msg = str(e.code) if isinstance(e, SystemExit) else f"{type(e).__name__}: {e}"
+    return msg.removeprefix("ERROR: ").split("\n")[-1].strip().replace("; its output is above.", ". Claude has the details.")
+
+
+def install_all(report=False, steps=INSTALL_STEPS, status=None, tools=lambda: checks()[:4]):
+    """Every missing install step in order, no questions. A failed step is said with its fix; steps that do not
+    need it still run (the renderer does not wait for the model). 0 when all done, 1 when something needs a fix."""
+    say = status or (report_status if report else lambda **k: None)
+    failed, base = {}, 0.0
+    for row, text, fn, share, needs in steps:
+        if needs in failed:
+            failed[row] = f"The {row} waits for the {needs}."
+        else:
+            say(step=text, progress=round(base, 3))
+            print(f"...  {row}", flush=True)
+            t = time.time()
+            try:
+                done = fn(tick=lambda frac, detail=None, b=base, s=share: say(progress=round(b + s * frac, 3), detail=detail))
+                print(f"ok   {row}: {done} ({time.time() - t:.0f} s)", flush=True)
+            except (SystemExit, Exception) as e:   # noqa: BLE001  keep going with what does not need it
+                failed[row] = plain(e)
+                print(f"FIX  {row}: {failed[row]} ({time.time() - t:.0f} s)", flush=True)
+        base += share
+    fixes = list(failed.values()) + [f"Install {name}: {cmd}" for name, ok, _, cmd in tools() if not ok]
+    if fixes:
+        say(failed=" ".join(dict.fromkeys(fixes)))
+        print("Not ready. " + " ".join(dict.fromkeys(fixes)))
+        return 1
+    say(progress=1.0, done=True)
+    print("Ready.")
+    return 0
 
 
 def repair():
@@ -998,7 +1095,48 @@ def demo():
     ok, detail, cmd = certs_row(online=False)
     assert ok and "trusted certificates" in detail and cmd, (ok, detail, cmd)
     demo_launcher()
+    demo_install_all()
     print("demo ok")
+
+
+def demo_install_all():
+    """install-all with stub steps: progress is each step's share of one bar, a failed step is said with its
+    fix, a step that needs it waits, the others still run; then the same calls reach a real home page state."""
+    import tempfile
+    said = []
+
+    def half(tick):
+        tick(0.5, "half")
+        return "installed"
+
+    def broken(tick):
+        sys.exit("npm missing. Install Node first: brew install node")
+    steps = [("a", "Doing A", half, 0.5, None), ("b", "Doing B", broken, 0.3, None),
+             ("c", "Doing C", half, 0.2, "b"), ("d", "Doing D", half, 0.0, None)]
+    assert install_all(steps=steps, status=lambda **k: said.append(k), tools=lambda: []) == 1
+    assert said[:3] == [{"step": "Doing A", "progress": 0.0}, {"progress": 0.25, "detail": "half"},
+                        {"step": "Doing B", "progress": 0.5}], said
+    assert said[-1] == {"failed": "npm missing. Install Node first: brew install node The c waits for the b."}, said[-1]
+    assert {"step": "Doing D", "progress": 1.0} in said and not any(k.get("step") == "Doing C" for k in said)
+    said.clear()
+    assert install_all(steps=steps[:1], status=lambda **k: said.append(k),
+                       tools=lambda: [("ffmpeg", False, "missing", "brew install ffmpeg")]) == 1
+    assert said[-1] == {"failed": "Install ffmpeg: brew install ffmpeg"}, said
+    said.clear()
+    assert install_all(steps=steps[:1], status=lambda **k: said.append(k), tools=lambda: []) == 0
+    assert said[-1] == {"progress": 1.0, "done": True}
+    with tempfile.TemporaryDirectory() as d:   # --report: the page's state gets the step, its progress, then done
+        keep = os.environ.get("AI_EDITOR_HOME")
+        os.environ["AI_EDITOR_HOME"] = d
+        try:
+            _said.update(t=0.0, p=-1.0)
+            assert install_all(report=True, steps=steps[:1], tools=lambda: []) == 0
+        finally:
+            os.environ.pop("AI_EDITOR_HOME") if keep is None else os.environ.__setitem__("AI_EDITOR_HOME", keep)
+        st = json.loads((Path(d) / "home" / "state.json").read_text(encoding="utf-8"))
+        job = [j for j in st["jobs"] if j["type"] == "setup"][-1]
+        assert job["state"] == "done" and [s["text"] for s in job["steps"]] == ["Doing A"], job
+        assert job["steps"][0]["progress"] == 1.0 and "rows" in st.get("doctor", {}), job
 
 
 if __name__ == "__main__":
@@ -1009,6 +1147,8 @@ if __name__ == "__main__":
             "install-launcher": install_launcher, "uninstall-launcher": uninstall_launcher}
     if sys.argv[1:] == ["doctor", "--quiet"]:
         sys.exit(doctor_quiet())
+    if sys.argv[1:2] == ["install-all"] and set(sys.argv[2:]) <= {"--report"}:
+        sys.exit(install_all(report="--report" in sys.argv))
     if sys.argv[1:] == ["bootstrap", "--matte"]:
         sys.exit(bootstrap(matte=True))
     if len(sys.argv) == 3 and sys.argv[1] == "later":

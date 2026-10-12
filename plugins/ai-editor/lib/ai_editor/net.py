@@ -53,11 +53,21 @@ def urlopen(req, timeout=60):
     return urllib.request.urlopen(req, timeout=timeout, context=context())
 
 
-def retrieve(url, dest, timeout=60):
-    """urlretrieve with context(): url's bytes into dest."""
-    import shutil
+def retrieve(url, dest, timeout=60, reporthook=None):
+    """urlretrieve with context(): url's bytes into dest. reporthook(blocks, block_size, total) like urlretrieve."""
+    bs = 1 << 16
     with urlopen(url, timeout) as r, open(dest, "wb") as f:
-        shutil.copyfileobj(r, f)
+        total, n = int(r.headers.get("Content-Length") or -1), 0
+        if reporthook:
+            reporthook(0, bs, total)
+        while True:
+            chunk = r.read(bs)
+            if not chunk:
+                break
+            f.write(chunk)
+            n += 1
+            if reporthook:
+                reporthook(n, bs, total)
 
 
 def is_cert_error(err):

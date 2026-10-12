@@ -18,7 +18,7 @@
   --sh:0 1px 2px rgba(0,0,0,.6);--pop:0 8px 30px rgba(0,0,0,.6);color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--page);color:var(--ink);font:13px/16px system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;font-synthesis:none}
-body{height:100vh;display:flex;flex-direction:column;overflow:hidden}
+body{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
 button,select,textarea{font:inherit;color:inherit}
 button{background:none;border:0;padding:0;cursor:pointer}
 button:disabled{cursor:default}
@@ -376,6 +376,7 @@ const onAlt=c=>(c.alt||'')===alt||c.alt==='*';   // each video keeps its own not
 const isCur=()=>view&&view.stage===S.stage&&view.round===S.round;
 const approved=st=>S.events.some(e=>e.type==='approve'&&e.stage===st);
 const pending=()=>{const e=S.events[S.events.length-1];return S.sent&&e?e.type:null};
+const rn=r=>r.round===0?'Your clip, before the cut':'Round '+r.round;   // round 0: the raw clip, open while the cut is made
 const plural=(n,w)=>n+' '+w+(n===1?'':'s');
 const mainName=r=>r.label||'main';
 const lab=x=>x===''?mainName(viewRound()):x;
@@ -404,7 +405,7 @@ async function load(force){
 }
 function cmpOptions(){   // what can play beside this round: its other versions, then earlier rounds of this stage
   const r=viewRound(),o=['',...(r.alts||[]).map(a=>a.name)].filter(x=>x!==alt).map(x=>({k:key(view),alt:x,label:lab(x)}));
-  (S.rounds||[]).filter(x=>x.stage===view.stage&&x.round<view.round).reverse().forEach(x=>o.push({k:key(x),alt:'',label:'Round '+x.round}));
+  (S.rounds||[]).filter(x=>x.stage===view.stage&&x.round<view.round).reverse().forEach(x=>o.push({k:key(x),alt:'',label:rn(x)}));
   return o;
 }
 function setVideo(){
@@ -431,7 +432,7 @@ function renderCaps(){
   if(!cmp)return;const d1=v.duration||0,d2=v2.duration||0,isRound=cmp.k!==key(view);
   const diff=isRound&&d1&&d2&&Math.abs(d2-d1)>=.05?' · '+Math.abs(d2-d1).toFixed(1)+'s '+(d1<d2?'shorter':'longer'):'';
   $('cap2').innerHTML=`<b>${esc(cmp.label)}</b><span class="num">${d2?fmtx(d2):''}</span>`;
-  $('cap1').innerHTML=`<b>${esc(isRound?'Round '+view.round:lab(alt))}</b><span class="num">${d1?fmtx(d1):''}${diff}</span>`;
+  $('cap1').innerHTML=`<b>${esc(isRound?rn(view):lab(alt))}</b><span class="num">${d1?fmtx(d1):''}${diff}</span>`;
 }
 function renderVer(){
   const r=viewRound(),alts=r.alts||[];
@@ -448,14 +449,14 @@ function steps(){
   [['st1','cut'],['st2','edit']].forEach(([id,st],i)=>{
     const done=approved(st),viewing=view&&view.stage===st,rs=(S.rounds||[]).filter(r=>r.stage===st);
     $(id).className=(viewing?'on':'')+(done?' done':'');$(id).setAttribute('aria-current',viewing?'page':'false');
-    $(id).innerHTML=`<span class="n">${done&&!viewing?TICK:i+1}</span>${STAGE[st]}${viewing&&rs.length?`<small>round ${view.round}</small>`:''}`;
+    $(id).innerHTML=`<span class="n">${done&&!viewing?TICK:i+1}</span>${STAGE[st]}${viewing&&rs.length?`<small>${view.round?'round '+view.round:'your clip'}</small>`:''}`;
     $(id).disabled=!has(st);
   });
 }
 function listenText(S){
   const e=S.events[S.events.length-1],picked=!!(S.sent&&e&&e.handled);
   if(picked&&e.type==='approve')return e.stage==='cut'?'The cut is approved':'Approved';
-  if(picked)return 'Claude is working on round '+(S.round+1);
+  if(picked)return S.raw?'Claude is making the cut':'Claude is working on round '+(S.round+1);
   if(S.sent)return 'Notes sent';
   if(S.listening)return S.round>1&&!S.comments.some(c=>c.stage===S.stage&&c.round===S.round)?'Round '+S.round+' is ready':'Claude is listening';
   if(S.busy)return 'Claude is working. Notes you send now are next.';
@@ -467,14 +468,14 @@ function render(){
   const p=pending(),lastEv=S.events[S.events.length-1],picked=!!(S.sent&&lastEv&&lastEv.handled),vr=viewRound();
   $('name').textContent=S.name;document.title=S.name+(p==='send'?' · Claude working':' · round '+S.round);steps();
   $('listen').textContent=listenText(S);$('statusbox').classList.toggle('work',picked&&p==='send');
-  $('mstage').textContent=STAGE[view.stage];$('msub').textContent=S.name+' · round '+view.round;
+  $('mstage').textContent=STAGE[view.stage];$('msub').textContent=S.name+' · '+rn(view).toLowerCase();
   const mine=S.comments.filter(c=>c.stage===S.stage&&c.round===S.round).length,live=isCur()&&!p;
   // Send is primary while there are notes; once a round lands with none, Approve is. Stop replaces Send while Claude works.
   const sb=$('send'),ap=$('approve'),working=p==='send';
-  sb.classList.toggle('stop',working);sb.querySelector('span').textContent=working?'Stop':mine?'Send '+plural(mine,'note'):'Send notes';
-  sb.className=(working||(mine&&live)?'primary':'')+(working?' stop':'');
-  sb.disabled=working?!isCur():(!live||!mine);
-  sb.title=working?'stop Claude working on this round; your notes open again':'';
+  sb.classList.toggle('stop',working);sb.querySelector('span').textContent=working?(S.raw?'Making the cut':'Stop'):mine?'Send '+plural(mine,'note'):'Send notes';
+  sb.className=S.raw?'primary':(working||(mine&&live)?'primary':'')+(working?' stop':'');
+  sb.disabled=working?!isCur()||!!S.raw:(!live||!mine);
+  sb.title=working?(S.raw?'the first cut is on its way':'stop Claude working on this round; your notes open again'):'';
   ap.textContent=S.stage==='cut'?'Approve the cut':(S.alts||[]).length?'Approve all':'Approve the edit';
   ap.className=!working&&live&&!mine?'primary':'';ap.disabled=!!p||!isCur()||mine>0;
   ap.title=mine>0?'send or delete your notes before you approve':'';
@@ -484,12 +485,12 @@ function render(){
   $('mcount').textContent=mine?mine+(p?'':', not sent'):'';
   [...$('ptabs').children].forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
   const nv=(vr.alts||[]).length;
-  $('pmeta').textContent='Round '+view.round+' · '+(!isCur()?'read only':working?'still plays':nv?(nv+1)+' versions':ago(vr.at||S.at||Date.now()));
+  $('pmeta').textContent=view.round===0?rn(view):rn(view)+' · '+(!isCur()?'read only':working?'still plays':nv?(nv+1)+' versions':ago(vr.at||S.at||Date.now()));
   $('oldbadge').style.display=isCur()?'none':'block';$('oldbadge').textContent='Older round, read only';
   // the composer: open until approve. While Claude works, a note waits for the next round
   const canNote=isCur()&&p!=='approve';
   ta.disabled=!canNote;box.classList.toggle('off',!canNote);
-  ta.placeholder=p==='send'?'Add a note for the next round...':!isCur()?'Older round, read only':p==='approve'?(S.stage==='cut'?'The cut is approved':'Approved'):view.round>1?'Leave a note on round '+view.round+'...':'Leave a note at this moment...';
+  ta.placeholder=p==='send'?(S.raw?'Add a note for the cut...':'Add a note for the next round...'):!isCur()?'Older round, read only':p==='approve'?(S.stage==='cut'?'The cut is approved':'Approved'):view.round>1?'Leave a note on round '+view.round+'...':'Leave a note at this moment...';
   const sc=$('scope');sc.style.display=nv&&canNote?'block':'none';
   if(nv)sc.innerHTML=`<option value="">${esc(lab(alt))} only</option><option value="*">${nv===1?'Both':'All'} versions</option>`;
   renderVer();renderTx();renderBar();renderTracks();renderList();boxTime();
@@ -583,7 +584,7 @@ function workHtml(){
   const act=(S.activity||[]).filter(x=>x.round===S.round),live=act.some(x=>!x.done);
   if(p==='approve')return `<div class="claude"><div><b>Claude</b><p>${S.stage==='cut'?'The cut is approved. Claude is styling it.':'Approved. The edit is finished.'}</p></div></div>`;
   if(p!=='send'&&!live)return '';
-  const head=p==='send'?(act.length?`Making round ${S.round+1}.`:picked?`Claude has your notes and is starting round ${S.round+1}.`:'Notes sent. Waiting for Claude to pick them up.'+(S.listening||!S.busy?'':' Claude is finishing something and takes them next.')):'Still coming in this round:';
+  const head=S.raw?'Making the cut. Your clip plays meanwhile. Notes you leave now go on the cut.':p==='send'?(act.length?`Making round ${S.round+1}.`:picked?`Claude has your notes and is starting round ${S.round+1}.`:'Notes sent. Waiting for Claude to pick them up.'+(S.listening||!S.busy?'':' Claude is finishing something and takes them next.')):'Still coming in this round:';
   const li=act.map(x=>x.done?`<li><span class="ic">${TICK}</span>${esc(x.text)}</li>`
     :`<li class="now"><span class="ic"><i></i></span>${esc(x.text)}</li>`+(x.pct!=null?`<li class="pb"><em><i style="width:${x.pct}%"></i></em>${x.pct}%</li>`:'')).join('');
   const sent=e&&e.type==='send'?e.at:null;
@@ -597,7 +598,7 @@ function renderList(){
   if(tab==='rounds'){
     const rs=(S.rounds||[cur()]).filter(r=>r.stage===view.stage).slice().reverse();
     $('list').innerHTML=rs.map(r=>{const n=S.comments.filter(c=>c.stage===r.stage&&c.round===r.round).length;
-      return `<button class="rnd${key(r)===key(view)?' on':''}" data-k="${key(r)}"><b>Round ${r.round}</b><span>${[key(r)===key(cur())?'latest':'',plural(n,'note'),r.at?ago(r.at):''].filter(Boolean).join(' · ')}</span></button>`}).join('');
+      return `<button class="rnd${key(r)===key(view)?' on':''}" data-k="${key(r)}"><b>${rn(r)}</b><span>${[key(r)===key(cur())?'latest':'',plural(n,'note'),r.at?ago(r.at):''].filter(Boolean).join(' · ')}</span></button>`}).join('');
     return;
   }
   const vr=viewRound(),p=pending();
@@ -614,10 +615,10 @@ function renderList(){
     if(mine.length)h+=`<p class="sub">Your notes on round ${view.round}</p>`;
   }else if((vr.note||cc)&&!(isCur()&&p==='send'))h+=`<div class="claude"><div><b>Claude</b><p>${esc(vr.note||'')}${cc}</p></div></div>`;
   h+=mine.map(noteHtml).join('');
-  if(!mine.length&&!prev.length)h+=`<p class="empty">${isCur()?'No notes yet. Pause where something is off and leave a note.':'No notes on this round.'}</p>`;
+  if(!mine.length&&!prev.length&&!(S.raw&&isCur()))h+=`<p class="empty">${isCur()?'No notes yet. Pause where something is off and leave a note.':'No notes on this round.'}</p>`;
   if(isCur())h+=workHtml();
   const queued=isCur()?S.comments.filter(c=>c.queued&&c.stage===S.stage&&onAlt(c)).sort((a,b)=>a.t-b.t):[];
-  if(queued.length)h+=`<p class="sub">For the next round</p>`+queued.map(noteHtml).join('');
+  if(queued.length)h+=`<p class="sub">${S.raw?'For the cut':'For the next round'}</p>`+queued.map(noteHtml).join('');
   if(isCur()&&!p&&mine.length)h+=`<span class="unsent">${plural(mine.length,'note')}, not sent yet</span>`;
   const keepScroll=$('list').scrollTop,hadFocus=document.activeElement&&document.activeElement.classList.contains('edta');
   $('list').innerHTML=h;$('list').scrollTop=isCur()&&p&&!editing?$('list').scrollHeight:keepScroll;

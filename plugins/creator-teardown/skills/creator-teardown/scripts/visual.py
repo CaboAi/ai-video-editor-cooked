@@ -5,8 +5,8 @@
                       Same pick as fetch.py transcribe: --top most-viewed plus
                       --control closest to the median, or --ids.
   measure <handle>    per video: cut times, shot lengths, zoom events and one contact
-                      sheet. Writes video/<id>.visual.json and sheets/<id>.jpg,
-                      then merges `pace` and `zoom` into style.json.
+                      sheet. Writes video/<id>.visual.json (kept: --force measures
+                      again) and sheets/<id>.jpg, then merges `pace` and `zoom` into style.json.
   demo                self-check on a synthetic video (hard cut, zoom step, push).
 
 Cuts. ffmpeg scene detection misses jump cuts on a locked-off camera: the
@@ -22,7 +22,7 @@ crop of one frame is searched over scales and offsets for the best match with
 the other. A scale step at one frame is a punch; a run of small steps is a push.
 
 Usage (run with the tool venv python: numpy + pillow + ffmpeg):
-  ~/.ai-video-editor/venv/bin/python scripts/visual.py download <handle> [--top 8] [--control 2]
+  ~/.ai-video-editor/venv/bin/python scripts/visual.py download <handle> [--top 8] [--control 2] [--spare 2]
   ~/.ai-video-editor/venv/bin/python scripts/visual.py measure <handle>
   ~/.ai-video-editor/venv/bin/python scripts/visual.py demo
 
@@ -397,10 +397,13 @@ def cmd_download(a):
     if a.ids:
         by_id = {v["id"]: v for v in meta["videos"]}
         todo = [by_id[i] for i in a.ids.split(",")]
+    elif meta.get("pasted"):
+        todo = meta["videos"]
+        print(f"{len(todo)} pasted links, all of them")
     else:
-        top, control = pick(meta["videos"], meta.get("median_views") or 0, a.top, a.control)
-        todo = top + control
-        print(count_line(top, control))
+        top, control, spare = pick(meta["videos"], meta.get("median_views") or 0, a.top, a.control, a.spare)
+        todo = top + spare + control
+        print(count_line(top, control, spare))
     yt = ytdlp()
     if not yt:
         sys.exit("yt-dlp not found. Run fetch.py doctor.")
@@ -452,9 +455,12 @@ def cmd_measure(a):
     if not vids:
         sys.exit(f"no videos in {outdir / 'video'}. Run `download {handle}` first.")
     tdir = outdir / "transcripts"
-    print(f"measuring {len(vids)} videos", file=sys.stderr)
-    _progress.step(MEASURE, detail=f"{len(vids)} videos", progress=0, key=handle)
-    rows = pmap(measure_one, [(p, outdir / "sheets") for p in vids], tick=_progress.ticker(MEASURE, len(vids), key=handle))
+    todo = [p for p in vids if a.force or not p.with_suffix(".visual.json").exists()]
+    print(f"measuring {len(todo)} videos ({len(vids) - len(todo)} cached)", file=sys.stderr)
+    _progress.step(MEASURE, detail=f"{len(todo)} videos", progress=0, key=handle)
+    done = dict(zip(todo, pmap(measure_one, [(p, outdir / "sheets") for p in todo],
+                               tick=_progress.ticker(MEASURE, len(todo), key=handle))))
+    rows = [done.get(p) or json.loads(p.with_suffix(".visual.json").read_text(encoding="utf-8")) for p in vids]
 
     sp = [s for s in (speech(tdir, r["id"]) for r in rows) if s]
     first = rows[0]
@@ -596,11 +602,13 @@ def main():
     p.add_argument("handle")
     p.add_argument("--top", type=int, default=8, help="most-viewed videos; --control more are added (default 2)")
     p.add_argument("--control", type=int, default=2)
+    p.add_argument("--spare", type=int, default=2, help="next most-viewed, in case the format check leaves some out")
     p.add_argument("--ids", default=None)
     p.set_defaults(fn=cmd_download)
     p = sub.add_parser("measure")
     p.add_argument("handle")
     p.add_argument("--json", action="store_true", help="print pace, zoom and camera in full")
+    p.add_argument("--force", action="store_true", help="measure again, not from video/<id>.visual.json")
     p.set_defaults(fn=cmd_measure)
     sub.add_parser("demo").set_defaults(fn=lambda a: demo())
     a = ap.parse_args()

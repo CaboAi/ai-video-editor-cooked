@@ -38,18 +38,17 @@ the tool venv's Python wherever `AI_EDITOR_HOME` puts it.
 ### Quick mode (called by ai-editor's start, setup or style-edit)
 
 When another skill needs only the style.json, run exactly: Step 1 `list`, Step 2's commands with
-`--top 5` (5 plus 2 control videos), Step 3b's three, then Step 3c's four (a `gemini.py` that exits 2
-with no key is skipped), then stop. The Step 0 parts question only if the caller has not asked it. Skip
-`metrics.py`, the Step 3 written passes and Steps 4-6 (Step 3's "always run" is the visual pass, included).
-About 3 minutes per creator on a 14-core Mac (5 videos: 2-3 min measured), about twice that on an
-8-core laptop. Say so first.
+`--top 5` (5 plus 2 control and 2 spares; pasted links: all), Step 3b's four, then Step 3c's four (a
+`gemini.py` that exits 2 with no key is skipped), then stop. The Step 0 parts question only if the caller
+has not asked it. Skip `metrics.py`, the Step 3 written passes and Steps 4-6. About 3 minutes per creator
+on a 14-core Mac (2-3 min measured; the spares add about 1 min at worst), twice that on an 8-core laptop. Say so first.
 
 ### Step 0: Ask, once
 
 Skip what the message already answers. One question box call:
 
-1. **Which creators?** The handle or links they named (Recommended) / I'll paste more handles or
-   links. Several is normal: people like one creator's captions and another's pace.
+1. **Which creators?** The handle or links they named (Recommended) / I'll paste more. Several is
+   normal: people like one creator's captions and another's pace. Each creator's style is one format.
 2. With more than one: **which part from whom?** **Not sure yet (Recommended)**: ask again after
    Step 3b, with each creator's `look.md` to compare; or captions, pace (cuts, zooms, motion), visuals
    (graphics, face framing, cards), sound.
@@ -74,12 +73,12 @@ python3 "$VPY" "${CLAUDE_SKILL_DIR}/scripts/visual.py" download <handle>
 python3 "${CLAUDE_SKILL_DIR}/scripts/fetch.py" transcribe <handle>
 ```
 
-`--top N` downloads and transcribes N plus 2 control videos (the 2 closest to the
-median; `--control` changes the 2). The default `--top 8` is 10 videos; `--top 5`, the
-fast run, is 7; pass it to both commands. Both print the count first. `--ids <id>,<id>`
-picks exact videos. The median ones are the control: a move that appears in the 500K
-video *and* the 3K video is that creator's habit, not the reason the 500K one
-worked. Keep at least 2.
+`--top N` downloads and transcribes N plus 2 control videos (the 2 closest to the median;
+`--control` changes the 2) plus 2 spares for the format check (`--spare`), all of the creator's usual
+length when enough are. Pasted links: every one. The default `--top 8` is 12 videos; `--top 5`, the
+fast run, is 9; pass it to both commands. Both print the count first. `--ids <id>,<id>` picks exact
+videos. The median ones are the control: a move that appears in the 500K video *and* the 3K video is
+that creator's habit, not the reason the 500K one worked. Keep at least 2.
 
 Run `transcribe` and `python3 "$VPY" "${CLAUDE_SKILL_DIR}/scripts/gemini.py" look <handle> --no-merge` at the same
 time (two Bash calls in one message): the model watches while Whisper listens. Every measuring script
@@ -99,22 +98,20 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/metrics.py" <handle>
 Writes `metrics.json` (WPM per third, pauses, fillers, sentence length, you/I/we,
 repeated phrases), all off the word timestamps.
 
-Then load `${CLAUDE_SKILL_DIR}/references/analysis-framework.md` and run its passes. For pass 1, launch
+Run Step 3b first, so the passes skip the videos `format.json` left out. Then load
+`${CLAUDE_SKILL_DIR}/references/analysis-framework.md` and run its passes. For pass 1, launch
 one `video-analyst` agent per video, all in one message (they run at once): give each the absolute
 `creator-teardowns/<handle>/` path and one id. Each returns a JSON beat map; merge them into the
 tables. Without an Agent tool, read `transcripts/<id>.timed.txt` yourself, one video at a time. Never
 read `transcripts/<id>.json` or `metrics.json` whole:
 
-1. **Beat map + timings.** Every video split into labelled beats with second-marks
-   and word counts.
-2. **Voice/vocab profile.** Sentence length, person, commands, recurring phrases, and
-   the moves the user would not say.
-3. **Visual pass.** Always run it. It is what lets the user edit their own video in
-   this creator's style. See Step 3b.
-4. **Card events**, only when the ask covers the creator's cards and graphics, or an
-   edit plan is coming. Writes `events.json` in the shape in
-   `${CLAUDE_SKILL_DIR}/references/edit-plan.md`. `scripts/strip.py` needs ffmpeg,
-   `numpy` and `pillow`.
+1. **Beat map + timings.** Every video split into labelled beats with second-marks and word counts.
+2. **Voice/vocab profile.** Sentence length, person, commands, recurring phrases, and the moves the
+   user would not say.
+3. **Visual pass.** Always: Step 3b. It is what lets the user edit their own video in this style.
+4. **Card events**, only when the ask covers the creator's cards and graphics, or an edit plan is
+   coming. Writes `events.json` in the shape in `${CLAUDE_SKILL_DIR}/references/edit-plan.md`.
+   `scripts/strip.py` needs ffmpeg, `numpy` and `pillow`.
 
 Do not skip the timings: "hook lands by 0:03 and runs 14 words, items are 8-11 s each"
 is a format someone can film; "hook, then list, then close" is not.
@@ -124,6 +121,7 @@ is a format someone can film; "hook, then list, then close" is not.
 ```bash
 python3 "$VPY" "${CLAUDE_SKILL_DIR}/scripts/visual.py" measure <handle>
 python3 "$VPY" "${CLAUDE_SKILL_DIR}/scripts/look.py" measure <handle>
+python3 "$VPY" "${CLAUDE_SKILL_DIR}/scripts/format_check.py" check <handle>
 python3 "$VPY" "${CLAUDE_SKILL_DIR}/scripts/gemini.py" look <handle>
 ```
 
@@ -133,20 +131,22 @@ Run them after `transcribe` (`look.py` matches OCR text to the spoken words).
 2. `look.py`: OCR 3 frames a second and YuNet faces: the captions (place, size, words,
    case, colours, weight, entrance), face framing, graphics share, palette, motion
    personality. About 40 s a video.
-3. `gemini.py look`: merges what Gemini Flash-Lite said in Step 2 (it watches any video not done yet)
+3. `format_check.py`: a style is ONE format, not a blend of all they post. It groups the videos by
+   frame, face, captions, shot length and length, keeps the largest group, moves the rest to `video/left-out/`
+   (`format.json` says why; `references/look-pass.md`). Tell the user its first line when it left any out
+   ("Using 4 of 6: 2 look like a different format."); if none share one, ask for more like the kept ones.
+4. `gemini.py look`: merges what Gemini Flash-Lite said in Step 2 (it watches any video not done yet)
    about the 5 most-viewed: font, graphics style, transitions, what is not generic. Never a number.
 
-**Then read `look.md` (under 48 lines). Do not open frames or sheets.** Every
-field is in `${CLAUDE_SKILL_DIR}/references/look-pass.md`. Numbers in `style.json`
-come from code; never edit them by hand. Where `look.md` and the model's words
-disagree (say `motion: punchy` measured, `smooth` named), the measured one wins
-and the teardown says both.
+**Then read `look.md` (under 48 lines). Do not open frames or sheets.** Every field is in
+`${CLAUDE_SKILL_DIR}/references/look-pass.md`. Numbers in `style.json` come from code; never edit them
+by hand. Where `look.md` and the model's words disagree (say `motion: punchy` measured, `smooth`
+named), the measured one wins and the teardown says both.
 
-**No Gemini key** (`gemini.py look` exits 2): offer the free key once
-(`references/setup.md` step 4). If the user skips it, run the fallback: one Agent
-call with `model: "haiku"` that reads `sheets/<id>.jpg` for each video (one 3 x 3
-sheet each, made by `visual.py`) and writes `video/<id>.look-ai.json` per
-`gemini.py prompt`. Exact brief in `references/look-pass.md`. Then
+**No Gemini key** (`gemini.py look` exits 2): offer the free key once (`references/setup.md` step 4).
+If the user skips it, run the fallback: one Agent call with `model: "haiku"` that reads
+`sheets/<id>.jpg` for each kept video (one 3 x 3 sheet each, made by `visual.py`) and writes
+`video/<id>.look-ai.json` per `gemini.py prompt`. Exact brief in `references/look-pass.md`. Then
 `python3 "$VPY" "${CLAUDE_SKILL_DIR}/scripts/gemini.py" merge <handle>`.
 
 **No OCR engine** (doctor says optional): `captions` stays unmeasured and look.md

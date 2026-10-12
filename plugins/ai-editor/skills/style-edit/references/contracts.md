@@ -93,6 +93,7 @@ Existing keys (card events, from `editplan.py style`) stay. The visual pass adds
 - Newer fields (`captions.lines/x_pct/stroke_color/box_color/entrance/ease_s/source`, `face`, `graphics`, `motion`, `look`, `blend`): see creator-teardown `references/look-pass.md`.
   `case`: `lower` | `upper` | `sentence`. `animation`: `pop` | `none` | `slide` | `word_highlight`.
 - `max_pause_s`: the longest silence the creator leaves between phrases. The cut uses it as its pause target.
+- `format`: the one format the style copies, in plain words ("talking-head videos with word captions"). Every number comes from the videos of that format; the others are left out (creator-teardown `format.json`).
 - `sfx` (optional, default true): `false` turns off the sound cues plan.py adds.
 - Teardown fields (all measured by code; only `graphics.entrances[].kind` names and `graphics.kinds` labels can come from a model, the numbers never do). Full detail: creator-teardown `references/teardown-page.md`.
   - `pace.cut_kinds`: % of cuts per kind, `hard` | `jump` | `zoom-punch` | `whip` | `match` | `mask` | `dissolve`. `zoom.ease`: the GSAP ease fitted to the zoom (`none` for a punch).

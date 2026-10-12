@@ -3,12 +3,13 @@
 Graphics kinds, entrances, layout, cuts, camera, sound, hook, winners and the page:
 `teardown-page.md`.
 
-Three scripts write the look. Code writes every number; a model writes only words.
+Four scripts write the look. Code writes every number; a model writes only words.
 
 | Script | Writes | How |
 |---|---|---|
 | `visual.py measure` | `pace`, `zoom`, `sheets/<id>.jpg` | frame differencing for cuts (catches locked-off jump cuts), a scale search for zoom punches and pushes |
 | `look.py measure` | `captions` (numbers), `face`, `graphics`, `motion`, `look.md` | OCR + transcript match, OpenCV k-means in the caption boxes, YuNet faces, frame diffs at the source frame rate |
+| `format_check.py check` | `format.json`, `video/left-out/` (report.py copies the name into `format`) | groups the videos by measured features and keeps the largest group (below) |
 | `gemini.py look` / `merge` | `look`, `captions.font_match` | Gemini Flash-Lite on the video, or the fallback sheet pass, into one fixed schema |
 
 ## style.json, new fields
@@ -91,6 +92,51 @@ on all 7, no stroke, one word, lower case, centre 64-81% down (median 75%), em 4
 of the height (3.1% in one video, where the frames show smaller text), weight 600,
 punchy. The old Claude-read style.json had `stroke: true`, `weight: 700`,
 `y_pct: 68`; the frames show a soft shadow, no outline.
+
+## The format check: one style is one format
+
+People copy a creator for an editing style they like, and a creator often posts more than one: talking
+heads most days, a podcast clip now and then. Measuring both and taking the medians gives a style that
+looks like neither. So a style copies ONE format, and `format_check.py check <handle>` finds it after
+`visual.py` and `look.py` measure, before anything else reads the numbers.
+
+Each video gets five features, all already measured:
+
+| Feature | Values |
+|---|---|
+| frame | `16:9` (landscape file), `letterbox` (a 16:9 band between black bars), `split` (the face below 62% of the height with graphics up 30%+ of the time), `full` |
+| kind | `talking head` (a face 50%+ of the time), `two people` (the face sits left and right of centre, 20%+ of face time each: a podcast or skit cut), `screen recording` (a face 30% or less, graphics 50%+), `b-roll` |
+| captions | none, or words per caption, height on screen, size, upper case or not |
+| shot | median shot length |
+| length | duration |
+
+Two videos are one format when frame and kind are the same, both or neither have captions, and with
+captions the words per caption are within 1 (or 2x), the heights within 15 points, the sizes within
+1.5x, upper case on both or neither; shots within 2.5x (or both 4 s or more: a median of a few
+shots is noise); lengths within 3x. Most-viewed first, each video
+joins the first group whose first video it matches. The largest group is kept; on a tie, the one with
+the higher median view multiple. The rest move to `video/left-out/`, so graphics, sound and the report
+see only the kept format, and style.json and look.md are merged again from the kept videos.
+`style.json` `format` names it, and the style's skill says so ("copying their talking-head videos with
+word captions").
+
+`format.json` (`consistent` is true when the kept group is more than half):
+
+```json
+{"consistent": true,
+ "groups": [{"name": "talking-head videos with word captions", "videos": ["a", "b", "c", "d"], "views_x": 1.05},
+            {"name": "two-person videos in 16:9 with sentence captions", "videos": ["p1", "p2"], "views_x": 3.0}],
+ "kept": ["a", "b", "c", "d"],
+ "left_out": [{"id": "p1", "url": "https://...", "why": "two-person videos in 16:9 with sentence captions (16:9 frame, not full; two people, not a talking head; ...)"}],
+ "line": "Using 4 of 6: 2 look like a different format. The style copies their talking-head videos with word captions."}
+```
+
+What to tell the user: the `line`, once. When it says the videos do not share one format, the best video
+is still used; ask for more videos like it. A profile run picks videos of the creator's usual length
+(within 2x of the median listed length) and measures 2 spares, so the check can drop a mismatch and keep
+the sample; pasted links are all measured. Ceilings: there is no speaker count (the transcripts are not
+diarized), so two people is read from where the face sits; two formats that differ only in graphics
+style or sound are one format here.
 
 ## Fallback: no Gemini key
 

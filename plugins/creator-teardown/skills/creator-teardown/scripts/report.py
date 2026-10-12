@@ -494,9 +494,13 @@ def build(outdir, at=None):
     meta = load(outdir / "videos.json") or {"videos": []}
     by_id = {v["id"]: v for v in meta["videos"]}
     style = load(outdir / "style.json") or {"handle": outdir.name}
+    fmt = load(outdir / "format.json") or {}   # format_check.py: the style copies the kept format only
+    kept = set(fmt.get("kept") or [])
     rows, hooks, gfx_rows, videos = [], [], [], []
     for mp4 in sorted((outdir / "video").glob("*.mp4")):
         vid = mp4.stem
+        if kept and vid not in kept:
+            continue
         v = dict(by_id.get(vid, {"id": vid}))
         v["_role"] = role(v)
         words = words_of(outdir, vid)
@@ -521,6 +525,8 @@ def build(outdir, at=None):
                         "differs": [sentence(c) for c in sorted(comp, key=lambda c: not c["verdict"].endswith("every winner"))
                                     if c["verdict"].startswith("differs")]}
     style["ai_tells"] = {k: v for k, v in tells.items() if k != "look_checked"}
+    if fmt.get("groups"):
+        style["format"] = fmt["groups"][0]["name"]   # the kept group comes first
     (outdir / "style.json").write_text(json.dumps(style, indent=2), encoding="utf-8")
     (outdir / "report.json").write_text(json.dumps({"hooks": hooks, "compare": comp, "ai_tells": tells}, indent=1), encoding="utf-8")
     try:   # look.md was written before graphics, sound and the tells: rewrite it from the final style.json
@@ -645,7 +651,13 @@ def demo():
         from PIL import Image
         Image.new("RGB", (100, 60), "white").save(od / "graphics" / "v1_0.jpg")
         (od / "videos.json").write_text(json.dumps({"videos": [{"id": "v1", "view_count": 9000, "vs_median": 3.0,
-                                                                 "webpage_url": "https://example.com/v1"}]}), encoding="utf-8")
+                                                                 "webpage_url": "https://example.com/v1"},
+                                                                {"id": "podclip", "view_count": 90000, "vs_median": 30.0}]}), encoding="utf-8")
+        # podclip is another format: format.json leaves it out, so nothing of it reaches the page or style.json
+        (od / "video" / "podclip.mp4").write_bytes(b"")
+        (od / "format.json").write_text(json.dumps({"consistent": True, "kept": ["v1"], "groups": [
+            {"name": "talking-head videos with word captions", "videos": ["v1"], "views_x": 3.0},
+            {"name": "two-person videos in 16:9", "videos": ["podclip"], "views_x": 30.0}]}), encoding="utf-8")
         (od / "video" / "v1.graphics.json").write_text(json.dumps({"id": "v1", "duration_s": 2.0, "width": 360, "height": 640,
             "graphics": [{"t_in": 0.4, "t_out": 1.6, "hold_s": 1.2, "box": [0.1, 0.1, 0.8, 0.3], "kind": "real screenshot",
                           "what": "a pricing page", "crop": "graphics/v1_0.jpg",
@@ -658,6 +670,7 @@ def demo():
         assert "<title>@demo teardown</title>" in text and "a pricing page" in text and "data:image/jpeg;base64," in text
         assert "What to take" in text and "power3.out" in text and chr(0x2014) not in text
         assert style["winners"]["n_winners"] == 1 and "hook" in style
+        assert style["format"] == "talking-head videos with word captions" and "podclip" not in text, style.get("format")
     print("ok")
 
 

@@ -71,7 +71,8 @@ The scripts report these steps themselves; use these words if you report one (th
 2. `Downloaded the top 5 and 2 median` (visual.py download --top 5)
 3. `Transcribed every word` (fetch.py transcribe --top 5)
 4. `Measured cuts, zooms and camera moves` (visual.py measure)
-5. `Reading captions and faces` (look.py measure; `--detail "video N of 7"` as it goes)
+5. `Reading captions and faces` (look.py measure; `--detail "video N of 9"` as it goes; then format_check.py
+   check, and when it leaves videos out its first line as `--detail`)
 6. `Naming graphics` (graphics.py measure, gemini.py kinds)
 7. `Sound effects and music` (sound.py measure)
 8. `Writing the style` (report.py build)

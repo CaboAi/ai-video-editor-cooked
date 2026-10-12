@@ -28,13 +28,29 @@ Then wait for `wait` to finish. Each time it prints a job, start a new `wait` in
 straight away (so Cancel and the next job reach you), then do the job. `ALREADY` means a `wait` is
 running: leave it.
 
+### One page, several Claude sessions
+
+Every job remembers the session that took it (`CLAUDE_CODE_SESSION_ID`). `status` from another session
+never writes to it, `status` never takes a queued job (only `wait` does), and each session makes one
+video at a time. A taken job with no report for 15 minutes belonged to a session that stopped: the next
+`status` or `wait --job` from another session adopts it and prints `adopted <id>`. When the user presses Make my video while
+this session is making another, the page offers "Open a new Claude for this video": a new Terminal window
+starts Claude Code in the library with the prompt `/ai-editor:start take job <id>`. On that prompt run
+`python3 "$H" serve --no-open` and `python3 "$H" wait --job <id>` (both in the background): it prints that
+job's line (or `GONE` when it is done or another session has it), then do the job as below. Do not start a
+plain `wait` afterwards unless the user asks for more.
+
 ## Questions
 
 Ask with AskUserQuestion as usual. When the home page or a review page is open and showing, a hook
 (`lib/ai_editor/askhook.py`) puts the question on that page: the options, an Other box, and "Answer in
 Claude Code instead". The answer comes back as the tool's result, the same as a terminal answer. No page
 showing, "Answer in Claude Code instead", or 10 minutes with no answer: the terminal box shows. Never ask
-a question in plain chat text when AskUserQuestion fits: only the tool reaches the page. Permission
+a question in plain chat text when AskUserQuestion fits: only the tool reaches the page. A question only
+reaches pages this session works on (the home page while it holds a job there or listens, the review page
+of an edit it ran `review.py` on), with the job's name on the card. Another session's questions stay in its
+own terminal. A Claude Code without `CLAUDE_CODE_SESSION_ID` records no session, and then every question
+reaches the page, as before. Permission
 prompts (Allow or Deny for a command) stay in the terminal; a hook cannot answer them.
 
 ## Keys
@@ -45,8 +61,8 @@ ask for a key in the chat, and never read the key file. "Skip, add later" runs `
 
 ## The jobs
 
-Progress is automatic: once you have taken a job (your `wait` or your own `status`; a script never takes
-a queued one), the long scripts (creator-teardown's, the cut's transcribe, join, build and render,
+Progress is automatic: once your `wait` has taken a job (inside Claude Code only `wait` takes a queued
+one), the long scripts (creator-teardown's, the cut's transcribe, join, build and render,
 setup's install-all) post their own steps with a count ("video 3 of 7") onto the job their edit folder
 or handle names, and the page shows a live strip with a clock, so it never looks stopped. You still
 report the steps you own (the result, `--done`, `--failed`, steps no script covers) with `status`. The
@@ -139,7 +155,8 @@ python3 "$R" <edit> serve --no-open                                            #
 python3 "$H" status video --result '{"review_url": "<that URL>"}'
 ```
 
-Round 0 has no Approve; notes left on it wait for the cut. Then the start skill from step 2 on, with
+`serve` opens no browser tab while the home window is showing this job: the home window goes to the
+review page in its own tab. Otherwise (no home window, or Claude Code alone) it opens a tab. Round 0 has no Approve; notes left on it wait for the cut. Then the start skill from step 2 on, with
 this file (or joined.mp4) as the video. The steps
 `Joined your clips in order` (takes only), `Wrote down every word you said`, `Cutting out the mistakes`
 reach the home page by themselves (join.py, transcribe.py, build_timeline.py, render.py); put each on the

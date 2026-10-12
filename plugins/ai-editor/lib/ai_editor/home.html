@@ -234,6 +234,8 @@ body.dragging #dropov{display:flex}
 .btn.sm{height:38px;padding:0 18px;font-size:14px}
 .ini{width:36px;height:36px;border-radius:18px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--t2);flex-shrink:0}
 .kv{display:flex;flex-direction:column;gap:2px}.kv span{font-size:13px;color:var(--t3)}.kv b{font-weight:500;font-size:15px}
+.nclaude{display:flex;flex-direction:column;align-items:flex-start;gap:10px;font-size:14px;line-height:20px;color:var(--t2)}
+.nclaude .codebox{align-self:stretch;gap:12px}.nclaude .codebox span{min-width:0;overflow-wrap:anywhere}
 .codebox{display:flex;justify-content:space-between;align-items:center;background:var(--soft);border-radius:10px;padding:10px 14px;font:14px var(--mono)}
 .brand{cursor:pointer;border:0;background:none;padding:0;text-align:left;font:inherit}
 .homelink{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px 0 13px;border:1px solid var(--ring);border-radius:10px;background:var(--panel);color:var(--ink);font-size:14px;font-weight:600;flex-shrink:0}
@@ -419,7 +421,7 @@ const PART_WHAT={captions:'Font, size and place',pace:'Cuts, pauses and zooms',g
 // creator-teardown quick mode, in order. Claude reports these step names (references/home.md).
 const PLAN=['Listed their videos','Downloaded the top 5 and 2 median','Transcribed every word','Measured cuts, zooms and camera moves','Reading captions and faces','Naming graphics','Sound effects and music','Writing the style'];
 const VIDEO_PLAN=[['Transcribe every word','about 20 s'],['Cut retakes and pauses','about 1 min'],['You watch the cut and leave notes','review page'],['Captions, zooms and graphics','about 3 min'],['You approve the edit and export','review page']];
-let S=null, view=null, ui={keys:{},likes:new Set(['captions','pace']),copy:null,paste:'',look:null,file:null,as:'creator',aspect:'9:16',show:{}};
+let S=null, view=null, ui={keys:{},nc:{},likes:new Set(['captions','pace']),copy:null,paste:'',look:null,file:null,as:'creator',aspect:'9:16',show:{}};
 try{const v=localStorage.getItem('ave-home-view');if(v)view=+v}catch(e){}
 
 async function post(u,b){const r=await fetch(u,{method:'POST',body:JSON.stringify(b||{})});let j={};try{j=await r.json()}catch(e){}return Object.assign(j,{_ok:r.ok})}
@@ -769,7 +771,7 @@ function h6(){
       <div class="h" style="margin-top:8px">For</div><div class="seg">${['9:16','16:9'].map(a=>`<button class="${ui.aspect===a?'on':''}" onclick="ui.aspect='${a}';render()">${a==='9:16'?'Vertical 9:16':'Wide 16:9'}</button>`).join('')}</div>
     </div>
     <div style="padding:22px 24px"><div class="h" style="margin-bottom:14px">What happens next</div><div class="slist">${plan}</div>
-      ${R.review_url?`<a class="btn" style="margin-top:20px;text-decoration:none" href="${esc(R.review_url)}" target="_blank" rel="noopener">Open the review page</a>`:`<div class="muted" style="margin-top:18px">You review every round on the review page, in your browser.</div>`}
+      ${R.review_url?`<a class="btn" style="margin-top:20px;text-decoration:none" href="${esc(R.review_url)}">Open the review page</a>`:`<div class="muted" style="margin-top:18px">You review every round on the review page, in your browser.</div>`}
       ${vd&&vd.state==='failed'?`<div class="msg bad" style="margin-top:12px">${CROSS}<span>${esc(vd.error)}</span></div>`:''}
     </div>
     <div style="flex:1"></div>
@@ -1011,16 +1013,26 @@ function planFor(j){
     ['You check the cut','The editor opens on your clip and each version lands there. Leave notes or approve.'],
     ['Captions, zooms and sound in '+st,studying?`Waits for the copy of ${a.as}'s style to finish, then starts after you approve the cut.`:'Starts after you approve the cut.']];
 }
+// a queued video no Claude is taking (none listening, or the window's Claude is making another): a new Claude for it
+function newClaude(j){
+  if(!j||j.type!=='video'||j.state!=='queued'||!(S.busy&&S.busy.id!==j.id||!S.listening))return '';
+  if(ui.nc[j.id]&&ui.nc[j.id].opened&&!(j.reserved&&Date.now()/1000-j.reserved<180))delete ui.nc[j.id];   // RESERVE_S passed and no Claude took it: offer again
+  const r=ui.nc[j.id]||{},stop='event.stopPropagation()';
+  if(r.opened)return `<div class="nclaude" onclick="${stop}">A new Claude is starting in Terminal. It picks up this video.</div>`;
+  if(r.command)return `<div class="nclaude" onclick="${stop}">Run this in a new Terminal window:<div class="codebox"><span>${esc(r.command)}</span><button class="hlink" onclick="copyText(${esc(JSON.stringify(r.command))},this)">Copy</button></div></div>`;
+  return `<div class="nclaude" onclick="${stop}">${S.busy&&S.busy.id!==j.id?`<span>Claude is busy with ${esc(S.busy.name)}.</span>`:''}${r.msg?`<span>${esc(r.msg)}</span>`:''}<button class="btn sm" onclick="openClaude(${esc(JSON.stringify(j.id))})">Open a new Claude for this video</button></div>`;
+}
+async function openClaude(id){const r=await post('/claude',{id});ui.nc[id]=r._ok?r:{msg:r.msg||'That did not work.'};await load()}
 function jobBlock(j){
   const a=j.args,name=(a.edit||'').split(/[\\/]/).pop(),plan=planFor(j),R2=j.result||{};
   const steps=j.steps.map(s=>`<div class="row ${s.done?'':'cur'}"><div class="check" style="color:var(--t3);margin-top:3px">${s.done?CHECK:'<div class="spin"></div>'}</div><div class="grow"><div class="t">${esc(s.text)}</div>${!s.done&&(s.detail||s.progress!=null)?`<div class="row" style="margin-top:12px;gap:16px"><div class="prog" style="width:240px"><div style="width:${Math.round((s.progress||0)*100)}%"></div></div><span class="muted" style="color:var(--t2);font-size:14px">${s.progress!=null?Math.round(s.progress*100)+'%':''}${s.detail?(s.progress!=null?' · ':'')+esc(s.detail):''}</span></div>`:''}</div><span class="s" ${s.done?'':`data-since="${s.t}"`}>${s.done?secs(s.secs):secs(Math.max(0,Math.round(Date.now()/1000-s.t)))}</span></div>`).join('')
     +plan.slice(j.steps.length).map(([t,s])=>`<div class="row later"><div class="check" style="margin-top:5px"><div class="ring"></div></div><div><div class="t">${esc(t)}</div>${s?`<div class="muted" style="margin-top:4px;font-size:14px">${esc(s)}</div>`:''}</div></div>`).join('');
-  const age=Date.now()/1000-jobStart(j),wait=j.state==='queued'?(age<20?'':S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal, or say "open the AI editor home page" in Claude Code.`):j.state==='failed'?j.error:j.state==='cancelled'?'Cancelled.':'';
+  const nc=newClaude(j),age=Date.now()/1000-jobStart(j),wait=nc?'':j.state==='queued'?(age<20?'':S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal, or say "open the AI editor home page" in Claude Code.`):j.state==='failed'?j.error:j.state==='cancelled'?'Cancelled.':'';
   return `<div style="display:flex;flex-direction:column;gap:28px">
     <div class="row" style="gap:28px;align-items:flex-end;flex-wrap:wrap"><div class="row" style="gap:2px">${(a.paths||[a.path]).slice(0,4).map((p,i,arr)=>{const c=clipOf(p);return `<div><div class="jthumb ${arr.length>1?'n':''}" style="width:${arr.length>1?96:130}px;height:${arr.length>1?170:230}px;background:#45403C url('${esc(c.thumb||'/thumb?p='+encodeURIComponent(p))}') center/cover;border-radius:${i===0?'14px 0 0 14px':i===arr.length-1?'0 14px 14px 0':'0'}${arr.length===1?';border-radius:14px':''}"></div><div class="muted" style="margin-top:8px">${i+1}${c.duration?' · '+fmtT(c.duration):''}</div></div>`}).join('')}</div>
       <div style="padding-bottom:28px"><div style="font-size:17px;font-weight:600">${esc(name)}${(a.paths||[a.path]).every(p=>clipOf(p).duration)?' · '+fmtT((a.paths||[a.path]).reduce((t,p)=>t+clipOf(p).duration,0)):''}</div><div class="sub" style="margin-top:4px">${a.takes?'One video':'Video'} · ${esc(styleName(a.as))} · ${a.aspect==='9:16'?'Tall':'Wide'} ${a.aspect}</div></div></div>
-    ${wait?`<div class="msg ${j.state==='failed'?'bad':''}" style="font-size:14px">${j.state==='failed'?CROSS:''}<span>${esc(wait)}</span></div>`:''}
-    ${!R2.review_url&&(j.state==='queued'||j.state==='taken')?`<div class="starting" style="margin-top:0;max-width:560px"><div class="spin big"></div><div><b>Opening the editor...</b><span><span data-since="${jobStart(j)}">${secs(Math.max(0,Math.round(age)))}</span> · it opens on your clip while Claude cuts it</span></div></div>`:''}
+    ${wait?`<div class="msg ${j.state==='failed'?'bad':''}" style="font-size:14px">${j.state==='failed'?CROSS:''}<span>${esc(wait)}</span></div>`:''}${nc}
+    ${nc?((ui.nc[j.id]||{}).opened?'':`<div class="muted" style="font-size:14px">Waiting for a Claude to pick this up.</div>`):!R2.review_url&&(j.state==='queued'||j.state==='taken')?`<div class="starting" style="margin-top:0;max-width:560px"><div class="spin big"></div><div><b>Opening the editor...</b><span><span data-since="${jobStart(j)}">${secs(Math.max(0,Math.round(age)))}</span> · it opens on your clip while Claude cuts it</span></div></div>`:''}
     <div class="steps2">${steps}</div>
     ${R2.review_url?`<a class="btn dark" style="align-self:flex-start;height:52px;text-decoration:none;padding:0 28px" href="${esc(R2.review_url)}">Open the review page</a>`:''}
   </div>`;
@@ -1057,7 +1069,7 @@ const openBtn=v=>v.status==='done'?'':`<button class="btn sm" onclick="event.sto
 function vRow(v){
   const st=v.status==='done'?`${TICK} Done`:v.status==='ready'?'<div class="dot"></div> Ready to review':'<div class="ring"></div> '+STATUS[v.status];
   const act=v.status!=='done'?openBtn(v):v.media?`<a href="${esc(v.media)}" download onclick="event.stopPropagation()" style="text-decoration:none;font-size:15px">Download</a>`:'';
-  return `<div class="vrow vopen" ${goAttrs(v)}><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${mkOver(v,true)}</div><div class="grow" style="min-width:0"><div style="font-size:16px">${esc(v.name)}</div><div class="sub" style="margin-top:4px">${v.kind==='edits'?'':esc(v.kind)+' · '}${v.round?`round ${v.round} · `:''}${ago(v.updated)}</div></div><div class="st">${st}</div><div class="act">${act}</div></div>`;
+  return `<div class="vrow vopen" ${goAttrs(v)}><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${mkOver(v,true)}</div><div class="grow" style="min-width:0"><div style="font-size:16px">${esc(v.name)}</div><div class="sub" style="margin-top:4px">${v.kind==='edits'?'':esc(v.kind)+' · '}${v.round?`round ${v.round} · `:''}${ago(v.updated)}</div>${newClaude(vJob(v))?`<div style="margin-top:10px">${newClaude(vJob(v))}</div>`:''}</div><div class="st">${st}</div><div class="act">${act}</div></div>`;
 }
 const EXROW=`<div class="vrow ex"><div class="th" style="background-image:url('/demo/person-2.jpg')"></div><div class="grow" style="min-width:0"><div style="font-size:16px">my-first-video</div><div class="sub" style="margin-top:4px">Example. Your videos show here.</div></div><div class="st"><span class="tagq">Example</span></div></div>`;
 function styleSide(){
@@ -1087,7 +1099,7 @@ function nowCard(v){
     <div class="row" style="gap:8px;font-size:13px;font-weight:${v.status==='ready'?600:400};color:${v.status==='ready'?'var(--ink)':'var(--t2)'}">${st}</div>
     <div style="font-size:17px;line-height:22px;font-weight:600">${esc(v.name)}</div><div class="muted">${v.round?`round ${v.round} · `:''}${ago(v.updated)} · ${rmLink(v)}</div>
     <div class="sub" style="font-size:13px;line-height:18px;margin-top:auto">${esc(NOWLINE[v.status](v))}</div>
-    <div style="margin-top:6px">${openBtn(v)}</div></div></div>`;
+    <div style="margin-top:6px">${newClaude(vJob(v))||openBtn(v)}</div></div></div>`;
 }
 function editTrashRow(){
   const v=ui.edittrash&&L.videos.find(x=>x.dir===ui.edittrash);if(!v)return ui.editmsg?`<div class="msg bad">${CROSS}<span>${esc(ui.editmsg)}</span></div>`:'';

@@ -19,6 +19,23 @@ What changed for every user, newest first.
   in light and dark. Test: `review.py demo` (steps in place, no-ops, Stop on the approve) and headless
   screenshots at 1440x900, 1280x720, 1920x1080 and 390x844.
 
+- Two Claude sessions no longer mix up the window. A tester had one session editing and started a second
+  in another terminal: the second session's questions showed up on her edit's page. Now each page and job
+  knows its Claude Code session (`CLAUDE_CODE_SESSION_ID`, and the hook's `session_id`). A question goes
+  only to pages its session works on, and the card names the job ("Claude (team-250k-general) asks"); no
+  match, and the terminal box shows. A job remembers who took it: `status` and the scripts' self-reports
+  from another session never write to it, and each session makes one video at a time. Make my video while
+  Claude is busy offers "Claude is busy with <name>. Open a new Claude for this video", which opens a new
+  Terminal running Claude Code on that one job (`home.py wait --job <id>`; Windows `cmd`, Linux
+  `x-terminal-emulator`, else a command to copy). Your videos offers the same for a queued video no Claude
+  is taking; when no window opened, the page shows the command to copy. A taken job with no report for
+  15 minutes (its session stopped) is adopted by the next session that reports on it. A Claude Code
+  without `CLAUDE_CODE_SESSION_ID` keeps the old behaviour: every question reaches the page. Closing a tab
+  tells its server at once, so a question never waits on a closed tab, and the window's POSTs refuse
+  other sites' pages (Origin check). Also, starting an edit no longer opens a second browser tab:
+  `review.py serve` skips it when the home window holds that edit's job and goes there in its own tab. Test:
+  `askhook.py demo` (two sessions, two pages), `home.py demo`, `review.py demo`, `progress.py demo`,
+  `launcher.py demo` (the terminal command per OS, recorded, never run).
 - The home window shows progress on its own. A tester pressed Copy and the window sat blank while Claude
   installed and ran the teardown, because steps only reached it when Claude ran `home.py status`. Now the
   long scripts report themselves while Claude has that job taken (a script never takes a queued job, so

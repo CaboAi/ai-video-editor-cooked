@@ -697,6 +697,8 @@ def make_handler(folder, token):
         def do_POST(self):
             if not self.authorized():
                 return self.send(403, {"error": "open the page with the URL review.py printed"})
+            if not askhook.same_origin(self):   # a POST from another site's page, even with the cookie
+                return self.send(403, {"error": "not from this page"})
             try:
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
             except ValueError:
@@ -925,12 +927,47 @@ def running(folder):
         return None
 
 
+OPEN = webbrowser.open   # a new browser tab (the demo swaps it)
+
+
+def home_opens(folder):
+    """True when a showing home window holds this edit's video job: it goes to this page in its own tab."""
+    if not askhook.live("home"):
+        return False
+    f = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home" / "state.json"
+    try:
+        jobs = json.loads(f.read_text(encoding="utf-8")).get("jobs") or []
+    except (OSError, ValueError):
+        return False
+    return any(j.get("type") == "video" and j.get("state") == "taken" and (j.get("args") or {}).get("edit")
+               and Path(j["args"]["edit"]).resolve() == folder.resolve() for j in jobs)
+
+
+def show(url, folder):
+    """A new tab, unless the home window is about to show this page itself."""
+    if not home_opens(folder):
+        OPEN(url)
+
+
+def asker(folder, started):
+    """Questions on this page come from the session that last ran a review.py command on this edit
+    (review/.session), else the one that started the server. They name the edit."""
+    def owner(sid):
+        try:
+            cur = (folder / "review" / ".session").read_text(encoding="utf-8").strip()
+        except OSError:
+            cur = ""
+        own = cur or started
+        return folder.name if not own or sid == own else None   # no session known (older Claude Code): anyone
+    return owner
+
+
 def serve(folder, port=0, open_browser=True):
     """(server, url). An already running server for this folder is reused: (None, its url)."""
     url = running(folder)
     if url:
         if open_browser:
-            webbrowser.open(url)
+            show(url, folder)
         return None, url
     token = secrets.token_urlsafe(32)
     # exclusive bind on Windows, where SO_REUSEADDR (HTTPServer's default) lets two servers share a port
@@ -938,9 +975,9 @@ def serve(folder, port=0, open_browser=True):
                                                                                       make_handler(folder, token))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
     (folder / "review" / ".server").write_text(url, encoding="utf-8")
-    askhook.register(srv, url)
+    askhook.register(srv, url, "review", asker(folder, askhook.session()))
     if open_browser:
-        webbrowser.open(url)
+        show(url, folder)
     return srv, url
 
 
@@ -1322,6 +1359,7 @@ def demo():
     assert end.exists() and end.stat().st_size > 1000, "no still at the last frame"
     assert "Move to playhead" not in HTML.read_text(encoding="utf-8") and 'id="homebtn"' in HTML.read_text(encoding="utf-8")
     assert load(folder / "review.json")["vertical"] is False
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-review"
     srv, url = serve(folder, 0, open_browser=False)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     base, tok = url.split("/?t=")
@@ -1348,13 +1386,45 @@ def demo():
             assert e.code == 403, (p, e.code)
     assert not load(folder / "review.json")["events"]
     assert running(folder) == url and serve(folder, 0, open_browser=False) == (None, url)
+    # a tab opens only when no home window is showing; with one, the home window goes there itself
+    global OPEN
+    opened, OPEN = [], (lambda u: opened.append(u))
+    serve(folder, 0)
+    assert opened == [url], opened
+    hp = askhook.pages() / "1"
+    hp.write_text(json.dumps({"url": "http://127.0.0.1:1/?t=x", "kind": "home", "session": ""}), encoding="utf-8")
+    serve(folder, 0)
+    assert opened == [url] * 2, "a home window busy with something else: this page still gets its tab"
+    sf = tmp / "home" / "home" / "state.json"
+    sf.parent.mkdir(parents=True, exist_ok=True)
+    sf.write_text(json.dumps({"jobs": [{"type": "video", "state": "taken", "args": {"edit": str(folder)}}]}), encoding="utf-8")
+    serve(folder, 0)
+    assert opened == [url] * 2, "the home window holds this edit's job: it goes there itself, no second tab"
+    hp.unlink()
+    sf.unlink()
+    OPEN = webbrowser.open
     r = get("/")
     assert b"review" in r.read() and "HttpOnly" in r.headers["Set-Cookie"]
     # Claude's question (askhook.py): posted, polled by the showing page, answered in its own words, cleared
     assert '<script src="/ask.js">' in HTML.read_text(encoding="utf-8") and b"askq" in get("/ask.js").read()
     qs = [{"question": "Keep the intro?", "header": "Intro", "options": [{"label": "Keep", "description": ""}], "multiSelect": False}]
-    post("/ask", {"id": "q1", "questions": qs})
-    assert json.loads(get("/ask?v=1").read())["ask"] == {"id": "q1", "questions": qs} and askhook.live() == [url]
+    try:
+        post("/ask", {"id": "q0", "questions": qs, "session": "sess-other"})
+        raise AssertionError("took another session's question")
+    except urllib.error.HTTPError as e:
+        assert e.code == 409
+    try:   # a POST from another site's page
+        urllib.request.urlopen(urllib.request.Request(base + "/theme?t=" + tok, b'{"theme":"dark"}', {"Origin": "http://evil.example"}, method="POST"))
+        raise AssertionError("took a cross-site POST")
+    except urllib.error.HTTPError as e:
+        assert e.code == 403
+    os.environ.pop("CLAUDE_CODE_SESSION_ID")
+    (folder / "review" / ".session").unlink(missing_ok=True)
+    assert asker(folder, "")("sess-anyone") == "demo", "no session known (older Claude Code): any question"
+    assert asker(folder, "sess-review")("sess-anyone") is None
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-review"
+    post("/ask", {"id": "q1", "questions": qs, "session": "sess-review"})
+    assert json.loads(get("/ask?v=1").read())["ask"] == {"id": "q1", "questions": qs, "about": "demo"} and askhook.live() == [url]
     post("/ask/answer", {"id": "q1", "answers": ["Cut it to 3 seconds"]})
     assert json.loads(get("/ask?id=q1").read())["result"] == {"answers": ["Cut it to 3 seconds"]}
     assert json.loads(get("/ask").read())["ask"] is None
@@ -1836,6 +1906,8 @@ def main():
     if a.cmd != "serve":   # every Claude-side command marks Claude as working on this edit
         (folder / "review").mkdir(parents=True, exist_ok=True)
         (folder / "review" / ".claude").touch()
+        if askhook.session():   # this session's questions now go to this edit's page
+            (folder / "review" / ".session").write_text(askhook.session(), encoding="utf-8")
     if a.cmd == "start":
         if not Path(a.video).exists():
             sys.exit(f"no such file: {a.video}")

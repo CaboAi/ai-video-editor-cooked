@@ -7,8 +7,9 @@ for it, and reports back with `status`:
 
     python3 home.py serve [--root DIR] [--no-open]   serve the page and open it (run in the background);
                                                  DIR defaults to the library (library.py), wherever this runs
-    python3 home.py wait                         block until the page queues a job, print it as one line,
-                                                 exit (run in the background, again after each job):
+    python3 home.py wait [--job ID]              block until the page queues a job, print it as one line,
+                                                 exit (run in the background, again after each job).
+                                                 --job: take that one job (a Claude the page opened for it)
         JOB teardown @handle platform=tiktok take=captions,pace root=DIR
         JOB teardown @name urls=DIR/creator-teardowns/name/picks.txt take= root=DIR
         JOB skill @handle take=captions,pace,graphics root=DIR
@@ -19,6 +20,7 @@ for it, and reports back with `status`:
         JOB modal                                 the user pressed "Log in with your browser"
         JOB cancel teardown                       the user pressed Cancel
         ALREADY ...                               another wait is running: nothing to do
+        GONE ...                                  (--job) that job is done, cancelled or another Claude's
     python3 home.py status <job> [--step "..."] [--detail "video 6 of 10"] [--progress 0.6]
                                  [--result '<json>' | --result @file.json] [--done] [--failed "..."]
                                  <job> is teardown, skill, video or setup: its latest job
@@ -36,6 +38,11 @@ The server listens on 127.0.0.1 only and every request needs the token in the UR
 SameSite cookie), as review.py does. The address stays the same: port 47821 (the next free one if that is
 taken, remembered in state.json) and one random token per install ($AI_EDITOR_HOME/home/token, 0600), so
 the launcher and a bookmark always open the same page.
+
+Sessions: the window is shared by every Claude Code session on the computer, so each job remembers the
+session that took it (`owner`, from CLAUDE_CODE_SESSION_ID). `status` from another session never writes
+to it, `wait` never takes a job reserved for a new Claude ("Open a new Claude for this video"), and a
+question (askhook.py) reaches this page only from a session holding one of its jobs or listening for one.
 """
 import argparse
 import glob
@@ -157,11 +164,70 @@ def latest(d, kind):
     return next((j for j in reversed(d["jobs"]) if j["type"] == kind), None)
 
 
+RESERVE_S = 180   # a job the page opened a new Claude for: other waits leave it alone this long (home.html too)
+STALE_S = 900     # a taken job nobody reported on this long: its session stopped, another may adopt it
+
+
+def job_name(j):
+    """What a job is about, in a few words: the video's edit folder name, the creator, the style."""
+    a = j.get("args") or {}
+    if a.get("edit"):
+        return Path(a["edit"]).name
+    if a.get("handle"):
+        return "@" + a["handle"]
+    return {"style-change": "your style", "modal": "cloud renders"}.get(j["type"], j["type"])
+
+
+def stale(j):
+    """A taken job whose session stopped reporting STALE_S ago."""
+    return j["state"] == "taken" and time.time() - (j.get("u") or 0) > STALE_S
+
+
+def may_write(j, sid):
+    """True when session sid may write to job j: it took it, nobody did, sid is unknown (outside Claude), or
+    its session stopped (stale: sid adopts it)."""
+    return not sid or not j.get("owner") or j["owner"] == sid or stale(j)
+
+
+def adopt(j, sid):
+    """sid takes over a stale job of a stopped session. A line to print, or None."""
+    if sid and j.get("owner") and j["owner"] != sid:
+        j["owner"] = sid
+        return f"adopted {j['id']}: the Claude session that had it stopped reporting {STALE_S // 60} minutes ago"
+    return None
+
+
+def asks_for(sid):
+    """askhook's owner rule for the home page: the job sid is working on, "" when it only listens, else None.
+    With no session known at all (Claude Code without CLAUDE_CODE_SESSION_ID): any question, as before."""
+    d = read()
+    taken = [j for j in reversed(d["jobs"]) if j["state"] == "taken"]
+    j = next((j for j in taken if sid and j.get("owner") == sid), None)
+    if j:
+        return job_name(j)
+    lis = listener()
+    if sid and sid == lis:
+        return ""
+    if not lis and not any(j.get("owner") for j in taken):
+        return job_name(taken[0]) if taken else ""
+    return None
+
+
 def listening():
     try:
         return time.time() - (home() / ".listening").stat().st_mtime < BEAT_S
     except OSError:
         return False
+
+
+def listener():
+    """The session of the `wait` that is listening now ("" when it has none, None when nobody listens)."""
+    if not listening():
+        return None
+    try:
+        return (home() / ".listening").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
 
 
 # ---------------------------------------------------------------- creator: listing and measured numbers
@@ -667,18 +733,40 @@ def job_line(j, root):
     return f"JOB {j['type']}"
 
 
-def cmd_wait(poll=1.0):
+def busy_with(d, sid):
+    """The video job session sid is making now, or None."""
+    return next((j for j in reversed(d["jobs"]) if j["type"] == "video" and j["state"] == "taken"
+                 and sid and j.get("owner") == sid), None)
+
+
+def takeable(j, sid, d, job=None):
+    """A queued job this wait may take: --job names it, else one not reserved for a new Claude. One video at
+    a time per session: the next one waits for it, and meanwhile the page offers a new Claude for it."""
+    if j["state"] != "queued":
+        return False
+    if job:
+        return j["id"] == job
+    if j.get("reserved") and time.time() - j["reserved"] < RESERVE_S:
+        return False
+    return not (j["type"] == "video" and busy_with(d, sid))
+
+
+def cmd_wait(poll=1.0, job=None):
+    sid = askhook.session()
+    if job:   # the Claude the page opened for this job: it takes that job and nothing else
+        return _take_one(job, sid, poll)
     beat = home() / ".listening"
     beat.parent.mkdir(parents=True, exist_ok=True)
     if listening():   # one waiter at a time, so each job reaches exactly one background task
         print("ALREADY: another `home.py wait` is running; the next job comes out of that one.", flush=True)
         return "ALREADY"
     update(lambda d: d.update(claude_seen=time.time()))
+    beat.write_text(sid, encoding="utf-8")   # who listens: the page's "busy" and askhook read it
     try:
         while True:
             beat.touch()
             d = read()
-            if any(j["state"] == "queued" or (j.get("cancel") and not j.get("cancel_sent")) for j in d["jobs"]):
+            if any(takeable(j, sid, d) or (j.get("cancel") and not j.get("cancel_sent") and may_write(j, sid)) for j in d["jobs"]):
                 break
             time.sleep(poll)
     finally:
@@ -686,14 +774,47 @@ def cmd_wait(poll=1.0):
 
     def take(d):
         for j in d["jobs"]:
-            if j.get("cancel") and not j.get("cancel_sent"):
+            if j.get("cancel") and not j.get("cancel_sent") and may_write(j, sid):
                 j["cancel_sent"] = True
                 return f"JOB cancel {j['type']}"
-        j = next(j for j in d["jobs"] if j["state"] == "queued")
+        j = next((j for j in d["jobs"] if takeable(j, sid, d)), None)
+        if not j:   # a --job Claude took it between the read and the lock: wait again
+            return None
         j["state"], j["u"] = "taken", time.time()
+        if sid:
+            j["owner"] = sid
         d["claude_seen"] = j["u"]
         return job_line(j, d["root"])
     line = update(take)
+    if line is None:
+        return cmd_wait(poll)
+    print(line, flush=True)
+    return line
+
+
+def _take_one(job, sid, poll):
+    for _ in range(int(60 / poll) + 1):   # the job is there by the time the new Claude starts; a minute at most
+        def take(d):
+            j = next((j for j in d["jobs"] if j["id"] == job), None)
+            if not j or j["state"] in ("done", "failed", "cancelled") or not may_write(j, sid):
+                return "GONE"
+            if j["state"] == "taken" and (j.get("owner") == sid or stale(j)):
+                note = adopt(j, sid)
+                j["u"] = time.time()
+                return (note + "\n" if note else "") + job_line(j, d["root"])   # asked twice: the same job again
+            if not takeable(j, sid, d, job):
+                return "GONE"
+            j["state"], j["u"] = "taken", time.time()
+            if sid:
+                j["owner"] = sid
+            d["claude_seen"] = j["u"]
+            return job_line(j, d["root"])
+        line = update(take)
+        if line != "GONE" or any(j["id"] == job for j in read()["jobs"]):
+            break
+        time.sleep(poll)
+    if line == "GONE":
+        line = f"GONE: {job} is finished, cancelled or another Claude has it. Nothing to do."
     print(line, flush=True)
     return line
 
@@ -711,9 +832,10 @@ def same_key(j, key):
         return False
 
 
-def mine(d, kind, key=None):
-    """The taken job a script's report belongs to: the one its key names; with no key, the only taken one."""
-    taken = [j for j in d["jobs"] if j["type"] == kind and j["state"] == "taken"]
+def mine(d, kind, key=None, sid=""):
+    """The taken job a script's report belongs to: of the ones its session may write to (may_write), the one its
+    key names; with no key, the only one. Key and session must both hold."""
+    taken = [j for j in d["jobs"] if j["type"] == kind and j["state"] == "taken" and may_write(j, sid)]
     if key:
         return next((j for j in reversed(taken) if same_key(j, key)), None)
     return taken[0] if len(taken) == 1 else None
@@ -723,18 +845,31 @@ def cmd_status(a):
     def f(d):
         t = time.time()
         d["claude_seen"] = t   # the page's heartbeat: Claude (or a script it runs) is still at work
-        if if_active:   # a script's own report (progress.py): only onto a taken job, never makes or takes one
-            j = mine(d, a.job, getattr(a, "key", None))
+        sid = askhook.session()
+        if if_active:   # a script's own report (progress.py): only onto a taken job of this session, never makes or takes one
+            j = mine(d, a.job, getattr(a, "key", None), sid)
             if not j:
                 return None
-        else:   # the job being worked on: the newest taken one (separate videos queue several), else the newest queued
-            act = [j for j in d["jobs"] if j["type"] == a.job and j["state"] in ("queued", "taken")]
-            j = next((j for j in reversed(act) if j["state"] == "taken"), act[-1] if act else None)
-        j = j or latest(d, a.job)
+        else:   # this session's own taken job first, then one nobody owns, then a stopped session's (adopted)
+            every = [j for j in d["jobs"] if j["type"] == a.job and j["state"] in ("queued", "taken")]
+            taken = [j for j in reversed(every) if j["state"] == "taken"]
+            j = next((j for j in taken if sid and j.get("owner") == sid), None) or next((j for j in taken if may_write(j, sid)), None)
+            if not j and not sid:   # outside Claude only: inside, `wait` hands queued jobs out
+                j = next((j for j in reversed(every) if j["state"] == "queued"), None)
+            if not j and every:
+                return None
+            j = j or next((j for j in reversed(d["jobs"]) if j["type"] == a.job and may_write(j, sid)), None)
+            if not j and a.job != "setup" and any(x["type"] == a.job for x in d["jobs"]):   # only another session's
+                return None
         if not j or (a.job == "setup" and j["state"] in ("done", "failed")):
             j = queue(d, a.job, {})
         if j["state"] == "queued":   # the first step takes the job
             j["state"] = "taken"
+            if sid:
+                j["owner"] = sid
+        note = adopt(j, sid) if j["state"] == "taken" else None
+        if note:
+            print(note)
         j["u"] = t
         same = j["steps"][-1] if a.step and j["steps"] and j["steps"][-1]["text"] == a.step else None   # only the newest
         if a.step and not same:
@@ -764,7 +899,7 @@ def cmd_status(a):
             raise
         j = None
     if j is None:
-        print(f"no {a.job} job on the page")
+        print(f"no {a.job} job on the page" + (" for this Claude session" if askhook.session() else ""))
         return 1   # progress.py reads the exit code: nothing was written
     if a.job == "setup" and (a.step or a.done or a.failed):   # a step finished: the tool rows tick as it goes
         run_doctor()
@@ -818,6 +953,8 @@ def make_handler(token):
             if path == "/state":
                 d = read()
                 d["listening"], d["keys"], d["theme"] = listening(), key_rows(), theme()
+                bz = busy_with(d, listener())   # the listening Claude is making a video: the next one can get its own
+                d["busy"] = bz and {"id": bz["id"], "name": job_name(bz)}
                 d["profile"] = (home().parent / "profile.json").exists()   # set up before: a returning user
                 d["update"] = update_info()
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
@@ -917,6 +1054,8 @@ def make_handler(token):
         def do_POST(self):
             if not self.authorized():
                 return self.send(403, {"error": "open the page with the URL home.py printed"})
+            if not askhook.same_origin(self):   # a POST from another site's page, even with the cookie
+                return self.send(403, {"error": "not from this page"})
             path = urlsplit(self.path).path
             if path in ("/upload", "/style/cover"):
                 with live.busy():   # no live-reload restart under an upload
@@ -1049,6 +1188,8 @@ def make_handler(token):
                     return self.send(400, {"msg": f"Could not use that folder: {e.strerror or e}"})
                 update(lambda d: d.__setitem__("root", str(p)))
                 return self.send(200, {"path": str(p)})
+            if path == "/claude":   # "Open a new Claude for this video": a new terminal that takes this one job
+                return self.new_claude(str(body.get("id") or ""))
             if path == "/cancel":
                 def c(d):
                     j = latest(d, body.get("type") or "teardown")
@@ -1057,6 +1198,19 @@ def make_handler(token):
                 update(c)
                 return self.send(200, {})
             self.send(404, {})
+
+        def new_claude(self, jid):
+            def reserve(d):
+                j = next((j for j in d["jobs"] if j["id"] == jid and j["state"] == "queued"), None)
+                if j:
+                    j["reserved"] = time.time()
+                return d["root"] if j else None
+            root = update(reserve)
+            if not root:
+                return self.send(409, {"msg": "Claude already has this video."})
+            import launcher
+            opened, cmd = launcher.open_claude(root, f"/ai-editor:start take job {jid}")
+            return self.send(200, {"opened": opened, "command": cmd})
 
         def lookup(self, text, platform=None):
             parts = text.split()
@@ -1334,7 +1488,7 @@ def serve(root=None, port=None, open_browser=True):
         update(lambda d: d.__setitem__("port", srv.server_address[1]))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
     (home() / ".server").write_text(url, encoding="utf-8")
-    askhook.register(srv, url)
+    askhook.register(srv, url, "home", asks_for)
     threading.Thread(target=run_doctor, daemon=True).start()
     if open_browser:
         webbrowser.open(url)
@@ -1369,6 +1523,7 @@ def demo():
         "--   gemini key           Recommended"), "at": now()}))
     globals()["run_listing"] = lambda *a: calls.append(a)
     globals()["fetch_latest"] = lambda: ("99.0.0", ["Dark mode in the window"])   # never the network in a self-check
+    os.environ.pop("CLAUDE_CODE_SESSION_ID", None)   # run from inside Claude Code: never that session
     srv, url = serve(root, 0, open_browser=False)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     base, tok = url.split("/?t=")
@@ -1410,12 +1565,30 @@ def demo():
     assert b'src="/ask.js"' in HTML.read_bytes() and b"askq" in urllib.request.urlopen(base + "/ask.js?t=" + tok).read()
     assert askhook.live() == []   # served, but no page has polled yet
     qs = [{"question": "Tight or loose?", "header": "Cut", "options": [{"label": "Tight", "description": ""}], "multiSelect": False}]
-    post("/ask", {"id": "q1", "questions": qs})
-    assert get("/ask?v=1")["ask"] == {"id": "q1", "questions": qs} and askhook.live() == [url]
+    # no session known anywhere (Claude Code without CLAUDE_CODE_SESSION_ID): any question, as before
+    post("/ask", {"id": "q-any", "questions": qs, "session": ""})
+    assert get("/ask?v=1")["ask"]["id"] == "q-any"
+    post("/ask/clear", {"id": "q-any"})
+    (home() / ".listening").write_text("sess-A", encoding="utf-8")   # session A's `wait` is listening
+    try:   # a session with no job here and not listening: its question stays in its own terminal
+        post("/ask", {"id": "q0", "questions": qs, "session": "sess-Z"})
+        raise AssertionError("took another session's question")
+    except urllib.error.HTTPError as e:
+        assert e.code == 409
+    post("/ask", {"id": "q1", "questions": qs, "session": "sess-A"})
+    assert get("/ask?v=1")["ask"] == {"id": "q1", "questions": qs, "about": ""} and askhook.live("home") == [url]
     post("/ask/answer", {"id": "q1", "answers": ["Tight"]})
     assert get("/ask?id=q1")["result"] == {"answers": ["Tight"]} and get("/ask")["ask"] is None
     post("/ask/clear", {"id": "q1"})
     assert not srv.asks
+    (home() / ".listening").unlink()
+    try:   # a POST from another site's page, even with the cookie
+        urllib.request.urlopen(urllib.request.Request(base + "/theme?t=" + tok, b'{"theme":"dark"}', {"Origin": "http://evil.example"}, method="POST"))
+        raise AssertionError("took a cross-site POST")
+    except urllib.error.HTTPError as e:
+        assert e.code == 403
+    assert post("/theme", {"theme": "system"}) and urllib.request.urlopen(urllib.request.Request(
+        base + "/theme?t=" + tok, b'{"theme":"system"}', {"Origin": base}, method="POST")).status == 200
     for _ in range(50):
         if read().get("doctor"):
             break
@@ -1484,7 +1657,7 @@ def demo():
     assert t["measured"]["tiles"] == [] and [s["done"] for s in t["steps"]] == [True, False]
     assert t["steps"][-1]["detail"] == "video 4 of 7" and S["claude_seen"] >= t["u"] - 1, "heartbeat recorded"
     assert out(cmd_status, ns(job="modal", step="x", detail=None, progress=None, result=None, done=False, failed=None,
-                              if_active=True)) == "no modal job on the page" and latest(read(), "modal") is None, "--if-active never makes a job"
+                              if_active=True)).startswith("no modal job on the page") and latest(read(), "modal") is None, "--if-active never makes a job"
     (td / "style.json").write_text(json.dumps({"videos": 7, "pace": {"wpm": 186, "median_shot_s": 1.9, "max_pause_s": 0.3},
                                                "zoom": {"kind": "punch", "per_min": 6.0, "scale": 1.12},
                                                "captions": {"present": True, "words_per_caption": 2, "y_pct": 62.4,
@@ -1535,6 +1708,66 @@ def demo():
     post("/cancel", {"type": "teardown"})
     assert out(cmd_wait, 0.01) == "JOB cancel teardown" and latest(read(), "teardown")["state"] == "cancelled"
     assert running() == url and serve(root, 0, open_browser=False) == (None, url)
+    # sessions: a job sticks to the Claude Code session that took it
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-A"
+    held = update(lambda d: [j.update(state="done") or j["id"] for j in d["jobs"] if j["state"] in ("queued", "taken")])
+    import launcher
+    opened = []
+    launcher.open_claude = lambda folder, prompt: (opened.append((folder, prompt)) or True, "claude '" + prompt + "'")
+    vs = lambda **k: out(cmd_status, ns(**{"job": "video", "step": None, "detail": None, "progress": None, "result": None,
+                                         "done": False, "failed": None, "if_active": False, **k}))
+    ja = update(lambda d: queue(d, "video", {"path": str(vid), "as": "mine", "aspect": "9:16", "edit": str(root / "edits" / "team-250k-general")}))
+    assert out(cmd_wait, 0.01).startswith("JOB video ")
+    ja = next(j for j in read()["jobs"] if j["id"] == ja["id"])
+    assert ja["state"] == "taken" and ja["owner"] == "sess-A", ja
+    (home() / ".listening").write_text("sess-A", encoding="utf-8")   # A listens again while it works: still busy
+    assert get("/state")["busy"] == {"id": ja["id"], "name": "team-250k-general"}
+    (home() / ".listening").unlink()
+    post("/ask", {"id": "qa", "questions": qs, "session": "sess-A"})
+    assert get("/ask?v=1")["ask"]["about"] == "team-250k-general"
+    post("/ask/clear", {"id": "qa"})
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"   # a second terminal: never writes to A's job
+    assert vs(step="B was here", done=True).startswith("no video job")
+    assert next(j for j in read()["jobs"] if j["id"] == ja["id"]) == ja, "A's job untouched"
+    # Make my video while A is busy: the page offers a new Claude; it opens with that one job, which no other wait takes
+    jb = post("/job", {"type": "video", "path": str(vid), "aspect": "9:16", "as": "mine"})["id"]
+    assert vs(step="B grabs it").startswith("no video job"), "status never takes a queued job inside Claude"
+    os.environ.pop("CLAUDE_CODE_SESSION_ID")
+    vs(step="a script", if_active=True)   # nor a script's own report (it lands on the taken job, A's, outside Claude)
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"
+    assert next(j for j in read()["jobs"] if j["id"] == jb)["state"] == "queued"
+    assert not takeable(next(j for j in read()["jobs"] if j["id"] == jb), "sess-A", read()), "A makes one video at a time"
+    r = post("/claude", {"id": jb})
+    assert r == {"opened": True, "command": f"claude '/ai-editor:start take job {jb}'"} and opened == [(str(root.resolve()), f"/ai-editor:start take job {jb}")], r
+    assert not takeable(next(j for j in read()["jobs"] if j["id"] == jb), "sess-B", read()), "reserved for the new Claude"
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-C"
+    assert out(cmd_wait, 0.01, jb).startswith("JOB video ") and next(j for j in read()["jobs"] if j["id"] == jb)["owner"] == "sess-C"
+    (home() / ".listening").write_text("sess-A", encoding="utf-8")   # A's wait still listens while C works
+    assert get("/state")["busy"]["id"] == ja["id"], "busy follows the listening session, not the newest Claude"
+    (home() / ".listening").unlink()
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"
+    assert out(cmd_wait, 0.01, jb).startswith("GONE"), "another Claude has it"
+    try:
+        post("/claude", {"id": jb})
+        raise AssertionError("opened a second Claude for a taken job")
+    except urllib.error.HTTPError as e:
+        assert e.code == 409
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-A"   # A's status goes to A's job, never C's
+    vs(step="Cutting out the mistakes", done=True)
+    j1, j2 = (next(j for j in read()["jobs"] if j["id"] == i) for i in (ja["id"], jb))
+    assert j1["state"] == "done" and j1["steps"][-1]["text"] == "Cutting out the mistakes" and j2["state"] == "taken" and not j2["steps"]
+    # C stops (closed its terminal): after STALE_S with no report, another session adopts the job
+    update(lambda d: next(j for j in d["jobs"] if j["id"] == jb).__setitem__("u", time.time() - STALE_S - 1))
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"
+    assert vs(step="Picked up where it stopped").startswith("adopted " + jb)
+    assert next(j for j in read()["jobs"] if j["id"] == jb)["owner"] == "sess-B"
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-C"
+    assert vs(done=True).startswith("no video job"), "the stopped session's job is B's now"
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"
+    vs(done=True)
+    assert next(j for j in read()["jobs"] if j["id"] == jb)["state"] == "done" and get("/state")["busy"] is None
+    os.environ.pop("CLAUDE_CODE_SESSION_ID")
+    update(lambda d: [j.update(state="taken") for j in d["jobs"] if j["id"] in held])   # the earlier checks' jobs, as they were
 
     # New video: several picked clips as one video -> one JOB with the takes file, in the order picked
     (tmp / "Desktop").mkdir()
@@ -1853,7 +2086,8 @@ def main():
     s.add_argument("--root", help="the folder creator-teardowns/ and edits/ live in (default: the library)")
     s.add_argument("--port", type=int, help=f"default {PORT}, or the port it had last time")
     s.add_argument("--no-open", action="store_true")
-    sp.add_parser("wait")
+    s = sp.add_parser("wait")
+    s.add_argument("--job", help="take this job only (the page opened a new Claude for it)")
     s = sp.add_parser("status")
     s.add_argument("job", choices=JOBS)
     s.add_argument("--step")
@@ -1877,7 +2111,7 @@ def main():
         else:
             print("already serving" + ("" if a.no_open else "; opened it"))
     elif a.cmd == "wait":
-        cmd_wait()
+        cmd_wait(job=a.job)
     elif a.cmd == "status":
         sys.exit(cmd_status(a))
 

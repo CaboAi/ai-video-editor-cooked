@@ -1236,6 +1236,12 @@ def main():
         if not a.repo:
             sys.exit("ERROR: --repo NAME is required")
         return (github_push if a.cmd == "github-push" else github_fetch)(edit, a.repo, tag)
+    sys.path.insert(0, str(PLUGIN / "lib"))
+    from ai_editor import review   # the review page's "Making the edit" bar, when it waits on this edit
+    if a.cmd == "stills":
+        review.step(edit, "plan")
+    elif a.cmd == "render" and not (a.draft or a.github):   # a laptop render's log carries its percent
+        review.step(edit, "render", None if a.use_lambda or a.modal else edit / f"render{tag}.renderer.log")
     sync_renderer()
     pub = prepare_public(edit, plan, tag)
     if a.cmd == "stills":

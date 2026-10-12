@@ -4,6 +4,21 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- The review page shows the move from the cut to the edit. A tester approved the cut and nothing on the
+  page changed while Claude spent minutes on captions, zooms and sound. Now a quiet line over the cut
+  says "This is the cut. Captions, zooms and sound come next, once you approve it." and the button reads
+  "Approve the cut and add captions". On Approve the button turns green ("Cut approved") at once, the
+  stepper ticks The cut and makes The edit current, and the dimmed cut carries a "Making the edit" card:
+  the style's name, a bar, the current step, a clock and, while rendering, minutes left. The panel lists
+  the same four steps. The bar moves only on real reports: `review.py status --step
+  captions|visuals|plan|render`, which `retakes.py captions`, `route.py beats`, `plan.py`, `edit.py stills`
+  and `edit.py render` now post themselves (render with its log's percent) through `review.step()`, a
+  no-op when no page waits on the edit. When the edit round lands the bar fills green and the page
+  switches to it with "The edit is ready". Stop still works and takes the approve back. With no word
+  from Claude for 15 minutes the card says so instead of showing a bar. Green marks only what is done,
+  in light and dark. Test: `review.py demo` (steps in place, no-ops, Stop on the approve) and headless
+  screenshots at 1440x900, 1280x720, 1920x1080 and 390x844.
+
 - The home window shows progress on its own. A tester pressed Copy and the window sat blank while Claude
   installed and ran the teardown, because steps only reached it when Claude ran `home.py status`. Now the
   long scripts report themselves while Claude has that job taken (a script never takes a queued job, so

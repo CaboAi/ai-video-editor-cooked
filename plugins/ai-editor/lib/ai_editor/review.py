@@ -15,6 +15,8 @@ product video). Notes save with the edit, never in the plugin:
     python3 review.py <folder> serve [--no-open]   serve the page and open it (run in the background)
     python3 review.py <folder> wait                block until the user presses send or approve (run in the background)
     python3 review.py <folder> status "rendering" [--log render.log] [--done]   what Claude is doing, live on the page
+    python3 review.py <folder> status --step captions|visuals|plan|render [--log ..]   a step of the styled edit:
+                                     fills the page's "Making the edit" bar (the scripts report their own, step())
     python3 review.py <folder> resolve <id> fixed|wontfix|open [--reply "..."] [--new-t 12.3]
     python3 review.py <folder> round --video v2.mp4 [--stage cut|edit] [--transcript ..] [--plan ..] [--note ".."]
     python3 review.py <folder> alt <name> --video other.mp4 [--transcript ..]   another video in this round
@@ -464,6 +466,8 @@ def make_handler(folder, token):
                 for x in d.get("activity", [])[-1:]:
                     if x.get("log") and not x.get("done"):
                         x["pct"] = log_pct(x["log"])
+                if making_edit(d):
+                    d["making"] = {"style": making_style(folder), "steps": EDIT_STEPS}
                 return self.send(200, d)
             if path == "/video":
                 d = load(rj)
@@ -532,8 +536,8 @@ def make_handler(folder, token):
                 if body["type"] == "stop" and load(rj).get("raw"):   # the first cut cannot be stopped from here
                     return self.send(409, {"error": "the first cut is on its way"})
                 if body["type"] == "stop":   # the round's notes open again; `status` tells Claude to stop
-                    def st(d):
-                        if d.get("sent") and d["events"] and d["events"][-1]["type"] == "send":
+                    def st(d):   # a send, or the cut's approve while Claude makes the edit (making_edit)
+                        if d.get("sent") and d["events"] and (d["events"][-1]["type"] == "send" or making_edit(d)):
                             d["events"].append({"type": "stop", "stage": d["stage"], "round": d["round"],
                                                 "at": now(), "handled": True})
                             d["sent"], d["stopped"] = False, now()
@@ -803,6 +807,64 @@ def cmd_resolve(a, folder):
     print(f"#{c['id']} {c['status']}")
 
 
+# The style-edit's own steps, in order. The page fills its "Making the edit" bar from them (render by its log's
+# percent); plan.py, retakes.py captions, route.py and edit.py report them with step(), Claude with status --step.
+EDIT_STEPS = {"captions": "Writing the captions", "visuals": "Finding the visuals",
+              "plan": "Planning zooms, cards and sound", "render": "Rendering the edit"}
+
+
+def add_step(d, text, log=None, key=None, done=False):
+    """Close the open step and add this one. The same step key again only refreshes its log."""
+    act = d.setdefault("activity", [])
+    last = act[-1] if act else {}
+    if key and last.get("step") == key and not last.get("done") and last.get("round") == d["round"]:
+        last["log"] = str(Path(log).resolve()) if log else last.get("log")
+        return
+    for x in act:
+        x["done"] = True
+    if not done:
+        act.append({"text": text or EDIT_STEPS.get(key, key), "at": now(), "round": d["round"], "done": False,
+                    "log": str(Path(log).resolve()) if log else None, **({"step": key} if key else {})})
+    d["activity"] = act[-30:]
+
+
+def making_edit(d):
+    """Claude is making the styled edit: the cut was approved and no edit round has landed yet, or a sent edit
+    round is being redone."""
+    e = d["events"][-1] if d.get("events") else {}
+    return bool(d.get("sent") and not d.get("stopped") and
+                ((e.get("type") == "approve" and e.get("stage") == "cut" and d.get("stage") == "cut")
+                 or (e.get("type") == "send" and d.get("stage") == "edit")))
+
+
+def step(folder, key, log=None):
+    """A style-edit script's step on the review page while Claude makes the edit. No page, not making the edit,
+    or stopped: nothing. Never raises: the page is a nicety."""
+    try:
+        folder = Path(folder).resolve()
+        rj = folder / "review.json"
+        if key not in EDIT_STEPS or not rj.is_file() or not making_edit(load(rj)):
+            return False
+        update(rj, lambda d: add_step(d, None, log, key))
+        (folder / "review" / ".claude").touch()   # Claude is working on it: the page shows the bar, not "not listening"
+        return True
+    except Exception:
+        return False
+
+
+def making_style(folder):
+    """What the edit is styled as, for the page's "Making the edit" card."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from ai_editor import styleskill
+        src = styleskill.sources(folder)
+    except Exception:
+        src = []
+    if len(src) == 1:
+        return f"@{re.sub(r'-mine$', '', src[0].parent.name)}'s style"
+    return "your blended style" if src else "your style"
+
+
 def cmd_status(a, folder):
     """One step of what Claude is doing for the next round. Each new step closes the one before."""
     stopped = load(folder / "review.json").get("stopped")
@@ -810,17 +872,11 @@ def cmd_status(a, folder):
         print(f"STOPPED: the user pressed Stop on the page at {stopped}. Stop this round's work, say so in one "
               f"line, and run `wait` again: the notes are open for more.")
         sys.exit(3)
-
-    def f(d):
-        act = d.setdefault("activity", [])
-        for x in act:
-            x["done"] = True
-        if not a.done:
-            act.append({"text": a.text, "at": now(), "round": d["round"], "done": False,
-                        "log": str(Path(a.log).resolve()) if a.log else None})
-        d["activity"] = act[-30:]
-    update(folder / "review.json", f)
-    print("done" if a.done else f"status: {a.text}")
+    key = getattr(a, "step", None)
+    if not (a.text or key or a.done):
+        sys.exit("status takes a text, --step or --done")
+    update(folder / "review.json", lambda d: add_step(d, a.text, a.log, key, a.done))
+    print("done" if a.done else f"status: {a.text or EDIT_STEPS[key]}")
 
 
 def cmd_alt(a, folder):
@@ -848,6 +904,8 @@ def cmd_wait(folder, poll=1.0):
             time.sleep(poll)
     finally:
         beat.unlink(missing_ok=True)
+
+    (folder / "review" / ".claude").touch()   # Claude has the send or approve now: working, not gone
 
     def take(d):
         ev = [e for e in d["events"] if not e["handled"]]
@@ -1220,6 +1278,49 @@ def demo():
         o = subprocess.run(["node", "-e", js.group(0) + "for(const s of " + json.dumps([ev("approve", 0), ev("send", 1), mid])
                             + ")console.log(listenText(s))"], capture_output=True, text=True, check=True).stdout
         assert o.splitlines() == ["Approved", "Claude is working on round 2", "Claude is working. Notes you send now are next."], o
+    # approve on the cut: the style-edit's scripts fill the page's "Making the edit" steps, in place, never twice
+    sf = tmp / "edits" / "steps"
+    sf.mkdir(parents=True)
+    (sf / "review").mkdir()
+    save(sf / "review.json", {"folder": str(sf), "name": "steps", "stage": "cut", "round": 1, "sent": False,
+                              "comments": [], "events": []})
+    assert not step(sf, "captions") and not step(tmp / "nowhere", "captions"), "no approve yet: nothing"
+    update(sf / "review.json", lambda d: d.update(sent=True, events=[{"type": "approve", "stage": "cut", "round": 1,
+                                                                      "at": now(), "handled": True}]))
+    assert step(sf, "captions") and step(sf, "captions") and not step(sf, "nonsense")
+    assert step(sf, "visuals") and step(sf, "plan") and step(sf, "plan", log=lg)
+    with contextlib.redirect_stdout(io.StringIO()):
+        cmd_status(ns(text="", log=str(lg), done=False, step="render"), sf)
+    act = load(sf / "review.json")["activity"]
+    assert [x.get("step") for x in act] == ["captions", "visuals", "plan", "render"], act
+    assert [x["done"] for x in act] == [True, True, True, False] and act[-1]["text"] == "Rendering the edit", act
+    assert act[2]["log"] == str(lg.resolve()) and busy(sf)
+    srv3, url3 = serve(sf, 0, open_browser=False)   # the page's Stop takes the approve back; `status` says STOPPED
+    threading.Thread(target=srv3.serve_forever, daemon=True).start()
+    b3, t3 = url3.split("/?t=")
+    s3 = json.loads(urllib.request.urlopen(b3 + "/state?t=" + t3).read())
+    assert s3["making"]["style"] == "your style" and list(s3["making"]["steps"]) == list(EDIT_STEPS), s3.get("making")
+    keep_d = load(sf / "review.json")
+    urllib.request.urlopen(urllib.request.Request(b3 + "/event?t=" + t3, b'{"type":"stop"}', method="POST"))
+    d = load(sf / "review.json")
+    assert not d["sent"] and d["stopped"] and not making_edit(d) and not step(sf, "render"), d
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            cmd_status(ns(text="", log=None, done=False, step="render"), sf)
+        raise AssertionError("status after a stop on the approve")
+    except SystemExit as e:
+        assert e.code == 3
+    srv3.shutdown()
+    save(sf / "review.json", keep_d)
+    assert making_style(sf) == "your style" and making_style(folder) == "@alice's style"
+    with contextlib.redirect_stdout(io.StringIO()):
+        cmd_round(ns(video=str(folder / "review" / "v-cut1.mp4"), stage="edit", transcript=None, plan=None, note=None,
+                     name=None), sf)
+    d = load(sf / "review.json")
+    assert not making_edit(d) and all(x["done"] for x in d["activity"]) and not step(sf, "render"), "the edit landed"
+    d.update(sent=True, events=d["events"] + [{"type": "send", "stage": "edit", "round": 1, "at": now(), "handled": True}])
+    save(sf / "review.json", d)
+    assert step(sf, "render"), "a sent edit round is being redone: steps again"
     # round 0: the raw clip opens before the cut. No approve or stop; a note waits for round 1, moved onto the cut
     vid.unlink()
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30:duration=6",
@@ -1287,6 +1388,7 @@ def main():
     s = sp.add_parser("status")
     s.add_argument("text", nargs="?", default="")
     s.add_argument("--log", help="a render log; the page shows the last N/M in it as progress")
+    s.add_argument("--step", choices=list(EDIT_STEPS), help="one of the edit's steps: fills the page's Making the edit bar")
     s.add_argument("--done", action="store_true")
     s = sp.add_parser("alt")
     s.add_argument("name")

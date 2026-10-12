@@ -232,6 +232,8 @@ def main():
         return demo()
     if len(a) == 2 and a[0] == "beats":
         edit = Path(a[1])
+        from ai_editor import review   # the review page's "Making the edit" bar, when it waits on this edit
+        review.step(edit, "visuals")
         src = edit / "captions.json" if (edit / "captions.json").exists() else edit / "words.json"
         words = [w for w in json.loads(src.read_text(encoding="utf-8")) if w.get("type", "word") == "word" and w["text"].strip()]
         from ai_editor import profile

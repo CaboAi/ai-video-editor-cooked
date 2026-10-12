@@ -2526,7 +2526,8 @@ def main():
     # The user's own settings (taste skill) win over the creator's measured style; corrections saved on this
     # style (its style.overrides.json) win over the every-video ones (taste.load_json, styleskill.py).
     sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
-    from ai_editor import taste, profile
+    from ai_editor import taste, profile, review
+    review.step(edit_dir, "plan")   # the review page's "Making the edit" bar, when it waits on this edit
     prof = profile.load()   # the start skill's answers: brand kit, what to avoid, sound
     sp = Path(a.style)
     style = json.loads(sp.read_text(encoding="utf-8") or "{}") if sp.is_file() else None

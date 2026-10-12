@@ -142,7 +142,8 @@ Round 0 has no Approve; notes left on it wait for the cut. Then the start skill 
 this file (or joined.mp4) as the video. The steps
 `Joined your clips in order` (takes only), `Wrote down every word you said`, `Cutting out the mistakes`
 reach the home page by themselves (join.py, transcribe.py, build_timeline.py, render.py); put each on the
-review page with `python3 "$R" <edit> status "<step>"`. The cut's
+review page with `python3 "$R" <edit> status "<step>"`. After the cut's approve the style-edit scripts
+put their own `--step` on the page's Making the edit card (style-edit `references/review.md`). The cut's
 own `start` (cut skill step 6) then opens round 1 on the same page, with the round 0 notes moved onto
 the cut: run `wait` and carry on there. `status video --done` once round 1 is up.
 

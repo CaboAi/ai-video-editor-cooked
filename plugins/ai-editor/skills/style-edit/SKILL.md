@@ -94,11 +94,13 @@ on screen and the rules plan.py enforces.
 4. **Fetch:** `node "$S/capture.mjs" edits/<name>` screenshots, fetches logos, posts and
    free sources into `images/`, hides cookie banners, measures marks. Do not open them: the step 5 sheet shows all.
 
-Pacing, one rule: a card where a sentence names something real (a product, site, post, person, or a
-figure on the page that published it), never two at once; otherwise the speaker carries it. No stretch
-without a card over `card_gap_s` (10 s, or twice a copied creator's measured gap); where a longer one names
-nothing, never make a visual up: plan.py adds zoom changes (`references/plan.md` "Pacing"). Vertical
-captures must read on a phone: give each a `find` (plan.py drops a small one with none).
+Pacing: a copied creator's rate wins. route.py prints her cards a minute, kinds and place in the frame,
+and marks that many sentences `want` (named ones first). Give each a card of her kind with a `box` at her
+place, clear of the head: the user's own photo, else a capture of the real thing the line is about (page,
+profile, post), else their own clip as a `video_card`. Never a made-up or stock picture: a `want` with
+nothing real stays empty. No creator: a card only where a line names something real. Never two at once; no
+stretch without a card over `card_gap_s` (plan.py adds zooms there, `references/plan.md` "Pacing").
+Vertical captures need a `find` to read on a phone.
 
 ## 4. Plan
 
@@ -109,8 +111,9 @@ python3 "$VPY" "$S/face.py" edits/<name>
 python3 "$S/plan.py" edits/<name>/style.json edits/<name>/captions.json [--aspect 9:16|16:9] [--layout overlay|split|letterbox]
 ```
 
-Writes `edits/<name>/plan.json`. Read every warning. What it does (look, contrast, layouts,
-timing, captions, zooms, a second shape with `--out`): `references/plan.md`.
+Writes `edits/<name>/plan.json`. Read every warning. It ends with the **style check** (`style_check.py`):
+each `style:` line is a way the plan differs from the creator. Fix each (style.json, visuals.json,
+images.json) and plan again before the stills; what the user changed is already the target.
 
 1. **Music:** unless the profile says `sound.music: false`, ask the music question and lay the bed
    (`references/plan.md` "Music"), then run plan.py again. Sound cues need nothing: plan.py adds them.
@@ -133,9 +136,8 @@ python3 "$S/edit.py" stills edits/<name>
 The first run installs the renderer (a few minutes, once; say so first). Writes one still per beat and
 `stills/sheet.png`, numbered and labelled with beat, time and card kind (about 1,600 tokens).
 Review the sheet; open a single still only to zoom in on a problem.
-Fix before showing: a box on the face, a zoom cutting the head, a capture showing the wrong part,
-text too small for a phone, anything that looks like a default AI edit (icon tiles, emoji, dark
-glass with neon). The `stills-critic` agent can check a sheet.
+Fix before showing: a box on the face, a zoom cutting the head, the wrong part of a capture, text
+too small for a phone, a default AI look (icon tiles, emoji, neon glass). `stills-critic` can check it.
 
 Show the user the sheet and ask in the question box: **Approve (Recommended)** / **Change something**
 / **Open the live preview** (drag, trim and swap cards in a local page). **Do not render until they
@@ -242,9 +244,7 @@ so). Tell the user which file to open and how: `references/render.md` "Export to
 
 ## Files
 
-- `scripts/`: `route.py` beats, `capture.mjs` captures, `plan.py` plan, `face.py` head, `matte.py`
-  cutout, `sfx.py` sound, `check.py` + `quality.py` checks, `sheet.py` stills sheet, `edit.py` stills,
-  estimate and render, `preview.py` live preview, `export_nle.py` export, `chapters.py` chapters. Each has a `demo` self-check.
+- `scripts/`: one script per step above, each with a `demo` self-check.
 - `${CLAUDE_PLUGIN_ROOT}/agents/template-filler.md` (haiku), `stills-critic.md` (sonnet): the helpers.
 - `${CLAUDE_PLUGIN_ROOT}/remotion/`: the renderer, copied to `~/.ai-video-editor/remotion` on
   every run. `tests/golden.py` at the repo root: golden frames; `--update` after an intended look change.

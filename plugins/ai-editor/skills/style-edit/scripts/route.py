@@ -9,7 +9,9 @@ beats: code splits captions.json into sentences (times kept in code), marks the 
 products, tools and people found in each, plus any word written with a capital inside a sentence (a
 product or person the profile does not list: "Claude", "Haiku"). Every "pick" is null: Claude (or the
 template-filler agent) routes each sentence and writes visuals.json. When edits/NAME/style.json carries the
-creator's graphics.kinds, her mix is printed for Claude to lean towards.
+creator's graphics.kinds, her mix is printed for Claude to lean towards. With her card rate (graphics.per_min,
+under the user's own cards cap), her count for this length is printed and that many sentences get "want": true
+(want()): named ones first, then the longest, spread out. Claude gives each a real card at her place in the frame.
 
 highlight: the capture's text blocks (capture.mjs "page_text": true) and the spoken line in; its sentences
 out, the ones sharing the most words with the spoken line first, for Claude to pick the evidence from.
@@ -89,6 +91,34 @@ def prefer(style):
     return out
 
 
+def want(beats, style):
+    """Marks "want": true on as many beats as the creator shows cards in a video this long (plan.card_rate: her
+    graphics.per_min under the user's own cards cap),
+    named sentences first, then the longest, never two closer than half her mean gap, none ending in the first
+    second. Returns (n wanted, her per_min); (0, None) when the style copies no card rate."""
+    from plan import card_rate
+    pm = card_rate(style or {})
+    if not pm or not beats:
+        return 0, None
+    n = max(1, round(beats[-1]["end"] / 60 * pm))
+    gap = 30 / pm
+    picked = []
+    for b in sorted(beats, key=lambda b: (not b.get("names"), -(b["end"] - b["start"]), b["start"])):
+        if len(picked) < n and b["end"] > 1.0 and all(abs(b["start"] - x["start"]) >= gap for x in picked):
+            picked.append(b)
+    for b in beats:
+        b["want"] = b in picked
+    return n, pm
+
+
+def where(style):
+    """Her place in the frame, one phrase: the zone she uses most (graphics.layout.zones_pct)."""
+    from plan import graphics
+    z = (graphics(style or {}, "layout").get("layout") or {}).get("zones_pct") or {}
+    top = max(z, key=z.get) if z else None
+    return f"{top} of the frame ({z[top]}% of hers)" if top else None
+
+
 def rank_highlight(blocks, said):
     """A captured page's sentences, the ones sharing the most words with `said` first."""
     # one sentence per option: the highlight sweeps a sentence, not a paragraph
@@ -122,6 +152,14 @@ def demo():
     pr = prefer({"graphics": {"kinds": {"text card": 55, "real screenshot": 40, "chart": 3}}})
     assert pr == {"capture:sticker": 0.78, "capture:shot": 0.2}, pr
     assert prefer({"graphics": {"kinds": {"chart": 100}}, "blend": {"take": ["captions"]}}) == {}
+    # her rate: 6 a minute over 30 s = 3 cards; the named sentence first, never two within 5 s, none in the first second
+    wb = [{"start": t, "end": t + d, "names": nm} for t, d, nm in
+          ((0.0, 0.9, ["Jev"]), (2.0, 2.0, []), (4.0, 3.0, []), (9.0, 1.0, ["Claude"]), (14.0, 4.0, []), (25.0, 5.0, []))]
+    assert want(wb, {"graphics": {"per_min": 6}}) == (3, 6)
+    assert [b["start"] for b in wb if b["want"]] == [9.0, 14.0, 25.0], wb
+    assert want(wb, {"graphics": {"per_min": 6}, "blend": {"take": ["captions"]}}) == (0, None)
+    assert want(wb, {"graphics": {"per_min": 6}, "cards": {"per_min": 2}}) == (1, 2)   # the user's cap wins
+    assert where({"graphics": {"layout": {"zones_pct": {"top": 84, "bottom": 12}}}}) == "top of the frame (84% of hers)"
     hl = rank_highlight(["Pricing starts at $5.", "It answers in 40 ms, 200x faster than a frontier model."],
                         "it's 40 to 200 times faster")
     assert hl[0].startswith("It answers") and len(hl) == 2, hl
@@ -148,14 +186,21 @@ def main():
         for b in beats:
             b["names"] = named(b["text"], names + [{"name": w} for w in extra])
         st = edit / "style.json"
-        pref = prefer(json.loads(st.read_text(encoding="utf-8"))) if st.exists() else {}
+        from plan import effective_style   # the style the plan will use: the user's choices over the creator's
+        style = effective_style(st, prof, edit, count=False) if st.exists() else {}
+        pref = prefer(style)
         if pref:
             print("the creator's mix: " + ", ".join(f"{k} {v:.0%}" for k, v in sorted(pref.items(), key=lambda kv: -kv[1])))
+        n, pm = want(beats, style)
+        if n:
+            print(f"the creator's rate: {pm:g} cards a minute, so {n} in this video; \"want\" marks the sentences to give one"
+                  + (f", placed at the {where(style)}" if where(style) else "") + " (SKILL.md step 3, \"Pacing\")")
         for b in beats:
             b["pick"] = None   # Claude routes each sentence
         (edit / "beats.json").write_text(json.dumps(beats, indent=1), encoding="utf-8")
         for b in beats:
-            print(f"{b['start']:6.2f}  {str(b.get('pick')):20}  {b['text']}" + (f"   [{', '.join(b['names'])}]" if b["names"] else ""))
+            print(f"{b['start']:6.2f} {'*' if b.get('want') else ' '} {str(b.get('pick')):20}  {b['text']}"
+                  + (f"   [{', '.join(b['names'])}]" if b["names"] else ""))
         print(f"-> {edit / 'beats.json'}")
     elif len(a) == 4 and a[0] == "highlight":
         blocks = json.loads((Path(a[1]) / a[2]).read_text(encoding="utf-8") if not Path(a[2]).exists() else Path(a[2]).read_text(encoding="utf-8"))

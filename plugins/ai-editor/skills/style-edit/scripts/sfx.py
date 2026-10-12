@@ -143,7 +143,10 @@ def build(edit_dir, speech=None):
         x = pcm(graph=graph)
         x.extend([0.0] * max(0, int(MIN_S * SR) - len(x)))
         target = speech + offset
-        write(out / f"{name}.wav", x, 10 ** ((target - loudest50(x)) / 20), nch)
+        # a loud take: the cue stops just under -1 dBFS instead of clipping (it lands a little under its offset)
+        gain = min(10 ** ((target - loudest50(x)) / 20), 10 ** (-1.1 / 20) / max(abs(v) for v in x))
+        target = min(target, loudest50(x) + db(gain))
+        write(out / f"{name}.wav", x, gain, nch)
         cues[name] = {"attack_s": attack(x), "db": round(target, 1)}
     kit = {"speech_db": round(speech, 1), "cut_mtime": cut.stat().st_mtime if cut.exists() else 0, "cues": cues}
     (out / "kit.json").write_text(json.dumps(kit, indent=1), encoding="utf-8")
@@ -178,6 +181,8 @@ def demo():
             assert abs(got - (-21.0 + offset)) < 1.0, (name, got)
             assert 0 <= k["cues"][name]["attack_s"] < 0.7, (name, k["cues"][name])
         assert k["cues"]["pop"]["attack_s"] < 0.03 and k["cues"]["hit"]["attack_s"] > 0.45, k
+        loud = build(d, speech=-4.0)   # a very loud take: the cues stop under -1 dBFS, never an AssertionError
+        assert all(c["db"] <= -4.0 for c in loud["cues"].values()), loud
         # speech_db on a known tone: a -20 dBFS RMS sine reads -20
         tone = Path(d) / "tone.wav"
         subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=300:d=1:sample_rate=48000",

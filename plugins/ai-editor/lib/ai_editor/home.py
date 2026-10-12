@@ -11,7 +11,7 @@ for it, and reports back with `status`:
                                                  exit (run in the background, again after each job):
         JOB teardown @handle platform=tiktok take=captions,pace root=DIR
         JOB teardown @name urls=DIR/creator-teardowns/name/picks.txt take= root=DIR
-        JOB skill @handle take=captions,pace,graphics root=DIR
+        JOB skill @handle take=captions,pace,graphics,entrances,layout root=DIR
         JOB video /path/take.mov as=@handle aspect=9:16 edit=DIR/edits/take root=DIR
                                                  (as=mine: the saved style; as=defaults: no creator)
         JOB video takes=DIR/edits/a/takes.txt as=mine aspect=9:16 edit=DIR/edits/a root=DIR
@@ -74,6 +74,8 @@ SETUP = Path(__file__).resolve().parents[2] / "skills" / "setup" / "scripts" / "
 BEAT_S = 6
 JOBS = ("teardown", "skill", "video", "modal", "setup", "style-change", "update")
 TAKE = ("captions", "pace", "graphics", "sound")          # the page's parts; editplan.py --take names
+# The page's "graphics" box is her visuals as a whole: what she shows, how it moves in and where it sits.
+EDITPLAN_PARTS = {"graphics": ("graphics", "entrances", "layout")}
 KEY_NAMES = tuple(keys.VARS)
 TOOLS = {"python": ("Python", "runs the editor"), "ffmpeg": ("ffmpeg", "cuts and joins video"),
          "node": ("Node", "draws captions and zooms"), "git": ("git", "for the installers"),
@@ -783,7 +785,7 @@ def job_line(j, root):
         src = f"urls={a['urls']}" if a.get("urls") else f"platform={a['platform']}"
         return f"JOB teardown @{a['handle']} {src} take={','.join(a.get('take') or [])} root={root}"
     if j["type"] == "skill":
-        return f"JOB skill @{a['handle']} take={','.join(a.get('take') or [])} root={root}"
+        return f"JOB skill @{a['handle']} take={','.join(x for t in a.get('take') or [] for x in EDITPLAN_PARTS.get(t, (t,)))} root={root}"
     if j["type"] == "video":
         src = f"takes={a['takes']}" if a.get("takes") else a["path"]
         return f"JOB video {src} as={a['as']} aspect={a['aspect']}" + (f" edit={a['edit']}" if a.get("edit") else "") + f" root={root}"
@@ -1651,7 +1653,7 @@ def demo():
             assert e.code == 404
     # Build my skill, then a video: the path is probed, the job names the creator
     post("/job", {"type": "skill", "take": ["captions", "graphics"]})
-    assert out(cmd_wait, 0.01) == f"JOB skill @sample.creator take=captions,graphics root={root.resolve()}"
+    assert out(cmd_wait, 0.01) == f"JOB skill @sample.creator take=captions,graphics,entrances,layout root={root.resolve()}"
     vid = tmp / "take.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=360x640:rate=30:duration=2",
                     "-pix_fmt", "yuv420p", str(vid)], check=True)

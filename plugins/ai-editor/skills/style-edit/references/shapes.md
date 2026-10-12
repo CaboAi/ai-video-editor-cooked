@@ -25,8 +25,8 @@ thing captured (`capture`, `post`, `app`, `youtube`, `github`), UI rebuilt from 
 
 Every beat: `word` (as captions.json spells it), `nth`, `hold_s` so the card is still up on its last
 word (omit it for the creator's measured hold), a `word` on each part that lands on its own word.
-Pacing is one rule (SKILL.md step 3, "Pacing"): a card where a sentence names something real, never
-two at once, none in the first second unless it is the hook's subject. A capture on the hook (the first
+Pacing (SKILL.md step 3): a card on each beats.json `want` (a copied creator's rate), never two at
+once, none in the first second unless it is the hook's subject. A capture on the hook (the first
 3 s) needs a mark with `find`: the page's words for what is said, never the page's own headline.
 
 | pick | beat |

@@ -173,7 +173,7 @@ if __name__ == "__main__":   # self-check: saving one key keeps the others
         assert save("gemini", "d" * 24) == f
         f.unlink()
         # many threads saving different keys at once: every key survives, no temp or lock file is left
-        names = ["typesafe", "gemini", "elevenlabs"] * 10
+        names = sorted(VARS) * 10   # whichever keys this plugin has
         ts = [threading.Thread(target=save, args=(n, n[0] * 24 + str(i), f)) for i, n in enumerate(names)]
         [t.start() for t in ts]
         [t.join() for t in ts]
@@ -181,7 +181,7 @@ if __name__ == "__main__":   # self-check: saving one key keeps the others
         assert set(got) == set(VARS.values()), got
         assert sorted(x.name for x in Path(d).iterdir()) == [".env"], list(Path(d).iterdir())
         remove("gemini", f)
-        assert "GEMINI_API_KEY" not in f.read_text(encoding="utf-8") and "TYPESAFE_API_KEY" in f.read_text(encoding="utf-8")
+        assert "GEMINI_API_KEY" not in f.read_text(encoding="utf-8") and "ELEVENLABS_API_KEY" in f.read_text(encoding="utf-8")
         assert os.name == "nt" or f.stat().st_mode & 0o777 == 0o600
         f.unlink()
         # text without the vendor's prefix is refused before any request

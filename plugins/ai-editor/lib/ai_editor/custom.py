@@ -35,7 +35,8 @@ folder, so what you put here keeps working after every update. The editor reads 
 
 - `rules/*.md`: extra rules in plain words, one per line. Every edit follows them.
 - `captions/<name>.json`: a caption style, like `{"size_pct": 5, "y_pct": 72, "color": "#FFFFFF"}`.
-  Turn it on with: `taste.py set captions.preset <name>`.
+  It shows up as a tile on the style page, rendered on your own video. Pick it there, or run
+  `taste.py set captions.preset <name>`.
 - `templates/<type>.json`: default settings for one animation template, like `flow.json`.
 - `prompts/judge-rubric.md`: your own version of the cut critic's rubric. Copy the editor's first.
 

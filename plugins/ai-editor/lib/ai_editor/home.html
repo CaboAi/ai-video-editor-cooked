@@ -276,6 +276,46 @@ body.dragging #dropov{display:flex}
 .picbtns{position:absolute;top:10px;right:10px;display:flex;gap:6px;opacity:0;transition:opacity .15s}
 .pic:hover .picbtns,.picbtns:focus-within{opacity:1}
 @media (hover:none){.picbtns{opacity:1}}
+/* the style page (I4): presets in sections of one panel; caption tiles are real renders on the user's own frame */
+.sp-panel{overflow-y:auto}
+.sp-top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 24px;border-bottom:1px solid var(--line)}
+.sp-top .ini{width:28px;height:28px;font-size:11px}
+.sp-sec{display:flex;flex-direction:column;gap:12px;padding:16px 24px;min-width:0;flex:1 1 0}
+.sp-row{display:flex;border-top:1px solid var(--line)}.sp-row>.sp-sec+.sp-sec{border-left:1px solid var(--line)}
+.sp-caps{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.sp-cap{display:flex;flex-direction:column;gap:8px;padding:6px 6px 10px;border:1px solid var(--line);border-radius:14px;background:var(--panel);text-align:left;min-width:0}
+.sp-cap.on{border:1.5px solid var(--ink);padding:5.5px 5.5px 9.5px}
+.sp-cap b{font-size:14px;line-height:18px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sp-cap.on b{font-weight:600}
+.sp-capimg{height:96px;border-radius:9px;background:#1C1917;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.sp-capimg img{width:100%;height:100%;object-fit:cover;display:block}
+.sp-size{gap:14px;flex-wrap:wrap}.sp-size input{width:200px;accent-color:var(--ink)}.sp-vr{width:1px;height:20px;background:var(--line)}
+.sp-opts{display:flex;gap:10px}
+.sp-opt{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--panel);text-align:left}
+.sp-opt.on{border:1.5px solid var(--ink);padding:11.5px}
+.sp-opt b{display:block;font-size:14px;line-height:18px;font-weight:500;color:var(--ink)}.sp-opt.on b{font-weight:600}
+.sp-opt .muted{display:block;font-size:12px;margin-top:1px}
+.sp-ill{position:relative;height:52px;border-radius:8px;background:var(--soft);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.sp-ill .zb{width:44px;height:30px;border:1.5px solid var(--t4);border-radius:4px}.sp-ill .zb.dash{border-style:dashed}
+.sp-ill .zf{position:absolute;width:44px;height:30px;border:1.5px solid var(--ink);border-radius:5px}
+.sp-ill .zf.smooth{animation:zsm 3.2s ease-in-out infinite}.sp-ill .zf.punchy{animation:zpu 2s infinite}
+@keyframes zsm{0%,15%{transform:scale(1)}45%,65%{transform:scale(1.18)}95%,100%{transform:scale(1)}}
+@keyframes zpu{0%,30%{transform:scale(1)}34%,70%{transform:scale(1.36)}74%,100%{transform:scale(1)}}
+.sp-ill .cb{display:flex;gap:3px;align-items:center}.sp-ill .cb i{height:8px;border-radius:2px;background:var(--t4)}.sp-ill .cb i.gap{background:none}
+.sp-ill .cb.on i:not(.gap){background:var(--ink)}
+.sp-play{width:22px;height:22px;border:1px solid var(--line);border-radius:11px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink);flex-shrink:0}
+.sp-sw{width:36px;height:20px;border-radius:10px;border:0;padding:2px;background:var(--line);display:flex;flex-shrink:0;cursor:pointer}
+.sp-sw i{width:16px;height:16px;border-radius:8px;background:#fff;transition:transform .15s}
+.sp-sw.on{background:var(--ink)}.sp-sw.on i{transform:translateX(16px);background:var(--panel)}
+.sp-seg{display:inline-flex;gap:4px;padding:3px;border-radius:10px;background:var(--soft)}
+.sp-seg button{border:0;background:none;border-radius:7px;padding:4px 12px;font-size:13px;line-height:16px;color:var(--t3)}
+.sp-seg button.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px #0C0A0914}
+.sp-sel{border:0;background:none;color:var(--ink);font:13px/16px system-ui,sans-serif;text-align:right;cursor:pointer}
+.sp-sel option{background:var(--panel);color:var(--ink)}
+.sp-save{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 24px;border-top:1px solid var(--line);margin-top:auto;font-size:13px;line-height:16px;background:var(--bg)!important}
+.sp-drag{position:absolute;left:12%;right:12%;height:9%;transform:translateY(-50%);border:1.5px dashed #ffffffd9;border-radius:6px;cursor:ns-resize;touch-action:none}
+.sp-drag:hover{background:#ffffff14}
+@media (prefers-reduced-motion:reduce){.sp-ill .zf{animation:none}.sp-ill .zf.smooth{transform:scale(1.18)}.sp-ill .zf.punchy{transform:scale(1.36)}}
+@media (max-width:1100px){.sp-row{flex-direction:column}.sp-row>.sp-sec+.sp-sec{border-left:0;border-top:1px solid var(--line)}}
 .picbtns button{height:28px;padding:0 10px;border-radius:8px;border:0;background:#fffffff0;color:#0C0A09;font-size:12px;font-weight:500}
 .ex{opacity:.62}
 .delrow{border:1.5px solid var(--ink);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;margin-top:10px;cursor:default}
@@ -1142,43 +1182,71 @@ async function loadStyle(){if(!ui.sp)return;try{const r=await fetch('/style?id='
 async function setCtl(key,value){const r=await post('/style/set',{id:ui.sp,key,value});if(r._ok){ui.spage=r;loadLib()}else alert(r.error||'That did not save.');render()}
 async function forgetRule(id){const r=await post('/style/forget',{id:ui.sp,rule:id});if(r._ok){ui.spage=r;loadLib()}render()}
 async function tellChange(){const t=($('#tell')||{}).value||'';if(!t.trim())return;const r=await queue({type:'style-change',style:ui.sp,text:t.trim()});if(r._ok){$('#tell').value='';loadStyle()}}
-const ZOOMS=[[0,'None','Camera stays still'],[3,'A few','About 3 a minute'],[6,'Some','About 6 a minute'],[10,'Lots','About 10 a minute']];
-const CUTS=[[0.25,'Relaxed','Keeps your pauses'],[0.15,'Natural','Short breaths stay'],[0.12,'Tight','Cuts every pause']];
-function preview(P){   // the picture only: no sample caption drawn on it
-  const pic=picOf(P,0);
-  return `<div class="pic sprev" style="position:relative;width:315px;height:560px;border-radius:20px;overflow:hidden;background:#45403C url('${esc(pic.url)}') center/cover;flex-shrink:0">
-    <span class="extag">${pic.demo?'Example photo':pic.clip?'Your video':pic.face?'Their video':'Your image'}</span>${picBtns(P)}</div>`;
+async function resetSec(section){const r=await post('/style/reset',{id:ui.sp,section});if(r._ok){ui.spage=r;loadLib()}else alert(r.error||'That did not reset.');render()}
+async function resetAll(){for(const s of ['captions','zoom','cut','cards','sound'])await post('/style/reset',{id:ui.sp,section:s});ui.spclip=null;await loadStyle();loadLib()}
+async function playCut(){
+  const P=ui.spage;if(!P)return;const c=P.presets.cut;ui.spclip={busy:1};render();
+  const r=await post('/style/cutclips',{preset:c.sel});
+  ui.spclip=r._ok?{before:r.before,after:r.after,label:(c.opts.find(o=>o.id===c.sel)||{}).label,at:'before'}:{err:r.error||'That did not play.'};render();
 }
+function cutEnded(v){if(ui.spclip&&ui.spclip.at==='before'){ui.spclip.at='after';v.src=ui.spclip.after;v.play();const t=$('#sp-cliptag');if(t)t.textContent='After: '+ui.spclip.label}}
+// the caption's height: drag the dashed box on the preview; the page saves captions.y_pct when it is let go
+function spDrag(e){
+  const box=e.currentTarget,fr=box.parentElement.getBoundingClientRect();ui.spdrag=1;box.setPointerCapture(e.pointerId);
+  const at=ev=>Math.max(40,Math.min(85,Math.round((ev.clientY-fr.top)/fr.height*100)));
+  box.onpointermove=ev=>{box.style.top=at(ev)+'%'};
+  box.onpointerup=ev=>{box.onpointermove=box.onpointerup=null;ui.spdrag=0;setCtl('captions.y_pct',at(ev))};
+}
+function spPreview(P){
+  const C=P.presets.captions,pic=picOf(P,0),cl=ui.spclip,t={img:C.big},y=C.y;
+  const inner=cl&&cl.before?`<video id="sp-clip" src="${esc(cl.at==='after'?cl.after:cl.before)}" autoplay playsinline onended="cutEnded(this)" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0C0A09"></video>
+      <span class="extag" id="sp-cliptag">${cl.at==='after'?'After: '+esc(cl.label):'Before'}</span><div class="picbtns" style="opacity:1"><button onclick="ui.spclip=null;render()">Close</button></div>`
+    :`${t.img?`<img src="${esc(t.img)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`:''}
+      <span class="extag">${esc(P.presets.pic)}${t.img?'':' · rendering the preview'}</span>${picBtns(P)}
+      ${C.off?'':`<div class="sp-drag" style="top:${y}%" onpointerdown="spDrag(event)" title="Drag to move the captions" aria-label="Caption height, drag to move"></div>`}`;
+  return `<div class="pic sprev" style="position:relative;width:315px;height:560px;border-radius:20px;overflow:hidden;background:#45403C url('${esc(t.img||pic.url)}') center/cover;flex-shrink:0">${inner}</div>`;
+}
+const spTag=(tag,sec)=>tag==='you changed this'?`<span class="row" style="gap:10px"><button class="hlink" style="font-size:12px" onclick="resetSec('${sec}')">Reset</button><span class="rec" style="color:var(--ink)">you changed this</span></span>`:`<span class="muted" style="font-size:12px">${esc(tag)}</span>`;
+const spSwitch=(on,key)=>`<button class="sp-sw ${on?'on':''}" role="switch" aria-checked="${on}" onclick="setCtl('${key}',${!on})"><i></i></button>`;
+const ZOOMILL={none:'<i class="zb"></i>',smooth:'<i class="zb dash"></i><i class="zf smooth"></i>',punchy:'<i class="zb dash"></i><i class="zf punchy"></i>'};
+const CUTILL={relaxed:[22,16,26,14,18],natural:[24,7,28,6,20],tight:[26,0,30,0,22]};
 function vStylePage(){
   const P=ui.spage;if(!P)return `<div class="col grow"><div class="empty">Loading the style...</div></div>`;
-  const v=P.values,ch=k=>P.changed.includes(k)?'<span class="rec">you changed this</span>':'';
-  const seg=(key,opts)=>`<div class="row" style="gap:10px;flex-wrap:wrap">${opts.map(([val,t,s])=>`<button class="shape ${Math.abs((v[key]??-1)-val)<1e-6?'on':''}" style="flex:1 1 120px;flex-direction:column;align-items:flex-start;gap:2px" onclick="setCtl('${key}',${val})"><b style="font-size:14px">${t}</b><span class="muted" style="font-size:12px">${s}</span></button>`).join('')}</div>`;
-  const job=P.job,jr=job&&job.result||{};
+  const Z=P.presets,C=Z.captions,job=P.job,jr=job&&job.result||{};
   const jobLine=!job?'':job.state==='queued'?(S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal.`):job.state==='taken'?`Claude: ${esc((job.steps.at(-1)||{}).text||'working on it')}`:job.state==='done'?`Changed: ${esc((jr.changed||[]).join('; ')||'nothing')}`:job.state==='failed'?esc(job.error):'';
-  return `<div class="col" style="width:340px;gap:18px;padding:12px 14px 0"><button class="hlink" style="font-size:14px;color:var(--t2);align-self:flex-start" onclick="rgo('mystyle')">‹ All your styles</button><div><div class="row" style="gap:8px;align-items:center">${ui.edit&&ui.edit.kind==='name'&&ui.edit.id===P.id?'':`<h1 style="white-space:nowrap;font-size:${Math.min(40,Math.floor(560/Math.max(1,P.name.length)))}px;line-height:1.1">${esc(P.name)}</h1>`}${editField('name',P.id,P.name,'font-size:28px;font-weight:700')}</div><p class="lede" style="margin-top:8px">${P.id==='mine'?'How your videos get edited.':'Copied from their videos, with your changes.'}</p></div>${preview(P)}${ui.covermsg&&ui.covermsg.id===P.id?`<div class="msg bad">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
+  const size=+((C.tiles.find(x=>x.id===C.sel)||{}).block||{}).size_pct||C.size;
+  const opt=(o,on,ill,key,val)=>`<button class="sp-opt ${on?'on':''}" onclick="setCtl('${key}',${val})"><span class="sp-ill">${ill}</span><span><b>${esc(o.label)}</b><span class="muted">${esc(o.sub)}</span></span></button>`;
+  return `<div class="col" style="width:340px;gap:18px;padding:12px 14px 0"><button class="hlink" style="font-size:14px;color:var(--t2);align-self:flex-start" onclick="rgo('mystyle')">‹ All your styles</button><div><div class="row" style="gap:8px;align-items:center">${ui.edit&&ui.edit.kind==='name'&&ui.edit.id===P.id?'':`<h1 style="white-space:nowrap;font-size:${Math.min(40,Math.floor(560/Math.max(1,P.name.length)))}px;line-height:1.1">${esc(P.name)}</h1>`}${editField('name',P.id,P.name,'font-size:28px;font-weight:700')}</div><p class="lede" style="margin-top:8px">How your videos get edited. Shown on ${Z.pic==='Example photo'?'an example photo':'your own video'}.</p></div>${spPreview(P)}${ui.covermsg&&ui.covermsg.id===P.id?`<div class="msg bad">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
     ${P.id==='mine'?'':ui.del&&ui.del.id===P.id?delRow(P,P.delete_note):`<button class="hlink" style="align-self:flex-start;font-size:14px" onclick="ui.del={id:${esc(JSON.stringify(P.id))},measured:false};render()">Delete this style</button>`}</div>
-  <div class="col grow" style="gap:20px;min-width:0">
-    <div class="panel"><div class="sec" style="flex-direction:row;align-items:center;gap:12px"><div class="ini">${esc((P.base||'ds').slice(0,2).toUpperCase())}</div><div class="sub">${P.id!=='mine'?`Copied from @${esc(P.base)}'s videos.`:P.base?`Started from @${esc(P.base)}.`:'Started from the default style.'} ${P.changed.length?`You changed ${P.changed.length} thing${P.changed.length>1?'s':''}.`:'You have not changed anything yet.'}</div></div>
-    <div class="sec"><div class="between"><span class="h">Captions</span>${ch('captions.size_pct')||ch('captions.words_per_caption')||ch('captions.y_pct')}</div>
-      <div class="row" style="gap:14px;flex-wrap:wrap"><span class="muted spl" style="width:120px;flex-shrink:0;white-space:nowrap">Words at a time</span>${[1,2,3,4].map(n=>`<button class="pill ${v['captions.words_per_caption']===n?'on':''}" onclick="setCtl('captions.words_per_caption',${n})">${n}</button>`).join('')}</div>
-      <label class="row" style="gap:14px"><span class="muted spl" style="width:120px;flex-shrink:0;white-space:nowrap">Size</span><input type="range" min="3" max="8" step="0.2" value="${v['captions.size_pct']||4.2}" style="flex:1;min-width:0;accent-color:var(--ink)" onchange="setCtl('captions.size_pct',+this.value)"><span class="spv" style="width:110px;flex-shrink:0;white-space:nowrap">${(+(v['captions.size_pct']||4.2)).toFixed(1)}% tall</span></label>
-      <label class="row" style="gap:14px"><span class="muted spl" style="width:120px;flex-shrink:0;white-space:nowrap">Height on screen</span><input type="range" min="45" max="82" step="1" value="${v['captions.y_pct']||66}" style="flex:1;min-width:0;accent-color:var(--ink)" onchange="setCtl('captions.y_pct',+this.value)"><span class="spv" style="width:110px;flex-shrink:0;white-space:nowrap">${Math.round(v['captions.y_pct']||66)}% down</span></label></div>
-    <div class="sec"><div class="between"><span class="h">Zooms</span>${ch('zoom.per_min')||(v['zoom.per_min']!=null?`<span class="muted">now ${v['zoom.per_min']} a minute</span>`:'')}</div>${seg('zoom.per_min',ZOOMS)}</div>
-    <div class="sec"><div class="between"><span class="h">Cut</span>${ch('cut.max_pause')||`<span class="muted">pauses up to ${v['cut.max_pause']} s</span>`}</div>${seg('cut.max_pause',CUTS)}</div>
-    <div class="sec"><div class="between"><span class="h">Sound</span>${ch('sfx')}</div><label class="between" style="cursor:pointer"><div><div>Sound effects</div><div class="muted" style="margin-top:2px">A soft whoosh when a card or zoom lands</div></div><input type="checkbox" ${v.sfx?'checked':''} style="width:20px;height:20px;accent-color:var(--ink)" onchange="setCtl('sfx',this.checked)"></label></div>
-    <div class="sec" style="background:var(--bg)"><div class="muted" style="color:var(--t2)">${CHECK} Saved as you go.</div></div></div>
-    <div class="panel"><div class="sec"><div class="h">Tell it what to change</div>
-      <div class="row" style="align-items:stretch"><textarea id="tell" class="input" style="height:64px;padding:10px 12px;font:14px/20px system-ui,sans-serif;resize:vertical" placeholder="captions a bit bigger, fewer zooms"></textarea><button class="btn dark" style="height:auto" onclick="tellChange()">Send</button></div>
-      ${jobLine?`<div class="muted" style="color:var(--ink)">${jobLine}</div>`:''}</div></div>
-  </div>
-  <div class="panel rv-side sp-side" style="width:400px;flex-shrink:0">
-    <div class="sec"><div class="h">Its skill</div><div class="row" style="gap:6px">${ui.edit&&ui.edit.kind==='skill'&&ui.edit.id===P.id?'':`<span style="font:500 18px var(--mono)">${esc(P.skill.name)}</span>`}${editField('skill',P.id,P.skill.name,'font:500 16px var(--mono)')}</div>
-      <div class="row"><button class="btn quiet sm" onclick="post('/style/reveal',{id:ui.sp}).then(loadStyle)">Open the skill file</button>${P.skill.exists?'':'<span class="muted">made on first open</span>'}</div>
-      <div class="muted" style="color:var(--t2);line-height:19px">Say "/${esc(P.skill.name)}" in Claude Code to edit a video in this style.</div>
-      <div><div class="muted">Use it for</div><div class="row" style="gap:6px;margin-top:4px;font-size:14px">${ui.edit&&ui.edit.kind==='use'&&ui.edit.id===P.id?'':`<span style="color:${P.use_for?'var(--ink)':'var(--t3)'}">${esc(P.use_for||'Any video. Say when Claude should pick it.')}</span>`}${editField('use',P.id,P.use_for||'')}</div></div></div>
-    <div class="sec"><div class="h">It copies</div>${P.copies.map(c=>`<div class="dash">${esc(c)}</div>`).join('')||'<div class="muted">Nothing measured yet.</div>'}</div>
-    <div class="sec" style="flex:1"><div class="between"><span class="h">Learned from your feedback</span><span class="muted">${P.rules.length}</span></div>
-      ${P.rules.map(r=>`<div class="row" style="align-items:flex-start;gap:12px"><div class="grow"><div style="font-size:14px;line-height:20px">${esc(r.rule)}</div><div class="muted" style="margin-top:3px">Said ${r.said}x${r.last?` · last ${esc(r.last)}`:''}${r.applied?` · used ${r.applied}x`:''}${r.regressions?` · came back ${r.regressions}x`:''}</div></div><button class="hlink" onclick="forgetRule(${r.id})">Forget</button></div>`).join('')||'<div class="muted" style="line-height:19px">Nothing yet. Changes here, notes on the review page and corrections in the Claude chat land here.</div>'}</div>
+  <div class="panel grow sp-panel">
+    <div class="sp-top"><div class="row" style="gap:10px;align-items:center;min-width:0"><div class="ini">${esc((P.base||'ds').slice(0,2).toUpperCase())}</div><div class="sub">${P.id!=='mine'?`Copied from @${esc(P.base)}'s videos.`:P.base?`Started from @${esc(P.base)}.`:'Started from the default style.'} ${P.changed.length?`You changed ${P.changed.length} thing${P.changed.length>1?'s':''}.`:'Nothing changed yet.'}</div></div>${P.changed.length?`<button class="btn quiet sm" onclick="resetAll()">Reset all</button>`:''}</div>
+    <div class="sp-sec"><div class="between"><span class="h">Captions</span>${spTag(C.tag,'captions')}</div>
+      <div class="sp-caps">${C.tiles.map(t=>`<button class="sp-cap ${t.id===C.sel?'on':''}" onclick="setCtl('captions.preset',${esc(JSON.stringify(t.id))})"><span class="sp-capimg">${t.img?`<img src="${esc(t.img)}" alt="${esc(t.name)} captions" style="object-position:50% ${t.block.y_pct||C.y}%">`:`<span class="muted">${t.err?'No preview':'Rendering...'}</span>`}</span><span class="between" style="padding:0 4px;gap:6px"><b>${esc(t.name)}</b><span class="muted" style="font-size:12px;white-space:nowrap">${esc(t.note)}</span></span></button>`).join('')}</div>
+      <div class="row sp-size"><span style="width:34px;color:var(--t2);font-size:13px">Size</span><span style="color:var(--t4);font-size:12px">A</span><input type="range" min="3" max="8" step="0.2" value="${size}" aria-label="Caption size" onchange="setCtl('captions.size_pct',+this.value)"><span style="color:var(--t4);font-size:16px">A</span><span style="width:56px;font-size:13px">${size<4?'Small':size<5.2?'Medium':'Large'}</span><i class="sp-vr"></i><svg width="14" height="14" viewBox="0 0 14 14" style="flex-shrink:0"><path d="M7 1.5v11M1.5 7h11M7 1.5l-2 2M7 1.5l2 2M7 12.5l-2-2M7 12.5l2-2M1.5 7l2-2M1.5 7l2 2M12.5 7l-2-2M12.5 7l-2 2" fill="none" stroke="var(--t3)" stroke-width="1.3" stroke-linecap="round"/></svg><span style="color:var(--t2);font-size:13px">Drag the caption on your video to move it</span></div></div>
+    <div class="sp-row"><div class="sp-sec"><div class="between"><span class="h">Zooms</span>${spTag(Z.zoom.tag,'zoom')}</div>
+        <div class="sp-opts">${Z.zoom.opts.map(o=>opt(o,o.id===Z.zoom.sel,ZOOMILL[o.id]||'','zoom.preset',JSON.stringify(o.id))).join('')}</div></div>
+      <div class="sp-sec"><div class="between"><span class="h">Cut</span>${spTag(Z.cut.tag,'cut')}</div>
+        <div class="sp-opts">${Z.cut.opts.map(o=>opt(o,o.id===Z.cut.sel,`<span class="cb ${o.id===Z.cut.sel?'on':''}">${CUTILL[o.id].map((w,i)=>`<i style="width:${w}px" class="${i%2?'gap':''}"></i>`).join('')}</span>`,'cut.max_pause',o.value)).join('')}</div>
+        ${Z.cut.clips?`<button class="row hlink" style="gap:8px;align-self:flex-start;text-decoration:none;font-size:13px;color:var(--t2)" onclick="playCut()" ${ui.spclip&&ui.spclip.busy?'disabled':''}><span class="sp-play"><svg width="8" height="8" viewBox="0 0 8 8"><path d="M1.5 1v6l5-3z" fill="currentColor"/></svg></span>${ui.spclip&&ui.spclip.busy?'Making the clips...':'Play 5 s of your video, before and after'}</button>`:''}
+        ${ui.spclip&&ui.spclip.err?`<div class="muted">${esc(ui.spclip.err)}</div>`:''}</div></div>
+    <div class="sp-row"><div class="sp-sec"><div class="between"><span class="h">Cards and graphics</span>${spTag(Z.cards.tag,'cards')}</div>
+        <div class="between"><div><div>Show logos and screenshots</div><div class="muted" style="margin-top:2px;font-size:12px">Beside your head when you name a thing</div></div>${spSwitch(Z.cards.on,'cards.on')}</div>
+        <div class="between" style="${Z.cards.on?'':'opacity:.45;pointer-events:none'}"><span>How often</span><span class="sp-seg">${Z.cards.opts.map(o=>`<button class="${o.id===Z.cards.sel?'on':''}" onclick="setCtl('cards.per_min',${o.value})">${esc(o.label)}</button>`).join('')}</span></div>
+        <label class="between" style="${Z.cards.on?'':'opacity:.45;pointer-events:none'}"><span>Look</span><select class="sp-sel" onchange="setCtl('look.preset',JSON.parse(this.value))">${Z.cards.looks.map(([k,l])=>`<option value='${esc(JSON.stringify(k))}' ${k===Z.cards.look?'selected':''}>${esc(l)}</option>`).join('')}</select></label></div>
+      <div class="sp-sec"><div class="between"><span class="h">Sound and music</span>${spTag(Z.sound.tag,'sound')}</div>
+        <div class="between"><div><div>Sound effects</div><div class="muted" style="margin-top:2px;font-size:12px">A soft whoosh when a card or zoom lands</div></div>${spSwitch(Z.sound.sfx,'sfx')}</div>
+        <div class="between"><div><div>Background music</div><div class="muted" style="margin-top:2px;font-size:12px">${Z.sound.music?'A quiet bed under your voice':'Off, so you can add a trending sound in the app'}</div></div>${spSwitch(Z.sound.music,'music')}</div></div></div>
+    <div class="sp-row sp-more"><div class="sp-sec"><div class="h">Its skill</div><div class="row" style="gap:6px">${ui.edit&&ui.edit.kind==='skill'&&ui.edit.id===P.id?'':`<span style="font:500 16px var(--mono)">${esc(P.skill.name)}</span>`}${editField('skill',P.id,P.skill.name,'font:500 16px var(--mono)')}</div>
+        <div class="row"><button class="btn quiet sm" onclick="post('/style/reveal',{id:ui.sp}).then(loadStyle)">Open the skill file</button>${P.skill.exists?'':'<span class="muted">made on first open</span>'}</div>
+        <div class="muted" style="color:var(--t2);line-height:19px">Say "/${esc(P.skill.name)}" in Claude Code to edit a video in this style.</div>
+        <div><div class="muted">Use it for</div><div class="row" style="gap:6px;margin-top:4px;font-size:14px">${ui.edit&&ui.edit.kind==='use'&&ui.edit.id===P.id?'':`<span style="color:${P.use_for?'var(--ink)':'var(--t3)'}">${esc(P.use_for||'Any video. Say when Claude should pick it.')}</span>`}${editField('use',P.id,P.use_for||'')}</div></div>
+        <div class="h" style="margin-top:6px">Tell it what to change</div>
+        <div class="row" style="align-items:stretch"><textarea id="tell" class="input" style="height:64px;padding:10px 12px;font:14px/20px system-ui,sans-serif;resize:vertical" placeholder="captions a bit bigger, fewer zooms"></textarea><button class="btn dark" style="height:auto" onclick="tellChange()">Send</button></div>
+        ${jobLine?`<div class="muted" style="color:var(--ink)">${jobLine}</div>`:''}</div>
+      <div class="sp-sec"><div class="between"><span class="h">Learned from your feedback</span><span class="muted">${P.rules.length}</span></div>
+        ${P.rules.map(r=>`<div class="row" style="align-items:flex-start;gap:12px"><div class="grow"><div style="font-size:14px;line-height:20px">${esc(r.rule)}</div><div class="muted" style="margin-top:3px">Said ${r.said}x${r.last?` · last ${esc(r.last)}`:''}${r.applied?` · used ${r.applied}x`:''}${r.regressions?` · came back ${r.regressions}x`:''}</div></div><button class="hlink" onclick="forgetRule(${r.id})">Forget</button></div>`).join('')||'<div class="muted" style="line-height:19px">Nothing yet. Changes here, notes on the review page and corrections in the Claude chat land here.</div>'}
+        <div class="muted" style="color:var(--t2)">It copies: ${P.copies.map(esc).join(', ')||'nothing measured yet'}.</div></div></div>
+    <div class="sp-save stick">${CHECK}<span>Saved as you go. Your next videos use this style.</span><span style="color:var(--t4)">Videos already made stay as they are.</span></div>
   </div>`;
 }
 
@@ -1235,7 +1303,7 @@ async function load(){
   if(!ui.look&&lk.handle){ui.look={kind:'creator',handle:lk.handle,platform:lk.platform};if(!ui.paste){ui.paste='@'+lk.handle;lbOf('paste').rows=[lk.handle]}}
   // typing in a key box: do not redraw under the cursor
   const a=document.activeElement;if(a&&a.id&&a.id.startsWith('k-')&&a.value)return returning()&&!ui.onboard?rheader():header(view??autoView());
-  if(a&&a.type==='range')return;   // dragging a slider: do not redraw under the hand
+  if(a&&a.type==='range'||ui.spdrag)return;   // dragging a slider or the caption: do not redraw under the hand
   if(!L)await loadLib();
   if(rv==='stylepage')await loadStyle();
   render();openEditor();

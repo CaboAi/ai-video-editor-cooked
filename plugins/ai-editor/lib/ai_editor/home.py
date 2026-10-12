@@ -1656,14 +1656,15 @@ def demo():
         code, r = send_script(name, data)
         assert code == 400 and not r["ok"] and r["msg"] and "\u2014" not in r["msg"], (name, code, r)
     post("/job", {"type": "video", "path": str(vid), "aspect": "9:16", "as": "mine", "script": sk})
-    es = root.resolve() / "edits" / "take-2"
-    assert out(cmd_wait, 0.01).endswith(f"edit={es} script={es / 'script.md'} root={root.resolve()}")
+    got = out(cmd_wait, 0.01)
+    es = Path(re.search(r" edit=(\S+) script=", got).group(1))   # the next free take-N name
+    assert es.parent == root.resolve() / "edits" and got.endswith(f"edit={es} script={es / 'script.md'} root={root.resolve()}"), got
     assert (es / "script.md").read_text(encoding="utf-8") == sk and not list(home().rglob("s.*"))
     try:
         post("/job", {"type": "video", "path": str(vid), "script": "x" * (SCRIPT_MAX + 1)})
         raise AssertionError("a script over 200 KB was queued")
     except urllib.error.HTTPError as e:
-        assert e.code == 400 and not (root / "edits" / "take-3").exists()
+        assert e.code == 400 and not (es.parent / f"take-{int(es.name.split('-')[1]) + 1}").exists()
     assert all("takes=" not in ln and "as=@sample.creator" in ln for ln in lines)
     # a script's report (progress.py) lands on the video its edit folder names, never on the newest one
     sr = lambda step, key=None: out(cmd_status, ns(job="video", step=step, detail=None, progress=None, result=None,

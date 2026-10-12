@@ -16,6 +16,7 @@ for it, and reports back with `status`:
                                                  (as=mine: the saved style; as=defaults: no creator)
         JOB video takes=DIR/edits/a/takes.txt as=mine aspect=9:16 edit=DIR/edits/a root=DIR
                                                  (several clips as one video: join them in the listed order)
+                                                 (either may end with script=DIR/edits/a/script.md before root=)
         JOB modal                                 the user pressed "Log in with your browser"
         JOB cancel teardown                       the user pressed Cancel
         ALREADY ...                               another wait is running: nothing to do
@@ -87,6 +88,66 @@ HANDLE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 PLUGIN_JSON = Path(__file__).resolve().parents[2] / ".claude-plugin" / "plugin.json"
 RAW = "https://raw.githubusercontent.com/nextwork-projects/ai-video-editor/main/"
 COVER_MAX = 50 << 20   # a style's chosen image, or a short clip to take a frame from
+SCRIPT_MAX = 200_000   # a script's text, in bytes; the file it came from may be up to 1 MB (a .docx with a logo)
+SCRIPT_EXT = (".txt", ".md", ".docx", ".pdf")
+
+
+def pdf_text(data):
+    """The words of a simple PDF: literal strings shown by Tj / TJ in its content streams (plain or Flate).
+    '' when they do not come out as words."""
+    # ponytail: no font maps, so hex strings and custom encodings (most Word exports) read as nothing and the
+    # page asks for a paste; a real PDF parser is the upgrade if pasting turns out to be a chore
+    import zlib
+    esc = {b"n": b"\n", b"r": b"", b"t": b" ", b"(": b"(", b")": b")", b"\\": b"\\"}
+    lit = lambda b: re.sub(rb"\\([0-7]{1,3}|.)", lambda m: bytes([int(m.group(1), 8) & 255]) if m.group(1)[:1].isdigit()
+                           else esc.get(m.group(1), m.group(1)), b, flags=re.S)
+    out = []
+    for m in re.finditer(rb"stream\r?\n(.*?)\r?\nendstream", data, re.S):
+        s = m.group(1)
+        try:
+            s = zlib.decompress(s)
+        except zlib.error:
+            pass
+        for bt in re.findall(rb"BT(.*?)ET", s, re.S):
+            for chunk in re.split(rb"\bT[dD*m]\b|'", bt):
+                words = []
+                for arr, one in re.findall(rb"\[((?:\((?:\\.|[^\\)])*\)|[^\]])*)\]\s*TJ|\(((?:\\.|[^\\)])*)\)\s*Tj", chunk, re.S):
+                    if one or not arr:
+                        words.append(lit(one))
+                        continue
+                    for st, num in re.findall(rb"\(((?:\\.|[^\\)])*)\)|(-?\d+\.?\d*)", arr):
+                        words.append(lit(st) if not num else b" " if float(num) < -200 else b"")
+                line = b"".join(words).decode("latin-1").strip()
+                if line:
+                    out.append(line)
+    text = "\n".join(out)
+    ok = sum(c.isalpha() or c.isspace() or c in ".,!?'\"-:;" for c in text)
+    return text if len(text.split()) >= 3 and ok >= 0.85 * len(text) else ""
+
+
+def script_text(name, data):
+    """A script file's words as plain text: .txt and .md as they are, .docx from its paragraphs, a simple .pdf
+    from its text. '' when nothing readable comes out."""
+    import io
+    import zipfile
+    from xml.etree import ElementTree as ET
+    ext = Path(name).suffix.lower()
+    try:
+        if ext == ".docx":
+            W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                if z.getinfo("word/document.xml").file_size > 20 << 20:
+                    return ""
+                root = ET.fromstring(z.read("word/document.xml"))
+            text = "\n".join("".join(e.text or "" if e.tag == W + "t" else " " if e.tag == W + "tab" else "\n"
+                                      for e in p.iter() if e.tag in (W + "t", W + "tab", W + "br")) for p in root.iter(W + "p"))
+        elif ext == ".pdf":
+            text = pdf_text(data)
+        else:
+            text = data.decode("utf-8-sig")
+    except (zipfile.BadZipFile, KeyError, ET.ParseError, UnicodeDecodeError, ValueError):
+        return ""
+    return re.sub(r"\n{3,}", "\n\n", text.replace("\r\n", "\n").replace("\x00", "")).strip()
 
 
 def home():
@@ -648,7 +709,8 @@ def job_line(j, root):
         return f"JOB skill @{a['handle']} take={','.join(a.get('take') or [])} root={root}"
     if j["type"] == "video":
         src = f"takes={a['takes']}" if a.get("takes") else a["path"]
-        return f"JOB video {src} as={a['as']} aspect={a['aspect']}" + (f" edit={a['edit']}" if a.get("edit") else "") + f" root={root}"
+        return f"JOB video {src} as={a['as']} aspect={a['aspect']}" + (f" edit={a['edit']}" if a.get("edit") else "") + \
+            (f" script={a['script']}" if a.get("script") else "") + f" root={root}"
     if j["type"] == "style-change":
         return f"JOB style-change {'my-style' if a['style'] == 'mine' else a['style']}" + \
             (f" style={a['path']}" if a.get("path") else "") + f" text={a['text']}"
@@ -906,6 +968,8 @@ def make_handler(token):
             if not self.authorized():
                 return self.send(403, {"error": "open the page with the URL home.py printed"})
             path = urlsplit(self.path).path
+            if path == "/script":
+                return self.script()
             if path in ("/upload", "/style/cover"):
                 with live.busy():   # no live-reload restart under an upload
                     return self.upload() if path == "/upload" else self.cover()
@@ -1131,6 +1195,9 @@ def make_handler(token):
             else:   # the first-run page: its creator once the study is done
                 style = f"@{td['args']['handle']}" if td and td["state"] == "done" else "defaults"
             aspect = "16:9" if b.get("aspect") == "16:9" else "9:16"
+            script = str(b.get("script") or "").strip()
+            if len(script.encode("utf-8")) > SCRIPT_MAX:
+                return self.send(400, {"ok": False, "msg": "That script is over 200 KB. Paste only the lines you film."})
             groups = [ps] if b.get("join") and len(ps) > 1 else [[p] for p in ps]
             ids = []
 
@@ -1144,6 +1211,9 @@ def make_handler(token):
                     t = edit / "takes.txt"
                     t.write_text("\n".join(p["path"] for p in g) + "\n", encoding="utf-8")
                     args["takes"] = str(t)
+                if script:   # the text only, in the edit folder; the cut's script_match.py reads it there
+                    (edit / "script.md").write_text(script + "\n", encoding="utf-8")
+                    args["script"] = str(edit / "script.md")
                 ids.append(update(lambda d: queue(d, "video", args))["id"])
             return self.send(200, {"id": ids[0], "ids": ids})
 
@@ -1172,6 +1242,24 @@ def make_handler(token):
                 return self.send(404, {"ok": False, "msg": "No such style."})
             finally:
                 tmp.unlink(missing_ok=True)
+
+        def script(self):
+            """A chosen script file: read in memory (1 MB at most), only its text goes back. Nothing is saved until
+            the video is made."""
+            name = Path(unquote(parse_qs(urlsplit(self.path).query).get("name", [""])[0])).name
+            n = int(self.headers.get("Content-Length") or 0)
+            if not name.lower().endswith(SCRIPT_EXT):
+                return self.send(400, {"ok": False, "msg": "Add a .txt, .md, .docx or .pdf file, or paste the script."})
+            if not 0 < n <= 5 * SCRIPT_MAX:
+                while n > 0 and self.rfile.read(min(1 << 20, n)):   # drained, so the browser reads the answer
+                    n -= 1 << 20
+                return self.send(400, {"ok": False, "msg": "That file is too big. Paste the script instead."})
+            text = script_text(name, self.rfile.read(n))
+            if not text:
+                return self.send(400, {"ok": False, "msg": "Could not read the words in that file. Paste the script instead."})
+            if len(text.encode("utf-8")) > SCRIPT_MAX:
+                return self.send(400, {"ok": False, "msg": "That script is over 200 KB. Paste only the lines you film."})
+            return self.send(200, {"ok": True, "text": text})
 
         def upload(self):
             """A dropped video: streamed to <root>/videos/<name>, never held in memory."""
@@ -1543,6 +1631,39 @@ def demo():
     assert len(r["ids"]) == 3
     lines = [out(cmd_wait, 0.01) for _ in range(3)]
     assert [ln.split(" edit=")[1].split()[0] for ln in lines] == [str(root.resolve() / "edits" / n) for n in ("a-2", "b", "c")], lines
+
+    # Add your script: a file's text only comes back (token, 1 MB file, 200 KB text); it is saved with the job
+    def send_script(name, data, t=tok):
+        try:
+            r = urllib.request.urlopen(urllib.request.Request(base + "/script?name=" + quote(name) + (t and "&t=" + t), data, method="POST"))
+            return r.status, json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read() or b"{}")
+    sk = "MANAGER: We need to scale this.\nINTERN: We need to scale this.\n"
+    assert send_script("s.txt", sk.encode(), "")[0] == 403
+    assert send_script("s.txt", ("\ufeff" + sk).encode()) == (200, {"ok": True, "text": sk.strip()})
+    dx = io.BytesIO()
+    import zipfile
+    with zipfile.ZipFile(dx, "w") as z:
+        W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+        z.writestr("word/document.xml", f'<w:document {W}><w:body><w:p><w:r><w:t>MANAGER:</w:t><w:tab/><w:t>Hi.</w:t></w:r></w:p>'
+                                        '<w:p><w:r><w:t>INTERN: Hi.</w:t></w:r></w:p></w:body></w:document>')
+    assert send_script("s.docx", dx.getvalue())[1]["text"] == "MANAGER: Hi.\nINTERN: Hi."
+    pdf = b"%PDF-1.4\n1 0 obj<<>>stream\nBT /F1 12 Tf 72 700 Td (MANAGER: We need to scale.) Tj 0 -14 Td [(INTERN:) -300 (Why?)] TJ ET\nendstream"
+    assert send_script("s.pdf", pdf)[1]["text"] == "MANAGER: We need to scale.\nINTERN: Why?"
+    for name, data in (("s.pdf", b"%PDF-1.4\nstream\nBT <00120034> Tj ET\nendstream"), ("s.docx", b"not a zip"),
+                       ("s.exe", b"MZ"), ("big.txt", b"a " * 600_000), ("long.txt", b"line\n" * 50_000)):
+        code, r = send_script(name, data)
+        assert code == 400 and not r["ok"] and r["msg"] and "\u2014" not in r["msg"], (name, code, r)
+    post("/job", {"type": "video", "path": str(vid), "aspect": "9:16", "as": "mine", "script": sk})
+    es = root.resolve() / "edits" / "take-2"
+    assert out(cmd_wait, 0.01).endswith(f"edit={es} script={es / 'script.md'} root={root.resolve()}")
+    assert (es / "script.md").read_text(encoding="utf-8") == sk and not list(home().rglob("s.*"))
+    try:
+        post("/job", {"type": "video", "path": str(vid), "script": "x" * (SCRIPT_MAX + 1)})
+        raise AssertionError("a script over 200 KB was queued")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400 and not (root / "edits" / "take-3").exists()
     assert all("takes=" not in ln and "as=@sample.creator" in ln for ln in lines)
     # a script's report (progress.py) lands on the video its edit folder names, never on the newest one
     sr = lambda step, key=None: out(cmd_status, ns(job="video", step=step, detail=None, progress=None, result=None,

@@ -66,8 +66,8 @@ python3 "$PY" "$S/transcribe.py" <source> edits/<name>/words.raw.json [--script 
 
 A script (or `--keyterm Name`, repeatable) gets names and jargon right (+20% on Scribe).
 
-Say the time first: Whisper 1-4 min for a 3-min take, CrisperWhisper about the take's length. It picks ElevenLabs Scribe when a key is saved, else CrisperWhisper if setup
-installed it, else the free local Whisper (`--engine whisper|crisper|scribe` overrides), which drops
+Say the time first: Whisper 1-4 min for a 3-min take, CrisperWhisper about the take's length. It picks
+Scribe when a key is saved, else CrisperWhisper if installed, else the free local Whisper (`--engine whisper|crisper|scribe` overrides), which drops
 some ums and false starts. With neither, say once that
 setup can add one (CrisperWhisper's weights are non-commercial only). A take full of retakes:
 `AI_EDITOR_WHISPER_MODEL=medium` hears them better (1.5 GB, twice as slow). Step 5 catches the rest.
@@ -80,22 +80,23 @@ setup can add one (CrisperWhisper's weights are non-commercial only). A take ful
 python3 "$S/retakes.py" propose edits/<name>
 ```
 
-Code finds every possible cut (a repeated line, an unfinished sentence, "wait, sorry", fillers);
-TypeSafe's Jev judges them in one request into `spans.json` and `review.md`.
+Code flags possible cuts (repeats, unfinished sentences, "wait, sorry", fillers); Jev judges them into
+`spans.json` and `review.md`.
 
-- **Exit 0.** Read `review.md` only: the few items Jev was unsure of. Fix any you disagree with in `spans.json` (shape: `references/shapes.md`; rules:
-  `references/retake-detection.md`), then go to step 3. Do not re-decide the items Jev was sure of; the
-  read-through in step 3 catches a wrong one.
-- **Exit 4: no TypeSafe key** (or Jev unreachable); **exit 5: key rejected.** Decide yourself:
+With a `script.md`: `python3 "$S/script_match.py" edits/<name>`, read `script-match.md` (`references/script.md`).
+
+- **Exit 0.** Read only `review.md` (what Jev was unsure of). Fix any you disagree with in `spans.json`
+  (`references/shapes.md`, `references/retake-detection.md`), then step 3. Do not re-decide what Jev
+  was sure of; step 3's read-through catches a wrong one.
+- **Exit 4: no TypeSafe key** (or unreachable); **5: key rejected.** Decide yourself:
   read `transcript.txt` and `candidates.md` (what code flagged), follow
   `references/retake-detection.md`, and write `spans.json` (`references/shapes.md`). Tell the user once
   that a TypeSafe key (exit 5: a new one) makes this cheaper, via the `setup` skill.
 
-Last take wins, except alternate hooks. Never type a timestamp or write a span for a
+Last take wins, except alternate hooks. Never type a timestamp or span a
 pause.
 
-Only if the user wants it shorter, also read `references/editorial-rules.md` and add `redundant`
-cuts (content calls, which Jev does not make).
+Only if the user wants it shorter: `references/editorial-rules.md`, `redundant` cuts (Jev makes none).
 
 A misheard name is one command, never a JSON rewrite: `python3 "$S/retakes.py" fix edits/<name>
 cloud=Claude jiv=Jev` (whole words, kept in `fixes.json` for the captions).
@@ -126,7 +127,7 @@ Rebuild if spans changed: paper is free, renders are not.
 python3 "$S/render.py" <source> edits/<name>
 ```
 
-A 4K take takes minutes: run it in the background.
+4K takes minutes: run it in the background.
 
 ## 5. Verify
 
@@ -177,10 +178,11 @@ the page opens, start the `visual-prep` agent in the background.
 ## Rules
 
 1. Every cut quotes the transcript. No quote, no cut.
-2. A script, if the user has one, breaks ties between takes. Nothing is cut for being off-script.
+2. A script breaks ties between takes and keeps every take of a line it says twice. Nothing is cut for
+   being off-script.
 3. Never stream-copy (`-c copy`) across cuts: it lands up to 2 s off.
 4. Never hand over a render that has not been verified and approved.
 
 ## Self-check
 
-`test_build_timeline.py`, `test_retakes.py`, `test_media.py` (ffmpeg); `demo` on `transcribe.py`, `trend.py`, `splice_check.py`.
+`test_build_timeline.py`, `test_retakes.py`, `test_media.py` (ffmpeg); `demo` on `transcribe.py`, `trend.py`, `splice_check.py`, `script_match.py`.

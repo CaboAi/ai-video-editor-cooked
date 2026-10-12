@@ -4,6 +4,17 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Add your script. New video in the home window has an optional "Add your script": paste it, or choose or
+  drop a .txt, .md, .docx or .pdf (docx and simple PDFs are read to text with the standard library; a PDF
+  whose words do not come out asks for a paste). A preview shows the first lines and the line count, with
+  Remove. Only the text is kept: `POST /script` (token, 1 MB file, 200 KB text) sends it back, and making
+  the video writes it to `edits/<name>/script.md` and adds `script=` to the job line. The cut passes it to
+  `transcribe.py --script` and runs the new `cut/scripts/script_match.py`, which lines the transcript up
+  with the script and writes `script-match.md`: every take of each line, the last complete one marked
+  keeper, and lines the script says twice (a Manager vs Intern skit with one actor and one voice) marked
+  say-twice so both are kept. Off-script words are listed, never cut for that. It never writes
+  `spans.json`. Rules in `cut/references/script.md`. Test: `script_match.py demo`, `home.py demo`.
+
 - The home window shows progress on its own. A tester pressed Copy and the window sat blank while Claude
   installed and ran the teardown, because steps only reached it when Claude ran `home.py status`. Now the
   long scripts report themselves while Claude has that job taken (a script never takes a queued job, so

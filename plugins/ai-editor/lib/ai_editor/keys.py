@@ -18,6 +18,11 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+try:
+    from ai_editor import net
+except ImportError:   # run as a script from this folder
+    import net
+
 KEY_FILE = Path.home() / ".config" / "creator-teardown" / ".env"
 
 
@@ -77,12 +82,12 @@ def save(name, key, path=None):
 def _get(url, headers):
     req = urllib.request.Request(url, headers={"User-Agent": "ai-video-editor", **headers})
     try:
-        with urllib.request.urlopen(req, timeout=20) as r:
+        with net.urlopen(req, 20) as r:
             return r.status, r.read().decode(errors="replace")
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode(errors="replace")
     except (urllib.error.URLError, OSError) as e:
-        return 0, str(e)
+        return 0, net.friendly(e)
 
 
 def verify(name, key):
@@ -104,7 +109,7 @@ def verify(name, key):
     if code == 200:
         return True, "key works"
     if code == 0:
-        return False, f"no connection ({body[:80]})"
+        return False, body if body == net.FIX else f"no connection ({body[:80]})"
     if code in (401, 403) or (code == 400 and "key" in body.lower()):
         return False, "the service rejected this key. Copy it again, or make a new one."
     return False, f"HTTP {code}: {body[:120]}"

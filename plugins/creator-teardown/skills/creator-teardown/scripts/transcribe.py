@@ -43,6 +43,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _net  # noqa: E402
+
 API_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 MODEL = "scribe_v2"
 # One key for every folder. Outside the skill folder, so git pull and plugin
@@ -184,11 +187,14 @@ def transcribe(wav_path, key, keyterms, lang, no_verbatim, url=None):
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=900) as resp:
+        with _net.urlopen(req, 900) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace")
         print(f"HTTP {e.code}: {detail[:600]}", file=sys.stderr)
+        sys.exit(3)
+    except (urllib.error.URLError, OSError) as e:
+        print(f"ElevenLabs unreachable ({_net.friendly(e)}).", file=sys.stderr)
         sys.exit(3)
 
 

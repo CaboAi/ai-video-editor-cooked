@@ -21,6 +21,11 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+try:
+    from ai_editor import net
+except ImportError:   # run as a script from this folder
+    import net
+
 URL = "https://api.typesafe.ai/v1/systemone"
 MODEL = "jev-latest"
 USD_PER_MTOK = 0.042
@@ -63,7 +68,7 @@ def _post(body, key, tries=5):
             "Authorization": f"Bearer {key}", "Content-Type": "application/json",
             "User-Agent": "ai-video-editor"})
         try:
-            with urllib.request.urlopen(req, timeout=120) as r:
+            with net.urlopen(req, 120) as r:
                 return json.loads(r.read())
         except urllib.error.HTTPError as e:
             msg = e.read().decode(errors="replace")[:300]
@@ -76,7 +81,7 @@ def _post(body, key, tries=5):
             if attempt < tries - 1:
                 time.sleep(2 ** attempt)
                 continue
-            raise JevError(f"TypeSafe unreachable: {e}")
+            raise JevError(f"TypeSafe unreachable: {net.friendly(e)}")
 
 
 def _batches(questions, state):

@@ -1140,7 +1140,7 @@ def cmd_music(d, url, start=None, end=None, rights=None, credit=None, cookies=No
 
 
 def cmd_tts(d, text, voice):
-    from ai_editor import keys
+    from ai_editor import keys, net
     import urllib.request
     key, _ = keys.get("elevenlabs")
     if not key:
@@ -1150,7 +1150,7 @@ def cmd_tts(d, text, voice):
                                  headers={"xi-api-key": key, "Content-Type": "application/json"})
     (Path(d) / "audio").mkdir(exist_ok=True)
     out = Path(d) / "audio" / "vo.mp3"
-    with urllib.request.urlopen(req, timeout=120) as r:
+    with net.urlopen(req, 120) as r:
         out.write_bytes(r.read())
     print(out)
 

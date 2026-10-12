@@ -497,7 +497,7 @@ const PART_WHAT={captions:'Font, size and place',pace:'Cuts, pauses and zooms',g
 // creator-teardown quick mode, in order. Claude reports these step names (references/home.md).
 const PLAN=['Listed their videos','Downloaded the top 5 and 2 median','Transcribed every word','Measured cuts, zooms and camera moves','Reading captions and faces','Naming graphics','Sound effects and music','Writing the style'];
 const VIDEO_PLAN=[['Transcribe every word','about 20 s'],['Cut retakes and pauses','about 1 min'],['You watch the cut and leave notes','review page'],['Captions, zooms and graphics','about 3 min'],['You approve the edit and export','review page']];
-let S=null, view=null, ui={keys:{},nc:{},likes:new Set(['captions','pace']),copy:null,paste:'',look:null,file:null,as:'creator',aspect:'9:16',show:{}};
+let S=null, view=null, ui={keys:{},nc:{},likes:new Set(['captions','pace']),copy:null,paste:'',look:null,file:null,as:'creator',aspect:'9:16',show:{},kept:new Set()};
 try{const v=localStorage.getItem('ave-home-view');if(v)view=+v}catch(e){}
 
 async function post(u,b){const r=await fetch(u,{method:'POST',body:JSON.stringify(b||{})});let j={};try{j=await r.json()}catch(e){}return Object.assign(j,{_ok:r.ok})}
@@ -868,7 +868,7 @@ const returning=()=>!!(L&&S&&(S.profile||L.videos.length||S.jobs.some(j=>j.type=
 const ago=t=>{const d=(Date.now()/1000-t)/86400,dt=new Date(t*1000);if(d<1&&dt.getDate()===new Date().getDate())return 'today';if(d<2)return 'yesterday';if(d<7)return dt.toLocaleDateString(undefined,{weekday:'short'});return dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})};
 const clipOf=p=>nv.clips[p]||(R&&R.videos.find(v=>v.path===p))||{path:p,name:p.split(/[\\/]/).pop()};
 const total=()=>nv.sel.reduce((a,p)=>a+(clipOf(p).duration||0),0);
-const styleName=id=>id==='mine'?'My style':id==='defaults'?'the default style':id;
+const styleName=id=>((L&&L.styles||[]).find(c=>c.id===id)||{}).name||(id==='mine'?'My style':id==='defaults'?'the default style':id);
 function rgo(v){rv=v;ui.onboard=false;if(v==='new'||v==='home')loadRecent();render();window.scrollTo(0,0)}
 async function loadLib(){try{const r=await fetch('/library');if(r.ok){L=await r.json();render()}}catch(e){}}
 async function loadRecent(){try{const r=await fetch('/recent');if(r.ok){R=await r.json();for(const v of R.videos)nv.clips[v.path]=v;render()}}catch(e){}}
@@ -1018,14 +1018,30 @@ async function removeCover(id){await post('/style/cover/remove',{id});ui.coverms
 const PENCIL='<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.2 2.3a1.6 1.6 0 0 1 2.3 2.3L5.3 12.8 2.5 13.5l.7-2.8z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>';
 // rename and "Use it for": a pencil turns the text into a field; Enter saves, Esc puts it back
 function editField(kind,id,val,style=''){
-  if(ui.edit&&ui.edit.kind===kind&&ui.edit.id===id)return `<span style="display:inline-flex;flex-direction:column;gap:6px;min-width:0;flex:1"><input class="input" id="ed-${kind}" style="font:inherit;height:auto;padding:4px 8px;${style}" value="${esc(ui.edit.val??val)}" onclick="event.stopPropagation()" oninput="ui.edit.val=this.value" onkeydown="event.stopPropagation();if(event.key==='Enter')saveEdit();if(event.key==='Escape'){ui.edit=null;render()}" placeholder="${kind==='use'?'talking-head reels about AI tools':''}">${ui.edit.msg?`<span class="msg bad" style="font-size:13px">${CROSS}<span>${esc(ui.edit.msg)}</span></span>`:''}</span>`;
+  if(ui.edit&&ui.edit.kind===kind&&ui.edit.id===id)return `<span style="display:inline-flex;flex-direction:column;gap:6px;min-width:0;flex:1"><input class="input" id="ed-${kind}" style="font:inherit;height:auto;padding:4px 8px;${style}" value="${esc(ui.edit.val??val)}" onclick="event.stopPropagation()" oninput="ui.edit.val=this.value" ${kind==='name'?'onblur="blurName(this.value)"':''} onkeydown="event.stopPropagation();if(event.key==='Enter')saveEdit();if(event.key==='Escape'){if(ui.edit.fresh)ui.kept.add(ui.edit.id);ui.edit=null;render()}" placeholder="${kind==='use'?'talking-head reels about AI tools':kind==='name'?'Name your style':''}" aria-label="${kind==='name'?'Style name':''}">${ui.edit.msg?`<span class="msg bad" style="font-size:13px">${CROSS}<span>${esc(ui.edit.msg)}</span></span>`:''}</span>`;
   return `<button class="hlink row" style="gap:6px;color:var(--t3);font-size:inherit;padding:2px" title="${kind==='use'?'Change when Claude uses it':'Rename'}" aria-label="${kind==='use'?'Change when Claude uses it':'Rename'}" onclick="event.stopPropagation();ui.edit={kind:'${kind}',id:${esc(JSON.stringify(id))},val:null};render();setTimeout(()=>{const e=$('#ed-${kind}');if(e){e.focus();e.select()}},0)">${PENCIL}</button>`;
 }
-async function saveEdit(){
-  const e=ui.edit;if(!e)return;const val=($('#ed-'+e.kind)||{}).value??e.val??'';
+async function saveEdit(e=ui.edit){
+  if(!e)return;const val=e===ui.edit?(($('#ed-'+e.kind)||{}).value??e.val??''):e.val??'';
+  if(e===ui.edit)e.saving=1;   // Enter then the blur it causes: one save
   const r=await post(e.kind==='use'?'/style/usefor':'/style/rename',e.kind==='use'?{id:e.id,text:val}:{id:e.id,name:val});
-  if(!r._ok){ui.edit={...e,val,msg:r.error||'That did not save.'};return render()}
-  ui.edit=null;if(rv==='stylepage')ui.spage=r;await loadLib();render();
+  const mine=ui.edit&&ui.edit.kind===e.kind&&ui.edit.id===e.id;
+  if(!r._ok){if(mine||!ui.edit)ui.edit={...e,val,saving:0,msg:r.error||'That did not save.'};return render()}
+  if(mine)ui.edit=null;if(rv==='stylepage'&&ui.sp===e.id)ui.spage=r;await loadLib();render();
+}
+// a name field saves on blur too (clicking away keeps what is typed, empty keeps the suggestion); a redraw
+// re-creates the field and puts the focus back, which is not a blur
+function blurName(v){
+  const e=ui.edit;if(!e||e.kind!=='name'||e.saving)return;const mine={...e,val:v};
+  setTimeout(()=>{const a=document.activeElement;if(a&&a.id==='ed-name'&&ui.edit&&ui.edit.id===mine.id)return;if(ui.edit&&ui.edit.id===mine.id&&ui.edit.saving)return;saveEdit(mine)},120);
+}
+// My style before the user names it: once it is theirs (picked, or its page opened) the name is a field
+// right there, focused, holding the suggestion ("Like @creator") selected so typing replaces it. A creator's
+// style already has a real name (@handle) and keeps its pencil.
+function askName(c){
+  if(!c||c.id!=='mine'||c.named||c.studying||!c.suggest||ui.edit||ui.kept.has(c.id))return;
+  ui.edit={kind:'name',id:c.id,val:c.suggest,fresh:1};
+  setTimeout(()=>{const e=$('#ed-name');if(e){e.focus();e.select()}},0);
 }
 function delRow(c,note){
   const h=c.id.slice(1),m=ui.del&&ui.del.measured;
@@ -1108,6 +1124,7 @@ function vStyle(){
   const cards=(L?L.styles:[]),k=latest('skill');
   if(!nv.picked&&k&&k.state==='done'&&Date.now()/1000-(k.finished||0)<86400&&cards.some(c=>c.id==='@'+k.args.handle))nv.style='@'+k.args.handle;   // the style just built
   if(!cards.some(c=>c.id===nv.style)&&nv.style!=='defaults')nv.style='mine';
+  askName(cards.find(c=>c.id===nv.style));
   const n=nv.sel.length,busy=nv.making.some(id=>{const j=S.jobs.find(x=>x.id===id);return j&&j.state==='queued'});
   return `<div class="col grow" style="min-width:0;padding:4px 14px 0;gap:24px">
     <div class="between" style="align-items:flex-end;flex-wrap:wrap;gap:16px"><div><button class="hlink" style="font-size:14px;color:var(--t2)" onclick="rgo('new')">‹ Back to your clips</button><h1 style="margin-top:12px">Pick a style</h1></div>
@@ -1123,7 +1140,7 @@ async function makeVideo(){
 
 // ---- making your video
 function planFor(j){
-  const a=j.args,st=a.as==='mine'?'My style':a.as==='defaults'?'the default style':a.as+"'s style";
+  const a=j.args,st=a.as==='defaults'?'the default style':a.as.startsWith('@')&&styleName(a.as)===a.as?a.as+"'s style":styleName(a.as);
   const studying=a.as.startsWith('@')&&L&&(L.styles.find(c=>c.id===a.as)||{}).studying;
   return [...(a.takes?[['Joined your clips in order','']]:[]),['Wrote down every word you said',''],['Cutting out the mistakes',''],
     ['You check the cut','The editor opens on your clip and each version lands there. Leave notes or approve.'],
@@ -1341,6 +1358,7 @@ const ZOOMILL={none:'<i class="zb"></i>',smooth:'<i class="zb dash"></i><i class
 const CUTILL={relaxed:[22,16,26,14,18],natural:[24,7,28,6,20],tight:[26,0,30,0,22]};
 function vStylePage(){
   const P=ui.spage;if(!P)return `<div class="col grow"><div class="empty">Loading the style...</div></div>`;
+  askName(P);
   const Z=P.presets,C=Z.captions,job=P.job,jr=job&&job.result||{};
   const jobLine=!job?'':job.state==='queued'?(S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal.`):job.state==='taken'?`Claude: ${esc((job.steps.at(-1)||{}).text||'working on it')}`:job.state==='done'?`Changed: ${esc((jr.changed||[]).join('; ')||'nothing')}`:job.state==='failed'?esc(job.error):'';
   const size=+((C.tiles.find(x=>x.id===C.sel)||{}).block||{}).size_pct||C.size;
@@ -1407,7 +1425,7 @@ window.addEventListener('drop',()=>{dragN=0;document.body.classList.remove('drag
 // ---------------------------------------------------------------- render loop
 function render(){
   if(!S)return;
-  const keep=document.activeElement&&document.activeElement.id,pos=keep&&document.activeElement.selectionStart,val=keep&&document.activeElement.value;
+  const keep=document.activeElement&&document.activeElement.id,pos=keep&&document.activeElement.selectionStart,end=keep&&document.activeElement.selectionEnd,val=keep&&document.activeElement.value;
   if(returning()&&!ui.onboard){
     if(!rv)rv=S.jobs.some(j=>j.type==='video'&&(j.state==='queued'||j.state==='taken'))&&!L.videos.some(v=>v.status!=='cutting')?(nv.making=S.jobs.filter(j=>j.type==='video'&&(j.state==='queued'||j.state==='taken')).map(j=>j.id),'making'):L.videos.length?'home':'new';
     rrender();
@@ -1420,10 +1438,10 @@ function render(){
   else if(v===2){const td=latest('teardown');html=!td?`<div class="col grow"><div class="empty">Pick a creator first.</div></div>`:td.state==='done'?h4(td):h3(td)}
   else if(v===3)html=h5();else html=h6();
   $('#main').innerHTML=html;
-  if(keep){const e=document.getElementById(keep);if(e&&'value' in e){if(e.type!=='file')e.value=val;e.focus();try{e.setSelectionRange(pos,pos)}catch(x){}}}
+  if(keep){const e=document.getElementById(keep);if(e&&'value' in e){if(e.type!=='file')e.value=val;e.focus();try{e.setSelectionRange(pos,end??pos)}catch(x){}}}
   const d=$('#drop');if(d){d.ondragover=e=>{e.preventDefault();d.classList.add('over')};d.ondragleave=()=>d.classList.remove('over');d.ondrop=e=>{e.preventDefault();d.classList.remove('over');const f=e.dataTransfer.files[0];if(f)upload(f)}}
   }
-  if(keep){const e=document.getElementById(keep);if(e&&'value' in e&&!e.matches(':focus')){if(e.type!=='file')e.value=val;e.focus();try{e.setSelectionRange(pos,pos)}catch(x){}}}
+  if(keep){const e=document.getElementById(keep);if(e&&'value' in e&&!e.matches(':focus')){if(e.type!=='file')e.value=val;e.focus();try{e.setSelectionRange(pos,end??pos)}catch(x){}}}
 }
 setInterval(()=>{for(const e of document.querySelectorAll('[data-since]')){const t=+e.dataset.since;if(t)e.textContent=secs(Math.max(0,Math.round(Date.now()/1000-t)))}},1000);
 async function load(){

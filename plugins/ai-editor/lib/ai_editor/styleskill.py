@@ -118,7 +118,7 @@ def rename(style_path, new):
     """A style's new name: the display name as typed, the skill as its slug (3-40 of a-z, 0-9, hyphens).
     Refused when the slug is taken by another skill folder or a plugin skill. Every style skill is rewritten."""
     new = " ".join(str(new or "").split())
-    if not re.fullmatch(r"[A-Za-z0-9@][A-Za-z0-9 ._-]{0,39}", new):
+    if not re.fullmatch(r"[A-Za-z0-9@][A-Za-z0-9@ ._-]{0,39}", new):   # "Like @some.creator" is fine
         raise ValueError("Use letters, numbers, spaces or hyphens, up to 40.")
     sl = re.sub(r"[^a-z0-9]+", "-", new.lower()).strip("-")
     if not 3 <= len(sl) <= 40:
@@ -267,7 +267,7 @@ def body(style_path=None, fmt=None):
         cap = (prof.get("captions") or {}).get("style") or "creator"
         desc = describe(None, f"the user's own saved style (copies {who}; captions: {cap})",
                         ["edit it the way I like"], "the user's own videos, their profile and every correction saved as My style")
-        head = (f"# My style\n\nEdits the user's video in their own style with the ai-editor plugin.\n\n"
+        head = (f"# {display()}\n\nEdits the user's video in their own style with the ai-editor plugin.\n\n"
                 f"- Profile: `{taste.HOME / 'profile.json'}` (copies {who}; captions: {cap})\n"
                 f"- Taste: `{taste.HOME / 'taste.md'}` and `taste.json` (the settings the scripts read)\n\n"
                 "## Run\n\n1. Run the ai-editor `start` skill on the user's video. It reads the profile and the taste by itself.\n"
@@ -318,7 +318,7 @@ def describe(style_path, what, extra, default_use):
     if style_path is not None and low.startswith("@"):
         phrases = phrases[:2] + [f"/{n}"]
     phrases += [x for x in extra if x.lower() not in phrases]
-    if style_path is not None and not low.startswith("@"):
+    if not low.startswith("@"):
         phrases = [x for x in phrases if "@" not in x]   # renamed: the creator's handle stays in "what", not in a phrase
     others = [f"{display(sp)} (/{nm})" for sp, nm in saved() if nm != n]
     text = (f"Edits the user's video in {what}. Use when the user says " + ", ".join(f'"{x}"' for x in phrases)

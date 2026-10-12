@@ -4,6 +4,15 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- My style gets a name right away. When it is picked on Pick a style, or its page opens, before the user
+  has named it, the name is a field already focused with a suggestion selected ("Like @<creator>" when
+  it started from a creator, else the computer's login + " style"). Typing replaces it. Enter or
+  clicking away saves through the same rename as the pencil, so the skill folder, its description and
+  every other style's "Not for" carry the new name. Esc keeps the old name. An empty name saves the
+  suggestion. "My style" stays only when the user types it. The Make my video bar and the making page
+  show the style's name instead of a fixed "My style". Style names can hold "@" anywhere
+  ("Like @alexhormozi").
+
 ## ai-editor 2.4.0, creator-teardown 2.6.0 (2026-10-12)
 
 - The review page teaches the style from each finished video. On round 1 of the cut and of the edit of

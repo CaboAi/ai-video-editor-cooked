@@ -514,6 +514,27 @@ def style_of(root, sid):
     return sp, taste.merge(json.loads(sp.read_text(encoding="utf-8") or "{}"), ss.load_overrides(sp)), h
 
 
+def suggest_name(sid, base):
+    """The name a style's field falls back to: My style "Like @<creator>", else the user's login + " style";
+    a creator's style "@<handle> style" (so the two never claim one skill name)."""
+    if sid != "mine":
+        return f"@{base} style"[:40]
+    if base:
+        return f"Like @{base}"[:40]
+    import getpass
+    try:
+        who = re.sub(r"[^A-Za-z0-9._-]", "", getpass.getuser())[:33]
+    except Exception:
+        who = ""
+    return f"{who} style" if len(who) >= 2 else "My style"
+
+
+def naming(sid, sp, base):
+    """named: the user gave (or kept) a name; suggest: what the name field offers until they do."""
+    taste, ss = _taste()
+    return {"named": bool(ss.names().get(ss.key(sp), {}).get("name")), "suggest": suggest_name(sid, base)}
+
+
 def style_cards(root):
     """My style first (the profile's first copied creator, else the default style, with the user's
     corrections), then every creator studied in the library (with that style's corrections). Each card
@@ -540,7 +561,8 @@ def style_cards(root):
         changed = taste.rules_path().stat().st_mtime if n and taste.rules_path().exists() else None
         out.append({"id": sid, "name": ss.display(sp), "facts": facts(st), "look": look(st), "base": base,
                     "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "learned_from": vids, "made": made, "changed": changed, "cover": cover_of(root, sid), "face": face_of(root, base),
-                    "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False})
+                    "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False,
+                    **naming(sid, sp, base)})
     return out
 
 
@@ -690,7 +712,8 @@ def style_page(root, sid):
             "changed": [k for k in CONTROLS if dig(changed, k) is not None], "look": look(st), "facts": facts(st),
             "copies": copies, "rules": rules, "style_path": str(sp) if sp else None, "presets": preset_state(root, sid, st, base, changed),
             "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid), "face": face_of(root, base),
-            "delete_note": f"My style started from @{base}. It goes back to the default style." if sp and base and style_of(root, "mine")[2] == base else None}
+            "delete_note": f"My style started from @{base}. It goes back to the default style." if sp and base and style_of(root, "mine")[2] == base else None,
+            **naming(sid, sp, base)}
 
 
 def forget_where(sp, keep):
@@ -1387,9 +1410,9 @@ def make_handler(token):
                 try:
                     sid = str(body.get("id") or "mine")
                     taste, ss = _taste()
-                    sp, _, _ = style_of(root, sid)
-                    if path == "/style/rename":
-                        ss.rename(sp, body.get("name"))
+                    sp, _, base = style_of(root, sid)
+                    if path == "/style/rename":   # empty: the suggestion, so a style never ends up nameless
+                        ss.rename(sp, " ".join(str(body.get("name") or "").split()) or suggest_name(sid, base))
                     else:
                         ss.set_use_for(sp, body.get("text"))
                     return self.send(200, style_page(root, sid))
@@ -2272,6 +2295,8 @@ def demo():
     assert mine["line"].startswith("Your saved style. Started from @sample.creator.") and mine["facts"][0] == ["Cut every", "1.9 s"]
     assert mine["skill"] == "my-style" and st["@sample.creator"]["skill"] == "edit-like-sample-creator"
     assert mine["base"] == "sample.creator" and st["@sample.creator"]["base"] == "sample.creator", "the style page names where My style started"
+    assert mine["named"] is False and mine["suggest"] == "Like @sample.creator", "a new style offers a name from its source"
+    assert st["@sample.creator"]["suggest"] == "@sample.creator style" and suggest_name("mine", None).endswith(" style")
     assert place(Path.home() / "Movies" / "AI Editor") == "Movies › AI Editor" and (lambda lb: lb["place"] == place(lb["path"]))(get("/library"))
     # My styles: a style's page; a change there is a correction at that style's scope (overrides + its skill)
     pg = get("/style?id=@sample.creator")
@@ -2424,6 +2449,17 @@ def demo():
         except urllib.error.HTTPError as e:
             assert e.code == 400
     assert post("/style/cover/remove", {"id": "mine"})["ok"] and get("/style?id=mine")["cover"] is None
+    # naming My style right away: empty falls back to the suggestion; the skill moves and its description
+    # (what Claude matches on) carries the new name; keeping "My style" on purpose is a name too
+    pg = post("/style/rename", {"id": "mine", "name": "  "})
+    assert pg["name"] == "Like @sample.creator" and pg["named"] and pg["skill"]["name"] == "like-sample-creator", pg["name"]
+    t = (tmp / "skills" / "like-sample-creator" / "SKILL.md").read_text(encoding="utf-8")
+    assert t.startswith("---\nname: like-sample-creator\n") and '"/like-sample-creator"' in t and "# Like @sample.creator\n" in t, t[:600]
+    assert not (tmp / "skills" / "my-style").exists() and "Like @sample.creator (/like-sample-creator)" in \
+        (tmp / "skills" / "edit-like-sample-creator" / "SKILL.md").read_text(encoding="utf-8"), "the other styles' Not for names it"
+    assert get("/library")["styles"][0]["name"] == "Like @sample.creator" and get("/style?id=mine")["named"]
+    pg = post("/style/rename", {"id": "mine", "name": "My style"})
+    assert pg["name"] == "My style" and pg["named"] and pg["skill"]["name"] == "my-style" and (tmp / "skills" / "my-style" / "SKILL.md").exists()
     # rename from the page: the name and the skill; a taken name or bad characters are refused in plain words
     pg = post("/style/rename", {"id": "@sample.creator", "name": "Fast cuts"})
     assert pg["name"] == "Fast cuts" and pg["skill"]["name"] == "fast-cuts" and pg["skill"]["exists"], pg["skill"]

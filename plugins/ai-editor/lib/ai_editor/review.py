@@ -267,6 +267,18 @@ def listening(folder):
         return False
 
 
+BUSY_S = 900   # a Claude command on this edit in the last 15 min: Claude is mid-round, not gone
+
+
+def busy(folder):
+    """Claude ran a review command here recently (status, round, resolve...): it is working even with no
+    `wait` running, and takes notes sent now next."""
+    try:
+        return time.time() - (folder / "review" / ".claude").stat().st_mtime < BUSY_S
+    except OSError:
+        return False
+
+
 def log_pct(path):
     """The last "N/M" in a render log (Remotion prints "Rendered 812/3255"), as a percent."""
     try:
@@ -397,7 +409,7 @@ def make_handler(folder, token):
                 return self.send(200, HTML.read_bytes(), "text/html; charset=utf-8", cookie=True)
             if path == "/state":
                 d = load(rj)
-                d["listening"] = listening(folder)
+                d["listening"], d["busy"] = listening(folder), busy(folder)
                 d["cutcheck"] = (folder / "cut-check.html").exists()
                 d["home"] = home_url()   # the Home button: back to the editor's window, or how to start it
                 for x in d.get("activity", [])[-1:]:
@@ -1135,9 +1147,10 @@ def demo():
     if shutil.which("node"):
         ev = lambda t, n: {"listening": False, "sent": True, "round": n, "comments": [],
                            "events": [{"type": t, "stage": "edit", "handled": True}]}
-        o = subprocess.run(["node", "-e", js.group(0) + "for(const s of " + json.dumps([ev("approve", 0), ev("send", 1)])
+        mid = {"listening": False, "busy": True, "sent": False, "round": 1, "stage": "edit", "comments": [], "events": []}
+        o = subprocess.run(["node", "-e", js.group(0) + "for(const s of " + json.dumps([ev("approve", 0), ev("send", 1), mid])
                             + ")console.log(listenText(s))"], capture_output=True, text=True, check=True).stdout
-        assert o.splitlines() == ["Approved", "Claude is working on round 2"], o
+        assert o.splitlines() == ["Approved", "Claude is working on round 2", "Claude is working. Notes you send now are next."], o
     srv.shutdown()
     srv.server_close()
     shutil.rmtree(tmp, ignore_errors=True)
@@ -1194,6 +1207,9 @@ def main():
                 setattr(a, k, str(folder / f))
     if a.cmd != "start" and not (folder / "review.json").exists():
         sys.exit(f"no review in {folder}: run `start` first")
+    if a.cmd != "serve":   # every Claude-side command marks Claude as working on this edit
+        (folder / "review").mkdir(parents=True, exist_ok=True)
+        (folder / "review" / ".claude").touch()
     if a.cmd == "start":
         if not Path(a.video).exists():
             sys.exit(f"no such file: {a.video}")

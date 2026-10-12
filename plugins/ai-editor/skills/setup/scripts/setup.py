@@ -9,9 +9,11 @@
   python3 setup.py venv       create ~/.ai-video-editor/venv and install requirements/requirements.lock
   python3 setup.py model      download the free transcription model (about 500 MB, once, sha256 checked)
   python3 setup.py remotion   copy the renderer to ~/.ai-video-editor/remotion and npm ci it
-  python3 setup.py install-all [--report]   venv, model, remotion in order, never asking; a failed step is
-                              said with its fix and the steps that do not need it still run. --report shows
-                              each step and its progress on the home page (home.py status setup)
+  python3 setup.py warm       pay the first edit's one-time costs now: first load of the Python libraries,
+                              one test frame through the renderer (webpack's cache, the render browser's first start)
+  python3 setup.py install-all [--report]   venv, model, remotion, warm, then the cutout model, never asking; a
+                              failed step is said with its fix and the steps that do not need it still run. --report
+                              shows each step and its progress on the home page (home.py status setup)
 
 Pins: Python packages in plugins/ai-editor/requirements/requirements.lock (hashed, every OS);
 Node packages in remotion/package-lock.json; models in lib/ai_editor/models.py (URL + sha256).
@@ -678,6 +680,60 @@ def step_remotion(force=False, tick=None):
     return done
 
 
+WARM_IMPORTS = "import cv2, numpy, onnxruntime, faster_whisper, PIL.Image"
+
+
+def step_warm(force=False, tick=None):
+    """The first edit's one-time costs, paid during setup so the first edit is as fast as the second: the first
+    load of OpenCV, onnxruntime and faster-whisper (a new library is slow to load once; face.py took 16.6 s on its
+    first run, 2.0 s after), and one test frame through the real renderer, which builds webpack's cache
+    (<renderer>/node_modules/.cache, about 640 MB) and starts the render browser for the first time. Optional:
+    a failure is said and left to the first edit, which then pays these costs as before."""
+    import tempfile
+    py = VPY if VPY.exists() else Path(sys.executable)
+    sk = PLUGIN / "skills" / "style-edit" / "scripts"
+    try:
+        if VPY.exists():
+            if tick:
+                tick(0.05, "the Python libraries")
+            quiet([VPY, "-c", WARM_IMPORTS], None, "loading the Python libraries")
+        if tick:
+            tick(0.3, "a test frame")
+        with tempfile.TemporaryDirectory(prefix="ave-warm-") as t:
+            edit = Path(t) / "warm"
+            edit.mkdir()
+            quiet(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=540x960:r=30:d=2", "-f", "lavfi",
+                   "-i", "sine=f=220:d=2", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                   edit / "cut.mp4"], t, "making a test clip")
+            words = [{"text": w, "start": 0.2 + i * 0.4, "end": 0.5 + i * 0.4, "type": "word"}
+                     for i, w in enumerate("getting your computer ready".split())]
+            (edit / "captions.json").write_text(json.dumps(words), encoding="utf-8")
+            quiet([py, sk / "plan.py", edit / "style.json", edit / "captions.json", "--no-sfx"], t, "planning a test frame")
+            quiet([py, sk / "edit.py", "stills", edit, "--at", "1", "--no-check"], t, "drawing a test frame")
+    except SystemExit as e:
+        print(f"warm-up skipped, the first edit does it instead. {plain(e)}")
+        return "skipped"
+    print("warmed up: the first edit pays no one-time costs")
+    return "done"
+
+
+def step_cutout(force=False, tick=None):
+    """The cutout model (15 MB) for cards behind the speaker, fetched with everything else so turning that on later
+    downloads nothing. Optional: a failed download is said and left to first use (shown on the page then)."""
+    fresh = not (models.DIR / MATTE).exists()
+
+    def hook(blocks, size, total):
+        if tick and total > 0:
+            tick(min(1, blocks * size / total), f"{min(blocks * size, total) // 10**6} of {total // 10**6} MB")
+    try:
+        models.fetch(MATTE, force, hook)
+    except (SystemExit, Exception) as e:   # noqa: BLE001
+        print(f"cutout model not downloaded, it downloads the first time cards go behind you. {plain(e)}")
+        return "left for first use"
+    env_save(models={**env_load().get("models", {}), MATTE: models.PINS[MATTE][1]})
+    return "installed" if fresh or force else "up to date"
+
+
 def bootstrap(force=False, matte=False):
     """Everything, in order, safe to re-run: a second run downloads nothing and changes nothing."""
     rows = checks()[:4]
@@ -688,7 +744,8 @@ def bootstrap(force=False, matte=False):
         print("Install the tools above first (they ask for a password or need a new terminal), "
               "then run this again.")
         return 1
-    steps = [("python packages", step_venv), ("transcription model", step_model), ("renderer", step_remotion)]
+    steps = [("python packages", step_venv), ("transcription model", step_model), ("renderer", step_remotion),
+             ("warm-up", step_warm)]
     if matte:
         steps.append(("matting model", step_matte))
     for i, (name, fn) in enumerate(steps, 1):
@@ -701,9 +758,11 @@ def bootstrap(force=False, matte=False):
 
 
 INSTALL_STEPS = [  # (doctor row, what the page says, step, share of the bar, the row it needs)
-    ("python packages", "Installing the Python packages", step_venv, 0.25, None),
+    ("python packages", "Installing the Python packages", step_venv, 0.15, None),
     ("transcription model", "Downloading the transcription model", step_model, 0.35, "python packages"),
-    ("renderer", "Installing the renderer", step_remotion, 0.40, None),
+    ("renderer", "Installing the renderer", step_remotion, 0.15, None),
+    ("warm-up", "Warming up the editor, so your first video is as fast as the rest", step_warm, 0.30, "renderer"),
+    ("cutout model", "Downloading the cutout model, for cards behind you", step_cutout, 0.05, None),
 ]
 _said = {"t": 0.0, "p": -1.0}
 
@@ -1137,12 +1196,32 @@ def demo_install_all():
         job = [j for j in st["jobs"] if j["type"] == "setup"][-1]
         assert job["state"] == "done" and [s["text"] for s in job["steps"]] == ["Doing A"], job
         assert job["steps"][0]["progress"] == 1.0 and "rows" in st.get("doctor", {}), job
+    # The real steps: one bar (shares add to 1), warming waits for the renderer, the optional two never fail the install
+    assert abs(sum(x[3] for x in INSTALL_STEPS) - 1) < 1e-9 and [x[0] for x in INSTALL_STEPS] == [
+        "python packages", "transcription model", "renderer", "warm-up", "cutout model"], INSTALL_STEPS
+    assert dict((x[0], x[4]) for x in INSTALL_STEPS)["warm-up"] == "renderer"
+    global quiet
+    real_quiet, real_fetch = quiet, models.fetch
+    try:
+        def no_renderer(*a, **k):
+            sys.exit("ERROR: drawing a test frame failed (exit 1); its output is above.")
+        quiet = no_renderer
+        assert step_warm() == "skipped"
+        models.fetch = lambda *a, **k: sys.exit("ERROR: no connection")
+        with tempfile.TemporaryDirectory() as d:
+            keep_dir, models.DIR = models.DIR, Path(d)
+            try:
+                assert step_cutout() == "left for first use"
+            finally:
+                models.DIR = keep_dir
+    finally:
+        quiet, models.fetch = real_quiet, real_fetch
 
 
 if __name__ == "__main__":
     cmds = {"doctor": doctor, "venv": step_venv, "model": step_model, "remotion": step_remotion,
             "bootstrap": bootstrap, "repair": repair, "awskey": save_aws_key,
-            "lambda": check_lambda, "modal": install_modal, "modal-check": check_modal, "matte": step_matte,
+            "lambda": check_lambda, "modal": install_modal, "modal-check": check_modal, "matte": step_matte, "warm": step_warm,
             "demo": demo, "keys": test_keys, "certs": step_certs, "todo": todo, "crisper": install_crisper,
             "install-launcher": install_launcher, "uninstall-launcher": uninstall_launcher}
     if sys.argv[1:] == ["doctor", "--quiet"]:

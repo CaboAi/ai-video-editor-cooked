@@ -37,11 +37,15 @@ SRC = PLUGIN / "remotion"
 SETUP = PLUGIN / "skills" / "setup" / "scripts" / "setup.py"
 
 
-def sync_renderer():
-    """Install on first use; afterwards copy the source over so plugin updates take effect."""
+def sync_renderer(edit=None):
+    """Install on first use (setup normally has; after an update that moved its packages, it runs again, shown on
+    the home and review pages); afterwards copy the source over so plugin updates take effect."""
     lock = "package-lock.json"     # the pinned set: a changed lock means npm ci again
     same_deps = (REMOTION / lock).exists() and (REMOTION / lock).read_bytes() == (SRC / lock).read_bytes()
     if not (REMOTION / "node_modules" / "remotion").exists() or not same_deps:
+        sys.path.insert(0, str(PLUGIN / "lib"))
+        from ai_editor import models
+        models.announce("the renderer" + (" update" if (REMOTION / "node_modules").exists() else ""), edit)
         subprocess.run([sys.executable, str(SETUP), "remotion"], check=True)
     mirror(SRC / "src", REMOTION / "src")
     for f in ("render.mjs", "tsconfig.json"):
@@ -1242,7 +1246,7 @@ def main():
         review.step(edit, "plan")
     elif a.cmd == "render" and not (a.draft or a.github):   # a laptop render's log carries its percent
         review.step(edit, "render", None if a.use_lambda or a.modal else edit / f"render{tag}.renderer.log")
-    sync_renderer()
+    sync_renderer(edit)
     pub = prepare_public(edit, plan, tag)
     if a.cmd == "stills":
         # check.py plan first: prints what it finds, stops the stills only on a FAIL

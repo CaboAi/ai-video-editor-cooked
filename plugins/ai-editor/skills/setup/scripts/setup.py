@@ -714,6 +714,10 @@ def step_warm(force=False, tick=None):
     (<renderer>/node_modules/.cache, about 640 MB) and starts the render browser for the first time. Optional:
     a failure is said and left to the first edit, which then pays these costs as before."""
     import tempfile
+    stamp = f"{env_load().get('node_lock')}|{VPY.exists()}"   # redo only when the renderer or the venv changes
+    if not force and env_load().get("warm") == stamp and (REMOTION_HOME / "node_modules" / ".cache").is_dir():
+        print("warm-up: up to date")
+        return "up to date"
     py = VPY if VPY.exists() else Path(sys.executable)
     sk = PLUGIN / "skills" / "style-edit" / "scripts"
     t = Path(tempfile.mkdtemp(prefix="ave-warm-"))
@@ -744,6 +748,7 @@ def step_warm(force=False, tick=None):
         return "skipped"
     finally:
         shutil.rmtree(t, ignore_errors=True)
+    env_save(warm=stamp)
     print("warmed up: the first edit pays no one-time costs")
     return "done"
 

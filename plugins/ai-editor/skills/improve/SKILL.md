@@ -15,6 +15,23 @@ This runs in a checkout of the repo, for the person who maintains it. A fix here
 their next plugin update. `S="${CLAUDE_SKILL_DIR}/scripts"`. Run the scripts with `python3` on Mac
 and Linux, `py` on Windows.
 
+## 0. Who is running this
+
+```bash
+python3 "$S/improve.py" mode
+```
+
+`maintainer` only in a git checkout of the repo with `AI_EDITOR_MAINTAINER=1`: go on to step 1.
+
+`user`: the plugin's own files are replaced on every update, so never edit them (no SKILL.md,
+reference, script or PRINCIPLES.md). Collect and pick as below, then save each accepted item in the
+user's own layer, which updates never touch (`docs/customise.md` in the repo):
+a setting with `taste.py add ... --set`; a word rule with
+`python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/custom.py" rule "<rule>"`; a caption look as
+`custom/captions/<name>.json` plus `taste.py set captions.preset <name>`; template defaults as
+`custom/templates/<type>.json`. Then offer `taste.py suggest` so the maintainers can fix it for
+everyone. Stop there.
+
 ## 1. Collect
 
 ```bash
@@ -48,7 +65,7 @@ some creators' styles** (it belongs in a style.json field, not a rule) / **Not a
    tests it. Then the changelog line:
 
 ```bash
-python3 "$S/improve.py" log "quality.py: a zoom faster than 0.5 s is a FAIL (quality.py demo)"
+AI_EDITOR_MAINTAINER=1 python3 "$S/improve.py" log "quality.py: a zoom faster than 0.5 s is a FAIL (quality.py demo)"
 ```
 
 ## 4. Run everything
@@ -75,5 +92,6 @@ On a GitHub issue that is now fixed, offer to comment the changelog line and clo
 
 ## Files
 
-- `scripts/improve.py`: `collect`, `log`, `demo`. Reads only, except CHANGELOG.md.
+- `scripts/improve.py`: `mode`, `collect`, `log` (maintainer mode only), `demo`. Reads only, except CHANGELOG.md.
+- `${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/custom.py`: the user's `<library>/custom/` folder (user mode writes there).
 - `${CLAUDE_PLUGIN_ROOT}/skills/taste/scripts/taste.py`: where `suggest` and `issue` write the user side.

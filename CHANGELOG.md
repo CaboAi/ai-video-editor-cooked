@@ -4,6 +4,14 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Your changes survive updates: `<library>/custom/` holds your own rule files (`rules/*.md`, printed by
+  `taste.py show` so every skill follows them), caption styles (`captions/<name>.json`, on with
+  `taste.py set captions.preset <name>`), template defaults (`templates/<type>.json`) and the cut critic's
+  rubric (`prompts/judge-rubric.md`). The editor reads them before its own. Settings shows the folder with
+  Show in Finder. The improve skill only edits the plugin's files in a repo checkout with
+  `AI_EDITOR_MAINTAINER=1`; everyone else's changes go to custom/ or taste.json. Docs: `docs/customise.md`.
+  Test: `custom.py demo` (a user file still wins after the plugin folder is replaced), `plan.py demo`,
+  `judge_cut.py demo`, `taste.py demo`, `improve.py demo`, `home.py demo`.
 - Review page: while Claude is making a round (it ran `status`, `round` or `resolve` in the last 15 min) the
   page says "Claude is working. Notes you send now are next." instead of "Claude is not listening".
 - Claude's questions in the window: when Claude asks a question (AskUserQuestion) and the home page or a

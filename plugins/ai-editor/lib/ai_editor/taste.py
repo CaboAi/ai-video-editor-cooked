@@ -341,9 +341,11 @@ def load_json(edit_dir=None, count=True, style=None):
 
 
 def show(edit=None):
-    """taste.md and taste.json; with an edit, also that video's own rules, and the word rules count
-    as applied to it (Claude follows them in that edit)."""
+    """taste.md, taste.json and the rule files in <library>/custom/rules/; with an edit, also that video's own
+    rules, and the word rules count as applied to it (Claude follows them in that edit)."""
+    from ai_editor import custom
     out = [md_path().read_text(encoding="utf-8") if md_path().exists() else "(no taste.md yet)", json.dumps(read_json(), indent=1)]
+    out += [custom.rules_text()] if custom.rules() else []   # the user's own rule files (custom.py), kept through updates
     name = edit_name(edit)
     if name and (rules_path().exists() or md_path().exists()):
         rules = load_rules()
@@ -472,6 +474,8 @@ def demo():
     with tempfile.TemporaryDirectory() as d:
         HOME = Path(d) / "home"
         os.environ["AI_EDITOR_SKILLS"] = str(Path(d) / "skills")   # never the user's real skills folder
+        old_lib = os.environ.get("AI_EDITOR_LIBRARY")
+        os.environ["AI_EDITOR_LIBRARY"] = str(Path(d) / "lib")     # nor the real library's custom/ folder
         assert add_rule("visuals", "Logos smaller than the captions")[0] == "added"
         assert add_rule("visuals", "Logos smaller than the caption")[0].startswith("replaced")
         assert load_md()["Visuals"] == ["Logos smaller than the caption"]
@@ -517,8 +521,11 @@ def demo():
         assert st == "regression" and r["regressions"][-1]["edit"] == "vid-b" and r["since_fix"] == 0
         assert len(r["corrections"]) == 3 and read_json()["captions"]["size_pct"] == 7
         assert load_md()["Captions"] == ["Captions bigger again"]
-        # word rules count when Claude reads them for an edit
-        show(ed)
+        # word rules count when Claude reads them for an edit; the user's custom rule files show with them
+        from ai_editor import custom
+        assert "Your rules" not in show(ed)
+        custom.add_rule("Keep the first breath")
+        assert "Keep the first breath" in show(ed)
         assert next(x for x in load_rules() if x["rule"].startswith("Logos"))["applied_in"] == ["vid-a"]
         rep = report()
         assert "corrected 3x" in rep and "last on vid-b" in rep and "only vid-b" in rep, rep
@@ -559,10 +566,11 @@ def demo():
         assert "Said 1x" in (Path(d) / "skills" / "edit-like-alice" / "SKILL.md").read_text(encoding="utf-8")
         assert "Captions bigger again" in (Path(d) / "skills" / "my-style" / "SKILL.md").read_text(encoding="utf-8")
     sys.argv = old_argv
-    if old_skills is None:
-        os.environ.pop("AI_EDITOR_SKILLS", None)
-    else:
-        os.environ["AI_EDITOR_SKILLS"] = old_skills
+    for k, v in (("AI_EDITOR_SKILLS", old_skills), ("AI_EDITOR_LIBRARY", old_lib)):
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
     print("demo ok")
 
 

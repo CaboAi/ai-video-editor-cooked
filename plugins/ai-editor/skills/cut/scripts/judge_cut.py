@@ -6,7 +6,8 @@
         +------------------ apply: restore / trim / add, on spans.json ----------+
 
     python3 judge_cut.py prompt <edit_dir> [--script script.md]   writes judge-prompt.md (rubric,
-                                         the user's cut taste, the paper edit). No audio, no render.
+                                         the user's cut taste, the paper edit). The rubric is the user's
+                                         <library>/custom/prompts/judge-rubric.md when there is one (custom.py). No audio, no render.
     python3 judge_cut.py apply  <edit_dir> [--tighten]   reads judge.json, drops findings that fail the
                                          rubric's own bar, applies the rest to spans.json.
                                          Exit 0: nothing left to apply (done). Exit 3: spans changed, judge again.
@@ -38,6 +39,13 @@ from preview_cut import label, paper_edit  # noqa: E402
 from textnorm import load_words, locate, nwords  # noqa: E402
 
 RUBRIC = HERE.parent / "references" / "judge-rubric.md"
+sys.path.insert(0, str(HERE.parents[2] / "lib"))
+from ai_editor import custom  # noqa: E402
+
+
+def rubric():
+    """The user's <library>/custom/prompts/judge-rubric.md when there is one (kept through updates), else the plugin's."""
+    return custom.find("prompts", "judge-rubric.md", RUBRIC)
 CHECKS = {"B1", "B2", "B3", "B4", "W5", "W6"}
 BLOCKING = {"B1", "B2", "B3", "B4"}
 ACTIONS = {"restore", "trim", "add", "none"}
@@ -104,7 +112,7 @@ def taste_cut_rules():
 def build_prompt(d, script=None):
     md, _ = paper(spans_of(d), toks_of(d))
     parts = ["You are the critic in a video-editing loop. Grade the paper edit below against the rubric. "
-             "Follow the rubric exactly, including its output format.", "", "# RUBRIC", "", RUBRIC.read_text(encoding="utf-8")]
+             "Follow the rubric exactly, including its output format.", "", "# RUBRIC", "", rubric().read_text(encoding="utf-8")]
     rules = taste_cut_rules()
     if rules:
         parts += ["", "# THE USER'S OWN CUT RULES", "",
@@ -356,6 +364,7 @@ def demo():
     real_home = home
     with tempfile.TemporaryDirectory() as tmp:
         home = lambda: Path(tmp) / "home"
+        os.environ["AI_EDITOR_LIBRARY"] = str(Path(tmp) / "lib")   # never the user's custom/ folder
         d = Path(tmp) / "edits" / "vid"
         d.mkdir(parents=True)
         (d / "words.raw.json").write_text(json.dumps(toks), encoding="utf-8")
@@ -365,6 +374,11 @@ def demo():
         md, cuts = paper(spans, toks)
         assert "<<0>> so the first thing is <<1>> the price is low" in md, md
         assert "PAPER EDIT TO GRADE" in build_prompt(d) and "B1" in build_prompt(d)
+        # the user's own rubric (custom/prompts/judge-rubric.md) replaces the plugin's
+        (Path(tmp) / "lib" / "custom" / "prompts").mkdir(parents=True)
+        (Path(tmp) / "lib" / "custom" / "prompts" / "judge-rubric.md").write_text("MY RUBRIC", encoding="utf-8")
+        assert "MY RUBRIC" in build_prompt(d) and "B1" not in build_prompt(d).split("# PAPER")[0]
+        (Path(tmp) / "lib" / "custom" / "prompts" / "judge-rubric.md").unlink()
         # a hallucinated quote and a bad index are dropped; B3 on a redundant cut is downgraded
         f, dr = validate({"findings": [
             {"check": "B3", "cut": 1, "quote": "is the price", "fix": {"action": "trim", "keep_words": "speed and"}},

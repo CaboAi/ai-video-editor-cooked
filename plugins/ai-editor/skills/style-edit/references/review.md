@@ -46,7 +46,8 @@ removed pauses as `1.2s` chips. Each cut is flagged inline with its reason (a re
 brings it back. Selecting words shows a dark pill: **Restore**, **Copy**, **Cut** (Backspace or Delete
 cuts too). Changes wait on the page (highlighted) until **Apply**; Cmd/Ctrl+Z undoes the last one.
 **Preview** plays the raw take skipping every cut range plus the pending changes, without a render.
-Clicking a word seeks. On the edit stage it is read only.
+Clicking a word seeks; while the video plays the word said now is highlighted and kept in view. On the
+edit stage it is read only.
 
 Apply posts `/edits` `{"restore": [[start, end], ...], "cut": [[start, end], ...], "pause": [[start, end], ...]}`
 (raw-take seconds). The server changes `spans.json` itself: a restored word leaves the span covering it

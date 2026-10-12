@@ -6,16 +6,16 @@
 :root{--page:#FAFAF9;--panel:#FFFFFF;--raise:#FFFFFF;--line:#E7E5E4;--line2:#D6D3D1;--chip:#F5F5F4;--hover:#EFEEEC;
   --ink:#0C0A09;--ink-hover:#000000;--onink:#FFFFFF;--strong:#000000;--ink2:#44403C;--body:#57534E;--muted:#78716C;--quiet:#A8A29E;
   --film:#1C1917;--range:#0C0A0924;--shade:#0C0A098C;--zone:#FAFAF9E6;--sendoff:#D6D3D1;--sendarrow:#FFFFFF;
-  --sh:0 1px 2px #0C0A0914;--pop:0 8px 30px #0C0A0914;--ok:#15803D;--okbg:#F0FDF4;--okline:#BBF7D0;--chg:#FDE68A;--flag:#B91C1C;--flagbg:#FEF2F2;--flagline:#FECACA;--pill:#1C1917;--pilltx:#FAFAF9;--pillline:#1C1917;color-scheme:light}
+  --sh:0 1px 2px #0C0A0914;--pop:0 8px 30px #0C0A0914;--ok:#15803D;--okbg:#F0FDF4;--okline:#BBF7D0;--chg:#FDE68A;--nowbg:#0C0A0914;--flag:#B91C1C;--flagbg:#FEF2F2;--flagline:#FECACA;--pill:#1C1917;--pilltx:#FAFAF9;--pillline:#1C1917;color-scheme:light}
 /* dark: the OS setting until the user picks with the header switch (html[data-theme]) */
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--page:#100E0E;--panel:#161413;--raise:#2A2725;--line:rgba(255,255,255,.10);--line2:rgba(255,255,255,.18);--chip:rgba(255,255,255,.06);--hover:rgba(255,255,255,.09);
   --ink:#F2F0EB;--ink-hover:#FFFFFF;--onink:#100E0E;--strong:#F2F0EB;--ink2:rgba(242,240,235,.82);--body:rgba(242,240,235,.72);--muted:rgba(242,240,235,.58);--quiet:rgba(242,240,235,.45);
   --film:#000000;--range:rgba(242,240,235,.22);--shade:#0C0A098C;--zone:#FAFAF9E6;--sendoff:rgba(255,255,255,.12);--sendarrow:rgba(242,240,235,.55);
-  --sh:0 1px 2px rgba(0,0,0,.6);--pop:0 8px 30px rgba(0,0,0,.6);--ok:#4ADE80;--okbg:rgba(74,222,128,.08);--okline:rgba(74,222,128,.30);--chg:rgba(253,230,138,.28);--flag:#FCA5A5;--flagbg:rgba(248,113,113,.10);--flagline:rgba(248,113,113,.22);--pill:#2A2725;--pilltx:#F2F0EB;--pillline:rgba(255,255,255,.14);color-scheme:dark}}
+  --sh:0 1px 2px rgba(0,0,0,.6);--pop:0 8px 30px rgba(0,0,0,.6);--ok:#4ADE80;--okbg:rgba(74,222,128,.08);--okline:rgba(74,222,128,.30);--chg:rgba(253,230,138,.28);--nowbg:rgba(242,240,235,.14);--flag:#FCA5A5;--flagbg:rgba(248,113,113,.10);--flagline:rgba(248,113,113,.22);--pill:#2A2725;--pilltx:#F2F0EB;--pillline:rgba(255,255,255,.14);color-scheme:dark}}
 :root[data-theme=dark]{--page:#100E0E;--panel:#161413;--raise:#2A2725;--line:rgba(255,255,255,.10);--line2:rgba(255,255,255,.18);--chip:rgba(255,255,255,.06);--hover:rgba(255,255,255,.09);
   --ink:#F2F0EB;--ink-hover:#FFFFFF;--onink:#100E0E;--strong:#F2F0EB;--ink2:rgba(242,240,235,.82);--body:rgba(242,240,235,.72);--muted:rgba(242,240,235,.58);--quiet:rgba(242,240,235,.45);
   --film:#000000;--range:rgba(242,240,235,.22);--shade:#0C0A098C;--zone:#FAFAF9E6;--sendoff:rgba(255,255,255,.12);--sendarrow:rgba(242,240,235,.55);
-  --sh:0 1px 2px rgba(0,0,0,.6);--pop:0 8px 30px rgba(0,0,0,.6);--ok:#4ADE80;--okbg:rgba(74,222,128,.08);--okline:rgba(74,222,128,.30);--chg:rgba(253,230,138,.28);--flag:#FCA5A5;--flagbg:rgba(248,113,113,.10);--flagline:rgba(248,113,113,.22);--pill:#2A2725;--pilltx:#F2F0EB;--pillline:rgba(255,255,255,.14);color-scheme:dark}
+  --sh:0 1px 2px rgba(0,0,0,.6);--pop:0 8px 30px rgba(0,0,0,.6);--ok:#4ADE80;--okbg:rgba(74,222,128,.08);--okline:rgba(74,222,128,.30);--chg:rgba(253,230,138,.28);--nowbg:rgba(242,240,235,.14);--flag:#FCA5A5;--flagbg:rgba(248,113,113,.10);--flagline:rgba(248,113,113,.22);--pill:#2A2725;--pilltx:#F2F0EB;--pillline:rgba(255,255,255,.14);color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--page);color:var(--ink);font:13px/16px system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;font-synthesis:none}
 body{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
@@ -103,12 +103,9 @@ body.withTx #tx{display:flex}
 .ln .lt{width:44px;flex-shrink:0;font-size:13px;line-height:26px;color:var(--quiet)}
 .ln .lw{display:flex;flex-wrap:wrap;align-items:center;column-gap:5px;font-size:16px;line-height:26px;color:var(--body)}
 .ln.cur{background:var(--chip);padding:10px 14px;margin:-10px 0}
-.ln.cur .lt{color:var(--ink);font-weight:600}.ln.cur .lw{color:var(--ink)}
-.ln.far{opacity:.55}
+.ln.cur .lt{color:var(--ink);font-weight:600}
 .lw span{cursor:pointer;border-radius:5px}
-.lw span:hover{text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:4px}
 .lw s{color:var(--quiet);text-decoration-thickness:1px}
-.lw .now{background:var(--ink);color:var(--onink);padding:0 4px}
 .lw .pz{font-size:13px;line-height:20px;color:var(--quiet);border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:0 6px}
 
 .transport{height:44px;flex-shrink:0;display:flex;align-items:center;gap:14px;padding-right:8px}
@@ -267,11 +264,15 @@ aside{width:400px;flex-shrink:0;background:var(--panel);border:1px solid var(--l
 .pbtn.on,.pbtn.go{background:var(--ink);border-color:var(--ink);color:var(--onink)}.pbtn.go{font-weight:600}
 #txlines{user-select:none;-webkit-user-select:none}
 .lw .tw{cursor:pointer;border-radius:5px}
-.lw .tw:hover{text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:4px}
+/* follows the video: played words are a step stronger than the ones to come, the word said now has a soft ink highlight */
+.lw .tw{color:var(--body)}
+.lw .tw.past{color:var(--strong)}
+.lw .tw:hover{background:var(--hover)}
+.lw .tw.now{background:var(--nowbg);color:var(--strong);box-shadow:0 0 0 3px var(--nowbg)}
 .lw .tw.cut{color:var(--quiet);text-decoration:line-through;text-decoration-thickness:1px}
 .lw .tw.chg{background:var(--chg);color:var(--strong);padding:0 2px}
 .lw .tw.sel{background:var(--range);box-shadow:0 0 0 2px var(--range)}
-.lw .tw.nt{cursor:default;border-bottom:1px dotted var(--line2)}
+.lw .tw.nt{cursor:default}
 .lw .pz.chg{background:var(--chg);color:var(--strong);border-color:transparent;text-decoration:none}
 /* a flagged cut: a soft red band, its reason, the words, accept (keep it cut) or dismiss (bring it back) */
 .flag{flex-basis:100%;display:flex;align-items:center;gap:10px;margin:4px 0;padding:6px 6px 6px 12px;border-radius:10px;background:var(--flagbg)}
@@ -358,7 +359,7 @@ body.preview #pins,body.preview #cmprow{visibility:hidden}
 <div class="left">
  <div class="stagewrap">
  <div id="cmprow"><div class="seg" id="wc"><button data-m="watch">Watch</button><button data-m="compare">Compare</button></div>
-  <div class="hint"><select id="ver2" aria-label="compare with"></select><span>Both play together from the playhead</span></div></div>
+  <div class="hint"><select id="ver2" aria-label="compare with"></select></div></div>
  <div id="stage">
   <div id="pair">
    <figure class="pl" id="p2"><figcaption id="cap2"></figcaption><div class="player"><video id="v2" preload="auto" muted playsinline></video><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
@@ -449,7 +450,7 @@ async function load(force){
   S=d;
   if((d.theme==='light'||d.theme==='dark')&&document.documentElement.dataset.theme!==d.theme&&Date.now()-themeAt>3000){document.documentElement.dataset.theme=d.theme;themeIcon()}   // one theme with the window
   if(!view||(was&&was!==key(cur())&&key(view)===was)){view=cur();if(was&&was!==key(cur()))tab='notes'}   // follow a new round when it lands
-  for(const r of S.rounds||[])if(!(key(r) in DATA)){DATA[key(r)]=null;fetch('/data?k='+key(r)).then(x=>x.json()).then(j=>{DATA[key(r)]=j;txKey='';render()}).catch(()=>{})}
+  for(const r of S.rounds||[])if(!(key(r) in DATA)){DATA[key(r)]=null;fetch('/data?k='+key(r)).then(x=>x.json()).then(j=>{DATA[key(r)]=j;txSig='';render()}).catch(()=>{})}
   setVideo();render();
 }
 function cmpOptions(){   // what can play beside this round: its other versions, then earlier rounds of this stage
@@ -787,6 +788,7 @@ function txHtml(tx){
       h+=wordHtml(k)}
     return `<div class="ln" data-i="${li}"><span class="lt num">${l.t!=null?fmt(l.t):''}</span><div class="lw">${h}</div></div>`}).join('');
 }
+const txSeen=()=>{try{return localStorage.getItem('txseen')==='1'}catch(e){return false}};
 function renderTools(){
   const ed=txEditable(),p=pending(),n=nChanges();let h;
   if(view.stage==='edit')h='<p>Read only on the edit: it is built on the approved cut. To change a word, leave a note.</p>';
@@ -794,7 +796,7 @@ function renderTools(){
   else if(p==='send')h='<p>Claude has this round. Words can change again when the next round is up.</p>';
   else if(p==='approve')h='<p>The cut is approved. Words are read only now.</p>';
   else if(n)h=`<b class="num" title="not applied yet">${plural(n,'change')}</b><button class="pbtn" data-undo title="Cmd+Z">Undo</button><button class="pbtn" data-discard>Discard</button>`;
-  else h='<p>Select words to cut or restore them. A tick keeps a red cut, a cross brings it back.</p>';
+  else h=txSeen()?'<p></p>':'<p>Select words to cut or restore them.</p>';
   if(canPreview()&&(ed||previewOn))h+=`<button class="pbtn${previewOn?' on':''}" data-preview>${previewOn?'Back to the cut':'Preview'}</button>`;
   if(ed&&n)h+='<button class="pbtn go" data-apply>Apply</button>';
   const el=$('txtools');if(el._h!==h){el._h=h;el.innerHTML=h}
@@ -805,20 +807,30 @@ function renderTx(){
   if(!show){txSig='';hideBar();return}
   renderTools();
   const sig=txFor+'|'+txVer+'|'+txEditable();
-  if(sig===txSig)return;txSig=sig;txCur=-1;txNow=-1;
+  if(sig===txSig)return;txSig=sig;txCur=-1;txNow=-1;txPast=-1;
   const tx=src[0],box=$('txlines'),top=box.scrollTop;
   $('txmeta').textContent=`Struck words were cut · ${plural(tx.cuts,'cut')} · ${fmt(tx.source_s)} to ${fmt((DATA[src[1]]||{}).duration||D())}`;
   box.innerHTML=txHtml(tx);box.scrollTop=top;txLines=[...box.children];
   tickTx();if(txSel)showBar();
 }
+let txHand=0,txPast=-1;   // txHand: when the user last scrolled the transcript by hand (auto-scroll waits 3 s)
 function tickTx(){
   if(!txSig||!W.length)return;const t=v.currentTime+.05;let k=-1;
-  for(let i=0;i<W.length;i++){const w=W[i];if(w.nt)continue;const at=previewOn?(cutNow(i)?null:w.s):w.t;if(at!=null&&at<=t)k=i}
+  for(let i=0;i<W.length;i++){const w=W[i];const at=previewOn?(w.nt||cutNow(i)?null:w.s):w.t;if(at!=null&&at<=t)k=i}
   const li=k>=0?W[k].li:-1;
-  if(li!==txCur){txCur=li;txLines.forEach((el,i)=>{el.classList.toggle('cur',i===li);el.classList.toggle('far',li>=0&&i>li+2)});
-    const c=txLines[li];if(c&&!txSel){const box=$('txlines');box.scrollTo({top:c.offsetTop-box.offsetTop-Math.min(140,box.clientHeight*.25),behavior:'smooth'})}}
-  if(k!==txNow){txNow=k;document.querySelectorAll('#txlines .now').forEach(e=>e.classList.remove('now'));const el=k>=0&&document.querySelector(`#txlines [data-k="${k}"]`);if(el)el.classList.add('now')}
+  if(li!==txCur){txCur=li;txLines.forEach((el,i)=>el.classList.toggle('cur',i===li))}
+  if(k!==txNow){txNow=k;document.querySelectorAll('#txlines .now').forEach(e=>e.classList.remove('now'));
+    const lo=Math.min(k,txPast),hi=Math.max(k,txPast);   // played words: only the ones between the old and new word change
+    for(let i=lo+1;i<=hi;i++){const e=document.querySelector(`#txlines [data-k="${i}"]`);if(e)e.classList.toggle('past',i<=k)}
+    txPast=k;const el=k>=0&&document.querySelector(`#txlines [data-k="${k}"]`);if(el)el.classList.add('now')}
+  const el=k>=0&&document.querySelector(`#txlines [data-k="${k}"]`);
+  if(el&&!txSel&&!txDown&&Date.now()-txHand>3000){   // keep the word said now in view, about a third down
+    const box=$('txlines'),r=el.getBoundingClientRect(),b=box.getBoundingClientRect();
+    if(r.top<b.top+24||r.bottom>b.bottom-48){box.scrollTo({top:box.scrollTop+r.top-b.top-box.clientHeight*.3,behavior:'smooth'})}}
 }
+['wheel','touchmove'].forEach(n=>$('txlines').addEventListener(n,()=>txHand=Date.now(),{passive:true}));
+$('txlines').addEventListener('pointerdown',e=>{if(e.target===$('txlines'))txHand=Date.now()});   // the scrollbar
+(function follow(){if(!v.paused)tickTx();requestAnimationFrame(follow)})();
 const txChanged=()=>{txVer++;KEEP=keepRanges();render()};
 function seekWord(k){const w=W[k];if(!w||w.nt)return;
   if(previewOn){v.currentTime=w.s;return}
@@ -862,6 +874,7 @@ $('txlines').addEventListener('pointerdown',e=>{
 document.addEventListener('pointermove',e=>{if(!txDown)return;const k=wordAt(e);if(k==null)return;
   if(k!==txAnchor)txMoved=true;if(txMoved){txSel={a:Math.min(txAnchor,k),b:Math.max(txAnchor,k)};paintSel()}});
 document.addEventListener('pointerup',()=>{if(!txDown)return;txDown=false;
+  if(txEditable()&&!txSeen()){try{localStorage.setItem('txseen','1')}catch(e){}renderTools()}   // the hint goes after the first selection
   if(!txMoved){seekWord(txAnchor);txSel={a:txAnchor,b:txAnchor};paintSel();return showBar()}   // one word: seek, and offer it
   showBar()});
 $('txlines').addEventListener('scroll',()=>{if($('txbar').classList.contains('open'))showBar()});

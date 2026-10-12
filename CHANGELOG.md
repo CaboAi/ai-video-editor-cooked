@@ -41,7 +41,11 @@ What changed for every user, newest first.
   with no measured scale, Done tiles breaking "today" letter by letter, and a style page heading
   breaking a handle mid-word.
 - Review page: change the cut from its transcript, like Tella, right in the transcript beside the player.
-  Cut words are struck and removed pauses marked. Each cut is flagged inline with its reason (a soft red
+  Cut words are struck and removed pauses marked. While the video plays the transcript follows it: the word
+  said now has a soft highlight, played words are a step stronger, and the list keeps the word in view
+  (it waits 3 s after the user scrolls by hand), on the cut and in Preview. A round's data file from before
+  words carried raw times is rebuilt when the page asks for it (every word looked untimed, underlined
+  and could not be edited). Each cut is flagged inline with its reason (a soft red
   band: Filler, Retake, False start, Your cut, Cut with a pause, Pause 1.2s): the tick keeps it, the cross
   brings it back. Selecting words shows one dark pill: Restore, Copy (to the clipboard), Cut; Backspace or
   Delete cuts, Cmd/Ctrl+Z undoes the last change. Changes wait, highlighted, until Apply. Preview plays the

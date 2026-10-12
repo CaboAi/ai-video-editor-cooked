@@ -103,6 +103,25 @@ npx skills add nextwork-projects/ai-video-editor
 `plugins/ai-editor/lib/` and the renderer in `plugins/ai-editor/remotion/`, so if your agent copies
 single skill folders, clone the whole repo too.
 
+### Want to change the editor itself?
+
+Most people never need to. The plugin plus your own folder covers it: your styles, skills and
+settings live in your folder and stay when the editor updates. See
+[docs/customise.md](docs/customise.md).
+
+If you want to change the editor's own code:
+
+1. On GitHub, press **Fork** at the top of this page. You get your own copy.
+2. In Claude Code, install the editor from your copy:
+   ```
+   /plugin marketplace add <your-github-name>/ai-video-editor
+   /plugin install ai-editor@nextwork
+   ```
+3. Clone your fork and change anything you like.
+4. When a new version comes out, say **update the editor**. Claude makes a backup branch, pulls the
+   new version in, keeps your changes, runs the self-checks, and takes you back to the backup if
+   they fail. It never pushes unless you ask.
+
 ## What happens next
 
 1. **Setup**, first time only. Claude checks your computer and installs what is missing: Python,
@@ -148,6 +167,7 @@ lists every one, with its review page, **Show in Finder**, and **Clear working f
 | `taste` | "captions too small", "fewer zooms" | |
 | `clips` | "clip this video", "make shorts from my podcast" | a long video, a YouTube link, a podcast episode (Apple Podcasts, RSS, YouTube) |
 | `product-video` | "make a launch video for my site" | a website URL |
+| `update` | "update the editor", "get the latest version", "sync my fork" | |
 | `improve` | "improve the editor", "process suggestions" (for people working on this repo) | |
 
 `motion-design` is a reference the other skills read; you do not call it yourself.

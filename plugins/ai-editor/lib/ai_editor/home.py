@@ -61,6 +61,7 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import askhook  # noqa: E402
+import custom  # noqa: E402
 import keys  # noqa: E402
 import library  # noqa: E402
 import links  # noqa: E402
@@ -599,7 +600,7 @@ def make_handler(token):
                         cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True,
                                       "line": "Being studied now. Your cut starts first; the style waits for the study."})
                 return self.send(200, {"path": root, "place": place(root), "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
-                                       "videos": vids, "styles": cards})
+                                       "custom": str(custom.path(False)), "videos": vids, "styles": cards})
             if path == "/recent":
                 st = read()
                 rs = library.recent(st.get("picked") or [], bool(st.get("scan_home")))
@@ -688,9 +689,9 @@ def make_handler(token):
                 return self.send(200, probe(body.get("path") or ""))
             if path == "/job":
                 return self.job(body)
-            if path == "/reveal":   # Show in Finder / Explorer: the library or one of its videos only
-                p = Path(str(body.get("dir") or read()["root"])).resolve()
-                if p != Path(read()["root"]).resolve() and p not in library.edit_dirs():
+            if path == "/reveal":   # Show in Finder / Explorer: the library, one of its videos, or the custom folder
+                p = custom.path().resolve() if body.get("custom") else Path(str(body.get("dir") or read()["root"])).resolve()
+                if p not in (Path(read()["root"]).resolve(), custom.path(False).resolve()) and p not in library.edit_dirs():
                     return self.send(400, {})
                 subprocess.Popen(library.reveal_cmd(p), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 return self.send(200, {})
@@ -1299,6 +1300,7 @@ def demo():
         raise AssertionError("served a file outside the library's videos")
     except urllib.error.HTTPError as e:
         assert e.code == 404
+    assert get("/library")["custom"] == str(custom.path(False)) and not custom.path(False).exists()   # made on first open
     try:   # Show in Finder only opens the library or one of its videos
         post("/reveal", {"dir": str(tmp)})
         raise AssertionError("revealed a folder outside the library")

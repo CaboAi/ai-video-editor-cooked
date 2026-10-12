@@ -16,7 +16,11 @@ The user's own rules, kept outside the plugin (plugin updates never touch them):
 ```
 ~/.ai-video-editor/taste.md     rules in plain words, one bullet each, by section
 ~/.ai-video-editor/taste.json   settings the scripts read; they win over the creator's style.json
+<library>/custom/               their own rule files, caption styles and template defaults (custom.py)
 ```
+
+Never write a correction into the plugin's own files (a SKILL.md, a reference, a script): an update
+replaces them. Everything the user teaches goes in the files above.
 
 `S="${CLAUDE_SKILL_DIR}/scripts"`. Stdlib only, any `python3` (`py` on Windows).
 
@@ -58,6 +62,7 @@ python3 "$S/taste.py" add captions "Captions smaller" --set captions.size_pct=4.
 | no sound effects | `sfx=false` |
 | always split / always overlay | `layout.mode=split` or `overlay` |
 | keep my ums / don't cut fillers | `cut.keep_fillers=true` (retakes.py proposes no filler cuts) |
+| a whole caption look they want kept | write `custom/captions/<name>.json` (a style.json captions block), then `captions.preset=<name>` |
 
    No setting fits (card timing, a capture cropped wrong, a look), so it is a word rule: write it
    so it can be followed next time ("Captures crop to the sentence that proves the point").
@@ -122,6 +127,7 @@ the creator's style disagree, say so once and follow the rule.
 ## Files
 
 - `scripts/learn.py`: a raw take and the user's posted cut of it in, their cut settings out; `demo`.
+- `${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/custom.py`: `path`, `rule "<rule>"` (a rule file in custom/rules/, which `show` prints), `list`.
 - `scripts/taste.py`: `add`, `report`, `show`, `forget`, `rule`, `set`, `unset`, `get`, `suggest`, `issue`, `demo`. A thin
   CLI over the plugin's `lib/ai_editor/taste.py`, whose `load_json()` and `merge()` are what plan.py
   and the cut use to lay the taste over the defaults and style.json.

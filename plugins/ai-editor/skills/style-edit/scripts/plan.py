@@ -24,6 +24,8 @@ footage. A beat's "layout" overrides, except that an explaining card on vertical
 Also writes "look" (profile brand kit > creator style.json > editorial; references/motion.md) and
 "motion" (the personality, from the creator's pace). The anti-generic rules (visuals.md) run first.
 The user's profile (~/.ai-video-editor/profile.json, the start skill) supplies brand, avoid and sound.
+The user's own layer (<library>/custom/, custom.py): captions.preset names a caption style in custom/captions/,
+and custom/templates/<type>.json holds default props for that motion template.
 Shapes: references/contracts.md, references/motion.md. Stdlib only, deterministic.
 """
 import argparse
@@ -525,6 +527,28 @@ def type_only(v):
     return v.get("type") in TYPE_ONLY
 
 
+def with_caption_preset(style, mine):
+    """The user's caption style (<library>/custom/captions/<name>.json, custom.py) laid over the creator's
+    captions, when taste.json (mine) or style.json names it in captions.preset. taste.json's own caption keys
+    still win (they are merged after this)."""
+    name = ((mine.get("captions") or {}).get("preset") or (style.get("captions") or {}).get("preset"))
+    if not name:
+        return style
+    from ai_editor import custom
+    preset = custom.load_json("captions", name)
+    if not preset:
+        print(f"warning: captions.preset {name!r}: no {custom.path(False) / 'captions' / (name + '.json')}; "
+              f"using the style's captions", file=sys.stderr)
+    return {**style, "captions": {**(style.get("captions") or {}), **preset}}
+
+
+def template_props(kind, props):
+    """A beat's props over the user's defaults for that template (<library>/custom/templates/<kind>.json)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
+    from ai_editor import custom
+    return {**custom.load_json("templates", kind), **(props or {})}
+
+
 def anim_items(visuals, edit_dir=None, style=None):
     """The built-animation beats of visuals.json as card items. Capture beats reach the
     plan through images.json (capture.mjs writes them there). "post" beats become social_post
@@ -553,7 +577,7 @@ def anim_items(visuals, edit_dir=None, style=None):
         item = {k: v[k] for k in ("word", "nth", "box", "entrance", "hold_s", "layout", "transition_in", "transition_out", "focus") if k in v}
         if "box" in v:
             item["_own_box"] = True
-        item["anim"] = {"type": v["type"], "props": v.get("props") or {}}
+        item["anim"] = {"type": v["type"], "props": template_props(v["type"], v.get("props"))}
         out.append(item)
     return out
 
@@ -2181,6 +2205,25 @@ def demo_contrast():
                                text=True, env={**os.environ, "AI_EDITOR_HOME": d})
             cap = json.loads((Path(d) / "plan.json").read_text(encoding="utf-8"))["captions"]["style"]
             assert r.returncode == 0 and cap["size_pct"] == 4.5 and cap["y_pct"] == 60, (r.stderr, cap)
+        # the user's own caption style (custom/captions/bold.json) named in taste.json: over the creator's captions,
+        # under taste.json's own keys and this style's overrides. A template's user defaults sit under a beat's props.
+        lib = Path(d) / "lib"
+        (lib / "custom" / "captions").mkdir(parents=True)
+        (lib / "custom" / "templates").mkdir()
+        (lib / "custom" / "captions" / "bold.json").write_text('{"color": "#FFE600", "y_pct": 50, "size_pct": 9}', encoding="utf-8")
+        (lib / "custom" / "templates" / "flow.json").write_text('{"direction": "down", "gap": 2}', encoding="utf-8")
+        (Path(d) / "taste.json").write_text('{"captions": {"size_pct": 7, "y_pct": 60, "preset": "bold"}}', encoding="utf-8")
+        env = {**os.environ, "AI_EDITOR_HOME": d, "AI_EDITOR_LIBRARY": str(lib)}
+        r = subprocess.run([sys.executable, __file__, str(cs / "style.json"), f"{d}/captions.json"], capture_output=True, text=True, env=env)
+        cap = json.loads((Path(d) / "plan.json").read_text(encoding="utf-8"))["captions"]["style"]
+        assert r.returncode == 0 and (cap["color"], cap["y_pct"], cap["size_pct"]) == ("#FFE600", 60, 4.5), (r.stderr, cap)
+        old_lib = os.environ.get("AI_EDITOR_LIBRARY")
+        os.environ["AI_EDITOR_LIBRARY"] = str(lib)
+        try:
+            got = anim_items([{"kind": "anim", "type": "flow", "word": "x", "props": {"gap": 5}}])[0]["anim"]["props"]
+        finally:
+            os.environ.pop("AI_EDITOR_LIBRARY") if old_lib is None else os.environ.update(AI_EDITOR_LIBRARY=old_lib)
+        assert got == {"direction": "down", "gap": 5}, got
 
 
 # One beat at a time, for the overlays skill: which beat made a card, and a change to just that beat.
@@ -2365,6 +2408,8 @@ def beat_cmd(argv):
 
 def main():
     if sys.argv[1:] == ["demo"]:
+        import os
+        os.environ["AI_EDITOR_LIBRARY"] = tempfile.mkdtemp(prefix="plan_demo_lib_")   # never the user's custom/ folder
         return demo()
     if sys.argv[1:2] in (["cards"], ["beat"]):
         return beat_cmd(sys.argv[1:])
@@ -2398,7 +2443,8 @@ def main():
         print(f"note: {sp} {'is empty' if style == {} else 'not found'}; planning with the default style. To keep it "
               f"with the edit: python3 {Path(profile.__file__)} style {edit_dir}", file=sys.stderr)
         style = profile.default_style(prof)
-    style = profile.fill_transitions(taste.merge(style, taste.load_json(style=sp)),
+    mine = taste.load_json(style=sp)
+    style = profile.fill_transitions(taste.merge(with_caption_preset(style, mine), mine),
                                      lambda m: print(f"note: {m}", file=sys.stderr))
     plan = build(style, json.loads(Path(a.words).read_text(encoding="utf-8")),
                  probe(video), images, a.aspect, cut_points(edit_dir), visuals, edit_dir,

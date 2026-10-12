@@ -6,7 +6,12 @@
                                     review-page notes (*/review.json: marked would-help-everyone, or the same
                                     rule on two or more videos) and open GitHub issues labelled feedback,
                                     grouped by rule, repeats first. Default DIRs: edits, clips, product
+    python3 improve.py mode         "maintainer" or "user". maintainer only in a git checkout of the repo with
+                                    AI_EDITOR_MAINTAINER=1: the one path that may edit the plugin's own files.
+                                    Everyone else's changes go to <library>/custom/ (custom.py) or taste.json,
+                                    because a plugin update replaces the plugin folder.
     python3 improve.py log "<one line: the rule, the check, the test>"   a CHANGELOG.md entry under Unreleased
+                                    (maintainer mode only)
     python3 improve.py demo         self-check, no network
 
 Reads only. Never writes the user's taste files; the only write is CHANGELOG.md in a checkout of the repo.
@@ -96,6 +101,19 @@ def group(found):
     return sorted(groups, key=lambda g: (-g["count"], g["rule"]))
 
 
+def maintainer(root=None):
+    """True only in a git checkout of the editor repo with AI_EDITOR_MAINTAINER=1. An installed plugin
+    (even a marketplace clone with .git) is replaced on update, so edits to its files are lost: user mode."""
+    root = Path(root or Path(__file__).resolve().parents[5])
+    return os.environ.get("AI_EDITOR_MAINTAINER") == "1" and (root / ".git").exists() and (root / "plugins" / "ai-editor").is_dir()
+
+
+def custom_path():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
+    from ai_editor import custom
+    return custom.path(False)
+
+
 def changelog(entry, root=None):
     """Append one line under '## Unreleased' in CHANGELOG.md at the repo root (created if missing)."""
     root = Path(root or subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip() or ".")
@@ -149,6 +167,12 @@ def demo():
         assert not {"Slow the cut on this one", "cut the um at 0:12"} & set(g), g
         root = Path(t) / "repo"
         (root / "plugins" / "ai-editor").mkdir(parents=True)
+        (root / ".git").mkdir()
+        was = os.environ.pop("AI_EDITOR_MAINTAINER", None)
+        assert not maintainer(root), "a checkout alone is user mode"
+        os.environ["AI_EDITOR_MAINTAINER"] = "1"
+        assert maintainer(root) and not maintainer(Path(t) / "home"), "the flag outside a checkout is still user mode"
+        os.environ.pop("AI_EDITOR_MAINTAINER") if was is None else os.environ.update(AI_EDITOR_MAINTAINER=was)
         changelog("quality.py: zooms faster than 0.5 s fail (demo assert)", root)
         f = changelog("record.mjs: create is on the deny list (tests/test_record.mjs)", root)
         text = f.read_text(encoding="utf-8")
@@ -162,7 +186,13 @@ def main():
     a = sys.argv[1:]
     if a[:1] == ["demo"]:
         return demo()
+    if a[:1] == ["mode"]:
+        return print("maintainer" if maintainer() else f"user: save changes in {custom_path()} (custom.py) or taste.json, "
+                     "never in the plugin's files")
     if a[:1] == ["log"] and len(a) == 2:
+        if not maintainer():
+            sys.exit("ERROR: user mode. The plugin's files are replaced on update; save the rule with custom.py rule "
+                     "instead. Maintainers: run in the repo checkout with AI_EDITOR_MAINTAINER=1")
         return print(changelog(a[1]))
     if a[:1] == ["collect"]:
         edits = [a[i + 1] for i, x in enumerate(a) if x == "--edits" and i + 1 < len(a)] or ["edits", "clips", "product"]

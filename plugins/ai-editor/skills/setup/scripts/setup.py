@@ -16,6 +16,8 @@ What got installed is recorded in ~/.ai-video-editor/env.json. AI_EDITOR_HOME mo
   python3 setup.py setkey typesafe|gemini|elevenlabs   save an API key (asks, hides what you type),
                               after one free test request proves it works
   python3 setup.py keys       test every saved key (one free request each)
+  python3 setup.py certs      let Python check secure websites ("fix my certificates"): certifi into the venv,
+                              and on macOS python.org's Install Certificates.command, then a re-test
   python3 setup.py crisper    install CrisperWhisper, free verbatim transcription (about 1 GB; non-commercial licence)
   python3 setup.py awskey     save AWS keys for Lambda renders (asks, hides what you type)
   python3 setup.py lambda     check the AWS keys and permissions for Lambda renders
@@ -43,7 +45,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
-from ai_editor import keys, models, profile  # noqa: E402
+from ai_editor import keys, models, net, profile  # noqa: E402
 
 OS = platform.system()  # Darwin, Windows, Linux
 HOME = Path(os.environ.get("AI_EDITOR_HOME", Path.home() / ".ai-video-editor"))
@@ -283,6 +285,48 @@ def free_bytes():
     return shutil.disk_usage(p).free
 
 
+def install_certificates_command():
+    """python.org's macOS fixer for the running Python, or None."""
+    p = Path(f"/Applications/Python {sys.version_info.major}.{sys.version_info.minor}/Install Certificates.command")
+    return p if OS == "Darwin" and p.exists() else None
+
+
+def certs_row(online=True):
+    """(ok, detail, fix). CA certs in net.context() (no network); online, a 3 s HEAD to ElevenLabs as well,
+    which only fails the row on a certificate error (offline is not this row's problem)."""
+    n = net.context().cert_store_stats()["x509_ca"]
+    ok = n > 0
+    if ok and online:
+        import urllib.request
+        try:
+            net.urlopen(urllib.request.Request("https://api.elevenlabs.io", method="HEAD"), 3).close()
+        except Exception as e:   # an HTTP status or no network is fine here
+            ok = not net.is_cert_error(e)
+    cmd = install_certificates_command()
+    fix_cmd = (f'open "{cmd}"' if cmd else
+               f'{"py" if OS == "Windows" else "python3"} "{Path(__file__).resolve()}" certs')
+    return ok, (f"{n} trusted certificates" if ok else "this Python can't check secure websites "
+                "(key checks and ElevenLabs, TypeSafe, Gemini calls fail)"), fix_cmd
+
+
+def step_certs():
+    """certifi at its pin into the venv (net.py finds it there even from the system python3), python.org's
+    Install Certificates.command on macOS when this Python has no certificates of its own, then a re-test."""
+    if VPY.exists():
+        pin = re.search(r"^certifi==(\S+)", LOCK.read_text(encoding="utf-8"), re.M).group(1)
+        subprocess.run([str(VPY), "-m", "pip", "install", "-q", "--disable-pip-version-check", f"certifi=={pin}"],
+                       check=True)
+    import ssl
+    cmd = install_certificates_command()
+    if cmd and ssl.create_default_context().cert_store_stats()["x509_ca"] == 0:
+        subprocess.run([str(cmd)], check=False)
+    ok, detail, fix_cmd = certs_row()
+    print(f"{'ok ' if ok else 'FIX'}  {'secure web':<20} {detail}")
+    if not ok:
+        print(f"     run: {fix_cmd}")
+    return 0 if ok else 1
+
+
 def key_line(name, have, without, where):
     """One doctor row. A missing key points at the setup skill, which saves it from the clipboard
     (the same one instruction as setup SKILL.md step 5), never at a terminal."""
@@ -300,6 +344,10 @@ def doctor():
     print(f"{'ok ' if disk_ok else 'FIX'}  {'free disk':<20} {detail}")
     if not disk_ok:
         print("     empty the Trash, delete old renders or move large files, then run doctor again")
+    certs_ok, detail, cmd = certs_row()
+    print(f"{'ok ' if certs_ok else 'FIX'}  {'secure web':<20} {detail}")
+    if not certs_ok:
+        print(f"     run: {cmd}")
     here = Path(__file__).resolve()
     py_self = "py" if OS == "Windows" else "python3"
     for name, have, without in KEY_ROWS:
@@ -324,7 +372,7 @@ def doctor():
         print(browser_line(b.returncode == 0, b.stdout.strip()))
     for domain, days, _ in saved_logins():
         print(login_line(domain, days))
-    ready = all(r[1] for r in rows) and disk_ok
+    ready = all(r[1] for r in rows) and disk_ok and certs_ok
     if ENV.exists():
         print(f"     installed versions: {ENV}")
     print("Ready." if ready else "Not ready. Fix the lines above, top to bottom.")
@@ -947,6 +995,8 @@ def demo():
         env_save(**good)
         assert ENV.stat().st_mtime_ns == before and env_load() == good
     ENV = keep_env
+    ok, detail, cmd = certs_row(online=False)
+    assert ok and "trusted certificates" in detail and cmd, (ok, detail, cmd)
     demo_launcher()
     print("demo ok")
 
@@ -955,7 +1005,7 @@ if __name__ == "__main__":
     cmds = {"doctor": doctor, "venv": step_venv, "model": step_model, "remotion": step_remotion,
             "bootstrap": bootstrap, "repair": repair, "awskey": save_aws_key,
             "lambda": check_lambda, "modal": install_modal, "modal-check": check_modal, "matte": step_matte,
-            "demo": demo, "keys": test_keys, "todo": todo, "crisper": install_crisper,
+            "demo": demo, "keys": test_keys, "certs": step_certs, "todo": todo, "crisper": install_crisper,
             "install-launcher": install_launcher, "uninstall-launcher": uninstall_launcher}
     if sys.argv[1:] == ["doctor", "--quiet"]:
         sys.exit(doctor_quiet())

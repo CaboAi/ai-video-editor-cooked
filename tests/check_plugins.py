@@ -279,6 +279,14 @@ def main():
     run_b = ROOT / "plugins/creator-teardown/skills/creator-teardown/scripts/run.py"
     if run_a.read_bytes() != run_b.read_bytes():
         errors.append(f"{run_b}: differs from {run_a}; copy it across")
+    # The certificate fallback is copied into creator-teardown, which cannot import ai_editor.
+    def ctx_fn(p):
+        t = p.read_text(encoding="utf-8")
+        return t[t.index("def context():"):].split("\ndef ", 1)[0]
+    net_a = ROOT / "plugins/ai-editor/lib/ai_editor/net.py"
+    net_b = ROOT / "plugins/creator-teardown/skills/creator-teardown/scripts/_net.py"
+    if ctx_fn(net_a) != ctx_fn(net_b) or "FIX = " not in net_b.read_text(encoding="utf-8"):
+        errors.append(f"{net_b}: context() differs from {net_a}; copy it across")
 
     for name, budget in READ_BUDGET.items():
         files = required_reads(ROOT / "plugins/ai-editor/skills" / name / "SKILL.md")

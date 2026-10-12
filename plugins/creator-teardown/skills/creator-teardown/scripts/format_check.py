@@ -4,10 +4,12 @@
   check <handle>   reads video/<id>.visual.json and video/<id>.look.json (visual.py and look.py
                    measure), gives each video a few measured features, groups the videos whose
                    features match, keeps the largest group (a tie: the higher median view
-                   multiple) and writes format.json. The videos left out move to video/left-out/,
-                   so graphics.py, sound.py and report.py see the kept format only; when any
-                   moved, visual.py and look.py merge style.json again from the kept videos
-                   (both cached: seconds). Safe to rerun: it reads video/left-out/ too.
+                   multiple) and writes format.json. When the kept group is a majority of 3 or
+                   more ("applied"), the videos left out move to video/left-out/, so graphics.py,
+                   sound.py and report.py see the kept format only, and visual.py, look.py (and
+                   graphics.py, sound.py when they ran) merge style.json again from the kept
+                   videos (each caches per video: seconds). Otherwise nothing moves and the style
+                   uses every video. Safe to rerun: it reads video/left-out/ too.
   demo             self-check on made-up feature rows. No network.
 
 Features (all already measured; nothing new is decoded):
@@ -22,12 +24,14 @@ Features (all already measured; nothing new is decoded):
 Two videos are one format when frame and kind are the same, both or neither have captions, and
 with captions: words per caption within 1 or 2x, heights within 15 points, sizes within 1.5x,
 upper case on both or neither; shots within 2.5x (or both 4 s or more); lengths within 3x. A
-feature not measured on either video matches. Videos are taken most-viewed first; each joins the
-first group whose first video it matches, else starts a group (matching the first video, not any
-member, so a group cannot drift from one format to another one step at a time).
+feature not measured on either video matches. Videos are taken most measured first, then
+most-viewed; each joins the first group whose first video it matches, else starts a group (matching
+the first video, not any member, so a group cannot drift from one format to another one step at a
+time). Then every video that matches the kept group's first video joins it.
 
 format.json:
   {"consistent": true when the kept group is more than half the videos,
+   "applied": consistent and 3 or more kept: only then do videos move and style.json name the format,
    "groups": [{"name": "talking-head videos with word captions", "videos": [ids], "views_x": 1.4}],
    "kept": [ids], "left_out": [{"id", "url", "why": "two-person videos in 16:9 (16:9, not ...)"}],
    "line": the one line to tell the user}
@@ -93,7 +97,7 @@ def features(vid, vis, look):
 
 
 def _within(a, b, x):
-    return a is None or b is None or (max(a, b) <= x * min(a, b) if min(a, b) > 0 else a == b)
+    return not a or not b or max(a, b) <= x * min(a, b)   # None or 0: not measured, matches
 
 
 KIND_WORDS = {"talking head": "a talking head", "two people": "two people", "screen recording": "a screen recording",
@@ -145,9 +149,23 @@ def name(f):
     return kind + frame + caps
 
 
+FEATURES = ("frame", "kind", "captions", "shot_s", "length_s")
+MIN_KEPT = 3           # fewer kept videos than this: format.json is written, nothing moves
+
+
+def measured(r):
+    return sum(r.get(k) is not None for k in FEATURES)
+
+
 def group(rows):
     """rows: feature rows with "views_x" (and "url") -> the format.json dict."""
-    rows = sorted(rows, key=lambda r: -(r.get("views_x") or 0))
+    seen, uniq = set(), []
+    for r in rows:   # one row an id
+        if r["id"] not in seen:
+            seen.add(r["id"])
+            uniq.append(r)
+    # Seeds: the most measured first (an unmeasured feature matches anything, so it must not seed), then most viewed.
+    rows = sorted(uniq, key=lambda r: (-measured(r), -(r.get("views_x") or 0)))
     groups = []
     for r in rows:
         g = next((g for g in groups if not diffs(g[0], r)), None)
@@ -156,21 +174,33 @@ def group(rows):
     def vx(g):
         return round(statistics.median(r.get("views_x") or 0 for r in g), 2)
     best = max(groups, key=lambda g: (len(g), vx(g))) if groups else []   # max keeps the first on a full tie
+    for g in groups:   # matching the seed is not transitive: a video that matches the kept seed joins it
+        if g is not best:
+            best += [r for r in g if not diffs(best[0], r)]
+            g[:] = [r for r in g if diffs(best[0], r)]
+    groups = [g for g in groups if g]
     groups.sort(key=lambda g: (g is not best, -len(g), -vx(g)))
+
+    def label(g):   # named from a fully measured member: a wildcard says only "videos"
+        return name(next((r for r in g if measured(r) == len(FEATURES)), g[0]))
     left = [{"id": r["id"], "url": r.get("url"), "why": f"{name(r)} ({'; '.join(diffs(best[0], r))})"}
             for g in groups if g is not best for r in g]
-    n, k = len(rows), len(best)
+    n, k, fmt = len(rows), len(best), label(best)
     out = {"consistent": k > n / 2,
-           "groups": [{"name": name(g[0]), "videos": [r["id"] for r in g], "views_x": vx(g)} for g in groups],
+           "groups": [{"name": label(g), "videos": [r["id"] for r in g], "views_x": vx(g)} for g in groups],
            "kept": [r["id"] for r in best], "left_out": left}
+    # Only a clear majority of 3 or more is a format to copy; otherwise nothing moves and style.json names none.
+    out["applied"] = out["consistent"] and k >= MIN_KEPT
     if not left:
-        out["line"] = f"All {n} videos share one format: {name(best[0])}." if n > 1 else f"One video: {name(best[0])}."
+        out["line"] = f"All {n} videos share one format: {fmt}." if n > 1 else f"One video: {fmt}."
+    elif out["applied"]:
+        out["line"] = f"Using {k} of {n}: {n - k} look like a different format. The style copies their {fmt}."
     elif out["consistent"]:
-        out["line"] = (f"Using {k} of {n}: {n - k} look like a different format. The style copies their "
-                       f"{name(best[0])}.")
+        out["line"] = (f"Too few videos to pick one format ({k} of {n} match): the style uses all {n}. "
+                       f"More videos of one kind give a truer style.")
     else:
-        out["line"] = (f"These {n} videos do not share one format. Using the {k} that do best ({name(best[0])}); "
-                       f"more videos like those give a truer style.")
+        out["line"] = (f"These {n} videos do not share one format, so the style mixes them. The biggest group "
+                       f"({k}) is {fmt}; more videos of one kind give a truer style.")
     return out
 
 
@@ -178,10 +208,13 @@ def rows_of(outdir):
     """Feature rows for every measured video, kept or left out before."""
     vj = outdir / "videos.json"
     meta = {v["id"]: v for v in (json.loads(vj.read_text(encoding="utf-8")).get("videos") or [])} if vj.exists() else {}
-    rows = []
-    for d in (outdir / "video", outdir / "video" / LEFT_OUT):
+    rows, seen = [], set()
+    for d in (outdir / "video", outdir / "video" / LEFT_OUT):   # video/ first: a re-downloaded copy wins
         for p in sorted(d.glob("*.visual.json")):
             vid = p.name[:-len(".visual.json")]
+            if vid in seen:
+                continue
+            seen.add(vid)
             lp = d / f"{vid}.look.json"
             look = json.loads(lp.read_text(encoding="utf-8")) if lp.exists() else None
             r = features(vid, json.loads(p.read_text(encoding="utf-8")), look)
@@ -198,8 +231,8 @@ def place(outdir, kept, ids):
     for f in sorted([*vdir.glob("*.*"), *(lo.glob("*.*") if lo.exists() else [])]):
         if not f.is_file():
             continue
-        vid = f.name.split(".", 1)[0]
-        if vid not in ids:
+        vid = max((i for i in ids if f.name.startswith(i + ".")), key=len, default=None)   # ids may hold dots
+        if vid is None:
             continue
         target = vdir if vid in kept else lo
         if f.parent != target:
@@ -218,15 +251,18 @@ def cmd_check(a):
     (outdir / "format.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
     print(out["line"])
     for x in out["left_out"]:
-        print(f"  left out {x['id']}: {x['why']}")
-    if place(outdir, set(out["kept"]), {r["id"] for r in rows}):
-        # style.json was merged from every video: merge it again from the kept ones (cached per video)
-        for script in ("visual.py", "look.py"):
+        print(f"  {'left out' if out['applied'] else 'differs'} {x['id']}: {x['why']}")
+    ids = {r["id"] for r in rows}
+    if place(outdir, set(out["kept"]) if out["applied"] else ids, ids):
+        # style.json was merged from other videos: merge it again from these (each script caches per video)
+        vdir = outdir / "video"
+        later = [s for s, ext in (("graphics.py", "graphics"), ("sound.py", "sound")) if any(vdir.glob(f"*.{ext}.json"))]
+        for script in ["visual.py", "look.py", *later]:
             r = subprocess.run([sys.executable, str(HERE / script), "measure", a.handle],
                                capture_output=True, text=True, encoding="utf-8", errors="replace")
             if r.returncode:
                 sys.exit(f"{script} measure failed: {r.stderr.strip()[-400:]}")
-        print("style.json merged again from the kept videos; look.md rewritten.")
+        print("style.json merged again from the videos in video/; look.md rewritten.")
     print(f"-> {outdir / 'format.json'}")
 
 
@@ -241,7 +277,7 @@ def demo():
     pod = [row("p1", 5.0, frame="16:9", kind="two people", words=6, y=80, shot=7.5, length=150),
            row("p2", 1.0, frame="16:9", kind="two people", words=5, y=82, shot=8.0, length=170)]
     out = group(th + pod)
-    assert out["consistent"] and out["kept"] == ["a", "b", "c", "d"], out
+    assert out["consistent"] and out["applied"] and out["kept"] == ["a", "b", "c", "d"], out
     assert out["groups"][0]["name"] == "talking-head videos with word captions" and out["groups"][0]["views_x"] == 1.05
     assert out["groups"][1]["name"] == "two-person videos in 16:9 with sentence captions", out["groups"]
     why = {x["id"]: x["why"] for x in out["left_out"]}
@@ -250,18 +286,33 @@ def demo():
     # A tie: two groups of two, the higher median multiple wins.
     lb = [row("l1", 0.5, frame="letterbox"), row("l2", 0.7, frame="letterbox")]
     out = group([row("f1", 2.0), row("f2", 4.0)] + lb)
-    assert out["kept"] == ["f2", "f1"] and not out["consistent"], out
+    assert out["kept"] == ["f2", "f1"] and not out["consistent"] and not out["applied"], out
     out = group([row("f1", 0.2), row("f2", 0.4)] + lb)
     assert out["kept"] == ["l2", "l1"] and out["groups"][0]["name"] == "talking-head videos in letterbox with word captions"
     # All mixed: not consistent, the best video is still kept and the line says so.
     mixed = [row("m1", 1.0), row("m2", 2.0, frame="16:9"), row("m3", 0.5, words=False),
              row("m4", 0.8, kind="screen recording", shot=9.0)]
     out = group(mixed)
-    assert not out["consistent"] and out["kept"] == ["m2"] and len(out["left_out"]) == 3, out
+    assert not out["consistent"] and not out["applied"] and out["kept"] == ["m2"] and len(out["left_out"]) == 3, out
     assert "do not share one format" in out["line"] and "no captions" in {x["id"]: x["why"] for x in out["left_out"]}["m3"]
     # One video: consistent, kept.
     out = group([row("solo", None, words=None)])
-    assert out["consistent"] and out["kept"] == ["solo"] and out["line"] == "One video: talking-head videos.", out
+    assert out["consistent"] and not out["applied"] and out["kept"] == ["solo"] and out["line"] == "One video: talking-head videos.", out
+    # Two of three agree: too few to call a format, nothing moves.
+    out = group([row("a", 1), row("b", 1), row("c", 1, frame="16:9")])
+    assert out["consistent"] and not out["applied"] and "Too few videos" in out["line"], out
+    # Not transitive: r joins A's group, B's group of 3 wins, and r (which matches B too) moves into it.
+    out = group([row("A", 5, shot=1.0), row("r", 4, shot=2.0), row("B", 3, shot=3.0), row("b2", 2, shot=3.0),
+                 row("b3", 1, shot=3.0)])
+    assert out["kept"] == ["B", "b2", "b3", "r"] and [x["id"] for x in out["left_out"]] == ["A"], out
+    assert out["left_out"][0]["why"].endswith("(shots 1.0 s, not 3.0 s)"), out
+    # A wildcard (nothing measured but the frame) never seeds or names a group, even when most viewed.
+    w = {"id": "W", "frame": "full", "kind": None, "captions": None, "shot_s": None, "length_s": None, "views_x": 9}
+    out = group([w, row("t1", 2), row("t2", 1), row("p1", 1.5, frame="16:9", kind="two people", words=False, shot=8, length=150)])
+    assert out["kept"][:2] == ["t1", "t2"] and "W" in out["kept"] and out["applied"], out
+    assert out["groups"][0]["name"] == "talking-head videos with word captions", out["groups"]
+    # One row an id.
+    assert group([row("a", 2), row("a", 2), row("b", 1)])["kept"] == ["a", "b"]
     # A chain must not drift: each step is close, the ends are not.
     out = group([row("s1", 3, shot=1.0), row("s2", 2, shot=2.4), row("s3", 1, shot=5.5)])
     assert out["kept"] == ["s1", "s2"], out
@@ -280,6 +331,7 @@ def demo():
     assert features("v", vis, {**look, "face": {"present_pct": 70, "y_pct": 75}, "graphics": {"share_pct": 60}})["frame"] == "split"
     assert features("v", vis, {**look, "captions": {"present": None}})["captions"] is None
     assert features("v", vis, None)["kind"] is None
+    assert features("v", vis, {**look, "face": {"present_pct": None}})["kind"] is None   # no face detector
     # End to end on files: the left-out video moves to video/left-out/, a rerun moves nothing.
     with tempfile.TemporaryDirectory() as d:
         od = Path(d)
@@ -298,6 +350,14 @@ def demo():
         assert place(od, set(out["kept"]), {"k1", "k2", "o1"}) and (od / "video" / LEFT_OUT / "o1.look.json").exists()
         assert sorted(p.name for p in (od / "video").glob("*.mp4")) == ["k1.mp4", "k2.mp4", "x9.mp4"]
         assert group(rows_of(od))["kept"] == ["k1", "k2"] and not place(od, {"k1", "k2"}, {"k1", "k2", "o1"})
+        # A re-download of o1 sits in video/ again: one row for o1, the copy in video/ wins.
+        (od / "video" / "o1.visual.json").write_text(json.dumps({**vis, "width": 1920, "height": 1080}), encoding="utf-8")
+        assert [r["id"] for r in rows_of(od)].count("o1") == 1
+        # Dotted ids: "a.b" files are a.b's, not a's.
+        (od / "video" / "a.b.mp4").write_bytes(b"")
+        (od / "video" / "a.mp4").write_bytes(b"")
+        place(od, {"a"}, {"a", "a.b"})
+        assert (od / "video" / LEFT_OUT / "a.b.mp4").exists() and (od / "video" / "a.mp4").exists()
     print("format_check demo ok")
 
 

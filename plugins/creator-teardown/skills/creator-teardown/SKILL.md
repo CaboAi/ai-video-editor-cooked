@@ -131,10 +131,10 @@ Run them after `transcribe` (`look.py` matches OCR text to the spoken words).
 2. `look.py`: OCR 3 frames a second and YuNet faces: the captions (place, size, words,
    case, colours, weight, entrance), face framing, graphics share, palette, motion
    personality. About 40 s a video.
-3. `format_check.py`: a style is ONE format, not a blend of all they post. It groups the videos by
-   frame, face, captions, shot length and length, keeps the largest group, moves the rest to `video/left-out/`
-   (`format.json` says why; `references/look-pass.md`). Tell the user its first line when it left any out
-   ("Using 4 of 6: 2 look like a different format."); if none share one, ask for more like the kept ones.
+3. `format_check.py`: a style is ONE format, not a blend of all they post. It groups the videos by frame,
+   face, captions, shot length and length; a majority group of 3+ is kept, the rest move to `video/left-out/`
+   (`format.json` says why; `references/look-pass.md`). Tell the user its first line when any differ
+   ("Using 4 of 6: 2 look like a different format."); if mixed, ask for more videos of one kind.
 4. `gemini.py look`: merges what Gemini Flash-Lite said in Step 2 (it watches any video not done yet)
    about the 5 most-viewed: font, graphics style, transitions, what is not generic. Never a number.
 

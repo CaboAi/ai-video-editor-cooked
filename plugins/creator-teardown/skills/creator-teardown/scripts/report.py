@@ -494,12 +494,12 @@ def build(outdir, at=None):
     meta = load(outdir / "videos.json") or {"videos": []}
     by_id = {v["id"]: v for v in meta["videos"]}
     style = load(outdir / "style.json") or {"handle": outdir.name}
-    fmt = load(outdir / "format.json") or {}   # format_check.py: the style copies the kept format only
-    kept = set(fmt.get("kept") or [])
+    fmt = load(outdir / "format.json") or {}   # format_check.py: an applied check copies the kept format only
+    out_ids = {x["id"] for x in fmt.get("left_out") or []} if fmt.get("applied") else set()
     rows, hooks, gfx_rows, videos = [], [], [], []
     for mp4 in sorted((outdir / "video").glob("*.mp4")):
         vid = mp4.stem
-        if kept and vid not in kept:
+        if vid in out_ids:   # a left-out video downloaded again; a new video is not in the list, so it stays
             continue
         v = dict(by_id.get(vid, {"id": vid}))
         v["_role"] = role(v)
@@ -525,8 +525,10 @@ def build(outdir, at=None):
                         "differs": [sentence(c) for c in sorted(comp, key=lambda c: not c["verdict"].endswith("every winner"))
                                     if c["verdict"].startswith("differs")]}
     style["ai_tells"] = {k: v for k, v in tells.items() if k != "look_checked"}
-    if fmt.get("groups"):
+    if fmt.get("applied") and fmt.get("groups"):
         style["format"] = fmt["groups"][0]["name"]   # the kept group comes first
+    else:
+        style.pop("format", None)   # mixed or too few videos: the style names no format
     (outdir / "style.json").write_text(json.dumps(style, indent=2), encoding="utf-8")
     (outdir / "report.json").write_text(json.dumps({"hooks": hooks, "compare": comp, "ai_tells": tells}, indent=1), encoding="utf-8")
     try:   # look.md was written before graphics, sound and the tells: rewrite it from the final style.json
@@ -655,7 +657,8 @@ def demo():
                                                                 {"id": "podclip", "view_count": 90000, "vs_median": 30.0}]}), encoding="utf-8")
         # podclip is another format: format.json leaves it out, so nothing of it reaches the page or style.json
         (od / "video" / "podclip.mp4").write_bytes(b"")
-        (od / "format.json").write_text(json.dumps({"consistent": True, "kept": ["v1"], "groups": [
+        (od / "format.json").write_text(json.dumps({"consistent": True, "applied": True, "kept": ["v1"],
+                                                    "left_out": [{"id": "podclip", "why": "x"}], "groups": [
             {"name": "talking-head videos with word captions", "videos": ["v1"], "views_x": 3.0},
             {"name": "two-person videos in 16:9", "videos": ["podclip"], "views_x": 30.0}]}), encoding="utf-8")
         (od / "video" / "v1.graphics.json").write_text(json.dumps({"id": "v1", "duration_s": 2.0, "width": 360, "height": 640,
@@ -671,6 +674,12 @@ def demo():
         assert "What to take" in text and "power3.out" in text and chr(0x2014) not in text
         assert style["winners"]["n_winners"] == 1 and "hook" in style
         assert style["format"] == "talking-head videos with word captions" and "podclip" not in text, style.get("format")
+        # Not applied (mixed, or under 3 kept): no format named.
+        (od / "format.json").write_text(json.dumps({"consistent": False, "applied": False, "kept": ["v1"], "left_out": [],
+                                                    "groups": [{"name": "x", "videos": ["v1"]}]}), encoding="utf-8")
+        (od / "video" / "podclip.mp4").unlink()
+        _, style, _ = build(od, FakeTells)
+        assert "format" not in style, style.get("format")
     print("ok")
 
 

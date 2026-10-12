@@ -114,16 +114,20 @@ Two videos are one format when frame and kind are the same, both or neither have
 captions the words per caption are within 1 (or 2x), the heights within 15 points, the sizes within
 1.5x, upper case on both or neither; shots within 2.5x (or both 4 s or more: a median of a few
 shots is noise); lengths within 3x. Most-viewed first, each video
-joins the first group whose first video it matches. The largest group is kept; on a tie, the one with
-the higher median view multiple. The rest move to `video/left-out/`, so graphics, sound and the report
-see only the kept format, and style.json and look.md are merged again from the kept videos.
+joins the first group whose first video it matches (the most measured videos seed first, so a video
+with features missing never names a group), and then every video matching the kept group's first video
+joins it. The largest group is kept; on a tie, the one with the higher median view multiple. When it is
+3 or more and more than half (`applied`), the rest move to `video/left-out/`, so graphics, sound and the
+report see only the kept format, and style.json and look.md are merged again from the kept videos
+(graphics and sound too when they already ran). With 1-2 videos, or no majority, nothing moves and
+style.json names no format. A re-download skips a left-out video.
 `style.json` `format` names it, and the style's skill says so ("copying their talking-head videos with
 word captions").
 
-`format.json` (`consistent` is true when the kept group is more than half):
+`format.json` (`consistent` is true when the kept group is more than half; `applied` when it is also 3+):
 
 ```json
-{"consistent": true,
+{"consistent": true, "applied": true,
  "groups": [{"name": "talking-head videos with word captions", "videos": ["a", "b", "c", "d"], "views_x": 1.05},
             {"name": "two-person videos in 16:9 with sentence captions", "videos": ["p1", "p2"], "views_x": 3.0}],
  "kept": ["a", "b", "c", "d"],
@@ -131,8 +135,8 @@ word captions").
  "line": "Using 4 of 6: 2 look like a different format. The style copies their talking-head videos with word captions."}
 ```
 
-What to tell the user: the `line`, once. When it says the videos do not share one format, the best video
-is still used; ask for more videos like it. A profile run picks videos of the creator's usual length
+What to tell the user: the `line`, once. When it says the videos do not share one format, the style uses
+them all; ask for more videos of one kind. A profile run picks videos of the creator's usual length
 (within 2x of the median listed length) and measures 2 spares, so the check can drop a mismatch and keep
 the sample; pasted links are all measured. Ceilings: there is no speaker count (the transcripts are not
 diarized), so two people is read from where the face sits; two formats that differ only in graphics

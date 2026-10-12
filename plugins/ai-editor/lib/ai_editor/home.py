@@ -190,9 +190,11 @@ def picks(vids, median, pasted=False):
     ranked = sorted(vids, key=reach, reverse=True)
     if pasted:
         return [dict(v, role=f"Top {i + 1}") for i, v in enumerate(ranked)]
-    rest = sorted((v for v in ranked[TOP + SPARE:] if reach(v)), key=lambda v: abs(reach(v) - median))
-    return [dict(v, role=f"Top {i + 1}" + (", spare" if i >= TOP else "")) for i, v in enumerate(ranked[:TOP + SPARE])] + \
-        [dict(v, role="Control, median") for v in rest[:CONTROL]]
+    ctrl = sorted((v for v in ranked[TOP:] if reach(v)), key=lambda v: abs(reach(v) - median))[:CONTROL]
+    spare = [v for v in ranked[TOP:] if v not in ctrl][:SPARE]   # the control first: spares give way on a small profile
+    return [dict(v, role=f"Top {i + 1}") for i, v in enumerate(ranked[:TOP])] + \
+        [dict(v, role=f"Top {TOP + i + 1}, spare") for i, v in enumerate(spare)] + \
+        [dict(v, role="Control, median") for v in ctrl]
 
 
 def listing(root, handle):
@@ -1458,7 +1460,9 @@ def demo():
     # one format, as fetch.py pick: a 200 s clip among 30 s videos is not studied; pasted links all are
     assert "0" not in [v["id"] for v in picks([{**vids[0], "duration": 200}] + vids[1:], 151000)]
     assert len(picks(vids, 151000, pasted=True)) == len(vids)
-    assert lk["videos"][5]["view_count"] == 151000 and lk["videos"][0]["thumbnail"] == "https://x/0.jpg", lk
+    small = picks(vids[:7], 151000)   # 7 listed: 5 top and 2 control, no spare
+    assert [v["role"] for v in small][-2:] == ["Control, median", "Control, median"] and len(small) == 7, small
+    assert lk["videos"][7]["view_count"] == 151000 and lk["videos"][0]["thumbnail"] == "https://x/0.jpg", lk
     # Start: a teardown job; `wait` prints it as one line and marks it taken
     try:   # Build my skill before the study is done: refused
         post("/job", {"type": "skill"})

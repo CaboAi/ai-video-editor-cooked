@@ -175,9 +175,10 @@ def pick(videos, median, top, control, spare=0):
         if len(usual) >= top + control + spare:
             videos = usual
     ranked = sorted(videos, key=reach, reverse=True)
-    rest = [v for v in ranked[top + spare:] if reach(v)]
+    rest = [v for v in ranked[top:] if reach(v)]
     rest.sort(key=lambda v: abs(reach(v) - median))
-    return ranked[:top], rest[:control], ranked[top:top + spare]
+    ctrl = rest[:control]   # the control comes first: on a small profile the spares give way, not the control
+    return ranked[:top], ctrl, [v for v in ranked[top:] if v not in ctrl][:spare]
 
 
 def cmd_doctor(args):
@@ -598,6 +599,10 @@ def demo():
     top, control, spare = pick(vids, 4750, 1, 2, spare=1)
     assert [v["id"] for v in spare] == ["1"] and [v["id"] for v in control] == ["2", "3"], (spare, control)
     assert "+ 1 spare" in count_line(top, control, spare) and "= 4 videos" in count_line(top, control, spare)
+    # A small profile: 7 listed, 5 + 2 control + 2 spare wanted. The control is kept, the spares shrink.
+    seven = [{"id": str(i), "view_count": n} for i, n in enumerate([9, 8, 7, 6, 5, 4, 3])]
+    top, control, spare = pick(seven, 6, 5, 2, 2)
+    assert len(top) == 5 and [v["id"] for v in control] == ["5", "6"] and spare == [], (control, spare)
     # One format: a 200 s podcast clip is not picked from a profile of 30-40 s videos, unless too few are usual.
     lens = [{"id": str(i), "view_count": n, "duration": d}
             for i, (n, d) in enumerate([(9000, 200), (5000, 35), (4800, 30), (4700, 40), (1000, 38), (300, 31)])]

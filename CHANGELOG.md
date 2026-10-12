@@ -4,6 +4,26 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Home window: several creator links are easy to add. Each pasted link becomes its own row with the app's
+  logo, a short form of the link and a remove x; pasting several at once splits them; Enter adds, Backspace
+  on the empty box removes the last; a profile link stays one row and shows the profile. The count shows
+  ("3 videos. 5 or more gives a truer style."). On the first-run creator step and on "Copy a creator".
+  Style previews show a real person under the style's caption: the image you chose for that style, else
+  your newest raw take (never a finished render, its own captions clash), else one of three Unsplash demo
+  photos (`demo/CREDITS.md`). Empty spots (recent clips, Your videos, Creators you studied) show a marked
+  example. Styles can be renamed (pencil: the name and its skill, `/fast-cuts`), given a "Use it for" line,
+  given their own preview image ("Change image"), and deleted (studied creators; confirmed in the page, the
+  measured videos only if ticked). Every rename or Use-for edit rewrites all style skills' descriptions, so
+  each one names its own phrases and the other styles under "Not for". Dark mode (follows the system,
+  sun/moon switch). A clearer Home button here and on the review page; no page label beside the name;
+  fewer helper lines; no "For power users" box. Settings shows the version and, when GitHub has a newer
+  one, its first changelog lines and an Update button (`JOB update`). New video: dragging files shows "Drop
+  to add" over the window; each file is a card at the front with its copy progress, is picked once in, and a
+  toast names it; a wrong file says so on its card. Each clip has a menu: "Hide from this list" (scanned
+  clips) and "Move to Trash" (confirmed in the page; Trash or Recycle Bin, never a permanent delete). Your
+  videos: "Remove" moves that edit's folder to the Trash after a confirm. Live reload: the window and the
+  review page reload themselves when their page changes, and the servers restart on the same port when
+  their Python changes (`live.py`). Test: `home.py demo`, `styleskill.py demo`, `live.py demo`.
 - Your changes survive updates: `<library>/custom/` holds your own rule files (`rules/*.md`, printed by
   `taste.py show` so every skill follows them), caption styles (`captions/<name>.json`, on with
   `taste.py set captions.preset <name>`), template defaults (`templates/<type>.json`) and the cut critic's

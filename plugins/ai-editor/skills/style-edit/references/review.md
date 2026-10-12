@@ -38,6 +38,40 @@ An edit-stage note started with `--plan plan.json` also names the card on screen
 (`[card 3 image 'notion']`: the index in `plan.json` `cards`). Look at the frame still and any
 `image:` line before deciding the fix. `wait` ends with a `LEARN:` line and the `learn` command.
 
+## Transcript edits (the cut): `EDITS`
+
+The **transcript beside the player** (cut stage) shows the whole take: kept words, cut words struck,
+removed pauses as `1.2s` chips. Each cut is flagged inline with its reason (a red band: `Filler`,
+`Retake`, `False start`, `Your cut`, `Cut with a pause`, `Pause 1.2s`): the tick keeps it, the cross
+brings it back. Selecting words shows a dark pill: **Restore**, **Copy**, **Cut** (Backspace or Delete
+cuts too). Changes wait on the page (highlighted) until **Apply**; Cmd/Ctrl+Z undoes the last one.
+**Preview** plays the raw take skipping every cut range plus the pending changes, without a render.
+Clicking a word seeks; while the video plays the word said now is highlighted and kept in view. On the
+edit stage it is read only.
+
+Apply posts `/edits` `{"restore": [[start, end], ...], "cut": [[start, end], ...], "pause": [[start, end], ...]}`
+(raw-take seconds). The server changes `spans.json` itself: a restored word leaves the span covering it
+(the span narrows or splits), a cut adds a span with `kind: "manual"` quoting those words (whole words,
+`occurrence` when the phrase repeats; spans that then overlap in time merge into one). A restored word
+no span covers was taken by the pause trim: its time goes into `keep.json` (`../../cut/references/shapes.md`),
+as does a pause put back. Only spoken words are picked, never a hidden `(cough)` span. The result is
+checked with `build_timeline.py`'s own span check before anything is written; a change that would not
+build is refused. The old files are kept as `spans.prev.json` and `keep.prev.json`. Then `wait` exits with:
+
+```
+EDITS 2 transcript edits applied to spans.json: rebuild, render, verify, round
+  5 word(s) restored, 1 cut (kind manual); the spans before are in .../spans.prev.json
+  restore 2.86-4.80s: "including this view right here."
+  then: python3 .../build_timeline.py <source> <edit>; python3 .../render.py <source> <edit>; verify_cut.py; ... round --video <edit>/cut.mp4
+SEND: <name> the cut, round 1, 0 notes. ...
+```
+
+Do exactly that, with `status` lines on the page: `build_timeline.py`, `render.py`, `verify_cut.py`
+(cut skill steps 3-5), fix any notes listed under the `SEND` line too, then `round --video
+<edit>/cut.mp4`. Never undo a `manual` span, re-cut a restored word or edit `keep.json`. Stop on the page
+puts `spans.prev.json` and `keep.prev.json` back, unless spans.json changed since the Apply; `round`
+refuses while stopped. Send and approve are refused while Claude has the changes.
+
 ## After send or approve: learn from the notes
 
 Review notes flow into the user's taste (memory) and, when marked for everyone, to the maintainers.
@@ -59,6 +93,24 @@ It saves each rule with `taste.py add` (`everyone` also adds a suggestion), mark
 the round one-off, and writes on each note what happened: `"taste"` = rule id, `video-only`,
 `suggested` or `one-off`. Tell the user in one line what was saved. On `everyone`, offer the GitHub
 issue as the taste skill does (`taste.py issue`). `round` lists notes not learned yet.
+
+## The final approve: teach the style
+
+The edit's approve (or the cut's, after `final`) ends the video. Its `LEARN:` block replaces the one
+above: it lists every note of the session with your replies, and the page shows "Teach <style> from
+this video" with "Claude is reading your notes...". Turn them into at most 6 one-line rules
+("Captions one size smaller", "Fewer zooms in the first 5 s"), leaving out one-off fixes, and post them:
+
+```bash
+python3 "$R" edits/<name> learn --propose '[{"rule": "Captions one size smaller", "section": "captions", "set": "captions.size_pct=4.5"}]'
+```
+
+`[]` when none is about the style; `set` only when a taste setting maps. Run `wait` again. The user
+ticks rules and presses Update my style (or Not now). `wait` prints the ticked rules; then
+`learn --done` saves them with `styleskill.learn` into the style the edit used (one creator style,
+else My style) and the page says "Saved to <style>. Next video uses it." No notes all session: the
+page says so and LEARN asks nothing. Round 1 of the user's first 3 videos also shows a one-time line:
+their first videos teach it their style (dismissed for good with Got it; count in `ui.json`).
 
 With no `wait` running the page says Claude is not listening, and notes still save. The next
 `wait` returns at once with them.
@@ -97,14 +149,24 @@ python3 "$R" edits/<name> resolve 2 wontfix --reply "<why>" --new-t 8.0
 python3 "$R" edits/<name> round --video edits/<name>/cut.mp4
 ```
 
-`--new-t` pins the note on the new render's timeline (a cut moves later moments). `wontfix` shows as
+A note resolved `fixed` turns green on the next round ("Done in round N: <reply>"); `wontfix` turns grey with the reply. `--new-t` pins the note on the new render's timeline (a cut moves later moments). `wontfix` shows as
 **left as is** with the reply as the reason; the user can press **fix it anyway**, which comes back
 as a new note starting `fix it anyway:`. Do it. Then run `wait` in the background again. The open
 tab follows the new round by itself; `round` never opens another.
 
 ## After approve
 
-- **The cut:** the cut is approved. Go on to style-edit (or stop, on "just the cut first").
+- **The cut:** the cut is approved. Go on to style-edit. On "just the cut", run `python3 "$R" edits/<name> final`
+  (before or after the approve): Approve then reads "Approve the cut" and the page waits for no edit. The page
+  turns at once: Approve goes green, the stepper moves to **The edit**, and the player shows a
+  **Making the edit** card over the dimmed cut, with a bar, a clock and the steps in the panel. The bar
+  moves only on real steps: `captions`, `visuals`, `plan`, `render` (the last by its log's percent).
+  `retakes.py captions`, `route.py beats`, `plan.py`, `edit.py stills` and `edit.py render` report their
+  own; before plan and render also run `python3 "$R" edits/<name> status --step plan|render`, which
+  exits 3 with `STOPPED` if the user pressed **Stop** (that takes the approve back and reopens the cut;
+  `round --stage edit` then also exits 3: do not open the edit, say so, run `wait`). With no report from
+  Claude for 15 minutes and no render log moving in the last 2, the card says so instead of a bar. When the edit's `round`
+  lands, the bar fills green and the page switches to it with "The edit is ready".
 - **The styled edit:** the same page moves on to it:
   `round --stage edit --video edits/<name>/render.mp4 --transcript edits/<name>/words.json --plan edits/<name>/plan.json`.
   Approve there finishes the video. Stop the background `serve`.

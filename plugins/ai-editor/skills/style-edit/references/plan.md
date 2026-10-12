@@ -16,8 +16,7 @@ Moved out of SKILL.md step 4. Read the section the step points at.
 Called by start for a whole edit, the cut skill starts the `visual-prep` agent as the cut page opens.
 It does steps 1-3 and `face.py` on the first cut and copies its `decisions.json` to
 `prep-decisions.json`. Every visual it writes names a word and which time it is said (`nth`), never a
-second. It plans, renders and uploads nothing; its one bill is the step 3 Jev call (a fraction of a
-cent).
+second. It plans, renders and uploads nothing, and spends nothing.
 
 Wait for its JSON if it is still running. Cut approved unchanged: go to step 4. Cut changed after notes:
 
@@ -65,7 +64,7 @@ that fails to load stops the render. Cards still come from visuals.json (step 3)
   look would read under 4.7:1 (`CONTRAST_TARGET`: the render check's 4.5:1 WARN line plus 0.2, since
   the plan's estimate runs a little above what the render check reads), that page gets a soft
   shadow, then a thin stroke, then a backing, whichever is first to reach 4.7:1 (printed per
-  caption). Plain captions (the default) get a shadow, then a glow (a wide feathered shadow), and keep
+  caption). Plain captions (the default, and a creator measured with no stroke and no box) get a shadow, then a glow (a wide feathered shadow), and keep
   the glow while it reads at 3.3:1 (`PLAIN_MIN`); only a page that would fail gets the stroke or backing. After a render, `check.py render` lists the pages it read under 4.7:1 in `check.json`;
   the next plan.py run gives each one the next step and keeps it in `contrast.json`.
 - **Layout per card:** overlay first: every card floats over the footage in the free space round
@@ -90,7 +89,10 @@ that fails to load stops the render. Cards still come from visuals.json (step 3)
   bigger); each page one line at one size; the creator's effect, sizes and colours passed through.
 - **Pacing:** `card_gap_s` (SKILL.md step 3); inside a longer stretch with no card a zoom change at
   least every 5 s, and a warning naming anything said there that could be shown.
-- **Zooms:** about `zoom.per_min` a minute, alternating in and out so the frame never creeps.
+- **Zooms:** about `zoom.per_min` a minute, alternating in and out so the frame never creeps (a creator's
+  punch comes back out after about one of her shots, `pace.median_shot_s`).
+- **Style check:** the last thing plan.py prints (`style_check.py`, also on its own: `style_check.py
+  edits/<name>`): the plan against the effective style, one `style:` line per difference with its fix.
 - **Shape:** the cut's shape unless `--aspect` says otherwise (a wide cut made vertical is
   centre-cropped; a vertical cut made wide sits over a blurred copy). For a second shape or layout,
   `--out edits/<name>/plan-16x9.json`, then pass `--plan plan-16x9.json` to every later command.

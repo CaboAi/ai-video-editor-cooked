@@ -20,6 +20,7 @@ import argparse
 import concurrent.futures as cf
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -30,11 +31,19 @@ FADE_S = 0.008
 LEAD_S = 0.5     # seek this far early, let the time-based trim pick the frames
 
 
+def first_int(text):
+    """The first whole number in ffprobe's output, else 0. FFmpeg 8+ prints "16," when the stream
+    carries side data (an iPhone's ICC profile, copied into every segment), and int() fails on that."""
+    m = re.search(r"\d+", text)
+    return int(m.group()) if m else 0
+
+
 def count_frames(path):
-    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
+    # -threads 0: -count_frames decodes the whole file, on one thread unless told otherwise
+    r = subprocess.run(["ffprobe", "-v", "error", "-threads", "0", "-select_streams", "v:0", "-count_frames",
                         "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", str(path)],
                        capture_output=True, text=True)
-    return int(r.stdout.strip() or 0)
+    return first_int(r.stdout)
 
 
 def starts(path):
@@ -78,75 +87,99 @@ def main():
     hw = sys.platform == "darwin" and not a.no_hw
     vstart, fstart = starts(src)
     off = vstart - fstart     # where frame 0 plays on the audio's timeline
+    x264 = ["-c:v", "libx264", "-crf", str(a.crf), "-preset", "veryfast"]
+    # A Mac already decoding in hardware encodes there too: a 107 s iPhone cut went 60 s -> 20 s and
+    # 192 MB -> 119 MB at 40.6 dB PSNR, no visible change. -q:v needs Apple silicon; an Intel Mac's
+    # encoder refuses it and every span is redone with x264.
+    enc = ["-c:v", "h264_videotoolbox", "-q:v", "65"] if hw else x264
     tmp = Path(tempfile.mkdtemp(prefix="cut_render_"))
-    print(f"{len(frames)} spans, {sum(e - s for s, e in frames)} frames -> {out}", flush=True)
+    try:
+        print(f"{len(frames)} spans, {sum(e - s for s, e in frames)} frames -> {out}", flush=True)
 
-    def one(i):
-        s, e = frames[i]
-        t0, t1 = video_window(s, e, fps, vstart)
-        seg = tmp / f"{i:05d}.mp4"
-        # -copyts is load-bearing: without it the input seek rebases timestamps
-        # to zero and the absolute trim picks the wrong footage at the right length.
-        # Frame-numbered timestamps at an explicit -r: after setpts the frames carry no duration,
-        # so without -r the muxer gives the last one ~0 s and FFmpeg 7's edit list ends on it,
-        # dropping it on read. N/fps keeps the constant-rate clock from duplicating or dropping
-        # frames over a 1/600 s source's jittered timestamps.
-        cmd = ["ffmpeg", "-v", "error", "-y", "-copyts", *(["-hwaccel", "videotoolbox"] if hw else []),
-               "-ss", f"{max(0.0, t0 - fstart - LEAD_S):.6f}", "-i", src, "-an",
-               "-vf", f"trim=start={max(0.0, t0):.6f}:end={t1:.6f},setpts=N/({fps})/TB",
-               "-r", str(fps), "-c:v", "libx264", "-crf", str(a.crf), "-preset", "veryfast",
-               "-pix_fmt", "yuv420p", "-g", "15", str(seg)]
-        r = subprocess.run(cmd, capture_output=True, text=True)
-        if r.returncode:
-            return f"span {i}: {r.stderr[-300:]}"
-        got = count_frames(seg)
-        return None if got == e - s else f"span {i}: {got} frames, wanted {e - s}"
+        def one(i):
+            s, e = frames[i]
+            t0, t1 = video_window(s, e, fps, vstart)
+            seg = tmp / f"{i:05d}.mp4"
+            # -copyts is load-bearing: without it the input seek rebases timestamps
+            # to zero and the absolute trim picks the wrong footage at the right length.
+            # Frame-numbered timestamps at an explicit -r: after setpts the frames carry no duration,
+            # so without -r the muxer gives the last one ~0 s and FFmpeg 7's edit list ends on it,
+            # dropping it on read. N/fps keeps the constant-rate clock from duplicating or dropping
+            # frames over a 1/600 s source's jittered timestamps.
+            cmd = ["ffmpeg", "-v", "error", "-y", "-copyts", *(["-hwaccel", "videotoolbox"] if hw else []),
+                   "-ss", f"{max(0.0, t0 - fstart - LEAD_S):.6f}", "-i", src, "-an",
+                   "-vf", f"trim=start={max(0.0, t0):.6f}:end={t1:.6f},setpts=N/({fps})/TB",
+                   "-r", str(fps), *enc, "-pix_fmt", "yuv420p", "-g", "15", str(seg)]
+            r = subprocess.run(cmd, capture_output=True, text=True)
+            if r.returncode:
+                return f"span {i}: {r.stderr[-300:]}"
+            got = count_frames(seg)
+            return None if got == e - s else f"span {i}: {got} frames, wanted {e - s}"
 
-    workers = max(2, (os.cpu_count() or 8) // (2 if hw else 4))
-    with cf.ThreadPoolExecutor(workers) as ex:
-        for n, err in enumerate(ex.map(one, range(len(frames))), 1):
+        def encode_all():
+            """The first span's error, else None."""
+            # the hardware encoder holds a few sessions at once; more get refused and send everything to x264
+            workers = 4 if enc is not x264 else max(2, (os.cpu_count() or 8) // 4)
+            with cf.ThreadPoolExecutor(workers) as ex:
+                for n, err in enumerate(ex.map(one, range(len(frames))), 1):
+                    if err:
+                        return err
+                    if n % 20 == 0:
+                        print(f"  video {n}/{len(frames)}", flush=True)
+
+        def attempt():
+            """The whole render with the current encoder: the first error, else None."""
+            err = encode_all()
             if err:
-                sys.exit(f"ERROR {err}  (segments kept in {tmp})")
-            if n % 20 == 0:
-                print(f"  video {n}/{len(frames)}", flush=True)
+                return err
+            lst = tmp / "list.txt"
+            # concat quoting: a ' in the temp path (a user name like O'Brien) is closed, escaped, reopened
+            lst.write_text("".join("file '" + str(tmp / f"{i:05d}.mp4").replace("'", "'\\''") + "'\n"
+                                   for i in range(len(frames))), encoding="utf-8")
+            allv = tmp / "all.mp4"
+            if subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst),
+                               "-c", "copy", str(allv)]).returncode:
+                return "concat failed"
+            want = sum(e - s for s, e in frames)
+            if count_frames(allv) != want:
+                return "concat lost frames"
 
-    lst = tmp / "list.txt"
-    # concat quoting: a ' in the temp path (a user name like O'Brien) is closed, escaped, reopened
-    lst.write_text("".join("file '" + str(tmp / f"{i:05d}.mp4").replace("'", "'\\''") + "'\n"
-                           for i in range(len(frames))), encoding="utf-8")
-    allv = tmp / "all.mp4"
-    if subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst),
-                       "-c", "copy", str(allv)]).returncode:
-        sys.exit("ERROR concat failed")
-    want = sum(e - s for s, e in frames)
-    if count_frames(allv) != want:
-        sys.exit(f"ERROR concat lost frames (kept in {tmp})")
+            print("  audio, one pass", flush=True)
+            parts = []
+            for i, (s, e) in enumerate(frames):
+                t0, t1 = off + s / fps, off + e / fps
+                fo = max(0.0, t1 - t0 - FADE_S)
+                parts.append(f"[0:a:0]atrim=start={t0:.6f}:end={t1:.6f},asetpts=PTS-STARTPTS,"
+                             f"afade=t=in:d={FADE_S},afade=t=out:st={fo:.6f}:d={FADE_S}[a{i}]")
+            fc = ";".join(parts) + ";" + "".join(f"[a{i}]" for i in range(len(frames))) + \
+                f"concat=n={len(frames)}:v=0:a=1[ac]"
+            aud = tmp / "a.m4a"
+            if subprocess.run(["ffmpeg", "-v", "error", "-y", "-vn", "-i", src,
+                               "-filter_complex", fc, "-map", "[ac]",
+                               "-c:a", "aac", "-b:a", "192k", str(aud)]).returncode:
+                return "audio pass failed"
 
-    print("  audio, one pass", flush=True)
-    parts = []
-    for i, (s, e) in enumerate(frames):
-        t0, t1 = off + s / fps, off + e / fps
-        fo = max(0.0, t1 - t0 - FADE_S)
-        parts.append(f"[0:a:0]atrim=start={t0:.6f}:end={t1:.6f},asetpts=PTS-STARTPTS,"
-                     f"afade=t=in:d={FADE_S},afade=t=out:st={fo:.6f}:d={FADE_S}[a{i}]")
-    fc = ";".join(parts) + ";" + "".join(f"[a{i}]" for i in range(len(frames))) + \
-        f"concat=n={len(frames)}:v=0:a=1[ac]"
-    aud = tmp / "a.m4a"
-    if subprocess.run(["ffmpeg", "-v", "error", "-y", "-vn", "-i", src,
-                       "-filter_complex", fc, "-map", "[ac]",
-                       "-c:a", "aac", "-b:a", "192k", str(aud)]).returncode:
-        sys.exit("ERROR audio pass failed")
+            if subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(allv), "-i", str(aud),
+                               "-map", "0:v", "-map", "1:a", "-c", "copy", "-movflags", "+faststart",
+                               str(out)]).returncode:
+                return "mux failed"
+            got = count_frames(out)
+            print(f"  check: {got} frames of {want}, {want / fps:.2f}s")
+            if got != want:
+                return "frame mismatch"
 
-    if subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(allv), "-i", str(aud),
-                       "-map", "0:v", "-map", "1:a", "-c", "copy", "-movflags", "+faststart",
-                       str(out)]).returncode:
-        sys.exit("ERROR mux failed")
-    got = count_frames(out)
-    print(f"  check: {got} frames of {want}, {want / fps:.2f}s")
-    if got != want:
-        sys.exit(f"ERROR frame mismatch (kept in {tmp})")
-    shutil.rmtree(tmp)
-    print(out)
+        err = attempt()
+        # A hardware render that fails anywhere (a refused session, a span short, a lost frame at the join)
+        # is redone whole with x264: re-encoding only the failed spans would mix two encoders in one concat -c copy.
+        if err and enc is not x264:
+            print(f"  hardware encode failed, again with x264 ({err[:200]})", flush=True)
+            enc = x264
+            err = attempt()
+        if err:
+            sys.exit(f"ERROR {err}")
+        print(out)
+    finally:   # a failed render left 24-66 MB of segments behind on every try
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":

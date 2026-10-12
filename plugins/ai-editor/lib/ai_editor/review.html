@@ -6,16 +6,16 @@
 :root{--page:#FAFAF9;--panel:#FFFFFF;--raise:#FFFFFF;--line:#E7E5E4;--line2:#D6D3D1;--chip:#F5F5F4;--hover:#EFEEEC;
   --ink:#0C0A09;--ink-hover:#000000;--onink:#FFFFFF;--strong:#000000;--ink2:#44403C;--body:#57534E;--muted:#78716C;--quiet:#A8A29E;
   --film:#1C1917;--range:#0C0A0924;--shade:#0C0A098C;--zone:#FAFAF9E6;--sendoff:#D6D3D1;--sendarrow:#FFFFFF;
-  --sh:0 1px 2px #0C0A0914;--pop:0 8px 30px #0C0A0914;color-scheme:light}
+  --sh:0 1px 2px #0C0A0914;--pop:0 8px 30px #0C0A0914;--ok:#15803D;--okbg:#F0FDF4;--okline:#BBF7D0;--chg:#FDE68A;--nowbg:#0C0A0914;--flag:#B91C1C;--flagbg:#FEF2F2;--flagline:#FECACA;--done:#15803D;--ondone:#FFFFFF;--pill:#1C1917;--pilltx:#FAFAF9;--pillline:#1C1917;color-scheme:light}
 /* dark: the OS setting until the user picks with the header switch (html[data-theme]) */
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--page:#100E0E;--panel:#161413;--raise:#2A2725;--line:rgba(255,255,255,.10);--line2:rgba(255,255,255,.18);--chip:rgba(255,255,255,.06);--hover:rgba(255,255,255,.09);
   --ink:#F2F0EB;--ink-hover:#FFFFFF;--onink:#100E0E;--strong:#F2F0EB;--ink2:rgba(242,240,235,.82);--body:rgba(242,240,235,.72);--muted:rgba(242,240,235,.58);--quiet:rgba(242,240,235,.45);
   --film:#000000;--range:rgba(242,240,235,.22);--shade:#0C0A098C;--zone:#FAFAF9E6;--sendoff:rgba(255,255,255,.12);--sendarrow:rgba(242,240,235,.55);
-  --sh:0 1px 2px rgba(0,0,0,.6);--pop:0 8px 30px rgba(0,0,0,.6);color-scheme:dark}}
+  --sh:0 1px 2px rgba(0,0,0,.6);--pop:0 8px 30px rgba(0,0,0,.6);--ok:#4ADE80;--okbg:rgba(74,222,128,.08);--okline:rgba(74,222,128,.30);--chg:rgba(253,230,138,.28);--nowbg:rgba(242,240,235,.14);--flag:#FCA5A5;--flagbg:rgba(248,113,113,.10);--flagline:rgba(248,113,113,.22);--done:#3DAA6B;--ondone:#04130A;--pill:#2A2725;--pilltx:#F2F0EB;--pillline:rgba(255,255,255,.14);color-scheme:dark}}
 :root[data-theme=dark]{--page:#100E0E;--panel:#161413;--raise:#2A2725;--line:rgba(255,255,255,.10);--line2:rgba(255,255,255,.18);--chip:rgba(255,255,255,.06);--hover:rgba(255,255,255,.09);
   --ink:#F2F0EB;--ink-hover:#FFFFFF;--onink:#100E0E;--strong:#F2F0EB;--ink2:rgba(242,240,235,.82);--body:rgba(242,240,235,.72);--muted:rgba(242,240,235,.58);--quiet:rgba(242,240,235,.45);
   --film:#000000;--range:rgba(242,240,235,.22);--shade:#0C0A098C;--zone:#FAFAF9E6;--sendoff:rgba(255,255,255,.12);--sendarrow:rgba(242,240,235,.55);
-  --sh:0 1px 2px rgba(0,0,0,.6);--pop:0 8px 30px rgba(0,0,0,.6);color-scheme:dark}
+  --sh:0 1px 2px rgba(0,0,0,.6);--pop:0 8px 30px rgba(0,0,0,.6);--ok:#4ADE80;--okbg:rgba(74,222,128,.08);--okline:rgba(74,222,128,.30);--chg:rgba(253,230,138,.28);--nowbg:rgba(242,240,235,.14);--flag:#FCA5A5;--flagbg:rgba(248,113,113,.10);--flagline:rgba(248,113,113,.22);--done:#3DAA6B;--ondone:#04130A;--pill:#2A2725;--pilltx:#F2F0EB;--pillline:rgba(255,255,255,.14);color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--page);color:var(--ink);font:13px/16px system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;font-synthesis:none}
 body{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
@@ -103,12 +103,9 @@ body.withTx #tx{display:flex}
 .ln .lt{width:44px;flex-shrink:0;font-size:13px;line-height:26px;color:var(--quiet)}
 .ln .lw{display:flex;flex-wrap:wrap;align-items:center;column-gap:5px;font-size:16px;line-height:26px;color:var(--body)}
 .ln.cur{background:var(--chip);padding:10px 14px;margin:-10px 0}
-.ln.cur .lt{color:var(--ink);font-weight:600}.ln.cur .lw{color:var(--ink)}
-.ln.far{opacity:.55}
+.ln.cur .lt{color:var(--ink);font-weight:600}
 .lw span{cursor:pointer;border-radius:5px}
-.lw span:hover{text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:4px}
 .lw s{color:var(--quiet);text-decoration-thickness:1px}
-.lw .now{background:var(--ink);color:var(--onink);padding:0 4px}
 .lw .pz{font-size:13px;line-height:20px;color:var(--quiet);border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:0 6px}
 
 .transport{height:44px;flex-shrink:0;display:flex;align-items:center;gap:14px;padding-right:8px}
@@ -157,6 +154,7 @@ body.withTx #tx{display:flex}
 aside{width:400px;flex-shrink:0;background:var(--panel);border:1px solid var(--line);border-radius:20px;display:flex;flex-direction:column;overflow:hidden}
 .phead{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 12px;flex-shrink:0;gap:8px}
 .phead span{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ptabs{flex-shrink:0}#ptabs>button{padding:6px 11px}#pmeta{flex:1;min-width:0;text-align:right}
 .mhead2{display:none}
 #list{flex:1;min-height:0;overflow:auto;padding:8px 20px 16px;display:flex;flex-direction:column;gap:16px;scrollbar-width:thin}
 .claude{display:flex;flex-direction:column;gap:10px;padding-top:4px}
@@ -245,12 +243,102 @@ aside{width:400px;flex-shrink:0;background:var(--panel);border:1px solid var(--l
 .actions button:disabled:not(.primary){color:var(--quiet);background:var(--panel)}
 .actions button.primary:disabled{opacity:.5}
 #send i{width:10px;height:10px;border-radius:2px;background:var(--onink);display:none}
-#send.stop i{display:block}
+#send.stop i{display:block}#send:not(.primary) i{background:var(--ink)}
+
+/* two stages: the cut, then the edit. Green marks only what is done */
+.seg>button{transition:background-color .35s,color .35s,box-shadow .35s}
+#stages>button.done .n{color:var(--done)}
+#stagebar{display:none;align-items:center;gap:10px;flex-shrink:0;padding:9px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--body);font-size:13px;line-height:18px}
+#stagebar b{color:var(--strong);font-weight:600}#stagebar svg{flex-shrink:0;color:var(--muted)}
+body.staged #stagebar{display:flex}
+/* the first-edit notice: one calm line, dismissed for good */
+#intro{display:none;align-items:center;gap:12px;flex-shrink:0;padding:9px 10px 9px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--body);font-size:13px;line-height:18px}
+#intro span{flex:1;min-width:0}body.intro #intro{display:flex}
+#intro button{height:28px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:var(--page);color:var(--strong);font-size:13px;font-weight:500;flex-shrink:0}
+#intro button:hover{border-color:var(--line2)}
+/* after the final approve: teach the style from this video's notes */
+body.learning #box{display:none}   /* approved: nothing left to note, the learn panel gets the room */
+.learn{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--line);border-radius:14px}
+.learn b{font-size:14px;line-height:18px;font-weight:600;color:var(--strong)}
+.learn p{margin:0;font-size:13px;line-height:19px;color:var(--body)}
+.learn p.wait{display:flex;align-items:center;gap:8px}.learn p.wait i{width:7px;height:7px;border-radius:4px;background:var(--ink);animation:pulse 1.2s ease-in-out infinite}
+.learn p.ok{display:flex;align-items:center;gap:8px;color:var(--strong);font-weight:600}.learn p.ok svg{color:var(--done);flex-shrink:0}
+.lrule{display:flex;align-items:flex-start;gap:10px;font-size:14px;line-height:20px;color:var(--strong);cursor:pointer}
+.lrule input{margin:3px 0 0;width:14px;height:14px;accent-color:var(--ink);flex-shrink:0;cursor:pointer}
+.lrule input:disabled{cursor:default}.lrule.off span{color:var(--quiet)}
+.learn .erow{margin-top:2px}.learn .erow button.go{flex:1}.learn .erow button.go:disabled{opacity:.5}
+#making{position:absolute;inset:0;z-index:3;display:none;place-items:center;background:color-mix(in srgb,var(--page) 62%,transparent);padding:12px}
+body.making #making{display:grid}
+.mk{width:min(380px,100%);background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:var(--pop);display:flex;flex-direction:column;gap:6px}
+.mk b{font-size:17px;line-height:22px;font-weight:600;color:var(--strong)}
+.mk p{margin:0;font-size:13px;line-height:18px;color:var(--muted)}
+.mk em{display:block;height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin:10px 0 4px}
+.mk em i{display:block;height:100%;background:var(--ink);border-radius:3px;transition:width .6s,background-color .3s}
+.mk.ready em i{background:var(--done)}
+.mk .mrow{display:flex;justify-content:space-between;gap:12px;font-size:13px;line-height:16px;color:var(--body)}
+.mk .mrow span:last-child{color:var(--muted);white-space:nowrap}
+.actions{flex-wrap:wrap}
+.actions button.approved,.actions button.approved:disabled{flex:1;opacity:1;background:var(--done);border-color:var(--done);color:var(--ondone);font-weight:600;transition:background-color .3s,color .3s}
+#mapprove.approved,#mapprove.approved:disabled{background:var(--done);border-color:var(--done);color:var(--ondone)}
+.steps li.ok .ic{color:var(--done)}
+.steps li.todo{color:var(--quiet)}.steps li.todo .ic i{width:7px;height:7px;border-radius:4px;border:1.5px solid var(--line2)}
+#toast{position:fixed;left:50%;top:150px;z-index:40;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;background:var(--panel);border:1px solid var(--line);box-shadow:var(--pop);font-size:14px;font-weight:600;color:var(--strong);opacity:0;pointer-events:none;transform:translate(-50%,-6px);transition:opacity .3s,transform .3s}
+#toast.show{opacity:1;transform:translate(-50%,0)}#toast svg{color:var(--done)}
+
+/* done notes: Claude fixed it (green); left as is (grey, with the reason) */
+.note.done .bub{background:var(--okbg);box-shadow:inset 0 0 0 1px var(--okline)}
+.note.done:hover .bub{background:var(--okbg)}
+.okt{width:18px;height:18px;border-radius:9px;background:var(--ok);color:var(--panel);display:grid;place-items:center;flex-shrink:0}
+.okt svg{width:11px;height:11px}
+.note.done .reply .ic{color:var(--ok)}
+.note.done .reply>div>span:first-child b{color:var(--ok);font-weight:600}
+.note.wont .bub{background:var(--chip);box-shadow:inset 0 0 0 1px var(--line2)}
+.note.wont .bub p{color:var(--muted)}
+/* the transcript editor (the transcript beside the player): select words, Cut / Restore / Copy, flagged cuts, preview, apply */
+#tx{position:relative}
+.txtools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 14px;flex-shrink:0}
+.txtools p{margin:0;flex:1;min-width:160px;font-size:13px;line-height:18px;color:var(--muted)}
+.txtools b{flex:1;min-width:0;white-space:nowrap;font-size:13px;font-weight:600;color:var(--strong)}
+.pbtn{height:30px;padding:0 10px;border-radius:9px;border:1px solid var(--line);background:var(--panel);font-size:13px;font-weight:500;color:var(--strong);white-space:nowrap}
+.pbtn:hover{border-color:var(--line2)}.pbtn:disabled{color:var(--quiet)}
+.pbtn.on,.pbtn.go{background:var(--ink);border-color:var(--ink);color:var(--onink)}.pbtn.go{font-weight:600}
+#txlines{user-select:none;-webkit-user-select:none}
+.lw .tw{cursor:pointer;border-radius:5px}
+/* follows the video: played words are a step stronger than the ones to come, the word said now has a soft ink highlight */
+.lw .tw{color:var(--body)}
+.lw .tw.past{color:var(--strong)}
+.lw .tw:hover{background:var(--hover)}
+.lw .tw.now{background:var(--nowbg);color:var(--strong);box-shadow:0 0 0 3px var(--nowbg)}
+.lw .tw.cut{color:var(--quiet);text-decoration:line-through;text-decoration-thickness:1px}
+.lw .tw.chg{background:var(--chg);color:var(--strong);padding:0 2px}
+.lw .tw.sel{background:var(--range);box-shadow:0 0 0 2px var(--range)}
+.lw .tw.nt{cursor:default}
+.lw .pz.chg{background:var(--chg);color:var(--strong);border-color:transparent;text-decoration:none}
+/* a flagged cut: a soft red band, its reason, the words, accept (keep it cut) or dismiss (bring it back) */
+.flag{flex-basis:100%;display:flex;align-items:center;gap:10px;margin:4px 0;padding:6px 6px 6px 12px;border-radius:10px;background:var(--flagbg)}
+.flag .fb{flex:1;min-width:0;display:flex;flex-direction:column}
+.flag .fl{display:flex;align-items:center;gap:5px;font-size:12px;line-height:16px;font-weight:600;color:var(--flag)}
+.flag .fl svg{width:13px;height:13px;flex-shrink:0}
+.flag .fw{display:flex;flex-wrap:wrap;column-gap:5px}
+.flag .fw .tw{color:var(--flag)}
+.flag .fa{display:flex;gap:2px;flex-shrink:0}
+.flag .fa button{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--flag)}
+.flag .fa button:hover{background:var(--flagline)}
+.flag .fa svg{width:17px;height:17px}
+/* the selection pill: one compact dark bar over the words */
+#txbar{position:absolute;z-index:6;display:none;align-items:center;padding:3px;background:var(--pill);color:var(--pilltx);border:1px solid var(--pillline);border-radius:12px;box-shadow:var(--pop)}
+#txbar.open{display:flex}
+#txbar button{display:flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:9px;color:var(--pilltx);font-size:13px;font-weight:500;white-space:nowrap}
+#txbar button:hover{background:rgba(255,255,255,.12)}
+#txbar svg{width:15px;height:15px;flex-shrink:0}
+#txbar i{width:1px;height:16px;background:rgba(255,255,255,.22)}
+body.preview #pins,body.preview #cmprow{visibility:hidden}
 
 @media (max-width:1180px){aside{width:340px}.bub{width:100%}.brand,.status{width:auto}}
 /* phone: the player on top, the notes in a bottom sheet */
 @media (max-width:760px){
   body{height:auto;min-height:100vh;overflow:auto}
+  #toast{top:16px}.mk{padding:14px 16px}.mk b{font-size:15px;line-height:20px}
   header{height:auto;padding:12px 16px}
   .brand,#stages,.status{display:none}
   .mhead{display:flex;flex-direction:column;gap:1px;flex:1}
@@ -279,7 +367,7 @@ aside{width:400px;flex-shrink:0;background:var(--panel);border:1px solid var(--l
   .mini{display:block;height:10px}.mini i{position:absolute;top:2px;height:6px;border-radius:2px;background:var(--muted)}.mini i.z{background:var(--quiet);border-radius:3px}
   #pins{height:22px}.pin{width:20px;height:20px;margin-left:-10px;border-radius:7px;font-size:11px;line-height:14px}
   #bar{height:14px}.sg{height:6px;top:4px;border-radius:3px}#knob{width:12px;height:16px;top:-1px;margin-left:-6px;border-radius:6px}
-  aside{width:auto;flex:1;min-height:52vh;border:0;border-top:1px solid var(--line);border-radius:20px 20px 0 0;padding-top:8px}
+  aside{width:auto;flex:1;min-height:0;border:0;border-top:1px solid var(--line);border-radius:20px 20px 0 0;padding-top:8px}
   aside::before{content:'';display:block;width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto}
   .phead{display:none}
   .mhead2{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 0}
@@ -305,21 +393,23 @@ aside{width:400px;flex-shrink:0;background:var(--panel);border:1px solid var(--l
 <section id="how" aria-label="how this works"><ol>
  <li><b>1. Watch and note</b>Pause where something is off and leave a note. It is pinned to that moment, with the frame. Paste or drop an image to show what you mean.</li>
  <li><b>2. Send notes</b>Claude reads every note, fixes the video and renders the next round. You see each step here while it works, and the page switches to the new round by itself.</li>
- <li><b>3. Approve</b>When it is right, approve. The cut moves on to the styled edit. The edit is finished.</li>
+ <li><b>3. Approve</b>When it is right, approve. The cut moves on to the styled edit. The edit is finished, and your notes can update your style for the next video.</li>
 </ol><div id="keys"></div></section>
 
 <main>
 <div class="left">
  <div class="stagewrap">
+ <div id="stagebar" role="status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="4" cy="4.5" r="2.2"/><circle cx="4" cy="11.5" r="2.2"/><path d="M5.8 5.6L14 11.5M5.8 10.4L14 4.5"/></svg><span id="stagetext"></span></div>
+ <div id="intro" role="note"><span>Your first videos teach it your style. Leave notes on anything that is off: each video comes out closer.</span><button id="introx">Got it</button></div>
  <div id="cmprow"><div class="seg" id="wc"><button data-m="watch">Watch</button><button data-m="compare">Compare</button></div>
-  <div class="hint"><select id="ver2" aria-label="compare with"></select><span>Both play together from the playhead</span></div></div>
+  <div class="hint"><select id="ver2" aria-label="compare with"></select></div></div>
  <div id="stage">
   <div id="pair">
    <figure class="pl" id="p2"><figcaption id="cap2"></figcaption><div class="player"><video id="v2" preload="auto" muted playsinline></video><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
    <figure class="pl" id="p1"><figcaption id="cap1"></figcaption><div class="player"><video id="v" preload="auto" playsinline></video>
-    <div id="oldbadge"></div><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
+    <div id="oldbadge"></div><div id="making" aria-live="polite"></div><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
   </div>
-  <div id="tx"><div class="txhead"><b>Transcript</b><span id="txmeta"></span></div><div id="txlines"></div></div>
+  <div id="tx"><div class="txhead"><b>Transcript</b><span id="txmeta"></span></div><div class="txtools" id="txtools"></div><div id="txlines"></div><div id="txbar" role="toolbar" aria-label="change the selected words"></div></div>
  </div>
  </div>
  <div class="transport">
@@ -356,6 +446,7 @@ aside{width:400px;flex-shrink:0;background:var(--panel);border:1px solid var(--l
  </div>
 </aside>
 </main>
+<div id="toast" role="status"></div>
 <script>
 let themeAt=0;   // a poll already in flight still carries the old theme: ignore the server's for 3 s after a click
 const $=id=>document.getElementById(id),v=$('v'),v2=$('v2'),bar=$('bar'),ta=$('ta'),box=$('box');
@@ -375,8 +466,11 @@ const key=r=>r.stage+'-'+r.round, cur=()=>({stage:S.stage,round:S.round});
 const viewRound=()=>(S.rounds||[]).find(r=>key(r)===key(view))||S;
 const onAlt=c=>(c.alt||'')===alt||c.alt==='*';   // each video keeps its own notes and pins; '*' = all videos
 const isCur=()=>view&&view.stage===S.stage&&view.round===S.round;
-const approved=st=>S.events.some(e=>e.type==='approve'&&e.stage===st);
-const pending=()=>{const e=S.events[S.events.length-1];return S.sent&&e?e.type:null};
+const approved=st=>{const i=S.events.map(e=>e.type==='approve'&&e.stage===st).lastIndexOf(true);return i>=0&&!S.events.slice(i+1).some(e=>e.type==='stop')};   // Stop while the edit is made takes the approve back
+const pending=()=>{const e=S.events[S.events.length-1];return S.sent&&e?(e.type==='edits'?'send':e.type):null};   // transcript edits: with Claude, like a send
+const editsSent=()=>{const e=S.events[S.events.length-1];return !!(S.sent&&e&&e.type==='edits')};
+let approving=false,landing=0;   // Approve pressed, before the server answers; the edit round arriving (1 = bar green, 2 = toast)
+const makingEdit=s=>{s=s||S;const e=s.events[s.events.length-1];return !!(s.sent&&!s.final&&e&&e.type==='approve'&&e.stage==='cut'&&s.stage==='cut')};   // final: the cut is the video, no edit follows
 const rn=r=>r.round===0?'Your clip, before the cut':'Round '+r.round;   // round 0: the raw clip, open while the cut is made
 const plural=(n,w)=>n+' '+w+(n===1?'':'s');
 const mainName=r=>r.label||'main';
@@ -397,14 +491,18 @@ async function load(force){
   const raw=await (await fetch('/state')).text();
   if(raw===lastRaw&&!force)return;lastRaw=raw;
   const d=JSON.parse(raw),was=S&&key(cur());
+  // the edit round arrived while the page showed "Making the edit": the bar fills green, then the page switches
+  if(S&&!landing&&makingEdit()&&d.stage==='edit'){landing=1;renderMaking();renderList();setTimeout(()=>{landing=2;load(true)},1100);return}
   // live reload: the page or the server changed; never while a note is being typed
   if(d.page){const t=document.activeElement;if(PV&&d.page!==PV&&!(t&&/^(INPUT|TEXTAREA)$/.test(t.tagName)&&t.value)){location.reload();return}PV=PV||d.page}
   S=d;
   if((d.theme==='light'||d.theme==='dark')&&document.documentElement.dataset.theme!==d.theme&&Date.now()-themeAt>3000){document.documentElement.dataset.theme=d.theme;themeIcon()}   // one theme with the window
   if(!view||(was&&was!==key(cur())&&key(view)===was)){view=cur();if(was&&was!==key(cur()))tab='notes'}   // follow a new round when it lands
-  for(const r of S.rounds||[])if(!(key(r) in DATA)){DATA[key(r)]=null;fetch('/data?k='+key(r)).then(x=>x.json()).then(j=>{DATA[key(r)]=j;txKey='';render()}).catch(()=>{})}
+  for(const r of S.rounds||[])if(!(key(r) in DATA)){DATA[key(r)]=null;fetch('/data?k='+key(r)).then(x=>x.json()).then(j=>{DATA[key(r)]=j;txSig='';render()}).catch(()=>{})}
   setVideo();render();
+  if(landing===2){landing=0;toast('The edit is ready')}
 }
+function toast(t){const e=$('toast');e.innerHTML=TICK+esc(t);e.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>e.classList.remove('show'),3500)}
 function cmpOptions(){   // what can play beside this round: its other versions, then earlier rounds of this stage
   const r=viewRound(),o=['',...(r.alts||[]).map(a=>a.name)].filter(x=>x!==alt).map(x=>({k:key(view),alt:x,label:lab(x)}));
   (S.rounds||[]).filter(x=>x.stage===view.stage&&x.round<view.round).reverse().forEach(x=>o.push({k:key(x),alt:'',label:rn(x)}));
@@ -412,8 +510,11 @@ function cmpOptions(){   // what can play beside this round: its other versions,
 }
 function setVideo(){
   if(alt&&!(viewRound().alts||[]).some(a=>a.name===alt))alt='';
-  const k=key(view)+'|'+alt;if(k!==loaded){const t=loaded.split('|')[0]===key(view)?v.currentTime:0;loaded=k;
-    v.src='/video?k='+key(view)+'&alt='+encodeURIComponent(alt);v.playbackRate=speed;if(t)v.addEventListener('loadedmetadata',()=>v.currentTime=Math.min(t,v.duration||t),{once:true})}
+  if(previewOn&&!canPreview())previewOn=false;
+  if(previewOn){mode='watch'}
+  document.body.classList.toggle('preview',previewOn);
+  const k=previewOn?'raw':key(view)+'|'+alt;if(k!==loaded){const t=seekTo??(loaded.split('|')[0]===key(view)?v.currentTime:0);seekTo=null;loaded=k;
+    v.src=previewOn?'/video?k=raw':'/video?k='+key(view)+'&alt='+encodeURIComponent(alt);v.playbackRate=speed;if(t)v.addEventListener('loadedmetadata',()=>v.currentTime=Math.min(t,v.duration||t),{once:true})}
   const opts=cmpOptions();
   if(mode==='compare'&&!opts.length)mode='watch';
   if(mode==='compare'&&(!cmp||!opts.some(o=>o.k===cmp.k&&o.alt===cmp.alt)))cmp=opts.find(o=>o.k!==key(view))||opts[0];
@@ -446,8 +547,13 @@ function renderVer(){
   renderCaps();
 }
 function steps(){
-  const has=st=>(S.rounds||[]).some(r=>r.stage===st);
+  const has=st=>(S.rounds||[]).some(r=>r.stage===st),mk=approving||makingEdit();
   $('stages').style.display=has('cut')?'':'none';   // no cut stage (a product video): no stages to show
+  if(mk){   // approved: the cut ticks green and the edit is the step being made
+    $('st1').className='done';$('st1').setAttribute('aria-current','false');$('st1').disabled=false;$('st1').innerHTML=`<span class="n">${TICK}</span>${STAGE.cut}`;
+    $('st2').className='on';$('st2').setAttribute('aria-current','step');$('st2').disabled=true;$('st2').innerHTML=`<span class="n">2</span>${STAGE.edit}<small>making</small>`;
+    return;
+  }
   [['st1','cut'],['st2','edit']].forEach(([id,st],i)=>{
     const done=approved(st),viewing=view&&view.stage===st,rs=(S.rounds||[]).filter(r=>r.stage===st);
     $(id).className=(viewing?'on':'')+(done?' done':'');$(id).setAttribute('aria-current',viewing?'page':'false');
@@ -457,9 +563,9 @@ function steps(){
 }
 function listenText(S){
   const e=S.events[S.events.length-1],picked=!!(S.sent&&e&&e.handled);
-  if(picked&&e.type==='approve')return e.stage==='cut'?'The cut is approved':'Approved';
-  if(picked)return S.raw?'Claude is making the cut':'Claude is working on round '+(S.round+1);
-  if(S.sent)return 'Notes sent';
+  if(picked&&e.type==='approve')return e.stage==='cut'?(S.stage==='cut'&&!S.final?'Claude is making the edit':'The cut is approved'):'Approved';
+  if(picked)return S.raw?'Claude is making the cut':e.type==='edits'?'Claude is applying your changes':'Claude is working on round '+(S.round+1);
+  if(S.sent)return e&&e.type==='edits'?'Changes sent':e&&e.type==='approve'?(e.stage==='cut'?'Cut approved':'Approved'):'Notes sent';
   if(S.listening)return S.round>1&&!S.comments.some(c=>c.stage===S.stage&&c.round===S.round)?'Round '+S.round+' is ready':'Claude is listening';
   if(S.busy)return 'Claude is working. Notes you send now are next.';
   return 'Claude is not listening. Notes still save.';
@@ -469,33 +575,47 @@ function render(){
   document.body.classList.toggle('vertical',!!S.vertical);
   const p=pending(),lastEv=S.events[S.events.length-1],picked=!!(S.sent&&lastEv&&lastEv.handled),vr=viewRound();
   $('name').textContent=S.name;$('name').title=S.name;document.title=S.name+(p==='send'?' · Claude working':' · round '+S.round);steps();
-  $('listen').textContent=listenText(S);$('statusbox').classList.toggle('work',picked&&p==='send');
+  $('listen').textContent=approving?'Cut approved':makingEdit()&&makeState().idle?'Claude is not working on the edit':listenText(S);$('statusbox').classList.toggle('work',picked&&p==='send');
   $('mstage').textContent=STAGE[view.stage];$('msub').textContent=S.name+' · '+rn(view).toLowerCase();
   const mine=S.comments.filter(c=>c.stage===S.stage&&c.round===S.round).length,live=isCur()&&!p;
   // Send is primary while there are notes; once a round lands with none, Approve is. Stop replaces Send while Claude works.
-  const sb=$('send'),ap=$('approve'),working=p==='send';
+  const sb=$('send'),ap=$('approve'),working=p==='send'||makingEdit();
   sb.classList.toggle('stop',working);sb.querySelector('span').textContent=working?(S.raw?'Making the cut':'Stop'):mine?'Send '+plural(mine,'note'):'Send notes';
-  sb.className=S.raw?'primary':(working||(mine&&live)?'primary':'')+(working?' stop':'');
+  sb.className=S.raw?'primary':((working&&!makingEdit())||(mine&&live)?'primary':'')+(working?' stop':'');   // making the edit: green Cut approved leads, Stop stays quiet
   sb.disabled=working?!isCur()||!!S.raw:(!live||!mine);
-  sb.title=working?(S.raw?'the first cut is on its way':'stop Claude working on this round; your notes open again'):'';
-  ap.textContent=S.stage==='cut'?'Approve the cut':(S.alts||[]).length?'Approve all':'Approve the edit';
+  sb.title=working?(S.raw?'the first cut is on its way':makingEdit()?'stop making the edit; the cut opens again':'stop Claude working on this round; your notes open again'):'';
+  const mk=approving||makingEdit();
+  ap.textContent=S.stage==='cut'?(S.final?'Approve the cut':'Approve the cut and add captions'):(S.alts||[]).length?'Approve all':'Approve the edit';
   ap.className=!working&&live&&!mine?'primary':'';ap.disabled=!!p||!isCur()||mine>0;
-  ap.title=mine>0?'send or delete your notes before you approve':'';
-  $('mapprove').textContent='Approve';$('mapprove').className=ap.className;$('mapprove').disabled=ap.disabled;
+  if(PEND.length&&isCur()){ap.disabled=true;ap.className=''}
+  ap.title=mine>0?'send or delete your notes before you approve':PEND.length?'apply or discard your transcript changes first':'';
+  if(mk){ap.innerHTML=TICK+'Cut approved';ap.className='approved';ap.disabled=true;ap.title=''}
+  $('mapprove').textContent=mk?'Cut approved':'Approve';$('mapprove').className=ap.className;$('mapprove').disabled=ap.disabled;
+  const sbar=isCur()&&!mk&&S.round>0&&(S.rounds||[]).some(r=>r.stage==='cut')&&p!=='approve'&&(S.stage==='cut'||view.round===1);
+  document.body.classList.toggle('staged',sbar);
+  $('stagetext').innerHTML=S.stage==='cut'?(S.final?'<b>This is the cut.</b> It is the finished video. Approve it when it is right.':'<b>This is the cut.</b> Captions, zooms and sound come next, once you approve it.'):'<b>This is the edit.</b> Captions, zooms and sound are in. Leave notes or approve.';
+  document.body.classList.toggle('learning',!!S.learn&&p==='approve'&&isCur());
+  document.body.classList.toggle('intro',!!S.intro&&isCur()&&!introOff&&!mk);
+  renderMaking();
   $('msend').textContent=sb.querySelector('span').textContent;$('msend').disabled=sb.disabled;
-  $('ncount').textContent=S.comments.filter(c=>onAlt(c)&&c.stage===view.stage&&(c.round===view.round||c.round===view.round-1)).length||'';
+  $('ncount').textContent=noteCount();
   $('mcount').textContent=mine?mine+(p?'':', not sent'):'';
   [...$('ptabs').children].forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
   const nv=(vr.alts||[]).length;
   $('pmeta').textContent=view.round===0?rn(view):rn(view)+' · '+(!isCur()?'read only':working?'still plays':nv?(nv+1)+' versions':ago(vr.at||S.at||Date.now()));
-  $('oldbadge').style.display=isCur()?'none':'block';$('oldbadge').textContent='Older round, read only';
+  $('oldbadge').style.display=isCur()&&!previewOn?'none':'block';$('oldbadge').textContent=previewOn?'Preview with your changes':'Older round, read only';
   // the composer: open until approve. While Claude works, a note waits for the next round
-  const canNote=isCur()&&p!=='approve';
+  const canNote=isCur()&&p!=='approve'&&!previewOn;
   ta.disabled=!canNote;box.classList.toggle('off',!canNote);
-  ta.placeholder=p==='send'?(S.raw?'Add a note for the cut...':'Add a note for the next round...'):!isCur()?'Older round, read only':p==='approve'?(S.stage==='cut'?'The cut is approved':'Approved'):view.round>1?'Leave a note on round '+view.round+'...':'Leave a note at this moment...';
+  ta.placeholder=previewOn?'Back to the cut to leave a note':p==='send'?(S.raw?'Add a note for the cut...':'Add a note for the next round...'):!isCur()?'Older round, read only':p==='approve'?(S.stage==='cut'?'The cut is approved':'Approved'):view.round>1?'Leave a note on round '+view.round+'...':'Leave a note at this moment...';
   const sc=$('scope');sc.style.display=nv&&canNote?'block':'none';
   if(nv)sc.innerHTML=`<option value="">${esc(lab(alt))} only</option><option value="*">${nv===1?'Both':'All'} versions</option>`;
   renderVer();renderTx();renderBar();renderTracks();renderList();boxTime();
+}
+function noteCount(){   // "2 done · 1 open" over this round's notes and last round's answered ones
+  const cs=S.comments.filter(c=>onAlt(c)&&c.stage===view.stage&&(c.round===view.round||c.round===view.round-1));
+  const n=st=>cs.filter(c=>c.status===st).length,parts=[n('fixed')?n('fixed')+' done':'',n('open')?n('open')+' open':''].filter(Boolean);
+  return n('fixed')||n('wontfix')?parts.join(' · '):(cs.length||'');
 }
 const here=c=>(c.stage===view.stage&&c.round===view.round)?c.t:(c.new_t??c.t);
 function shown(){   // this round's notes, and last round's pinned where Claude moved them
@@ -503,7 +623,7 @@ function shown(){   // this round's notes, and last round's pinned where Claude 
 }
 function bounds(){   // segment starts: chapters on the edit, else the cut points, else one segment
   const d=data(),T=D();
-  let pts=d.chapters?d.chapters.map(c=>c[0]):(d.points||[]);
+  let pts=previewOn?[]:d.chapters?d.chapters.map(c=>c[0]):(d.points||[]);
   const out=[0];pts.forEach(t=>{if(t>out[out.length-1]+Math.max(.3,T*.006)&&t<T-.3)out.push(t)});return out;
 }
 function renderBar(){
@@ -527,27 +647,6 @@ function renderTracks(){
   $('mini').innerHTML=(tr.cards||[]).map(([s,e])=>`<i style="left:${s/T*100}%;width:max(3px,${(e-s)/T*100}%)"></i>`).join('')+(tr.zooms||[]).map(([s])=>`<i class="z" style="left:${s/T*100}%;width:6px"></i>`).join('');
   tick();
 }
-// the transcript: drawn once per round, then only the line and word playing now change
-let txKey='',txLines=[],txCur=-1;
-function renderTx(){
-  const tx=view.stage==='cut'&&!cmp&&data().transcript;
-  document.body.classList.toggle('withTx',!!tx);
-  if(!tx){txKey='';return}
-  if(txKey===key(view))return;txKey=key(view);txCur=-1;
-  $('txmeta').textContent=`Struck words were cut · ${plural(tx.cuts,'cut')} · ${fmt(tx.source_s)} to ${fmt(data().duration||D())}`;
-  $('txlines').innerHTML=tx.lines.map((l,i)=>`<div class="ln" data-i="${i}"><span class="lt num">${l.t!=null?fmt(l.t):''}</span><div class="lw">${l.tokens.map(x=>
-    x.p!=null?`<s class="pz">${x.p}s</s>`:x.t==null?`<s>${esc(x.w)}</s>`:`<span data-t="${x.t}">${esc(x.w)}</span>`).join('')}</div></div>`).join('');
-  txLines=[...$('txlines').children].map((el,i)=>({el,t:tx.lines[i].t,words:[...el.querySelectorAll('span[data-t]')]}));
-  tickTx();
-}
-function tickTx(){
-  if(!txKey||!txLines.length)return;const t=v.currentTime+.05;
-  let i=-1;txLines.forEach((l,k)=>{if(l.t!=null&&l.t<=t)i=k});
-  if(i!==txCur){txCur=i;txLines.forEach((l,k)=>{l.el.classList.toggle('cur',k===i);l.el.classList.toggle('far',i>=0&&k>i+2)});
-    const c=txLines[i];if(c){const box=$('txlines');box.scrollTo({top:c.el.offsetTop-box.offsetTop-Math.min(140,box.clientHeight*.25),behavior:'smooth'})}}
-  const l=txLines[i];txLines.forEach(x=>x.words.forEach(w=>w.classList.remove('now')));
-  if(l){let w=null;l.words.forEach(x=>{if(+x.dataset.t<=t)w=x});if(w)w.classList.add('now')}
-}
 function noteHtml(c){
   const old=c.round!==view.round&&!c.queued,t=here(c),live=isCur()&&(!pending()||!!c.queued),nv=(viewRound().alts||[]).length;
   const canEdit=!old&&live&&c.status==='open',ed=canEdit&&editing&&editing.id===c.id;   // review.py editable(): open round or queued
@@ -561,17 +660,18 @@ function noteHtml(c){
     ${editing.images.length?`<div class="att">${editing.images.map((x,i)=>`<span class="rm"><a><img src="${x.startsWith('data:')?x:'/frames/'+encodeURIComponent(x)}" alt="">Image ${i+1}</a><button data-rmimg="${i}" aria-label="remove image">×</button></span>`).join('')}</div>`:''}
     <div class="erow"><button data-addimg>+ Image</button><span class="grow"></span><button data-cancel>Cancel</button><button class="go" data-save>Save</button></div>`
     :`${c.text?`<p${canEdit?` class="ed" data-edit="${c.id}" title="click to edit"`:''}>${esc(c.text)}</p>`:''}${card}${imgs}`;
-  let h=`<div class="note${old?' old':''}${ed?' editing':''}" data-t="${t}" data-old="${old?1:0}"${why?` title="${esc(why)}"`:''}><div class="bub">${thumb}<div class="nb"><div class="nh"><span class="tchip num">${tm}</span>${c.words?`<span class="q">"${esc(c.words)}"</span>`:''}</div>
+  const done=c.status==='fixed'&&(old||c.reply),wont=c.status==='wontfix'&&(old||c.reply);
+  let h=`<div class="note${old?' old':''}${ed?' editing':''}${done?' done':''}${wont?' wont':''}" data-t="${t}" data-old="${old?1:0}"${why?` title="${esc(why)}"`:''}><div class="bub">${thumb}<div class="nb"><div class="nh">${done?`<span class="okt" aria-label="done">${TICK}</span>`:''}<span class="tchip num">${tm}</span>${c.words?`<span class="q">"${esc(c.words)}"</span>`:''}</div>
     ${body}</div></div>`;
   if(c.moved&&!old)h+=`<span class="nmeta">${c.moved==='words'?`Moved from ${fmtx(c.t_was)} to where the same words are said`:`Same time as in the last round. The cut changed, so check it`}</span>`;
   const meta=[nv?(c.alt==='*'?(nv===1?'Both':'All')+' versions':esc(c.alt||mainName(viewRound()))+' only'):'',c.edited&&!old?'Edited':''].filter(Boolean);
   if(meta.length)h+=`<span class="nmeta">${meta.join(' · ')}</span>`;
   if(old||c.reply){
     const st=c.status,ic=st==='fixed'?TICK:st==='wontfix'?'<i></i>':'<u></u>';
-    const lead=st==='fixed'?`Fixed in round ${view.stage===c.stage&&old?view.round:c.round+1}`:st==='wontfix'?'Left as is':'Still open';
+    const lead=st==='fixed'?`<b>Done in round ${view.stage===c.stage&&old?view.round:c.round+1}</b>`:st==='wontfix'?'Left as is':'Still open';
     const btns=[];
     if(old&&live&&st==='wontfix')btns.push(`<button class="obtn" data-anyway="${c.id}">Fix it anyway</button>`);
-    h+=`<div class="reply"><span class="ic">${ic}</span><div><span>${lead}${c.reply?': '+esc(c.reply):'.'}${moved}</span>${btns.length?`<div style="display:flex;gap:8px">${btns.join('')}</div>`:''}</div></div>`;
+    h+=`<div class="reply"><span class="ic">${ic}</span><div><span>${lead}${c.reply?': '+esc(c.reply):'.'}${esc(moved)}</span>${btns.length?`<div style="display:flex;gap:8px">${btns.join('')}</div>`:''}</div></div>`;
   }
   const acts=[];
   if(old&&live&&!c.checked&&c.status!=='open')acts.push(`<button data-good="${c.id}">Got it</button>`);
@@ -584,13 +684,58 @@ function noteHtml(c){
 function workHtml(){
   const p=pending(),e=S.events[S.events.length-1],picked=!!(S.sent&&e&&e.handled);
   const act=(S.activity||[]).filter(x=>x.round===S.round),live=act.some(x=>!x.done);
-  if(p==='approve')return `<div class="claude"><div><b>Claude</b><p>${S.stage==='cut'?'The cut is approved. Claude is styling it.':'Approved. The edit is finished.'}</p></div></div>`;
+  if(p==='approve'&&S.stage==='cut'){const m=makeState();
+    const li=m.keys.map((k,i)=>i<m.cur||(i===m.cur&&m.closed)?`<li class="ok"><span class="ic">${TICK}</span>${esc(m.steps[k])}</li>`
+      :i===m.cur?`<li class="now"><span class="ic"><i></i></span>${esc(m.steps[k])}</li>`+(m.pct!=null?`<li class="pb"><em><i style="width:${m.pct}%"></i></em>${m.pct}%</li>`:'')
+      :`<li class="todo"><span class="ic"><i></i></span>${esc(m.steps[k])}</li>`).join('')
+      +(m.extra?`<li class="now"><span class="ic"><i></i></span>${esc(m.extra)}</li>`:'');
+    return `<div class="claude"><div><b>Claude</b><p>${esc(m.idle?'The cut is approved. '+m.idle:'The cut is approved. Claude is making the edit in '+m.style+'.')}</p></div><ol class="steps">${li}</ol>${m.at&&!m.idle?`<span class="since" data-since="${esc(m.at)}">Working for ${dur((Date.now()-new Date(m.at))/1000)}</span>`:''}</div>`}
+  if(p==='approve')return `<div class="claude"><div><b>Claude</b><p>${S.stage==='cut'?'The cut is approved. It is the finished video.':'Approved. The edit is finished.'}</p></div></div>`+learnHtml();
   if(p!=='send'&&!live)return '';
-  const head=S.raw?'Making the cut. Your clip plays meanwhile. Notes you leave now go on the cut.':p==='send'?(act.length?`Making round ${S.round+1}.`:picked?`Claude has your notes and is starting round ${S.round+1}.`:'Notes sent. Waiting for Claude to pick them up.'+(S.listening||!S.busy?'':' Claude is finishing something and takes them next.')):'Still coming in this round:';
+  const ed=editsSent()?S.events[S.events.length-1]:null,nch=ed?plural(ed.n,'transcript change'):'';
+  const head=S.raw?'Making the cut. Your clip plays meanwhile. Notes you leave now go on the cut.':ed?(act.length?`Claude is applying your changes (${nch}). Round ${S.round+1} lands here.`:picked?`Claude has your ${nch} and is starting round ${S.round+1}.`:S.listening||S.busy?`${nch} saved. Waiting for Claude to pick them up.`:`${nch} saved in spans.json, but Claude is not listening. Ask Claude in the terminal to apply them.`):p==='send'?(act.length?`Making round ${S.round+1}.`:picked?`Claude has your notes and is starting round ${S.round+1}.`:'Notes sent. Waiting for Claude to pick them up.'+(S.listening||!S.busy?'':' Claude is finishing something and takes them next.')):'Still coming in this round:';
   const li=act.map(x=>x.done?`<li><span class="ic">${TICK}</span>${esc(x.text)}</li>`
     :`<li class="now"><span class="ic"><i></i></span>${esc(x.text)}</li>`+(x.pct!=null?`<li class="pb"><em><i style="width:${x.pct}%"></i></em>${x.pct}%</li>`:'')).join('');
   const sent=e&&e.type==='send'?e.at:null;
   return `<div class="claude"><div><b>Claude</b><p>${esc(head)}</p></div>${li?`<ol class="steps">${li}</ol>`:''}${sent&&p==='send'?`<span class="since" data-since="${esc(sent)}">Working for ${dur((Date.now()-new Date(sent))/1000)}</span>`:''}</div>`;
+}
+// the final approve: Claude's rules from this video's notes, each ticked, into the style on Update
+let untick=new Set(),introOff=false;
+function learnHtml(){
+  const L=S.learn;if(!L)return '';const head=`<b>Teach ${esc(L.style||'your style')} from this video</b>`;
+  const say={none:'No notes this time. Your style stays as it is.',empty:'Nothing in your notes was about the style. It stays as it is.',skipped:'Not saved. Your style stays as it is.'}[L.state];
+  if(say)return `<div class="learn">${head}<p>${say}</p></div>`;
+  if(L.state==='reading')return `<div class="learn">${head}<p class="wait"><i></i>Claude is reading your notes...</p></div>`;
+  const open=L.state==='proposed',rs=(L.rules||[]).map((r,i)=>[r,i]).filter(([,i])=>open||L.chosen.includes(i));
+  const rows=rs.map(([r,i])=>`<label class="lrule${open&&untick.has(i)?' off':''}"><input type="checkbox" data-li="${i}"${open&&untick.has(i)?'':' checked'}${open?'':' disabled'}><span>${esc(r.rule)}</span></label>`).join('');
+  if(open)return `<div class="learn">${head}<p>From your notes. Untick anything it should not keep.</p>${rows}
+    <div class="erow"><button class="go" data-lsave${rs.every(([,i])=>untick.has(i))?' disabled':''}>Update my style</button><button data-lskip>Not now</button></div></div>`;
+  if(L.state==='chosen')return `<div class="learn">${head}${rows}<p class="wait"><i></i>Saving to ${esc(L.style)}...</p></div>`;
+  return `<div class="learn">${head}${rows}<p class="ok">${TICK}${esc(L.summary||'Saved.')}</p></div>`;
+}
+const EDIT_STEPS={captions:'Writing the captions',visuals:'Finding the visuals',plan:'Planning zooms, cards and sound',render:'Rendering the edit'};
+function makeState(){   // the edit's steps from Claude's status reports (review.py EDIT_STEPS); nothing made up
+  const steps=(S.making&&S.making.steps)||EDIT_STEPS,keys=Object.keys(steps),act=(S.activity||[]).filter(x=>x.round===S.round);
+  const ev=[...S.events].reverse().find(e=>e.type==='approve'&&e.stage==='cut'),at=ev&&ev.at;
+  const mine=act.filter(x=>x.step&&keys.includes(x.step)&&(!at||x.at>=at)),last=mine[mine.length-1];
+  const land=landing===1,cur=land?keys.length-1:last?keys.indexOf(last.step):-1,closed=land||!!(last&&last.done),open=!land&&act.length&&!act[act.length-1].done?act[act.length-1]:null;
+  const pct=!land&&last&&!last.done&&last.step==='render'&&last.pct!=null?last.pct:null;
+  const frac=cur<0?0:Math.min(1,(cur+(closed?1:pct!=null?pct/100:.5))/keys.length);
+  let left='';if(pct>=5&&last.at){const s=(Date.now()-new Date(last.at))/1000;left='about '+Math.max(1,Math.round(s*(100-pct)/pct/60))+' min left'}
+  const alive=S.busy||!!(open&&open.log_age!=null&&open.log_age<120);   // a step is open only while Claude reports or its render log moves
+  const idle=!alive?'No word from Claude for a while. If it stopped, go back to Claude and say go on.':'';
+  return {steps,keys,cur,closed,pct,frac,at,left,idle,style:(S.making&&S.making.style)||'your style',
+    now:open?open.text:cur>=0?steps[keys[cur]]:'Starting',extra:open&&!open.step?open.text:''};
+}
+function renderMaking(){
+  const on=!!S&&(approving||makingEdit()||landing===1)&&isCur();
+  document.body.classList.toggle('making',on);if(!on)return;
+  const m=makeState(),ready=landing===1,el=$('making');
+  if(m.idle&&!ready&&!approving){el.innerHTML=`<div class="mk"><b>Claude is not working on the edit</b><p>${esc(m.idle)} Your cut is approved and saved.</p></div>`;return}
+  const pc=ready?100:Math.max(3,Math.round(m.frac*100)),since=m.at?dur((Date.now()-new Date(m.at))/1000):'0s';
+  el.innerHTML=`<div class="mk${ready?' ready':''}"><b>${ready?'The edit is ready':'Making the edit'}</b><p>Captions, zooms and sound in ${esc(m.style)}</p>
+    <em role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pc}"><i style="width:${pc}%"></i></em>
+    <div class="mrow"><span>${ready?'Opening it now':esc(m.now)}</span><span class="num" data-mk="${esc(m.at||'')}">${ready?'':since+(m.left?' · '+m.left:'')}</span></div></div>`;
 }
 function workedFor(r){   // the send of the round before this one to the moment this round landed
   const e=[...S.events].reverse().find(x=>x.type==='send'&&x.stage===r.stage&&x.round===r.round-1);
@@ -617,19 +762,21 @@ function renderList(){
     if(mine.length)h+=`<p class="sub">Your notes on round ${view.round}</p>`;
   }else if((vr.note||cc)&&!(isCur()&&p==='send'))h+=`<div class="claude"><div><b>Claude</b><p>${esc(vr.note||'')}${cc}</p></div></div>`;
   h+=mine.map(noteHtml).join('');
-  if(!mine.length&&!prev.length&&!(S.raw&&isCur()))h+=`<p class="empty">${isCur()?'No notes yet. Pause where something is off and leave a note.':'No notes on this round.'}</p>`;
+  if(!mine.length&&!prev.length&&!(S.raw&&isCur())&&!(isCur()&&makingEdit()))h+=`<p class="empty">${isCur()?'No notes yet. Pause where something is off and leave a note.':'No notes on this round.'}</p>`;
   if(isCur())h+=workHtml();
   const queued=isCur()?S.comments.filter(c=>c.queued&&c.stage===S.stage&&onAlt(c)).sort((a,b)=>a.t-b.t):[];
   if(queued.length)h+=`<p class="sub">${S.raw?'For the cut':'For the next round'}</p>`+queued.map(noteHtml).join('');
   if(isCur()&&!p&&mine.length)h+=`<span class="unsent">${plural(mine.length,'note')}, not sent yet</span>`;
   const keepScroll=$('list').scrollTop,hadFocus=document.activeElement&&document.activeElement.classList.contains('edta');
   $('list').innerHTML=h;$('list').scrollTop=isCur()&&p&&!editing?$('list').scrollHeight:keepScroll;
+  const lp=$('list').querySelector('.learn');if(lp&&!keepScroll)lp.scrollIntoView({block:'end'});
   const ea=$('list').querySelector('.edta');
   if(ea){ea.oninput=()=>editing.text=ea.value;ea.onkeydown=ev=>{if(ev.key==='Enter'&&!ev.shiftKey){ev.preventDefault();saveEdit()}if(ev.key==='Escape'){ev.preventDefault();editing=null;renderList()}};
     ea.onpaste=ev=>{const fs=[...(ev.clipboardData?.files||[])];if(fs.length){ev.preventDefault();editFiles(fs)}};
     if(hadFocus||editing.focus){editing.focus=false;ea.focus();ea.setSelectionRange(ea.value.length,ea.value.length)}}
   else if(editing&&!S.comments.some(c=>c.id===editing.id))editing=null;
 }
+setInterval(()=>{if(document.body.classList.contains('making')&&!landing)renderMaking()},1000);
 setInterval(()=>{document.querySelectorAll('[data-since]').forEach(e=>e.textContent='Working for '+dur((Date.now()-new Date(e.dataset.since))/1000))},1000);
 async function post(u,b){const r=await fetch(u,{method:'POST',body:JSON.stringify(b)});return r.ok?r.json():{}}
 
@@ -647,7 +794,12 @@ async function saveEdit(){const c=S.comments.find(c=>c.id===editing.id);if(!c){e
   editing=null;if(!r.ok)alert((await r.json().catch(()=>({}))).error||'Could not save the note');await load(true)}
 function editFiles(fs){[...fs].filter(f=>/^image\/(png|jpeg|gif|webp)$/.test(f.type)).slice(0,6-editing.images.length).forEach(f=>{const r=new FileReader();r.onload=()=>{if(editing){editing.images.push(r.result);renderList()}};r.readAsDataURL(f)})}
 $('editpic').onchange=e=>{if(editing)editFiles(e.target.files);e.target.value=''};
+$('list').addEventListener('change',e=>{const cb=e.target.closest('[data-li]');if(!cb)return;
+  cb.checked?untick.delete(+cb.dataset.li):untick.add(+cb.dataset.li);renderList()});
+$('introx').onclick=()=>{introOff=true;document.body.classList.remove('intro');post('/intro',{})};
 $('list').addEventListener('click',async e=>{
+  if(e.target.closest('[data-lsave],[data-lskip]')){const L=S.learn,save=!!e.target.closest('[data-lsave]');
+    await post('/learn',save?{chosen:L.rules.map((r,i)=>i).filter(i=>!untick.has(i))}:{skip:true});return load(true)}
   if(e.target.closest('.editing')){
     if(e.target.closest('[data-save]'))return saveEdit();
     if(e.target.closest('[data-cancel]')){editing=null;return renderList()}
@@ -670,8 +822,217 @@ $('list').addEventListener('click',async e=>{
   if(e.target.closest('a'))return;
   const c=e.target.closest('.note');if(c)v.currentTime=Math.max(0,+c.dataset.t-(c.dataset.old==='1'?3:0));
 });
-$('txlines').addEventListener('click',e=>{const w=e.target.closest('[data-t]');if(w)v.currentTime=+w.dataset.t});
 $('pins').addEventListener('pointerdown',e=>{const b=e.target.closest('.pin');if(b){e.stopPropagation();v.currentTime=Math.max(0,+b.dataset.pt-(b.dataset.old==='1'?3:0))}});
+
+
+// ---- the transcript beside the player: the whole take, cut words struck, removed pauses as chips, and each of
+// Claude's cuts flagged with its reason (a spans.json kind, or the pause trim). On the current cut round it edits:
+// drag across words for the pill (Restore / Copy / Cut); a flag's tick keeps that cut, its cross brings it back.
+// Changes wait in PEND until Apply (POST /edits); Cmd+Z undoes the last one. Preview plays the raw take skipping
+// every cut range. Read only on older rounds and on the edit (the last cut round's transcript).
+let PEND=[],HIST=[],ACK=new Set(),txSel=null,txAnchor=null,txMoved=false,txDown=false,previewOn=false,seekTo=null,txFor='',W=[],KEEP=[],BLK=[],txSig='',txVer=0,txLines=[],txCur=-1,txNow=-1;
+const KIND={retake:'Retake',false_start:'False start',filler:'Filler',meta:'Aside',audio_event:'Sound',redundant:'Repeat',alt_hook:'Other hook',manual:'Your cut',pause:'Cut with a pause'};
+const SV=(d,w)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w||2}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const IC={cut:SV('<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/>'),
+  restore:SV('<path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/>'),
+  copy:SV('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>'),
+  flag:SV('<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>'),
+  ok:SV('<path d="M20 6 9 17l-5-5"/>',2.2),no:SV('<circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/>')};
+function txSource(){   // [transcript, round key]: this cut round's, or on the edit the last cut round's (read only)
+  if(view.stage==='cut')return data().transcript?[data().transcript,key(view)]:null;
+  const r=(S.rounds||[]).filter(r=>r.stage==='cut'&&DATA[key(r)]&&DATA[key(r)].transcript).pop();
+  return r?[DATA[key(r)].transcript,key(r)]:null;
+}
+const txEditable=()=>view.stage==='cut'&&isCur()&&!pending()&&!S.raw&&!!data().transcript;
+const canPreview=()=>view.stage==='cut'&&isCur()&&!!S.rawvideo&&!!(data().transcript&&data().transcript.kept);
+const saveAck=()=>{try{localStorage.setItem('txack:'+txFor,JSON.stringify([...ACK]))}catch(e){}};
+function txWords(){   // W: every word of the take in order; a removed pause rides on the word after it. BLK: the flagged cuts
+  const src=txSource();if(!src){W=[];txFor='';return}
+  if(txFor===src[1])return;txFor=src[1];PEND=[];HIST=[];txSel=null;W=[];let pz=null;
+  try{ACK=new Set(JSON.parse(localStorage.getItem('txack:'+txFor)||'[]'))}catch(e){ACK=new Set()}
+  src[0].lines.forEach((l,li)=>l.tokens.forEach(x=>{if(x.p!=null){pz=x.p;return}
+    W.push({w:x.w,t:x.t,s:x.s,e:x.e,nt:!!x.nt||x.s==null,cut0:x.t==null,pz,li,k:x.k||'pause',g:x.g,n:x.n||''});pz=null}));
+  BLK=[];let cur=null;
+  W.forEach((w,k)=>{const id=w.cut0&&!w.nt?(w.g!=null?'g'+w.g:'p'):null;
+    if(id&&cur&&cur.id===id&&cur.b===k-1)cur.b=k;else{cur=id?{id,a:k,b:k,kind:w.k,note:w.n}:null;if(cur)BLK.push(cur)}});
+  KEEP=keepRanges();
+}
+function cutNow(k){let c=W[k].cut0;for(const e of PEND)if(e.op!=='pause'&&e.a<=k&&k<=e.b&&!W[k].nt)c=e.op==='cut';return c}
+const changed=k=>!W[k].nt&&cutNow(k)!==W[k].cut0;
+const pausesBack=()=>[...new Set(PEND.filter(e=>e.op==='pause').map(e=>e.k))];
+function changeRuns(){   // the net change as runs of words: [{op,a,b}] (untimed words never change)
+  const out=[];let cur=null;
+  W.forEach((w,k)=>{if(w.nt)return;const ch=changed(k),op=ch?(cutNow(k)?'cut':'restore'):null;
+    if(op&&cur&&cur.op===op)cur.b=k;else{cur=op?{op,a:k,b:k}:null;if(cur)out.push(cur)}});
+  return out;
+}
+const nChanges=()=>changeRuns().length+pausesBack().length;
+const prevE=k=>{for(let i=k-1;i>=0;i--)if(!W[i].nt)return W[i].e;return 0},nextS=k=>{for(let i=k+1;i<W.length;i++)if(!W[i].nt)return W[i].s;return 1e9};
+function keepRanges(){   // what the preview plays, in raw seconds: the cut's kept spans, plus restored words and pauses, minus cut words
+  const tx=data().transcript;if(!tx||!tx.kept)return [];
+  let R=tx.kept.map(r=>[r[0],r[1]]);
+  for(const k of pausesBack())R.push([prevE(k),W[k].s]);
+  for(const r of changeRuns()){const a=W[r.a],b=W[r.b];
+    if(r.op==='restore')R.push([Math.max(a.s-.08,prevE(r.a)),Math.min(b.e+.08,nextS(r.b))]);
+    else R=R.flatMap(([x,y])=>[[x,Math.min(y,a.s)],[Math.max(x,b.e),y]]).filter(([x,y])=>y-x>.01);}
+  R.sort((x,y)=>x[0]-y[0]);const m=[];for(const r of R){if(m.length&&r[0]<=m[m.length-1][1]+.001)m[m.length-1][1]=Math.max(m[m.length-1][1],r[1]);else m.push(r)}
+  return m;
+}
+const flagOn=b=>!ACK.has('w'+b.a)&&W.slice(b.a,b.b+1).every((w,i)=>w.nt||cutNow(b.a+i));
+function flagHtml(id,label,note,inner){
+  return `<div class="flag"${note?` title="${esc(note)}"`:''}><div class="fb"><span class="fl">${IC.flag}${esc(label)}</span>${inner?`<div class="fw">${inner}</div>`:''}</div>`+
+    (txEditable()?`<div class="fa"><button data-acc="${id}" title="Keep it cut" aria-label="keep it cut">${IC.ok}</button><button data-dis="${id}" title="Bring it back" aria-label="bring it back">${IC.no}</button></div>`:'')+`</div>`;
+}
+function wordHtml(k){const w=W[k];
+  const c=w.nt?'tw nt':'tw'+(cutNow(k)?' cut':'')+(changed(k)?' chg':'')+(txSel&&txSel.a<=k&&k<=txSel.b?' sel':'');
+  return `<span class="${c}" data-k="${k}"${w.nt?' title="No timing in the transcript: it cannot be changed here"':''}>${esc(w.w)}</span>`;
+}
+function chipHtml(k){const w=W[k];if(w.pz==null)return '';
+  const p=W.slice(0,k).map((x,i)=>i).reverse().find(i=>!W[i].nt),back=pausesBack().includes(k);
+  if(!back&&!ACK.has('z'+k)&&!w.cut0&&p!=null&&!W[p].cut0)return flagHtml('z'+k,'Pause '+w.pz+'s','Shortened to a short gap','');
+  return `<s class="pz${back?' chg':''}">${w.pz}s${back?' back':''}</s>`;
+}
+function txHtml(tx){
+  const byLine=[];W.forEach((w,k)=>(byLine[w.li]=byLine[w.li]||[]).push(k));
+  return tx.lines.map((l,li)=>{let h='';const ks=byLine[li]||[];
+    for(let j=0;j<ks.length;j++){const k=ks[j];h+=chipHtml(k);
+      const b=BLK.find(b=>b.a<=k&&k<=b.b);
+      if(b&&flagOn(b)){let inner='',m=j;while(m<ks.length&&ks[m]<=b.b){if(m>j)inner+=chipHtml(ks[m]);inner+=wordHtml(ks[m]);m++}
+        h+=flagHtml('w'+b.a,KIND[b.kind]||b.kind,b.note,inner);j=m-1;continue}
+      h+=wordHtml(k)}
+    return `<div class="ln" data-i="${li}"><span class="lt num">${l.t!=null?fmt(l.t):''}</span><div class="lw">${h}</div></div>`}).join('');
+}
+const txSeen=()=>{try{return localStorage.getItem('txseen')==='1'}catch(e){return false}};
+function renderTools(){
+  const ed=txEditable(),p=pending(),n=nChanges();let h;
+  if(view.stage==='edit')h='<p>Read only on the edit: it is built on the approved cut. To change a word, leave a note.</p>';
+  else if(!isCur())h='<p>An older round, read only.</p>';
+  else if(p==='send')h='<p>Claude has this round. Words can change again when the next round is up.</p>';
+  else if(p==='approve')h='<p>The cut is approved. Words are read only now.</p>';
+  else if(n)h=`<b class="num" title="not applied yet">${plural(n,'change')}</b><button class="pbtn" data-undo title="Cmd+Z">Undo</button><button class="pbtn" data-discard>Discard</button>`;
+  else h=txSeen()?'<p></p>':'<p>Select words to cut or restore them.</p>';
+  if(canPreview()&&(ed||previewOn))h+=`<button class="pbtn${previewOn?' on':''}" data-preview>${previewOn?'Back to the cut':'Preview'}</button>`;
+  if(ed&&n)h+='<button class="pbtn go" data-apply>Apply</button>';
+  const el=$('txtools');if(el._h!==h){el._h=h;el.innerHTML=h}
+}
+function renderTx(){
+  txWords();const src=txSource(),show=!!src&&!cmp&&W.length>0;
+  document.body.classList.toggle('withTx',show);
+  if(!show){txSig='';hideBar();return}
+  renderTools();
+  const sig=txFor+'|'+txVer+'|'+txEditable();
+  if(sig===txSig)return;txSig=sig;txCur=-1;txNow=-1;txPast=-1;
+  const tx=src[0],box=$('txlines'),top=box.scrollTop;
+  $('txmeta').textContent=`Struck words were cut · ${plural(tx.cuts,'cut')} · ${fmt(tx.source_s)} to ${fmt((DATA[src[1]]||{}).duration||D())}`;
+  box.innerHTML=txHtml(tx);box.scrollTop=top;txLines=[...box.children];
+  tickTx();if(txSel)showBar();
+}
+let txHand=0,txPast=-1;   // txHand: when the user last scrolled the transcript by hand (auto-scroll waits 3 s)
+function tickTx(){
+  if(!txSig||!W.length)return;const t=v.currentTime+.05;let k=-1;
+  for(let i=0;i<W.length;i++){const w=W[i];const at=previewOn?(w.nt||cutNow(i)?null:w.s):w.t;if(at!=null&&at<=t)k=i}
+  const li=k>=0?W[k].li:-1;
+  if(li!==txCur){txCur=li;txLines.forEach((el,i)=>el.classList.toggle('cur',i===li))}
+  if(k!==txNow){txNow=k;document.querySelectorAll('#txlines .now').forEach(e=>e.classList.remove('now'));
+    const lo=Math.min(k,txPast),hi=Math.max(k,txPast);   // played words: only the ones between the old and new word change
+    for(let i=lo+1;i<=hi;i++){const e=document.querySelector(`#txlines [data-k="${i}"]`);if(e)e.classList.toggle('past',i<=k)}
+    txPast=k;const el=k>=0&&document.querySelector(`#txlines [data-k="${k}"]`);if(el)el.classList.add('now')}
+  const el=k>=0&&document.querySelector(`#txlines [data-k="${k}"]`);
+  if(el&&!txSel&&!txDown&&Date.now()-txHand>3000){   // keep the word said now in view, about a third down
+    const box=$('txlines'),r=el.getBoundingClientRect(),b=box.getBoundingClientRect();
+    if(r.top<b.top+24||r.bottom>b.bottom-48){box.scrollTo({top:box.scrollTop+r.top-b.top-box.clientHeight*.3,behavior:'smooth'})}}
+}
+['wheel','touchmove'].forEach(n=>$('txlines').addEventListener(n,()=>txHand=Date.now(),{passive:true}));
+$('txlines').addEventListener('pointerdown',e=>{if(e.target===$('txlines'))txHand=Date.now()});   // the scrollbar
+(function follow(){if(!v.paused)tickTx();requestAnimationFrame(follow)})();
+const txChanged=()=>{txVer++;KEEP=keepRanges();render()};
+function seekWord(k){const w=W[k];if(!w||w.nt)return;
+  if(previewOn){v.currentTime=w.s;return}
+  if(w.t!=null){v.currentTime=w.t;return}
+  const n=W.slice(k).find(x=>x.t!=null);if(n)v.currentTime=n.t;   // a cut word: where the cut picks up
+}
+function hideBar(){$('txbar').classList.remove('open')}
+function showBar(){
+  const a=txSel&&W.slice(txSel.a,txSel.b+1).map((w,i)=>w.nt?null:cutNow(txSel.a+i)).filter(x=>x!==null);
+  if(!a||!a.length)return hideBar();const ed=txEditable();
+  const bar=$('txbar'),parts=[];
+  if(ed&&a.includes(true))parts.push(`<button data-op="restore">${IC.restore}<span>Restore</span></button>`);
+  parts.push(`<button data-copy>${IC.copy}<span>Copy</span></button>`);
+  if(ed&&a.includes(false))parts.push(`<button data-op="cut" title="Delete">${IC.cut}<span>Cut</span></button>`);
+  bar.innerHTML=parts.join('<i></i>');
+  const last=document.querySelector(`#txlines [data-k="${txSel.b}"]`),first=document.querySelector(`#txlines [data-k="${txSel.a}"]`);if(!last||!first)return hideBar();
+  const ar=$('tx').getBoundingClientRect(),r=last.getBoundingClientRect(),f=first.getBoundingClientRect();
+  bar.classList.add('open');
+  const floor=$('txlines').getBoundingClientRect().top-ar.top+4,above=f.top-ar.top-bar.offsetHeight-8;
+  bar.style.top=(above<floor?r.bottom-ar.top+8:above)+'px';   // above the words, or under them when the header is in the way
+  bar.style.left=Math.max(8,Math.min(ar.width-bar.offsetWidth-8,(f.left+r.right)/2-ar.left-bar.offsetWidth/2))+'px';
+}
+function paintSel(){document.querySelectorAll('#txlines .tw').forEach(el=>{const k=+el.dataset.k;el.classList.toggle('sel',!!txSel&&txSel.a<=k&&k<=txSel.b)})}
+const wordAt=e=>{const el=document.elementFromPoint(e.clientX,e.clientY);const w=el&&el.closest&&el.closest('#txlines .tw:not(.nt)');return w?+w.dataset.k:null};
+function txOp(op){if(!txSel||!txEditable()||!W.slice(txSel.a,txSel.b+1).some((w,i)=>!w.nt&&cutNow(txSel.a+i)!==(op==='cut')))return;const e={op,a:txSel.a,b:txSel.b};PEND.push(e);HIST.push({pend:e});txSel=null;hideBar();txChanged()}
+function txUndo(){
+  while(HIST.length){const h=HIST.pop();if(h.pend){const i=PEND.indexOf(h.pend);if(i>=0){PEND.splice(i,1);break}}else if(ACK.delete(h.ack)){saveAck();break}}
+  txChanged();
+}
+async function copySel(btn){
+  const sp=btn.querySelector('span'),txt=W.slice(txSel.a,txSel.b+1).map(w=>w.w).join(' ');
+  try{await navigator.clipboard.writeText(txt);sp.textContent='Copied'}catch(e){sp.textContent='Could not copy'}
+  setTimeout(()=>{if(sp.isConnected)sp.textContent='Copy'},1200);
+}
+$('txlines').addEventListener('pointerdown',e=>{
+  if(e.target.closest('.fa'))return;const w=e.target.closest('.tw');if(!w||w.classList.contains('nt'))return;
+  const k=+w.dataset.k;
+  if(e.shiftKey&&txSel){txSel={a:Math.min(txSel.a,k),b:Math.max(txSel.b,k)};paintSel();showBar();return}
+  txDown=true;txAnchor=k;txMoved=false;hideBar();e.preventDefault();
+});
+document.addEventListener('pointermove',e=>{if(!txDown)return;const k=wordAt(e);if(k==null)return;
+  if(k!==txAnchor)txMoved=true;if(txMoved){txSel={a:Math.min(txAnchor,k),b:Math.max(txAnchor,k)};paintSel()}});
+document.addEventListener('pointerup',()=>{if(!txDown)return;txDown=false;
+  if(txEditable()&&!txSeen()){try{localStorage.setItem('txseen','1')}catch(e){}renderTools()}   // the hint goes after the first selection
+  if(!txMoved){seekWord(txAnchor);txSel={a:txAnchor,b:txAnchor};paintSel();return showBar()}   // one word: seek, and offer it
+  showBar()});
+$('txlines').addEventListener('scroll',()=>{if($('txbar').classList.contains('open'))showBar()});
+$('txbar').addEventListener('click',e=>{if(!txSel)return;const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.copy!=null)return copySel(b);txOp(b.dataset.op)});
+document.addEventListener('pointerdown',e=>{if(txSel&&!e.target.closest('#txlines .tw')&&!e.target.closest('#txbar')){txSel=null;hideBar();paintSel()}});
+$('txlines').addEventListener('click',e=>{
+  const a=e.target.closest('[data-acc]'),d=e.target.closest('[data-dis]');if(!(a||d)||!txEditable())return;
+  const id=(a||d).dataset[a?'acc':'dis'];
+  if(a){ACK.add(id);HIST.push({ack:id});saveAck()}
+  else{const k=+id.slice(1),b=BLK.find(b=>b.a===k),x=id[0]==='z'?{op:'pause',k}:{op:'restore',a:b.a,b:b.b};PEND.push(x);HIST.push({pend:x})}
+  txChanged();
+});
+$('txtools').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.undo!=null)return txUndo();
+  if(b.dataset.discard!=null){PEND=[];HIST=HIST.filter(h=>h.ack);return txChanged()}
+  if(b.dataset.preview!=null)return togglePreview();
+  if(b.dataset.apply!=null)return applyEdits();
+});
+async function applyEdits(){
+  const runs=changeRuns(),r2=x=>[W[x.a].s,W[x.b].e];
+  const body={restore:runs.filter(x=>x.op==='restore').map(r2),cut:runs.filter(x=>x.op==='cut').map(r2),pause:pausesBack().map(k=>[prevE(k),W[k].s])};
+  const r=await fetch('/edits',{method:'POST',body:JSON.stringify(body)}),j=await r.json().catch(()=>({}));
+  if(!r.ok)return alert(j.error||'Could not apply the changes');
+  if(!j.event)return alert('Nothing changed: those words already play.');
+  PEND=[];HIST=[];txVer++;if(previewOn)togglePreview();await load(true);
+}
+function togglePreview(){
+  // carry the moment across: cut time <-> raw time by the word playing there
+  const t=v.currentTime;
+  if(!previewOn){const w=W.filter(w=>!w.nt&&w.t!=null&&w.t<=t+.01).pop();seekTo=w?w.s+Math.max(0,t-w.t):(KEEP[0]||[0])[0]}
+  else{const w=W.filter(w=>!w.nt&&w.s<=t+.01&&w.t!=null).pop();seekTo=w?w.t+Math.max(0,Math.min(t-w.s,w.e-w.s)):0}
+  previewOn=!previewOn;KEEP=keepRanges();loaded='';setVideo();render();
+}
+// the skip-list: on every frame (requestVideoFrameCallback) and timeupdate, a moment outside the kept ranges jumps
+// to the next one; within half a frame of a range's end it jumps early, so at most ~1 frame of a cut plays
+function skip(t){
+  if(!previewOn||!KEEP.length)return;const h=.5/FPS;
+  if(KEEP.some(r=>t>=r[0]-h&&t<r[1]-h))return;
+  const n=KEEP.find(r=>r[0]>t-h);
+  if(n){if(Math.abs(v.currentTime-n[0])>.001)v.currentTime=n[0]}else if(!v.paused){v.pause();v.currentTime=KEEP[KEEP.length-1][1]-.01}
+}
+if('requestVideoFrameCallback' in HTMLVideoElement.prototype){const f=(_,m)=>{skip(m.mediaTime);v.requestVideoFrameCallback(f)};v.requestVideoFrameCallback(f)}
+v.addEventListener('timeupdate',()=>skip(v.currentTime));v.addEventListener('play',()=>skip(v.currentTime));
 
 // player
 const toggle=()=>{v.paused?v.play():v.pause()};
@@ -733,11 +1094,15 @@ async function save(){const text=ta.value.trim();if(ta.disabled||(!text&&!pics.l
   await post('/comment',{t,t_end:te,text,images:pics,alt:nv&&$('scope').value==='*'?'*':alt||null});closeBox();await load()}
 $('savebtn').onclick=save;
 ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();save()}if(e.key==='Escape'){ta.blur();inT=outT=null;renderBar();boxTime()}});
-const sendOrStop=async()=>{await post('/event',{type:pending()==='send'?'stop':'send'});load()};
+const sendOrStop=async()=>{await post('/event',{type:pending()==='send'||makingEdit()?'stop':'send'});load()};
 $('send').onclick=sendOrStop;$('msend').onclick=sendOrStop;
-const approve=async()=>{await post('/event',{type:'approve'});load()};
+const approve=async()=>{if(S.stage==='cut'&&!S.final){approving=true;render()}   // instant: the button and the steps turn before the server answers
+  try{await post('/event',{type:'approve'});await load(true)}catch(e){}finally{approving=false;render()}};
 $('approve').onclick=approve;$('mapprove').onclick=approve;
 document.addEventListener('keydown',e=>{
+  const typing=e.target.tagName==='TEXTAREA'||e.target.tagName==='INPUT'||e.target.tagName==='SELECT';
+  if(!typing&&(e.metaKey||e.ctrlKey)&&!e.altKey&&!e.shiftKey&&e.key.toLowerCase()==='z'&&txEditable()&&HIST.length){e.preventDefault();return txUndo()}
+  if(!typing&&(e.key==='Backspace'||e.key==='Delete')&&txSel&&txEditable()){e.preventDefault();return txOp('cut')}
   if(e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT'||e.metaKey||e.ctrlKey||e.altKey)return;const k=e.key;
   if(k===' '){e.preventDefault();toggle()}
   else if(k==='j')v.currentTime-=5;else if(k==='l')v.currentTime+=5;
@@ -749,6 +1114,7 @@ document.addEventListener('keydown',e=>{
   else if(k==='c'){e.preventDefault();openBox()}
   else if(k==='z'&&S.vertical)$('safebtn').click();
   else if(k==='?')$('howbtn').click();else if(k==='f')$('full').click();else if(k==='m')$('mute').click();
+  else if(k==='Escape'&&txSel){txSel=null;hideBar();paintSel()}
   else if(k==='Escape'){inT=outT=null;$('how').classList.remove('open');renderBar();boxTime()}
 });
 $('howbtn').onclick=e=>{e.stopPropagation();$('how').classList.toggle('open')};

@@ -17,8 +17,7 @@ You edit one short clip. The caller gives you:
 open a browser, never render the final video, never touch another clip's folder or the source video.
 
 1. **Reframe**, only when the caller says so: `python3 "$PY" <ROOT>/skills/clips/scripts/clips.py reframe EDIT`.
-2. **Spans:** `python3 "$C/retakes.py" propose EDIT`. Exit 0: read `review.md` only and fix what you
-   disagree with in `spans.json`. Exit 4 or 5 (no TypeSafe key): read `transcript.txt`, `candidates.md`
+2. **Spans:** `python3 "$C/retakes.py" propose EDIT`, then read `transcript.txt`, `candidates.md`
    and `<ROOT>/skills/cut/references/retake-detection.md`, then write `spans.json` in the shape
    `<ROOT>/skills/cut/references/shapes.md` gives. Every cut quotes the transcript. Last take wins. Never
    read `words.raw.json`.

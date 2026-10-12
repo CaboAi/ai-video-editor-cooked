@@ -1,0 +1,15 @@
+{
+ "style": "plain",
+ "font_match": "TikTok Sans",
+ "size_pct": 4.2,
+ "weight": 600,
+ "case": "as_is",
+ "color": "#FFFFFF",
+ "highlight_color": "#FFFFFF",
+ "emphasis_color": "#FFFFFF",
+ "stroke": false,
+ "box": false,
+ "shadow": false,
+ "effect": "none",
+ "animation": "none"
+}

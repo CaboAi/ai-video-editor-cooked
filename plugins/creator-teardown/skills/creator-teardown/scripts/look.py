@@ -813,7 +813,7 @@ def measure_video(path, words, ocr=None, faces=None, engine="vision", fps=SAMPLE
 
     # Face framing.
     fs = [s["face"] for s in samples if s["face"]]
-    face = {"present_pct": round(100 * len(fs) / n)}
+    face = {"present_pct": round(100 * len(fs) / n) if faces else None}   # no detector: not measured, not 0
     if fs:
         fh = statistics.median(f[3] for f in fs)
         face.update({"x_pct": round(100 * statistics.median(f[0] + f[2] / 2 for f in fs), 1),
@@ -1049,7 +1049,7 @@ def summary(style, rows_n=None):
     else:
         L.append("Captions: not measured (no OCR engine). Run the fallback sheet pass.")
     L.append("")
-    if f:
+    if f and f.get("present_pct") is not None:   # None: no face detector
         L.append(f"Face: on screen {f.get('present_pct')}% of the time, {f.get('framing')} "
                  f"(face {f.get('height_pct')}% of the height), centred {f.get('x_pct')}% across, "
                  f"{f.get('y_pct')}% down.")

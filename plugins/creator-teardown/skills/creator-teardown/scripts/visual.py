@@ -5,8 +5,8 @@
                       Same pick as fetch.py transcribe: --top most-viewed plus
                       --control closest to the median, or --ids.
   measure <handle>    per video: cut times, shot lengths, zoom events and one contact
-                      sheet. Writes video/<id>.visual.json and sheets/<id>.jpg,
-                      then merges `pace` and `zoom` into style.json.
+                      sheet. Writes video/<id>.visual.json (kept: --force measures
+                      again) and sheets/<id>.jpg, then merges `pace` and `zoom` into style.json.
   demo                self-check on a synthetic video (hard cut, zoom step, push).
 
 Cuts. ffmpeg scene detection misses jump cuts on a locked-off camera: the
@@ -22,7 +22,7 @@ crop of one frame is searched over scales and offsets for the best match with
 the other. A scale step at one frame is a punch; a run of small steps is a push.
 
 Usage (run with the tool venv python: numpy + pillow + ffmpeg):
-  ~/.ai-video-editor/venv/bin/python scripts/visual.py download <handle> [--top 8] [--control 2]
+  ~/.ai-video-editor/venv/bin/python scripts/visual.py download <handle> [--top 8] [--control 2] [--spare 2]
   ~/.ai-video-editor/venv/bin/python scripts/visual.py measure <handle>
   ~/.ai-video-editor/venv/bin/python scripts/visual.py demo
 
@@ -58,6 +58,7 @@ ZOOM_H = 0.15        # below this histogram jump, a scaled match is a pure zoom
 PUNCH_SCALES = [1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.4, 1.5, 1.6, 1.8, 2.0]
 PUSH_SCALES = [1.02, 1.04, 1.06, 1.08, 1.1, 1.15]
 PUSH_STEP_S = 0.5
+MEASURE_V = 1        # visual.json "v": bump when measure_video changes, so saved measures are redone
 
 
 def probe(path):
@@ -338,7 +339,7 @@ def measure_video(path, sheet_dir):
     edges = [0.0] + cuts + [dur]
     shots = [round(b - a, 3) for a, b in zip(edges, edges[1:])]
     return {
-        "id": path.stem, "duration_s": round(dur, 2), "fps": round(fps, 3),
+        "v": MEASURE_V, "id": path.stem, "duration_s": round(dur, 2), "fps": round(fps, 3),
         "width": w, "height": h,
         "cuts": cuts, "cut_kinds": kinds, "shots_s": shots, "camera": cam,
         "cuts_per_10s": round(len(cuts) / dur * 10, 2) if dur else 0,
@@ -397,10 +398,13 @@ def cmd_download(a):
     if a.ids:
         by_id = {v["id"]: v for v in meta["videos"]}
         todo = [by_id[i] for i in a.ids.split(",")]
+    elif meta.get("pasted"):
+        todo = meta["videos"]
+        print(f"{len(todo)} pasted links, all of them")
     else:
-        top, control = pick(meta["videos"], meta.get("median_views") or 0, a.top, a.control)
-        todo = top + control
-        print(count_line(top, control))
+        top, control, spare = pick(meta["videos"], meta.get("median_views") or 0, a.top, a.control, a.spare)
+        todo = top + spare + control
+        print(count_line(top, control, spare))
     yt = ytdlp()
     if not yt:
         sys.exit("yt-dlp not found. Run fetch.py doctor.")
@@ -422,6 +426,9 @@ def fetch_one(yt, v, vdir, tries=2):
     if (vdir / f"{v['id']}.mp4").exists():
         print(f"{v['id']} cached")
         return v["id"], True
+    if (vdir / "left-out" / f"{v['id']}.mp4").exists():   # format_check.py left it out: downloaded, not wanted back
+        print(f"{v['id']} cached (left out by the format check)")
+        return v["id"], True
     print(f"{v['id']} downloading")
     for k in range(tries):
         r = subprocess.run(yt + ["-f", "bv*+ba/b", "-S", "vcodec:h264,res:1080",
@@ -433,6 +440,15 @@ def fetch_one(yt, v, vdir, tries=2):
         print(f"  {v['id']} failed{' (retrying)' if k + 1 < tries else ''}: {r.stderr.strip()[-300:]}",
               file=sys.stderr)
     return v["id"], False
+
+
+def fresh(mp4):
+    """A saved visual.json this version wrote, newer than its video (a re-download measures again)."""
+    j = mp4.with_suffix(".visual.json")
+    try:
+        return j.stat().st_mtime >= mp4.stat().st_mtime and json.loads(j.read_text(encoding="utf-8")).get("v") == MEASURE_V
+    except (OSError, ValueError):
+        return False
 
 
 def measure_one(job):
@@ -452,9 +468,12 @@ def cmd_measure(a):
     if not vids:
         sys.exit(f"no videos in {outdir / 'video'}. Run `download {handle}` first.")
     tdir = outdir / "transcripts"
-    print(f"measuring {len(vids)} videos", file=sys.stderr)
-    _progress.step(MEASURE, detail=f"{len(vids)} videos", progress=0, key=handle)
-    rows = pmap(measure_one, [(p, outdir / "sheets") for p in vids], tick=_progress.ticker(MEASURE, len(vids), key=handle))
+    todo = [p for p in vids if a.force or not fresh(p)]
+    print(f"measuring {len(todo)} videos ({len(vids) - len(todo)} cached)", file=sys.stderr)
+    _progress.step(MEASURE, detail=f"{len(todo)} videos", progress=0, key=handle)
+    done = dict(zip(todo, pmap(measure_one, [(p, outdir / "sheets") for p in todo],
+                               tick=_progress.ticker(MEASURE, len(todo), key=handle))))
+    rows = [done.get(p) or json.loads(p.with_suffix(".visual.json").read_text(encoding="utf-8")) for p in vids]
 
     sp = [s for s in (speech(tdir, r["id"]) for r in rows) if s]
     first = rows[0]
@@ -585,6 +604,20 @@ def demo():
     assert transitions_of({"hard": 60, "whip": 25, "dissolve": 10, "mask": 3, "jump": 2}) == ["push", "fade"]
     assert transitions_of({"hard": 90, "match": 10}) == ["match"] and transitions_of({"hard": 100}) == []
     assert transitions_of({}) is None    # no cuts measured: no "transitions", style-edit's default, not hard cuts
+    # A saved measure is reused only when this version wrote it after the video landed.
+    import os
+    with tempfile.TemporaryDirectory() as d:
+        mp4 = Path(d) / "x.mp4"
+        mp4.write_bytes(b"")
+        mp4.with_suffix(".visual.json").write_text(json.dumps({"v": MEASURE_V}), encoding="utf-8")
+        os.utime(mp4, (1, 1))
+        assert fresh(mp4)
+        mp4.with_suffix(".visual.json").write_text(json.dumps({"v": MEASURE_V - 1}), encoding="utf-8")
+        assert not fresh(mp4)   # an older version's measure
+        mp4.with_suffix(".visual.json").write_text(json.dumps({"v": MEASURE_V}), encoding="utf-8")
+        os.utime(mp4, None)
+        os.utime(mp4.with_suffix(".visual.json"), (1, 1))
+        assert not fresh(mp4)   # the video was downloaded again after it
     print("ok")
 
 
@@ -596,11 +629,13 @@ def main():
     p.add_argument("handle")
     p.add_argument("--top", type=int, default=8, help="most-viewed videos; --control more are added (default 2)")
     p.add_argument("--control", type=int, default=2)
+    p.add_argument("--spare", type=int, default=2, help="next most-viewed, in case the format check leaves some out")
     p.add_argument("--ids", default=None)
     p.set_defaults(fn=cmd_download)
     p = sub.add_parser("measure")
     p.add_argument("handle")
     p.add_argument("--json", action="store_true", help="print pace, zoom and camera in full")
+    p.add_argument("--force", action="store_true", help="measure again, not from video/<id>.visual.json")
     p.set_defaults(fn=cmd_measure)
     sub.add_parser("demo").set_defaults(fn=lambda a: demo())
     a = ap.parse_args()

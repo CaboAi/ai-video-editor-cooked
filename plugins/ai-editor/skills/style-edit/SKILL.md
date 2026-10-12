@@ -88,11 +88,11 @@ on screen and the rules plan.py enforces.
    `toasts`, `side_by_side`, `video_card`) into beats.json. No key: null picks, decide them yourself.
 2. **Real things first:** write `visuals.json` (`references/shapes.md`): a named product
    or doc becomes a `capture` (with `marks` found by text), a quoted post a `post`, an app an `app`,
-   a video a `youtube`, a repo a `github`, a brand in passing a `logo`.
+   a video a `youtube`, a repo a `github`, a brand in passing a `logo`, an expert's words a clip (`references/visuals.md` "Sourced proof").
 3. **Fill the overlays:** for the overlay picks, write only the props (`references/shapes.md`). Hand it to the `template-filler` agent (haiku) with the full path of `references/shapes.md` when available, else write them. Only
    words and numbers the speaker said. There are no type cards.
-4. **Fetch:** `node "$S/capture.mjs" edits/<name>` screenshots, fetches logos, posts, app, YouTube and
-   GitHub images into `images/`, hides cookie banners, measures marks. Do not open them: the step 5 sheet shows all.
+4. **Fetch:** `node "$S/capture.mjs" edits/<name>` screenshots, fetches logos, posts and
+   free sources into `images/`, hides cookie banners, measures marks. Do not open them: the step 5 sheet shows all.
 
 Pacing, one rule: a card where a sentence names something real (a product, site, post, person, or a
 figure on the page that published it), never two at once; otherwise the speaker carries it. No stretch
@@ -106,10 +106,10 @@ Find the speaker's head first, so no box covers the face, then plan with the sty
 
 ```bash
 python3 "$VPY" "$S/face.py" edits/<name>
-python3 "$S/plan.py" edits/<name>/style.json edits/<name>/captions.json [--aspect 9:16|16:9] [--layout overlay|split]
+python3 "$S/plan.py" edits/<name>/style.json edits/<name>/captions.json [--aspect 9:16|16:9] [--layout overlay|split|letterbox]
 ```
 
-Writes `edits/<name>/plan.json`. Read every warning it prints. What it does (look, contrast, layout,
+Writes `edits/<name>/plan.json`. Read every warning. What it does (look, contrast, layouts,
 timing, captions, zooms, a second shape with `--out`): `references/plan.md`.
 
 1. **Music:** unless the profile says `sound.music: false`, ask the music question and lay the bed
@@ -131,8 +131,8 @@ python3 "$S/edit.py" stills edits/<name>
 ```
 
 The first run installs the renderer (a few minutes, once; say so first). Writes one still per beat and
-`stills/sheet.png`, one numbered stills sheet labelled with beat, time and card kind (about 1,600
-tokens). Review the sheet; open a single still only to zoom in on a problem.
+`stills/sheet.png`, numbered and labelled with beat, time and card kind (about 1,600 tokens).
+Review the sheet; open a single still only to zoom in on a problem.
 Fix before showing: a box on the face, a zoom cutting the head, a capture showing the wrong part,
 text too small for a phone, anything that looks like a default AI edit (icon tiles, emoji, dark
 glass with neon). The `stills-critic` agent can check a sheet.

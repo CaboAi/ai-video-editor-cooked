@@ -275,7 +275,7 @@ A card has `src` (image or Lottie) or `anim` (a visuals.json anim), never both. 
   (motion.ts `Fit`); `ambient`: `"still" | "push" | "drift" | "video"`. The card's `entrance` then names the
   kind (`cut` is allowed: a hard cut, no "appears whole" warning in quality.py).
 
-`layout` is present only for the split layout (`plan.py --layout split`, vertical only):
+`layout` is present only for the split layout (`plan.py --layout split`, vertical only) and the letterbox:
 
 ```json
 "layout": {"mode": "split", "ground": "#F4F4F2", "seam": 50, "art": [6, 14, 80, 34],
@@ -288,6 +288,17 @@ the window under the seam; `origin` is the head's centre on the video (zooms gro
 opens while cards are up (runs of cards closer than 1.2 s share one opening) and the speaker has the
 whole frame otherwise. `captions.style.y_pct` is the split position (just under the seam);
 `caption_full_y` is where captions sit while the speaker has the whole frame.
+
+For the letterbox layout (`plan.py --layout letterbox`) it is instead, % of the 1080x1920 frame:
+
+```json
+"layout": {"mode": "letterbox", "band": [0, 34.18, 100, 31.64], "title": "why does nobody tell you this?",
+           "title_box": [12.96, 13.02, 74.07, 19.91], "title_px": 58,
+           "card": {"src": "images/photo.png", "to": 2.4, "box": [63.97, 42.09, 23.06, 12.97]}}
+```
+
+`band`: where the cut is drawn. The title sits at the bottom of `title_box`, `title_px` tall on a 1920 frame.
+`card` (optional): one plain photo, shown from 0 until `to` s. `zooms` and `cards` are empty.
 
 `cover` (optional, an audio-only clip whose `clip.json` names a cover, from clips.py trim): `{"src", "box"
 [x, y, w, h] % of the frame, "push", "ground_push", "pulse", "pulses" [s]}`. The renderer draws the cover in

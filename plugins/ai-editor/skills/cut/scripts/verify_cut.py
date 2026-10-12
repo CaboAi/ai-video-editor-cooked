@@ -23,6 +23,9 @@ variance and are listed separately, not as errors. So is a kept word the second 
 spelled differently at the same time in the cut ("Jev" heard as "Jeff"): HEARD
 DIFFERENTLY, matched by time (textnorm.pair_by_time), never MISSING.
 
+Then the splice check (splice_check.py): joins that land inside loud speech. Listen to each; to
+move them to a quiet trough within 0.12 s: `splice_check.py <edit_dir> --fix`, then render again.
+
 Writes <edit_dir>/cut.transcript.json (reused while it is newer than cut.mp4). Exit 0 clean, 1 missing or survived words.
 """
 import argparse
@@ -100,7 +103,10 @@ def main():
         sys.exit(1)
     act = timed_words(load_words(ft))
     actual = [t for t, _, _ in act]
-    return report(d, expected, actual, removed, *pair_by_time(exp, act), act=act, spans=spans, raw=raw)
+    rc = report(d, expected, actual, removed, *pair_by_time(exp, act), act=act, spans=spans, raw=raw)
+    import splice_check   # joins inside loud speech, measured on the source: `splice_check.py <edit_dir> --fix`
+    splice_check.check(d)
+    return rc
 
 
 def report(d, expected, actual, removed, same, differ, gone, new, act=None, spans=None, raw=None):

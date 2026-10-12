@@ -762,17 +762,17 @@ def run(edit, plan, video, plan_path, style=None, cuts=(), brand=None):
     import cv2
     import numpy as np
     from check import INK_DIFF, footage_affine, stream, TEXT_ANIMS, STATIC_S
-    from edit import proxy_filter, still_frames
+    from edit import footage_filter, still_frames
     from plan import CARD_LEAD_S, ENTRANCES, MOTION_K, OVERLAY_LEAD_S, overlay_led, probe
     cj = edit / "captions.json"
     cwords = json.loads(cj.read_text(encoding="utf-8")) if cj.exists() else []
     out, meas = [], {}
     fps = plan["fps"]
-    split = bool(plan.get("layout"))
+    split = (plan.get("layout") or {}).get("mode") == "split"
     W, H = plan["width"] // 2, plan["height"] // 2
     cards = plan["cards"]
     m = probe(edit / plan["video"])
-    behind = stream(edit / plan["video"], proxy_filter(m["width"], m["height"], plan["width"], plan["height"]), W, H, fps)
+    behind = stream(edit / plan["video"], footage_filter(plan, m["width"], m["height"]), W, H, fps)
     ground = None
     if split:
         g = plan["layout"]["ground"].lstrip("#")
@@ -938,7 +938,7 @@ def run(edit, plan, video, plan_path, style=None, cuts=(), brand=None):
     landed = []
     meas["zoom_moves"] = []
     zk = (style or {}).get("zoom") or {}
-    behind_src = (edit / plan["video"], proxy_filter(m["width"], m["height"], plan["width"], plan["height"]))
+    behind_src = (edit / plan["video"], footage_filter(plan, m["width"], m["height"]))
     for t, kind, sc, want, planned in zoom_moves(video, plan, behind=behind_src, cuts=cuts):
         v = zoom_verdict(sc, want, planned)
         ok = [(x, y) for x, y in zip(sc, want) if x is not None]

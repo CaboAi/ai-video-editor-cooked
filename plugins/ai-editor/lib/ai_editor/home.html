@@ -868,8 +868,16 @@ function scriptSec(){
     <div class="row" style="gap:8px"><button class="btn dark sm" onclick="pasteScript()">Add script</button><button class="btn quiet sm" onclick="nv.draft=null;nv.scriptMsg='';render()">Cancel</button></div>
     ${nv.scriptMsg?`<div class="msg bad">${CROSS}<span>${esc(nv.scriptMsg)}</span></div>`:''}</div>`;
   return `<div class="sec"><span class="h">Add your script</span>
-    <div class="row" style="gap:8px"><button class="btn quiet sm" onclick="nv.draft='';nv.scriptMsg='';render();$('#scriptin').focus()">Paste it</button>${pick}</div>
+    <div class="row" style="gap:8px"><button class="btn quiet sm" onclick="nv.draft='';nv.scriptMsg='';render();showScriptBox()">Paste it</button>${pick}</div>
     ${nv.scriptMsg?`<div class="msg bad">${CROSS}<span>${esc(nv.scriptMsg)}</span></div>`:'<div class="muted">Optional. Claude keeps the lines your script says twice.</div>'}</div>`;
+}
+// the open box and its buttons scroll clear of the panel's sticky bottom bar
+function showScriptBox(){
+  const t=$('#scriptin');if(!t)return;t.focus({preventScroll:true});
+  const sec=t.closest('.sec'),bar=sec.parentElement.querySelector('.stick');
+  let sc=sec.parentElement;while(sc&&sc!==document.body&&!(sc.scrollHeight>sc.clientHeight&&/auto|scroll/.test(getComputedStyle(sc).overflowY)))sc=sc.parentElement;
+  const over=sec.getBoundingClientRect().bottom-(bar?bar.getBoundingClientRect().top:innerHeight);
+  if(over>0)(sc&&sc!==document.body?sc:document.scrollingElement).scrollTop+=over+8;
 }
 function pasteScript(){
   const t=(nv.draft||'').trim();
@@ -1222,7 +1230,9 @@ function rrender(){
   rheader();
   if(rv==='settings'&&!ui.disk)loadDisk();
   const h=rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='making'?vMaking():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='settings'?vSettings():vHome();
+  const side=$('#main .rv-side'),sideY=side?side.scrollTop:0;   // the side panel keeps its scroll through a re-render
   $('#main').innerHTML=h;$('#main').classList.toggle('spwrap',rv==='stylepage');
+  if(sideY&&$('#main .rv-side'))$('#main .rv-side').scrollTop=sideY;
   if(rv==='mystyle'||rv==='style')flashBuilt();
   const o=$('#order');if(o)o.querySelectorAll('[draggable]').forEach(el=>{
     el.ondragstart=e=>{e.dataTransfer.setData('text/plain',el.dataset.i)};el.ondragover=e=>e.preventDefault();

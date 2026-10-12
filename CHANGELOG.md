@@ -4,6 +4,9 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Gemini keys that start with `AQ.` are accepted. Google AI Studio has issued them since mid-2026, and the
+  key check refused anything not starting with `AIza` before sending it. Calls already send the key in the
+  `x-goog-api-key` header, which Google's docs give for both key types.
 - Home window: several creator links are easy to add. Each pasted link becomes its own row with the app's
   logo, a short form of the link and a remove x; pasting several at once splits them; Enter adds, Backspace
   on the empty box removes the last; a profile link stays one row and shows the profile. The count shows

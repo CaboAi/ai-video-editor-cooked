@@ -5,7 +5,7 @@
     python3 product.py pages  DIR                                     pages.md: every crawled page, compact, to find the use cases in
     python3 product.py record DIR [--mobile] [--cookies FILE]         record.mjs: flows.json -> real click-throughs in flows/
     python3 product.py music  DIR --url URL [--start S --end S] --rights own|cc|licensed|unsure [--credit "..."] [--cookies-from-browser B]
-    python3 product.py copy   DIR                                     the site's phrases to pick beats from (Jev ranks them with a key)
+    python3 product.py copy   DIR                                     the site's phrases to pick beats from
     python3 product.py plan   DIR --style linear|apple|stripe|arc|raycast --aspect 16:9|9:16|1:1 [--length 30]
                               [--music generated|eleven|none|audio/F] [--sfx subtle|none] [--vo F] [--story F --tag T]
     python3 product.py animatic DIR --plan plan-linear-16x9.json      start/middle/end of every beat, captioned: approve before rendering
@@ -137,21 +137,9 @@ def cmd_copy(d):
     site = wait_site(d)
     print("\n".join(brief_lines(site)))
     cands = candidates(site)
-    from ai_editor import jev, keys
-    key, _ = keys.get("typesafe")
-    if key and cands:
-        qs = {f"c{i}": jev.noul("Is this phrase a concrete statement of what the product does or why someone would want it, "
-                                "strong enough to sit on screen in a launch video?", phrase=c["text"], product=site.get("title", ""))
-              for i, c in enumerate(cands)}
-        ans = jev.ask(f"Landing page copy of {site['domain']}.", qs, key=key, log_dir=d)
-        for i, c in enumerate(cands):
-            c["jev"] = round(jev.yes(ans[f"c{i}"]), 3)
-        cands.sort(key=lambda c: -c["jev"])
-        print(f"ranked by Jev (${jev.ask.last_usage['cost_usd']:.4f})")
-    else:
-        print("no TypeSafe key: pick the beats yourself from this list")
+    print("pick the beats yourself from this list")
     for i, c in enumerate(cands[:60]):
-        print(f"{i:2}  {c.get('jev', ''):5}  {c['tag']:6} y={c['y']:<5} {c['el'] or '':6} {c['text']}")
+        print(f"{i:2}  {c['tag']:6} y={c['y']:<5} {c['el'] or '':6} {c['text']}")
     print("\nelements (focus / lift / click targets):")
     for e in site["elements"]:
         print(f"  {e['id']:6} {e['kind']:8} {str(e['rect']):26} {(e.get('text') or '')[:60]}")
@@ -162,30 +150,17 @@ def cmd_copy(d):
 # ---------------------------------------------------------------- use cases: what the site says it is for
 
 def cmd_pages(d):
-    """pages.md: a compact read of every crawled page (never raw HTML) to find the use cases in. With a
-    TypeSafe key Jev also ranks the headings by how plainly each names a job a user does with the product."""
+    """pages.md: a compact read of every crawled page (never raw HTML) to find the use cases in."""
     d = Path(d)
     site = wait_site(d, pages=True)
     pages = [{"id": "home", "url": site["url"], "kind": "home", "title": site.get("title"), "description": site.get("description"),
               "lines": [{"tag": c["tag"], "text": c["text"]} for c in site["copy"] if c["tag"] in ("h1", "h2", "h3", "p")],
               "controls": [], "media": site.get("media", [])}] + site.get("pages", [])
-    jobs = []
-    from ai_editor import jev, keys
-    key, _ = keys.get("typesafe")
-    heads = list(dict.fromkeys((h["text"], p["url"]) for p in pages for h in p["lines"] if h["tag"] in ("h1", "h2", "h3")
-                               and 2 <= len(h["text"].split()) <= 14))[:120]
-    if key and heads:
-        qs = {f"h{i}": jev.noul("Does this line name a concrete job a user does with the product (a flow, not a slogan)?",
-                                line=t, product=site.get("title", "")) for i, (t, _) in enumerate(heads)}
-        ans = jev.ask(f"Website of {site['domain']}.", qs, key=key, log_dir=d)
-        jobs = sorted(((round(jev.yes(ans[f"h{i}"]), 3), t, u) for i, (t, u) in enumerate(heads)), reverse=True)[:25]
     brief = json.loads((d / "brief.json").read_text(encoding="utf-8")) if (d / "brief.json").exists() else {}
     out = [f"# {site['domain']}: {len(pages)} pages read", ""]
     if brief:
         out += ["## The brief (the user's answers; use-cases.md marks these [brief])", ""] + \
             [f"- {k}: {v}" for k, v in brief.items()] + [""]
-    if jobs:
-        out += ["## Lines Jev reads as jobs (yes-probability)", ""] + [f"- {p}  {t}  ({u})" for p, t, u in jobs] + [""]
     for p in pages:
         out += [f"## {p['id']} [{p['kind']}] {p['url']}", f"title: {p.get('title') or ''}", f"description: {p.get('description') or ''}"]
         if p.get("shot"):
@@ -198,7 +173,7 @@ def cmd_pages(d):
             out.append("  media: " + " ".join(m.get("src") or m.get("from", "") for m in p["media"]))
         out.append("")
     (d / "pages.md").write_text("\n".join(out), encoding="utf-8")
-    print(f"{d / 'pages.md'}: {len(pages)} pages" + (f", {len(jobs)} lines ranked by Jev" if jobs else ", no TypeSafe key: read it and rank the use cases yourself"))
+    print(f"{d / 'pages.md'}: {len(pages)} pages, read it and rank the use cases yourself")
 
 
 # ---------------------------------------------------------------- music: the beat grid, for cuts on the beat

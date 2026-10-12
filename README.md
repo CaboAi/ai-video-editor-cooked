@@ -130,7 +130,7 @@ If you want to change the editor's own code:
    66-75 s on Windows, with the 75 MB test model in place of the 500 MB default; a home line is
    slower. It asks before each step. Anything that needs your password, Claude gives you
    to paste into your own terminal.
-2. **Keys**, optional, about 5 minutes. Three free or near-free accounts that make each edit use
+2. **Keys**, optional, about 5 minutes. Two free accounts that make each edit use
    less of your Claude usage. Skip them and add them later by saying **finish setup**. Never paste
    a key into the chat: Claude gives you a command that saves it from your own terminal.
 3. **A few questions, once.** Platform, creators you like, brand, names to show, captions, sound.
@@ -182,8 +182,7 @@ published prices, not measured on a bill.
 
 | Part | Cost | Notes |
 |---|---|---|
-| Claude | Your Claude plan's usage | Not yet measured per video. The three keys below lower it. |
-| TypeSafe key (decides the cut) | Under 1 cent a video | $0.042 per million tokens; a 3-minute video is about 5,000 tokens. Finding clips in a 12-13 minute video measured $0.013-0.016. |
+| Claude | Your Claude plan's usage | Not yet measured per video. The keys below lower it. |
 | Gemini key (reads a creator's look) | Free | Google AI Studio's free tier, no card. On the paid tier a 7-video teardown measured about $0.02. |
 | ElevenLabs key (keeps every "um") | Free for a few hours a month | Optional. Without it, Whisper transcribes on your computer for free. |
 | Render on your laptop | Free | Often the fastest for a short video. The styled 44.9-second cut of the sample take (1,346 frames) rendered in 35-84 s on a laptop also running other work; `edit.py estimate` was within 25% of the render in 3 of 4 tries. Claude prints the numbers for your video before you pick. |

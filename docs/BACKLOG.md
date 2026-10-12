@@ -52,7 +52,7 @@ Carried over (still untested live):
 - Links: OneDrive personal share links go through the `api.onedrive.com/v1.0/shares` download
   path, untested live (no public OneDrive sample). Test with a real share; if Microsoft has
   closed it, say "download it in the browser" instead.
-- Measured cost per video on a real run (needs a TypeSafe key on the test machine).
+- Measured cost per video on a real run.
 - Export opened in DaVinci Resolve (free) to confirm FCPXML positions.
 
 ## Needs a decision from the maintainer

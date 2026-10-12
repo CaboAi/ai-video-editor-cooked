@@ -172,7 +172,7 @@ def test_hidden_repeat_is_listed_and_shown():
         assert kept[1]["unheard_s"] > 1.0 and "unheard_s" not in kept[3], kept
         view = R.text_view(kept)
         assert "content [1.3s of speech not transcribed]" in view, view
-        assert "not transcribed" not in R.say(kept, 0, 3)    # Jev's questions and spans see the plain words
+        assert "not transcribed" not in R.say(kept, 0, 3)    # spans see the plain words
         one = T.recheck("a.wav", T.with_spacing([dict(w) for w in words]),
                         lambda s, e: [{"text": "content", "start": 117.7, "end": 119.4, "type": "word"}])
         assert not any(w.get("unheard_s") for w in one), one    # heard again as one word: drawn out

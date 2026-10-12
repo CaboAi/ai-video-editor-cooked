@@ -1422,12 +1422,12 @@ def demo():
         r = post("/key", {"name": "gemini", "value": secret})
         assert r["ok"] and len(sent) == 1 and secret not in json.dumps(r), r
         keys._get = lambda *a: (401, "bad")
-        r = post("/key", {"name": "typesafe", "value": "ts-" + "x" * 30})
+        r = post("/key", {"name": "elevenlabs", "value": "x" * 32})
         assert not r["ok"] and r["msg"].startswith("Not saved. The service rejected"), r
     finally:
         keys._get = real
     st = get("/state")
-    assert st["keys"]["gemini"]["set"] and not st["keys"]["typesafe"]["set"]
+    assert st["keys"]["gemini"]["set"] and not st["keys"]["elevenlabs"]["set"] and "typesafe" not in st["keys"]
     assert secret not in state_path().read_text(encoding="utf-8") and secret not in json.dumps(st), "a key reached state.json"
     assert keys.get("gemini")[0] == secret
     # the paste: a profile link names the platform; a bare name is a handle; a website is not a creator

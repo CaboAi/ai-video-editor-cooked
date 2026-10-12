@@ -2,7 +2,7 @@
 name: cut
 description: Cuts raw talking-head footage into a clean jump cut. Takes one take or several joined (mp4 or mov, any aspect, 4K phone footage is fine), transcribes it word by word, removes retakes, false starts, fillers and dead pauses, and renders cut.mp4 at the source resolution plus words.json timed to the cut. The user approves the cut on a page with the whole transcript and every removed word struck through. Use when the user says "cut my video", "just cut it", "remove my mistakes", "cut out the retakes", "remove the pauses", "clean up this take", "jump cut this", "tighten this clip", or asks only for the cut of a raw take; start calls it for a full edit. Runs before style-edit. Not for a general request to edit a video or to make it look like a creator (that is start), not for adding captions, zooms or cards (style-edit), and not for analysing someone else's videos (creator-teardown).
 license: MIT
-compatibility: Python 3.9+, ffmpeg and the venv the setup skill installs (faster-whisper). Recommended TypeSafe key (Jev decides the cut for a fraction of a cent; without it Claude decides). Optional ElevenLabs key or CrisperWhisper. Mac, Windows or Linux. Runs from the full ai-editor plugin folder (uses its lib/).
+compatibility: Python 3.9+, ffmpeg and the venv the setup skill installs (faster-whisper). Optional ElevenLabs key or CrisperWhisper. Mac, Windows or Linux. Runs from the full ai-editor plugin folder (uses its lib/).
 ---
 
 # Cut
@@ -15,7 +15,7 @@ Every question goes in the question box: the AskUserQuestion tool (2-4 options, 
 
 ```
 edits/<name>/  transcript.txt (read this, never words.raw.json), spans.json (what to remove, quoted),
-  review.md (what Jev was unsure of), paper-edit.md (the cut as text), cut-check.html (the
+  candidates.md (what code flagged), paper-edit.md (the cut as text), cut-check.html (the
   transcript), review.json (notes), cut.mp4 + words.json (the render and its words).
 ```
 
@@ -80,22 +80,16 @@ setup can add one (CrisperWhisper's weights are non-commercial only). A take ful
 python3 "$S/retakes.py" propose edits/<name>
 ```
 
-Code finds every possible cut (a repeated line, an unfinished sentence, "wait, sorry", fillers);
-TypeSafe's Jev judges them in one request into `spans.json` and `review.md`.
-
-- **Exit 0.** Read `review.md` only: the few items Jev was unsure of. Fix any you disagree with in `spans.json` (shape: `references/shapes.md`; rules:
-  `references/retake-detection.md`), then go to step 3. Do not re-decide the items Jev was sure of; the
-  read-through in step 3 catches a wrong one.
-- **Exit 4: no TypeSafe key** (or Jev unreachable); **exit 5: key rejected.** Decide yourself:
-  read `transcript.txt` and `candidates.md` (what code flagged), follow
-  `references/retake-detection.md`, and write `spans.json` (`references/shapes.md`). Tell the user once
-  that a TypeSafe key (exit 5: a new one) makes this cheaper, via the `setup` skill.
+Code finds every possible cut (a repeated line, an unfinished sentence, "wait, sorry", fillers)
+into `candidates.md`. Each is a place to look, not a decision. Read `transcript.txt` and
+`candidates.md`, follow `references/retake-detection.md`, and write `spans.json`
+(`references/shapes.md`).
 
 Last take wins, except alternate hooks. Never type a timestamp or write a span for a
 pause.
 
 Only if the user wants it shorter, also read `references/editorial-rules.md` and add `redundant`
-cuts (content calls, which Jev does not make).
+cuts (content calls).
 
 A misheard name is one command, never a JSON rewrite: `python3 "$S/retakes.py" fix edits/<name>
 cloud=Claude jiv=Jev` (whole words, kept in `fixes.json` for the captions).
@@ -169,7 +163,6 @@ the page opens, start the `visual-prep` agent in the background.
 | `no such file` / `ffmpeg could not read audio` | ask for the right path; never copy or convert the source |
 | `faster-whisper missing` / `CrisperWhisper missing` | run with `python3 "$PY"`, or the setup skill's step 3 |
 | `no ElevenLabs key` (exit 2) / `HTTP 4xx`, `unreachable` (3) | drop `--engine scribe`, or re-save the key with the setup skill |
-| `spans.json exists. Pass --force` | only on a fresh decision: `propose --force` (keeps spans.prev.json) |
 | build `ERROR` on a quote | fix that span's quote or add `occurrence`, `--dry-run` again |
 | `cannot derive a silence threshold` / `marked no silence` | speech and background are under 10 dB apart: `ffmpeg -i <source> -af volumedetect -vn -f null -`, pass `--noise` about 10 dB above the mean |
 | render `ERROR ... (kept in <tmp>)` | say it; re-run render once |

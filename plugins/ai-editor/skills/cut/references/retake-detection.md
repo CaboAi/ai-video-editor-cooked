@@ -6,11 +6,7 @@ transcript.
 
 ## What you are given
 
-With a TypeSafe key, `retakes.py propose` has already decided the clear cases and written
-`spans.json`. You read `review.md` (the uncertain items) and fix entries in `spans.json`. The rules
-below are what you judge them by.
-
-Without a key, you decide everything from `transcript.txt`: one line per phrase,
+You decide everything from `transcript.txt`: one line per phrase,
 `[start-end] words`, with `(+1.4s)` marking a pause before a phrase. `candidates.md` lists the
 places code flagged as possible restarts. Never read `words.raw.json`: it is the same words at
 about 12x the size. Fillers, false starts and "wait, sorry" are in the transcript on purpose. They

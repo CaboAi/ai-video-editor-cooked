@@ -1,16 +1,17 @@
 """One key store for both plugins.
 
     from ai_editor import keys
-    key, where = keys.get("typesafe")      # (None, None) when there is none
-    keys.save("typesafe", "ts-...")        # keeps the other keys in the file
-    ok, msg = keys.verify("typesafe", key) # one free request
+    key, where = keys.get("gemini")        # (None, None) when there is none
+    keys.save("gemini", "AIza...")         # keeps the other keys in the file
+    ok, msg = keys.verify("gemini", key)   # one free request
 
 The file is ~/.config/creator-teardown/.env (KEY=value lines, chmod 600), the same one
 creator-teardown's `fetch.py setkey` writes, so a key saved by either plugin works in both.
 With AI_EDITOR_HOME set, the file is $AI_EDITOR_HOME/.env instead and the shared one is never
 read or written, so an isolated test run never finds or spends real keys.
 An environment variable of the same name wins over the file. A .env in the working folder is never
-read: it belongs to whatever project Claude Code started in.
+read: it belongs to whatever project Claude Code started in. Lines for other keys (creator-teardown's,
+or an old TYPESAFE_API_KEY) are kept as they are and never read here.
 """
 import json
 import os
@@ -30,16 +31,15 @@ def key_file():
     """$AI_EDITOR_HOME/.env when AI_EDITOR_HOME is set, else the shared KEY_FILE."""
     home = os.environ.get("AI_EDITOR_HOME", "").strip()
     return Path(home) / ".env" if home else KEY_FILE
-VARS = {"typesafe": "TYPESAFE_API_KEY", "gemini": "GEMINI_API_KEY",
-        "elevenlabs": "ELEVENLABS_API_KEY"}
+VARS = {"gemini": "GEMINI_API_KEY", "elevenlabs": "ELEVENLABS_API_KEY"}
 # The fixed start of each vendor's key, checked before any request. Google keys start with AQ. or AIza
-# (creator-teardown references/setup.md). TypeSafe documents none; ElevenLabs' older keys have none.
+# (creator-teardown references/setup.md). ElevenLabs' older keys have none.
 PREFIX = {"gemini": ("AIza", "AQ.")}   # AI Studio issues AQ. keys since mid-2026; older keys start AIza
-NAMES = {"typesafe": "TypeSafe", "gemini": "Gemini", "elevenlabs": "ElevenLabs"}
+NAMES = {"gemini": "Gemini", "elevenlabs": "ElevenLabs"}
 
 
 def get(name):
-    """(key, where it came from) or (None, None). `name` is typesafe, gemini or elevenlabs.
+    """(key, where it came from) or (None, None). `name` is gemini or elevenlabs.
     Never a .env in the working folder: that is another project's, and its key would be billed."""
     var, p = VARS[name], key_file()
     if os.environ.get(var, "").strip():
@@ -95,9 +95,7 @@ def verify(name, key):
     fixed prefix is refused here, so text that is not that key never leaves the computer."""
     if name in PREFIX and not key.startswith(PREFIX[name]):
         return False, f"this is not a {NAMES[name]} key: {NAMES[name]} keys start with {' or '.join(PREFIX[name])}. Nothing was sent."
-    if name == "typesafe":
-        code, body = _get("https://api.typesafe.ai/v1/models", {"Authorization": f"Bearer {key}"})
-    elif name == "gemini":
+    if name == "gemini":
         code, body = _get("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
                           {"x-goog-api-key": key})
     else:
@@ -120,15 +118,17 @@ if __name__ == "__main__":   # self-check: saving one key keeps the others
     with tempfile.TemporaryDirectory() as d:
         f = Path(d) / ".env"
         save("elevenlabs", "a" * 24, f)
-        save("typesafe", "b" * 24, f)
-        save("typesafe", "c" * 24, f)
-        assert f.read_text(encoding="utf-8") == f"ELEVENLABS_API_KEY={'a' * 24}\nTYPESAFE_API_KEY={'c' * 24}\n"
+        f.write_text(f.read_text(encoding="utf-8") + f"TYPESAFE_API_KEY={'t' * 24}\n", encoding="utf-8")  # a key no longer used
+        save("gemini", "AIza" + "b" * 24, f)
+        save("gemini", "AIza" + "c" * 24, f)
+        assert f.read_text(encoding="utf-8") == (f"ELEVENLABS_API_KEY={'a' * 24}\nTYPESAFE_API_KEY={'t' * 24}\n"
+                                                 f"GEMINI_API_KEY=AIza{'c' * 24}\n")   # the old line is kept, never read
         assert os.name == "nt" or f.stat().st_mode & 0o777 == 0o600
         # AI_EDITOR_HOME isolates: its .env is read first, the shared file never
         os.environ["AI_EDITOR_HOME"] = d
-        os.environ.pop("TYPESAFE_API_KEY", None)
-        assert key_file() == f and get("typesafe") == ("c" * 24, str(f))
-        assert save("gemini", "d" * 24) == f
+        os.environ.pop("GEMINI_API_KEY", None)
+        assert key_file() == f and get("gemini") == ("AIza" + "c" * 24, str(f))
+        assert save("elevenlabs", "d" * 24) == f
         f.unlink()
         # text without the vendor's prefix is refused before any request
         real_get, sent = _get, []
@@ -138,16 +138,17 @@ if __name__ == "__main__":   # self-check: saving one key keeps the others
             assert not ok and "Gemini" in msg and "AIza" in msg and not sent, (msg, sent)
             assert verify("gemini", "AIza" + "x" * 35)[0] and len(sent) == 1
             assert verify("gemini", "AQ.Ab" + "x" * 40)[0] and len(sent) == 2   # the newer AI Studio format
-            assert verify("typesafe", "x" * 30)[0] and verify("elevenlabs", "x" * 32)[0]   # no fixed prefix
+            assert verify("elevenlabs", "x" * 32)[0]   # no fixed prefix
         finally:
             globals()["_get"] = real_get
         cwd = os.getcwd()
         work = Path(d) / "another-project"
         work.mkdir()
-        (work / ".env").write_text(f"TYPESAFE_API_KEY={'e' * 24}\n", encoding="utf-8")
+        (work / ".env").write_text(f"ELEVENLABS_API_KEY={'e' * 24}\n", encoding="utf-8")
         os.chdir(work)   # the folder Claude Code started in: its .env is another project's, never read
         try:
-            assert get("typesafe") == (None, None), "read a key from the working folder's .env"
+            os.environ.pop("ELEVENLABS_API_KEY", None)
+            assert get("elevenlabs") == (None, None), "read a key from the working folder's .env"
         finally:
             os.chdir(cwd)
         # a new key file is 0600 from its first byte: with chmod doing nothing, the mode is still 0600
@@ -155,7 +156,7 @@ if __name__ == "__main__":   # self-check: saving one key keeps the others
             real, old_mask = os.chmod, os.umask(0)
             os.chmod = lambda *a, **k: None
             try:
-                g = save("typesafe", "f" * 24, Path(d) / "new" / ".env")
+                g = save("elevenlabs", "f" * 24, Path(d) / "new" / ".env")
             finally:
                 os.chmod, _ = real, os.umask(old_mask)
             assert g.stat().st_mode & 0o777 == 0o600, oct(g.stat().st_mode)

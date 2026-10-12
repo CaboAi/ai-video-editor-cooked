@@ -1,8 +1,8 @@
 ---
 name: clips
-description: Turns one long video or podcast (a local file or a YouTube link) into the best 3-5 short vertical clips, each cut and styled in the user's profile style. Transcribes once, splits the talk into candidate clips at sentence boundaries inside the chosen length, scores every candidate in code (speech rate, loudness, laughter, numbers and names said) and with TypeSafe's Jev (hook alone, self-contained, pays off, concrete, the creator's measured moves), shows the shortlist on one page with a preview of each, then trims, cuts and style-edits each pick as its own edit. Use when the user says "clip this video", "make shorts from my podcast", "find the best clips", "cut this into TikToks", "turn this YouTube video into reels", "repurpose this long video", or drops a long video (over about 3 minutes) or a YouTube link and wants short clips. Not for editing one short take (that is start or cut), and not for measuring someone else's style (that is creator-teardown).
+description: Turns one long video or podcast (a local file or a YouTube link) into the best 3-5 short vertical clips, each cut and styled in the user's profile style. Transcribes once, splits the talk into candidate clips at sentence boundaries inside the chosen length, scores every candidate in code (speech rate, loudness, laughter, numbers and names said), shows the shortlist on one page with a preview of each, then trims, cuts and style-edits each pick as its own edit. Use when the user says "clip this video", "make shorts from my podcast", "find the best clips", "cut this into TikToks", "turn this YouTube video into reels", "repurpose this long video", or drops a long video (over about 3 minutes) or a YouTube link and wants short clips. Not for editing one short take (that is start or cut), and not for measuring someone else's style (that is creator-teardown).
 license: MIT
-compatibility: Python 3.9+, ffmpeg, and the venv (its yt-dlp fetches links), Node and renderer the setup skill installs. Recommended TypeSafe key (Jev scores every candidate for about 2 cents a video; without it Claude judges an 8-clip shortlist). Runs from the full ai-editor plugin folder (uses its lib/ and the cut and style-edit skills).
+compatibility: Python 3.9+, ffmpeg, and the venv (its yt-dlp fetches links), Node and renderer the setup skill installs. Runs from the full ai-editor plugin folder (uses its lib/ and the cut and style-edit skills).
 ---
 
 # Clips
@@ -20,10 +20,9 @@ clips/<name>/
   source.mp4          the long video (a symlink for a local file; never modify the original)
   source.mp3, cover.jpg  instead, for an audio-only podcast: its audio and the show's artwork
   words.raw.json      one transcript of the whole thing (never read it)
-  candidates.json     every candidate with its features and Jev answers (never read it)
+  candidates.json     every candidate with its features (never read it)
   shortlist.md        the top 8 that do not overlap, about 1,500 tokens: the only file you read
   shortlist.json      the same, for the page
-  jev-usage.jsonl     what Jev cost
   picks.html          the page the user picks from
 edits/<name>-clip<N>/ one edit per chosen clip: source.mp4, words.raw.json (re-timed), clip.json
 ```
@@ -91,16 +90,13 @@ python3 "$K" candidates clips/<name> --min 20 --max 40 [--speakers 2] [--style c
 ```
 
 Pass the length the user picked. `--style` is the profile's first creator: the "what works" moves
-measured there are scored too. Code splits the transcript into sentences and makes every run of
+measured there are listed in the shortlist. Code splits the transcript into sentences and makes every run of
 whole sentences inside the length a candidate (never starting on "Mm-hmm" or ending mid-word),
-measures each, asks Jev four questions about each, and writes `shortlist.md`.
+measures each, ranks them by the features, and writes `shortlist.md`.
 
-- **Exit 0.** Read `shortlist.md` only. Each entry has the hook, the opening words of every
-  middle sentence, the last sentence, the Jev scores and the measured features.
-- **Exit 4: no TypeSafe key.** The shortlist is ranked by the features alone. Read it and judge each
-  entry yourself on the same four questions: does the hook work alone, can a stranger follow it,
-  does it pay off, is there a concrete claim, number or story. Tell the user once that a
-  TypeSafe key makes this cheaper and better (the `setup` skill walks them through it).
+Read `shortlist.md` only. Each entry has the hook, the opening words of every middle sentence, the
+last sentence and the measured features. Judge each entry on four questions: does the hook work
+alone, can a stranger follow it, does it pay off, is there a concrete claim, number or story.
 
 Never read `words.raw.json` or `candidates.json`. Pick the user's number of clips from the
 shortlist, best first. Drop, whatever the score:
@@ -188,8 +184,6 @@ review page, each clip a tab (`start` with clip 1, `alt` for the rest, folder `c
 Measured on a 13-minute two-person podcast and a 12-minute talking-head video (2026-10):
 - Transcription: Scribe took 16-18 s; Whisper is free and slower. Once per long video.
 - Candidates and features: 4-6 s of code, $0.
-- Jev: 1,250-1,300 questions over 380 candidates, about 310,000-390,000 input tokens: $0.013-0.016
-  (sized from the requests; the live bill lands in `jev-usage.jsonl`).
 - Claude reads `shortlist.md` (about 1,500 tokens), never the transcript (about 20,000).
 - The picks page: 30-40 s of ffmpeg for 8 previews, 7-9 MB.
 - Each clip then costs what one cut and one style edit cost.
@@ -202,6 +196,6 @@ python3 "$K" demo
 
 ## Files
 
-- `scripts/clips.py`: candidates, page, trim, reframe and the offline demo (synthetic transcript,
-  canned Jev answers). Stdlib only, except `reframe` (OpenCV, through the venv).
+- `scripts/clips.py`: candidates, page, trim, reframe and the offline demo (synthetic transcript).
+  Stdlib only, except `reframe` (OpenCV, through the venv).
 - `${CLAUDE_PLUGIN_ROOT}/agents/clip-editor.md`: one clip through the cut and style-edit to its stills sheet.

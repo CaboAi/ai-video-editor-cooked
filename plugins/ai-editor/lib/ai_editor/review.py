@@ -63,6 +63,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import askhook  # noqa: E402
+import live  # noqa: E402
 
 HTML = Path(__file__).with_name("review.html")
 LOCK = threading.Lock()
@@ -410,6 +411,7 @@ def make_handler(folder, token):
             if path == "/state":
                 d = load(rj)
                 d["listening"], d["busy"] = listening(folder), busy(folder)
+                d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
                 d["cutcheck"] = (folder / "cut-check.html").exists()
                 d["home"] = home_url()   # the Home button: back to the editor's window, or how to start it
                 for x in d.get("activity", [])[-1:]:
@@ -1218,6 +1220,7 @@ def main():
         srv, url = serve(folder, a.port, open_browser=not a.no_open)
         print(url, flush=True)
         if srv:
+            threading.Thread(target=live.reexec_on_change, args=(srv,), daemon=True).start()   # newest code, same port
             try:
                 srv.serve_forever()
             except KeyboardInterrupt:

@@ -134,3 +134,9 @@ drawn in one colour to match the page:
 - TypeSafe: the site's own favicon (typesafe.ai), reduced to its one-colour mark and embedded as a
   48 px PNG. A trademark of its owner, used only to name the service.
 
+
+## Demo photos (Unsplash License)
+
+`plugins/ai-editor/lib/ai_editor/demo/person-*.jpg`: three photographs from Unsplash under the Unsplash
+License (free to use and modify, no attribution required). Photographers and sources:
+`plugins/ai-editor/lib/ai_editor/demo/CREDITS.md`.

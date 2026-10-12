@@ -255,6 +255,19 @@ def disk():
             "free": shutil.disk_usage(lib).free}
 
 
+def trash_cmd(p, os_name=None):
+    """Move to the Trash / Recycle Bin, never a permanent delete. The path is always its own argv item."""
+    os_name = os_name or platform.system()
+    if os_name == "Darwin":
+        return ["osascript", "-e", "on run argv", "-e", 'tell application "Finder" to delete POSIX file (item 1 of argv)',
+                "-e", "end run", str(p)]
+    if os_name == "Windows":
+        fn = "DeleteDirectory" if Path(p).is_dir() else "DeleteFile"
+        return ["powershell", "-NoProfile", "-Command", "param($p) Add-Type -AssemblyName Microsoft.VisualBasic; "
+                f"[Microsoft.VisualBasic.FileIO.FileSystem]::{fn}($p, 'OnlyErrorDialogs', 'SendToRecycleBin')", str(p)]
+    return ["gio", "trash", str(p)]
+
+
 def reveal_cmd(p, os_name=None):
     os_name = os_name or platform.system()
     if os_name == "Darwin":

@@ -868,15 +868,11 @@ def make_handler(folder, token):
                                         "at": now(), "handled": False})
                     d["sent"] = True
                     d.pop("stopped", None)
-<<<<<<< HEAD
+                    if body["type"] == "approve" and (d["stage"] == "edit" or d.get("final")):   # the finished video
+                        d["learn"] = {"state": "reading" if session_notes(d) else "none", "style": style}
                     return True
                 if not update(rj, ev):
                     return self.send(409, {"error": "Claude is applying your transcript changes"})
-=======
-                    if body["type"] == "approve" and (d["stage"] == "edit" or d.get("final")):   # the finished video
-                        d["learn"] = {"state": "reading" if session_notes(d) else "none", "style": style}
-                update(rj, ev)
->>>>>>> pr/learn-on-approve
                 return self.send(200, {})
             self.send(404, {})
 
@@ -1371,7 +1367,6 @@ def cmd_wait(folder, poll=1.0):
     return e["type"]
 
 
-<<<<<<< HEAD
 def edits_text(folder, e):
     """What `wait` prints for the transcript editor's Apply: the line Claude acts on, the words, the commands."""
     try:
@@ -1396,7 +1391,8 @@ def edits_text(folder, e):
     rows.append(f"  then: python3 {q(cut / 'build_timeline.py')} {q(src)} {q(folder)}; python3 {q(cut / 'render.py')} {q(src)} {q(folder)}; "
                 f"verify_cut.py; python3 {q(Path(__file__).resolve())} {q(folder)} round --video {q(folder / 'cut.mp4')}")
     return "\n".join(rows)
-=======
+
+
 def session_notes(d):
     return [c for c in d["comments"] if c.get("text") and not c.get("queued")]
 
@@ -1492,7 +1488,6 @@ def learn_done(folder, summary):
     update(folder / "review.json", lambda d: d["learn"].update(state="done", style=style,
                                                                  summary=summary or f"Saved to {style}. Next video uses it."))
     print(f"saved to {style}")
->>>>>>> pr/learn-on-approve
 
 
 def edit_style(folder):
@@ -2040,7 +2035,15 @@ def demo():
     assert (d1["round"], d1["sent"], "raw" in d1) == (1, False, False) and [r["round"] for r in d1["rounds"]] == [0, 1], d1
     assert (c["round"], c["t"], c["moved"], "queued" in c) == (1, 2.0, "words", False), c
     p2("/event", {"type": "approve"})
-<<<<<<< HEAD
+    assert "learn" not in load(rf / "review.json"), "the cut's approve is not the end: nothing to learn yet"
+    # the final approve with no notes all session: the panel says so, LEARN asks nothing
+    update(rf / "review.json", lambda d: d.update(final=True, sent=False, comments=[]))
+    p2("/event", {"type": "approve"})
+    assert load(rf / "review.json")["learn"]["state"] == "none"
+    o = io.StringIO()
+    with contextlib.redirect_stdout(o):
+        cmd_wait(rf, poll=0.01)
+    assert "LEARN: no notes this session" in o.getvalue(), o.getvalue()
     # the transcript editor: Apply turns restore/cut word ranges into spans.json, keeps spans.prev.json, and `wait`
     # exits with the EDITS line. Restoring part of a span splits it; a cut inside a word takes the whole word
     ef = tmp / "edits" / "tx"
@@ -2178,17 +2181,6 @@ def demo():
     assert load(f / "spans.json")[0]["occurrence"] == 3 and build_timeline.resolve_spans(load(f / "spans.json"), toks_)[0]["start"] == 1
     srv3.shutdown()
     srv3.server_close()
-=======
-    assert "learn" not in load(rf / "review.json"), "the cut's approve is not the end: nothing to learn yet"
-    # the final approve with no notes all session: the panel says so, LEARN asks nothing
-    update(rf / "review.json", lambda d: d.update(final=True, sent=False, comments=[]))
-    p2("/event", {"type": "approve"})
-    assert load(rf / "review.json")["learn"]["state"] == "none"
-    o = io.StringIO()
-    with contextlib.redirect_stdout(o):
-        cmd_wait(rf, poll=0.01)
-    assert "LEARN: no notes this session" in o.getvalue(), o.getvalue()
->>>>>>> pr/learn-on-approve
     srv2.shutdown()
     srv2.server_close()
     srv.shutdown()

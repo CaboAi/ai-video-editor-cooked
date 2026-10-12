@@ -32,9 +32,9 @@ def key_file():
     return Path(home) / ".env" if home else KEY_FILE
 VARS = {"typesafe": "TYPESAFE_API_KEY", "gemini": "GEMINI_API_KEY",
         "elevenlabs": "ELEVENLABS_API_KEY"}
-# The fixed start of each vendor's key, checked before any request. Google API keys start with AIza
+# The fixed start of each vendor's key, checked before any request. Google keys start with AQ. or AIza
 # (creator-teardown references/setup.md). TypeSafe documents none; ElevenLabs' older keys have none.
-PREFIX = {"gemini": "AIza"}
+PREFIX = {"gemini": ("AIza", "AQ.")}   # AI Studio issues AQ. keys since mid-2026; older keys start AIza
 NAMES = {"typesafe": "TypeSafe", "gemini": "Gemini", "elevenlabs": "ElevenLabs"}
 
 
@@ -94,7 +94,7 @@ def verify(name, key):
     """(ok, message). Each check is a free listing call: nothing is billed. A key without its vendor's
     fixed prefix is refused here, so text that is not that key never leaves the computer."""
     if name in PREFIX and not key.startswith(PREFIX[name]):
-        return False, f"this is not a {NAMES[name]} key: {NAMES[name]} keys start with {PREFIX[name]}. Nothing was sent."
+        return False, f"this is not a {NAMES[name]} key: {NAMES[name]} keys start with {' or '.join(PREFIX[name])}. Nothing was sent."
     if name == "typesafe":
         code, body = _get("https://api.typesafe.ai/v1/models", {"Authorization": f"Bearer {key}"})
     elif name == "gemini":
@@ -137,6 +137,7 @@ if __name__ == "__main__":   # self-check: saving one key keeps the others
             ok, msg = verify("gemini", "x" * 39)
             assert not ok and "Gemini" in msg and "AIza" in msg and not sent, (msg, sent)
             assert verify("gemini", "AIza" + "x" * 35)[0] and len(sent) == 1
+            assert verify("gemini", "AQ.Ab" + "x" * 40)[0] and len(sent) == 2   # the newer AI Studio format
             assert verify("typesafe", "x" * 30)[0] and verify("elevenlabs", "x" * 32)[0]   # no fixed prefix
         finally:
             globals()["_get"] = real_get

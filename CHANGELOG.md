@@ -14,6 +14,9 @@ What changed for every user, newest first.
   need it still run. The session-start check tells Claude to do this on a first run; setup no longer asks
   a question before opening the window. A clean install took 48 s here (packages 7 s, model 29 s,
   renderer 9 s, with a warm npm cache).
+- Gemini keys that start with `AQ.` are accepted. Google AI Studio has issued them since mid-2026, and the
+  key check refused anything not starting with `AIza` before sending it. Calls already send the key in the
+  `x-goog-api-key` header, which Google's docs give for both key types.
 - Saving a key, transcribing and every other web request now work on python.org's macOS Python before
   "Install Certificates.command" has been run. They failed with `CERTIFICATE_VERIFY_FAILED`. Every HTTPS
   call goes through `lib/ai_editor/net.py` (creator-teardown: `scripts/_net.py`), which still verifies

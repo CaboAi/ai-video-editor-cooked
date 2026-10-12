@@ -1171,7 +1171,9 @@ def merge(outdir):
     gfx["crop_palette"] = crop_palette(outdir, rows)
     style["graphics"] = gfx
     split = split_layout(s["layout"], style.get("face"), portrait)
-    if split:
+    if (style.get("layout") or {}).get("mode") == "letterbox":
+        pass   # look.py measured a letterbox: the bars are the layout, not a split panel
+    elif split:
         style["layout"] = split
     elif (style.get("layout") or {}).get("source") == "graphics.py":
         style.pop("layout")

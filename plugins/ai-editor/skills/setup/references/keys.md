@@ -27,7 +27,8 @@ click path. Every key is optional.
 
 - **What for:** the free transcription on this computer tidies speech and drops some "um"s and
   false starts. ElevenLabs Scribe keeps every one, and the cut uses them to find retakes.
-- **Cost:** the free ElevenLabs plan includes a few hours of transcription a month.
+- **Cost:** the free ElevenLabs plan includes a few hours of transcription a month. A take
+  transcribed with a script's names as keyterms costs about 20% more.
 - **Get it:** https://elevenlabs.io/app/settings/api-keys (sign up first at
   https://elevenlabs.io/app/sign-up), create a key. Keep **Restrict Key** on, allow **Speech to
   Text** only, and set a credit limit.

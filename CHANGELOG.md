@@ -24,6 +24,39 @@ What changed for every user, newest first.
   videos: "Remove" moves that edit's folder to the Trash after a confirm. Live reload: the window and the
   review page reload themselves when their page changes, and the servers restart on the same port when
   their Python changes (`live.py`). Test: `home.py demo`, `styleskill.py demo`, `live.py demo`.
+- Your changes survive updates: `<library>/custom/` holds your own rule files (`rules/*.md`, printed by
+  `taste.py show` so every skill follows them), caption styles (`captions/<name>.json`, on with
+  `taste.py set captions.preset <name>`), template defaults (`templates/<type>.json`) and the cut critic's
+  rubric (`prompts/judge-rubric.md`). The editor reads them before its own. Settings shows the folder with
+  Show in Finder. The improve skill only edits the plugin's files in a repo checkout with
+  `AI_EDITOR_MAINTAINER=1`; everyone else's changes go to custom/ or taste.json. Docs: `docs/customise.md`.
+  Test: `custom.py demo` (a user file still wins after the plugin folder is replaced), `plan.py demo`,
+  `judge_cut.py demo`, `taste.py demo`, `improve.py demo`, `home.py demo`.
+- Change the editor itself and still get updates: fork the repo, install the plugin from your fork,
+  and say "update the editor". The new `update` skill finds how you installed (official plugin, your
+  fork, or a plain clone). On a fork it shows what the update brings and which of your files it also
+  touches, makes a `before-update-<date>` branch, merges, runs the fast self-checks, and rolls back
+  if they fail. It never pushes, stashes or deletes a branch. README "Want to change the editor
+  itself?". Test: `update.py demo`.
+- Sourced proof in the style edit: when a line names a person and what they said, `source.py quote` finds
+  the second they say it in a YouTube video (from its auto-captions) and `source.py clip` downloads only
+  that part into a `video_card`. X posts fall back to the public fxtwitter API when X's embed endpoint
+  returns nothing. Every clip and post is credited in `credits.txt` (url at that second, channel, date),
+  which `chapters.py --intro` puts in `description.txt`. Free, no keys, no login. Test: `source.py demo`,
+  `chapters.py demo`.
+- Cut quality: a script (`transcribe.py --script`, or `--keyterm Name`) now spells its names, product
+  names and jargon right: up to 100 picked terms go to ElevenLabs Scribe as keyterms (about 20% more on
+  that request) and into Whisper's prompt. Each approved cut adds one line to `metrics.jsonl` in the
+  editor's home (lengths, judge precision; `taste/scripts/learn.py` adds false cuts), and `trend.py tally`
+  shows the false-cut trend. `verify_cut.py` now lists joins that land inside loud speech;
+  `splice_check.py <edit> --fix` moves each to a quiet trough within 0.12 s and says what moved.
+  Test: `transcribe.py demo`, `trend.py demo`, `splice_check.py demo`.
+- Letterbox layout: `plan.py --layout letterbox` (or `"layout": {"mode": "letterbox"}` in style.json) turns a
+  landscape take into a vertical reel: a black 9:16 frame, the take as a centred band, a lowercase title
+  above it (`--title`, else the first sentence), captions one word at a time in the band (yellow unless the
+  creator highlights in another colour), and one of your own photos or a capture beside your head over the
+  opening line. All of it inside the reels safe zone. creator-teardown's look pass picks it for a creator
+  whose videos are letterboxed (a 16:9 band between black bars). Test: `plan.py demo`, `look.py demo`.
 - Review page: while Claude is making a round (it ran `status`, `round` or `resolve` in the last 15 min) the
   page says "Claude is working. Notes you send now are next." instead of "Claude is not listening".
 - Claude's questions in the window: when Claude asks a question (AskUserQuestion) and the home page or a

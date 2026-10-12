@@ -72,7 +72,9 @@ Old keys keep their meaning, so style-edit reads an old or new file the same way
   `mask` -> `wipe`, `dissolve` -> `fade`, kinds on 5% of cuts or more, most used first; absent
   when they only cut) and `layout` (graphics.py: `{"mode": "split", "seam"}` when graphics sit in
   the top zone 60%+ of their time, end above 55% of the height, keep off the face, and the face
-  is in the lower half; absent otherwise).
+  is in the lower half; absent otherwise), or (look.py, wins over split) `{"mode": "letterbox", "band_pct"}`
+  when most videos are a 16:9 band between black bars (rows over half near-black above and below, the
+  band 15%+ from each edge).
 - `look.font_votes`, `look.font_confident`: how many videos Gemini gave the same closest font,
   and whether that counts as measured (3+ videos, 75% agree, most `font_confidence: high`).
   look.md and the AI-tell scan call the font a guess otherwise.

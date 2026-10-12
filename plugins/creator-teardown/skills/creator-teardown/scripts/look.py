@@ -721,13 +721,31 @@ def load_words(tdir, vid):
     return [(norm(w["text"]), w["start"]) for w in d.get("words", []) if w.get("type") == "word"]
 
 
+def letterbox_band(dark, W):
+    """[top %, height %] of a landscape band between black bars, or None. dark: per row, the share of near-black
+    pixels over the sampled frames. Bars are mostly black (a title on them still leaves most of a row black),
+    the band almost never is; the band must be about 16:9 and leave a bar of 15%+ above and below."""
+    n = len(dark)
+    lit = np.where(dark < 0.5)[0]
+    if not len(lit):
+        return None
+    top, bot = int(lit[0]), int(lit[-1]) + 1
+    if top < 0.15 * n or n - bot < 0.15 * n or not 0.45 <= (bot - top) / W <= 0.65:
+        return None
+    if (dark[:top] >= 0.7).mean() < 0.8 or (dark[bot:] >= 0.7).mean() < 0.8 or (dark[top:bot] < 0.5).mean() < 0.9:
+        return None
+    return [round(100 * top / n, 1), round(100 * (bot - top) / n, 1)]
+
+
 def measure_video(path, words, ocr=None, faces=None, engine="vision", fps=SAMPLE_FPS):
     w0, h0, src_fps, dur = probe(path)
     W = min(WORK_W, w0) // 2 * 2
     H = round(W * h0 / w0 / 2) * 2
     em_k = EM_PER_BOX.get(engine, 1.0)
     samples, thumbs = [], []
+    dark = np.zeros(H)
     for i, f in enumerate(decode(path, W, H, fps)):
+        dark += (f.max(axis=2) < 28).mean(axis=1)
         t = round(i / fps, 3)
         lines = [{"text": tx, "box": [round(v, 4) for v in b]} for tx, b in (ocr(f, t) if ocr else [])]
         samples.append({"t": t, "lines": lines, "face": faces(f) if faces else None})
@@ -845,8 +863,9 @@ def measure_video(path, words, ocr=None, faces=None, engine="vision", fps=SAMPLE
         "ease_in_s": round(statistics.median(eases) / src_fps, 3) if eases else None,
         "palette": palette,
     }
+    band = letterbox_band(dark / n, W) if H > W else None
     return {"id": path.stem, "duration_s": round(dur, 2), "engine": engine if ocr else None,
-            "captions": cap, "face": face, "graphics": graphics,
+            "letterbox": band, "captions": cap, "face": face, "graphics": graphics,
             "samples": [{"t": s["t"], "face": s["face"],
                          "lines": [[ln["text"], ln["box"], bool(ln.get("cap"))] for ln in s["lines"]]}
                         for s in samples]}
@@ -972,7 +991,12 @@ def merge(rows, visuals, style):
     motion = {"cuts_per_min": cpm, "ease_in_s": graphics["ease_in_s"], "hold_s": graphics["hold_s"],
               "caption_ease_s": cap.get("ease_s"), "zoom_punch_per_min": punch}
     motion["personality"] = personality(cpm, motion["ease_in_s"], motion["hold_s"], punch)
-    return {"captions": cap, "face": face, "graphics": graphics, "motion": motion}
+    out = {"captions": cap, "face": face, "graphics": graphics, "motion": motion}
+    bands = [r["letterbox"] for r in rows if r.get("letterbox")]
+    if bands and len(bands) > len(rows) / 2:   # most videos are a 16:9 band between black bars: style-edit's letterbox
+        out["layout"] = {"mode": "letterbox", "band_pct": [med([b[0] for b in bands], 1), med([b[1] for b in bands], 1)],
+                         "source": "look.py"}
+    return out
 
 
 def pct(d):
@@ -1107,7 +1131,10 @@ def cmd_measure(a):
     visuals = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((outdir / "video").glob("*.visual.json"))]
     sp = outdir / "style.json"
     style = json.loads(sp.read_text(encoding="utf-8")) if sp.exists() else {"handle": slug(a.handle)}
-    style.update(merge(rows, visuals, style))
+    m = merge(rows, visuals, style)
+    if "layout" not in m and (style.get("layout") or {}).get("source") == "look.py":
+        style.pop("layout")   # an old letterbox reading the new videos no longer show
+    style.update(m)
     sp.write_text(json.dumps(style, indent=2, default=float), encoding="utf-8")
     print(write_summary(outdir))
     print(f"-> {sp}\n-> {outdir / 'look.md'}")
@@ -1215,6 +1242,17 @@ def demo():
     text was drawn, so CI checks the measuring without an OCR package."""
     # A centred title held 6 s with no transcript, OCR misreading it every few samples over a busy
     # picture: a title, not a caption.
+    # letterbox: black bars round a 16:9 band, a title on the top bar; a full-frame video and a short band are not
+    rows = np.zeros(1920)
+    rows[:656], rows[1264:] = 1.0, 1.0
+    rows[400:460] = 0.6
+    assert letterbox_band(rows, 1080) == [34.2, 31.7], letterbox_band(rows, 1080)
+    assert letterbox_band(np.zeros(1920), 1080) is None and letterbox_band(np.r_[np.ones(800), np.zeros(320), np.ones(800)], 1080) is None
+    row = {"captions": {}, "face": {"present_pct": 90}, "graphics": {"share_pct": 0, "per_min": 0, "hold_s": None,
+                                                                       "ease_in_s": None, "palette": []}}
+    lb = merge([{**row, "letterbox": [34.2, 31.7]}], [], {})
+    assert lb["layout"] == {"mode": "letterbox", "band_pct": [34.2, 31.7], "source": "look.py"}, lb
+    assert "layout" not in merge([row, {**row, "letterbox": [34.2, 31.7]}], [], {})   # one video of two is not most
     reads = ["2nd Rhode Island Infantry", "2nd Rhodelsland Infantry", "$2nd Rhode Island Infantry"]
     held = [{"t": k / SAMPLE_FPS, "lines": [{"text": reads[k % 3], "box": [0.3, 0.9, 0.4, 0.05]}]} for k in range(18)]
     find_captions(held, [])
@@ -1270,6 +1308,7 @@ def demo():
             # A stand-in that knows where the text was drawn: its box is one em tall.
             engine, ocr = "fake", lambda f, t: drawn[min(round(t * FPS), 6 * FPS - 1)]
         r = measure_video(mp4, spoken_words, ocr, None, engine, SAMPLE_FPS)
+        assert r["letterbox"] is None, r["letterbox"]   # a full-frame video
         c, g = r["captions"], r["graphics"]
         print(f"engine {engine}: {json.dumps({k: c.get(k) for k in ('y_pct', 'size_pct', 'words_per_caption', 'color', 'stroke_color', 'highlight_color', 'entrance', 'ease_s', 'stem_ratio', 'word_effect', 'timing_err_s')})}")
         print(f"graphics {json.dumps(g)}")

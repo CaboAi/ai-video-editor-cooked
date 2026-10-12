@@ -15,6 +15,7 @@ product video). Notes save with the edit, never in the plugin:
     python3 review.py <folder> serve [--no-open]   serve the page and open it (run in the background)
     python3 review.py <folder> wait                block until the user presses send or approve (run in the background)
     python3 review.py <folder> status "rendering" [--log render.log] [--done]   what Claude is doing, live on the page
+    python3 review.py <folder> final               the cut is the finished video ("just the cut"): no edit follows
     python3 review.py <folder> status --step captions|visuals|plan|render [--log ..]   a step of the styled edit:
                                      fills the page's "Making the edit" bar (the scripts report their own, step())
     python3 review.py <folder> resolve <id> fixed|wontfix|open [--reply "..."] [--new-t 12.3]
@@ -75,6 +76,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(1, str(Path(__file__).resolve().parent.parent))   # `from ai_editor import ...` (styleskill, taste)
 import askhook  # noqa: E402
 import live  # noqa: E402
 
@@ -90,7 +92,7 @@ def load(path):
 
 
 def save(path, d):
-    tmp = path.with_suffix(".tmp")
+    tmp = path.with_name(f"{path.stem}.{os.getpid()}.{threading.get_ident()}.tmp")   # one per writer, never shared
     tmp.write_text(json.dumps(d, indent=1), encoding="utf-8")
     for i in range(20):   # Windows refuses to replace a file another process is reading this instant
         try:
@@ -101,10 +103,32 @@ def save(path, d):
             time.sleep(0.05)
 
 
-# ponytail: a thread lock, not a file lock. The page writes notes; the CLI writes only between rounds and
-# `wait` only on a send or approve, when the page has stopped taking notes. A cross-process lock if that changes.
+class FileLock:
+    """Cross-process and cross-thread: the page's server, the CLI and the style-edit scripts (step()) all write
+    review.json. A lock file beside it made with O_EXCL (home.py's _Lock)."""
+    def __init__(self, path, wait=10):
+        self.p, self.tries = Path(path).with_name(Path(path).name + ".lock"), int(wait / 0.02)
+
+    def __enter__(self):
+        for _ in range(self.tries):
+            try:
+                os.close(os.open(self.p, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+                return self
+            except FileExistsError:
+                try:   # a writer that died holding it: older than 10 s is stale
+                    if time.time() - self.p.stat().st_mtime > 10:
+                        self.p.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                time.sleep(0.02)
+        raise TimeoutError(f"{self.p} is held; delete it if no review.py is running")
+
+    def __exit__(self, *a):
+        self.p.unlink(missing_ok=True)
+
+
 def update(path, fn):
-    with LOCK:
+    with FileLock(path):
         d = load(path)
         out = fn(d)
         save(path, d)
@@ -669,6 +693,10 @@ def make_handler(folder, token):
                 for x in d.get("activity", [])[-1:]:
                     if x.get("log") and not x.get("done"):
                         x["pct"] = log_pct(x["log"])
+                        try:   # a render still writing its log is alive even when Claude is quiet
+                            x["log_age"] = round(time.time() - Path(x["log"]).stat().st_mtime)
+                        except OSError:
+                            pass
                 if making_edit(d):
                     d["making"] = {"style": making_style(folder), "steps": EDIT_STEPS}
                 return self.send(200, d)
@@ -749,6 +777,8 @@ def make_handler(folder, token):
                     def st(d):
                         if d.get("sent") and d["events"] and (d["events"][-1]["type"] in ("send", "edits") or making_edit(d)):
                             e = d["events"][-1]
+                            for ev in d["events"]:   # a send or approve `wait` has not taken yet is taken back
+                                ev["handled"] = True
                             # stop undoes the edits, but only over the files /edits wrote: never over Claude's later change
                             if e["type"] == "edits" and e.get("sha") == files_sha(folder) and (folder / "spans.prev.json").exists():
                                 save(folder / "spans.json", load(folder / "spans.prev.json"))
@@ -1026,8 +1056,14 @@ def cmd_start(a, folder):
 
 
 def cmd_round(a, folder):
-    if load(folder / "review.json").get("stopped"):
-        sys.exit("STOPPED: the user pressed Stop on the page. Do not open a round; run `wait` for their next send.")
+    d0 = load(folder / "review.json")
+    if a.stage == "edit" and d0["stage"] == "cut" and d0.get("stopped"):
+        print(f"STOPPED: the user pressed Stop on the page at {d0['stopped']}, which took the cut's approve back. "
+              f"Do not open the edit: say so in one line and run `wait` again.")
+        sys.exit(3)
+    if d0.get("stopped"):
+        print("STOPPED: the user pressed Stop on the page. Do not open a round; run `wait` for their next send.")
+        sys.exit(3)
 
     def f(d):
         if a.stage and a.stage != d["stage"]:
@@ -1122,7 +1158,7 @@ def making_edit(d):
     """Claude is making the styled edit: the cut was approved and no edit round has landed yet, or a sent edit
     round is being redone."""
     e = d["events"][-1] if d.get("events") else {}
-    return bool(d.get("sent") and not d.get("stopped") and
+    return bool(d.get("sent") and not d.get("stopped") and not d.get("final") and
                 ((e.get("type") == "approve" and e.get("stage") == "cut" and d.get("stage") == "cut")
                  or (e.get("type") == "send" and d.get("stage") == "edit")))
 
@@ -1133,9 +1169,10 @@ def step(folder, key, log=None):
     try:
         folder = Path(folder).resolve()
         rj = folder / "review.json"
-        if key not in EDIT_STEPS or not rj.is_file() or not making_edit(load(rj)):
+        if key not in EDIT_STEPS or not rj.is_file():
             return False
-        update(rj, lambda d: add_step(d, None, log, key))
+        if not update(rj, lambda d: making_edit(d) and (add_step(d, None, log, key) or True)):
+            return False
         (folder / "review" / ".claude").touch()   # Claude is working on it: the page shows the bar, not "not listening"
         return True
     except Exception:
@@ -1145,7 +1182,6 @@ def step(folder, key, log=None):
 def making_style(folder):
     """What the edit is styled as, for the page's "Making the edit" card."""
     try:
-        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
         from ai_editor import styleskill
         src = styleskill.sources(folder)
     except Exception:
@@ -1153,6 +1189,12 @@ def making_style(folder):
     if len(src) == 1:
         return f"@{re.sub(r'-mine$', '', src[0].parent.name)}'s style"
     return "your blended style" if src else "your style"
+
+
+def cmd_final(folder):
+    """The cut is the finished video ("just the cut"): Approve says so and the page waits for no edit."""
+    update(folder / "review.json", lambda d: d.update(final=True))
+    print("the cut is final: no styled edit follows")
 
 
 def cmd_status(a, folder):
@@ -1663,9 +1705,18 @@ def demo():
     s3 = json.loads(urllib.request.urlopen(b3 + "/state?t=" + t3).read())
     assert s3["making"]["style"] == "your style" and list(s3["making"]["steps"]) == list(EDIT_STEPS), s3.get("making")
     keep_d = load(sf / "review.json")
+    update(sf / "review.json", lambda d: d["events"][-1].update(handled=False))   # Stop before `wait` took the approve
     urllib.request.urlopen(urllib.request.Request(b3 + "/event?t=" + t3, b'{"type":"stop"}', method="POST"))
     d = load(sf / "review.json")
     assert not d["sent"] and d["stopped"] and not making_edit(d) and not step(sf, "render"), d
+    assert all(e["handled"] for e in d["events"]), "a stopped approve never reaches `wait`"
+    try:   # and the edit cannot open on the stopped page
+        with contextlib.redirect_stdout(io.StringIO()) as o:
+            cmd_round(ns(video=str(folder / "review" / "v-cut1.mp4"), stage="edit", transcript=None, plan=None,
+                         note=None, name=None), sf)
+        raise AssertionError("an edit round after Stop")
+    except SystemExit as e:
+        assert e.code == 3 and "STOPPED" in o.getvalue()
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             cmd_status(ns(text="", log=None, done=False, step="render"), sf)
@@ -1683,6 +1734,25 @@ def demo():
     d.update(sent=True, events=d["events"] + [{"type": "send", "stage": "edit", "round": 1, "at": now(), "handled": True}])
     save(sf / "review.json", d)
     assert step(sf, "render"), "a sent edit round is being redone: steps again"
+    # "just the cut": final, so an approved cut makes no edit and takes no steps
+    d.update(stage="cut", final=True, events=d["events"] + [{"type": "approve", "stage": "cut", "round": 1,
+                                                             "at": now(), "handled": True}])
+    save(sf / "review.json", d)
+    assert not making_edit(load(sf / "review.json")) and not step(sf, "plan")
+    # the lock: writers in many threads (and processes) never lose an update or share a tmp file
+    cnt = tmp / "count.json"
+    save(cnt, {"n": 0})
+    ths = [threading.Thread(target=lambda: [update(cnt, lambda d: d.update(n=d["n"] + 1)) for _ in range(25)]) for _ in range(4)]
+    [t.start() for t in ths]
+    [t.join() for t in ths]
+    sub = [subprocess.Popen([sys.executable, "-c", f"import sys; sys.path.insert(0, {str(Path(__file__).parent)!r}); "
+                             f"import review; [review.update(review.Path({str(cnt)!r}), lambda d: d.update(n=d['n'] + 1)) "
+                             f"for _ in range(25)]"]) for _ in range(2)]
+    assert all(x.wait() == 0 for x in sub)
+    assert load(cnt)["n"] == 150 and not list(tmp.glob("count*.tmp")) and not (tmp / "count.json.lock").exists()
+    (tmp / "count.json.lock").touch()
+    os.utime(tmp / "count.json.lock", (time.time() - 30, time.time() - 30))   # a writer that died holding it
+    update(cnt, lambda d: d.update(n=0))
     # round 0: the raw clip opens before the cut. No approve or stop; a note waits for round 1, moved onto the cut
     vid.unlink()
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30:duration=6",
@@ -1869,6 +1939,7 @@ def main():
     s.add_argument("--port", type=int, default=0)
     s.add_argument("--no-open", action="store_true", help="do not open the browser (tests, headless checks)")
     sp.add_parser("wait")
+    sp.add_parser("final", help="the cut is the finished video: no styled edit follows its approve")
     s = sp.add_parser("round")
     s.add_argument("--video", required=True)
     s.add_argument("--stage", choices=["cut", "edit"])
@@ -1933,6 +2004,8 @@ def main():
         cmd_alt(a, folder)
     elif a.cmd == "status":
         cmd_status(a, folder)
+    elif a.cmd == "final":
+        cmd_final(folder)
     elif a.cmd == "learn":
         cmd_learn(a, folder)
 

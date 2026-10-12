@@ -62,10 +62,11 @@ MODAL_CPU_USD_S, MODAL_MEM_USD_S = 0.0000131, 0.00000222
 LAPTOP_S = 0.26     # s a frame on the test laptop (the sample take, 1080x1920, 2026-10-07)
 
 
-def model(check=False):
+def model(check=False, edit=None):
+    """setup fetches it; missing (setup's download failed), it downloads here, shown on the home and review pages."""
     sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
     from ai_editor import models   # pinned URL + sha256
-    return str(models.fetch(MODEL.name, check))
+    return str(models.fetch(MODEL.name, check, edit=edit))
 
 
 def pool(edit, plan):
@@ -394,12 +395,12 @@ def main():
     jobs = [{"fps": fps, "w": w, "h": h, "vf": vf, "a": a, "b": b, "out": str(edit / rel)} for a, b in runs]
     t0 = time.time()
     if jobs and "--modal" in args:
-        res, wall, usd = run_modal(video, jobs, model())
+        res, wall, usd = run_modal(video, jobs, model(edit=edit))
         print(f"Modal: {frames} frames in {wall:.0f} s on {len(jobs)} containers, about ${usd:.4f} at Modal's CPU rates")
     elif jobs:
         res = []
         for j in jobs:
-            r = cut_range(video, fps, w, h, vf, j["a"], j["b"], j["out"], model())
+            r = cut_range(video, fps, w, h, vf, j["a"], j["b"], j["out"], model(edit=edit))
             res.append(r)
             print(f"  frames {j['a']}-{j['b']}: {r['wall_s']} s ({r['wall_s'] / r['frames']:.2f} s/frame; "
                   f"matte {r['matte_s']} s, edge refine {r['refine_s']} s)", flush=True)

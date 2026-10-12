@@ -40,6 +40,17 @@ What changed for every user, newest first.
   word "review" and shows the video name in full beside Home, centred. Fixed: "to Nonex" in a zoom line
   with no measured scale, Done tiles breaking "today" letter by letter, and a style page heading
   breaking a handle mid-word.
+- The first edit is as fast as the ones after it. Setup now pays the one-time costs the first edit used to:
+  `install-all` adds "Warming up the editor" (the first load of OpenCV, onnxruntime and faster-whisper, and
+  one test frame through the renderer, which builds its cache and starts the render browser once) and
+  downloads the 15 MB cutout model for cards behind you. On a fresh install with a 20 s 4K take, the first
+  edit took about 110 s against 88 s for the second before (face finder 16.6 s against 2.0 s, stills
+  17-31 s against 14 s, verify 12.2 s against 9.6 s); now 66 s against 71 s. Both new steps are optional:
+  if one fails, setup still says Ready and the first edit does that work as before. A model that still
+  downloads during an edit (a transcription size picked later, the cutout model if setup could not fetch
+  it, the renderer after an update) shows on the window's video job as "Downloading the cutout model,
+  first time only" with "12 of 15 MB", and on the review page's Claude panel. `setup.py warm` runs the
+  warm-up alone. Test: `setup.py demo`, `models.py`.
 - First run opens the editor's window first. Before, a new install went straight to several minutes of
   installs in the terminal and the window never opened. Now the window opens at once (it needs nothing
   installed, and runs on a Mac's built-in Python 3.9 too) and `setup.py install-all --report` installs the

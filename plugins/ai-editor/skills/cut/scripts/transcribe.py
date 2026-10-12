@@ -110,6 +110,9 @@ def with_spacing(words):
     return out
 
 
+EDIT = None   # the edit folder main() writes into
+
+
 def run_whisper(wav, lang, terms=()):
     os.environ.setdefault("HF_HOME", str(HOME / "models"))
     try:
@@ -120,7 +123,9 @@ def run_whisper(wav, lang, terms=()):
     name = os.environ.get("AI_EDITOR_WHISPER_MODEL", "small")
     print(f"whisper model {name} (cpu, int8)", flush=True)
     # The pinned model (setup.py model); a size with no pin downloads from the Hub as before.
-    model = WhisperModel(str(models.whisper(name, check=False) or name), device="cpu", compute_type="int8",
+    if name not in models.WHISPER and not Path(name).is_dir() and not any((HOME / "models").glob(f"**/*faster-whisper-{name}*")):
+        models.announce(f"the {name} transcription model", EDIT)   # a size with no pin: faster-whisper downloads it
+    model = WhisperModel(str(models.whisper(name, check=False, edit=EDIT) or name), device="cpu", compute_type="int8",
                          download_root=str(HOME / "models"))
     prompt = whisper_prompt(list(terms))
     # condition_on_previous_text=False: with it on, whisper tends to collapse a
@@ -252,6 +257,8 @@ def main():
     ap.add_argument("--keyterm", action="append", default=[], help="one name or term to bias towards (repeatable)")
     a = ap.parse_args()
     progress.step("Wrote down every word you said", job="video", key=Path(a.out).parent)   # the home page's video job, if any
+    global EDIT
+    EDIT = Path(a.out).parent   # edits/<name>: a first-use model download shows on its review page
 
     if not Path(a.media).exists():
         sys.exit(f"ERROR: no such file: {a.media}")

@@ -92,37 +92,59 @@ SCRIPT_MAX = 200_000   # a script's text, in bytes; the file it came from may be
 SCRIPT_EXT = (".txt", ".md", ".docx", ".pdf")
 
 
+SCRIPT_UNPACK = 20 << 20   # what a .pdf's streams or a .docx's document.xml may unpack to; more is refused
+PDF_TOKEN = re.compile(rb"\((?:\\.|[^\\()])*\)|/[^\s/\[\]()<>{}%]*|<[^<>]*>|[\[\]]|[-+]?(?:\d+\.?\d*|\.\d+)|[A-Za-z*'\"]+")
+
+
 def pdf_text(data):
-    """The words of a simple PDF: literal strings shown by Tj / TJ in its content streams (plain or Flate).
-    '' when they do not come out as words."""
+    """The words of a simple PDF: literal strings shown by Tj, TJ, ' and \" in its content streams (plain or
+    Flate). '' when they do not come out as words, or the streams unpack past SCRIPT_UNPACK."""
     # ponytail: no font maps, so hex strings and custom encodings (most Word exports) read as nothing and the
     # page asks for a paste; a real PDF parser is the upgrade if pasting turns out to be a chore
     import zlib
     esc = {b"n": b"\n", b"r": b"", b"t": b" ", b"(": b"(", b")": b")", b"\\": b"\\"}
     lit = lambda b: re.sub(rb"\\([0-7]{1,3}|.)", lambda m: bytes([int(m.group(1), 8) & 255]) if m.group(1)[:1].isdigit()
-                           else esc.get(m.group(1), m.group(1)), b, flags=re.S)
-    out = []
+                           else esc.get(m.group(1), m.group(1)), b[1:-1], flags=re.S)
+    out, left = [], SCRIPT_UNPACK
     for m in re.finditer(rb"stream\r?\n(.*?)\r?\nendstream", data, re.S):
         s = m.group(1)
         try:
-            s = zlib.decompress(s)
+            d = zlib.decompressobj()
+            s = d.decompress(s, left + 1)
+            if d.unconsumed_tail:
+                return ""
         except zlib.error:
             pass
-        for bt in re.findall(rb"BT(.*?)ET", s, re.S):
-            for chunk in re.split(rb"\bT[dD*m]\b|'", bt):
-                words = []
-                for arr, one in re.findall(rb"\[((?:\((?:\\.|[^\\)])*\)|[^\]])*)\]\s*TJ|\(((?:\\.|[^\\)])*)\)\s*Tj", chunk, re.S):
-                    if one or not arr:
-                        words.append(lit(one))
-                        continue
-                    for st, num in re.findall(rb"\(((?:\\.|[^\\)])*)\)|(-?\d+\.?\d*)", arr):
-                        words.append(lit(st) if not num else b" " if float(num) < -200 else b"")
-                line = b"".join(words).decode("latin-1").strip()
-                if line:
-                    out.append(line)
-    text = "\n".join(out)
+        left -= len(s)
+        if left < 0:
+            return ""
+        line, args = [], []
+        for t in PDF_TOKEN.findall(s):   # one pass over tokens: strings never split on an apostrophe inside them
+            if t[:1] in b"(/<[]0123456789+-.":
+                args.append(t)
+                continue
+            if t in (b"Tj", b"TJ"):
+                for a in (args[args.index(b"["):] if t == b"TJ" and b"[" in args else args[-1:]):
+                    if a[:1] == b"(":
+                        line.append(lit(a))
+                    elif a[:1] not in b"[]</" and float(a) < -200:
+                        line.append(b" ")
+            elif t in (b"'", b'"', b"Td", b"TD", b"T*", b"Tm", b"BT", b"ET"):
+                out.append(b"".join(line).decode("latin-1").strip())
+                line = [lit(args[-1])] if t in (b"'", b'"') and args and args[-1][:1] == b"(" else []
+            args = []
+        out.append(b"".join(line).decode("latin-1").strip())
+    text = "\n".join(x for x in out if x)
     ok = sum(c.isalpha() or c.isspace() or c in ".,!?'\"-:;" for c in text)
     return text if len(text.split()) >= 3 and ok >= 0.85 * len(text) else ""
+
+
+def body_len(headers):
+    """Content-Length as an int; -1 when it is not a number (the caller answers 400)."""
+    try:
+        return int(headers.get("Content-Length") or 0)
+    except ValueError:
+        return -1
 
 
 def script_text(name, data):
@@ -135,17 +157,18 @@ def script_text(name, data):
     try:
         if ext == ".docx":
             W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-            with zipfile.ZipFile(io.BytesIO(data)) as z:
-                if z.getinfo("word/document.xml").file_size > 20 << 20:
-                    return ""
-                root = ET.fromstring(z.read("word/document.xml"))
+            with zipfile.ZipFile(io.BytesIO(data)) as z, z.open("word/document.xml") as f:
+                xml = f.read(SCRIPT_UNPACK + 1)   # the zip's declared size can lie: read at most the limit
+            if len(xml) > SCRIPT_UNPACK or b"<!DOCTYPE" in xml or b"<!ENTITY" in xml:   # old expat expands entities
+                return ""
+            root = ET.fromstring(xml)
             text = "\n".join("".join(e.text or "" if e.tag == W + "t" else " " if e.tag == W + "tab" else "\n"
                                       for e in p.iter() if e.tag in (W + "t", W + "tab", W + "br")) for p in root.iter(W + "p"))
         elif ext == ".pdf":
             text = pdf_text(data)
         else:
             text = data.decode("utf-8-sig")
-    except (zipfile.BadZipFile, KeyError, ET.ParseError, UnicodeDecodeError, ValueError):
+    except (zipfile.BadZipFile, KeyError, ET.ParseError, UnicodeDecodeError, ValueError, OSError, EOFError):
         return ""
     return re.sub(r"\n{3,}", "\n\n", text.replace("\r\n", "\n").replace("\x00", "")).strip()
 
@@ -1220,7 +1243,7 @@ def make_handler(token):
         def cover(self):
             """A style's preview image: an image or a short clip, streamed to a temp file, then one 720x1280 frame."""
             sid = parse_qs(urlsplit(self.path).query).get("id", [""])[0]
-            n = int(self.headers.get("Content-Length") or 0)
+            n = body_len(self.headers)
             kind = (self.headers.get("Content-Type") or "").split("/")[0]
             if kind not in ("image", "video") or not 0 < n <= COVER_MAX:
                 return self.send(400, {"ok": False, "msg": "Pick an image or a short video under 50 MB."})
@@ -1247,7 +1270,7 @@ def make_handler(token):
             """A chosen script file: read in memory (1 MB at most), only its text goes back. Nothing is saved until
             the video is made."""
             name = Path(unquote(parse_qs(urlsplit(self.path).query).get("name", [""])[0])).name
-            n = int(self.headers.get("Content-Length") or 0)
+            n = body_len(self.headers)
             if not name.lower().endswith(SCRIPT_EXT):
                 return self.send(400, {"ok": False, "msg": "Add a .txt, .md, .docx or .pdf file, or paste the script."})
             if not 0 < n <= 5 * SCRIPT_MAX:
@@ -1264,7 +1287,7 @@ def make_handler(token):
         def upload(self):
             """A dropped video: streamed to <root>/videos/<name>, never held in memory."""
             name = Path(unquote(parse_qs(urlsplit(self.path).query).get("name", [""])[0])).name
-            n = int(self.headers.get("Content-Length") or 0)
+            n = body_len(self.headers)
             if not name.lower().endswith(links.VIDEO_EXT) or n <= 0:
                 return self.send(400, {"ok": False, "msg": "Drop a .mov, .mp4 or .mkv video."})
             out = Path(read()["root"]) / "videos" / name
@@ -1655,6 +1678,27 @@ def demo():
                        ("s.exe", b"MZ"), ("big.txt", b"a " * 600_000), ("long.txt", b"line\n" * 50_000)):
         code, r = send_script(name, data)
         assert code == 400 and not r["ok"] and r["msg"] and "\u2014" not in r["msg"], (name, code, r)
+    # the readers stay bounded: a long kerned PDF line, a Flate bomb, a .docx unpacking past the limit, entities
+    import zlib
+    t0 = time.time()
+    tj = b"stream\nBT " + b"[(MANAGER: I don) 20 ('t know) -300 (why.)] TJ " * 30000 + b"ET\nendstream"
+    assert pdf_text(tj).startswith("MANAGER: I don't know why.") and time.time() - t0 < 2, time.time() - t0
+    assert pdf_text(b"stream\n" + zlib.compress(b"BT (one two three) Tj ET" + b" " * (SCRIPT_UNPACK + 10)) + b"\nendstream") == ""
+
+    def docx(xml):
+        b = io.BytesIO()
+        with zipfile.ZipFile(b, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr("word/document.xml", xml)
+        return b.getvalue()
+    big = docx(f'<w:document {W}><w:body><w:p><w:r><w:t>Hi there you.</w:t></w:r></w:p></w:body></w:document>'.encode()
+               + b" " * (SCRIPT_UNPACK + 1))
+    assert len(big) < 5 * SCRIPT_MAX and script_text("s.docx", big) == ""
+    assert script_text("s.docx", docx('<?xml version="1.0"?><!DOCTYPE d [<!ENTITY a "aaaa">]>'
+                                      f'<w:document {W}><w:body><w:p><w:r><w:t>&a;&a;</w:t></w:r></w:p></w:body></w:document>')) == ""
+    c = http.client.HTTPConnection(base.split("//")[1])
+    c.request("POST", "/script?name=s.txt&t=" + tok, b"hi", {"Content-Length": "nope"})
+    assert c.getresponse().status == 400
+    c.close()
     post("/job", {"type": "video", "path": str(vid), "aspect": "9:16", "as": "mine", "script": sk})
     got = out(cmd_wait, 0.01)
     es = Path(re.search(r" edit=(\S+) script=", got).group(1))   # the next free take-N name

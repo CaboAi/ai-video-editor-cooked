@@ -80,15 +80,15 @@ setup can add one (CrisperWhisper's weights are non-commercial only). A take ful
 python3 "$S/retakes.py" propose edits/<name>
 ```
 
-Code flags possible cuts (repeats, unfinished sentences, "wait, sorry", fillers); Jev judges them into
-`spans.json` and `review.md`.
+Code finds every possible cut (a repeated line, an unfinished sentence, "wait, sorry", fillers);
+TypeSafe's Jev judges them in one request into `spans.json` and `review.md`.
 
 With a `script.md`: `python3 "$S/script_match.py" edits/<name>`, read `script-match.md` (`references/script.md`).
 
-- **Exit 0.** Read only `review.md` (what Jev was unsure of). Fix any you disagree with in `spans.json`
-  (`references/shapes.md`, `references/retake-detection.md`), then step 3. Do not re-decide what Jev
-  was sure of; step 3's read-through catches a wrong one.
-- **Exit 4: no TypeSafe key** (or unreachable); **5: key rejected.** Decide yourself:
+- **Exit 0.** Read `review.md` only: the few items Jev was unsure of. Fix any you disagree with in `spans.json` (shape: `references/shapes.md`; rules:
+  `references/retake-detection.md`), then go to step 3. Do not re-decide the items Jev was sure of; the
+  read-through in step 3 catches a wrong one.
+- **Exit 4: no TypeSafe key** (or Jev unreachable); **exit 5: key rejected.** Decide yourself:
   read `transcript.txt` and `candidates.md` (what code flagged), follow
   `references/retake-detection.md`, and write `spans.json` (`references/shapes.md`). Tell the user once
   that a TypeSafe key (exit 5: a new one) makes this cheaper, via the `setup` skill.
@@ -96,7 +96,8 @@ With a `script.md`: `python3 "$S/script_match.py" edits/<name>`, read `script-ma
 Last take wins, except alternate hooks. Never type a timestamp or span a
 pause.
 
-Only if the user wants it shorter: `references/editorial-rules.md`, `redundant` cuts (Jev makes none).
+Only if the user wants it shorter, also read `references/editorial-rules.md` and add `redundant`
+cuts (content calls, which Jev does not make).
 
 A misheard name is one command, never a JSON rewrite: `python3 "$S/retakes.py" fix edits/<name>
 cloud=Claude jiv=Jev` (whole words, kept in `fixes.json` for the captions).
@@ -112,9 +113,7 @@ Every pause (breaths too) over `--max-pause` (0.15 s) becomes 0.10 s; under musi
 are trimmed. Fix any dry-run `ERROR`, then run it for real.
 
 Then the `cut-judge` agent scores `paper-edit.md` (what plays, `<<n>>` at each join)
-and fixes `spans.json`: a flub, restart or "wait" left in (add a span), a bad join or two takes
-stitched into a sentence nobody said (move it), a good line lost that no better take replaces
-(remove it). Launch, readers for takes over 5 min, and the approval score: `references/judge.md`.
+and fixes `spans.json` (a flub left in, a bad join, a good line lost). Launch, readers for takes over 5 min, and the approval score: `references/judge.md`.
 - `CLIPPED` in `paper-edit.md`: a pause cut ate a word. Raise `--pad`, rebuild. Still there: a label
   is off; step 5 says if it plays.
 - Joins inside speech move to a quiet frame. Any `still in speech`: listen in step 5.

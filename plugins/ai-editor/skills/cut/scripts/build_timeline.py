@@ -531,13 +531,13 @@ def in_speech(lvl, t, quiet_db):
     return 0 < w < len(lvl) and min(lvl[w - 1], lvl[w]) > quiet_db + LOUD_OVER_DB
 
 
-def fix_splices(frames, fps, lvl, quiet_db, total, removed=()):
+def fix_splices(frames, fps, lvl, quiet_db, total, removed=(), reach_s=SPLICE_REACH_S):
     """Move each kept edge that lands inside speech out into its removed side, to the first frame
-    with a quiet window next to it (at most SPLICE_REACH_S, never into a removed word's label).
+    with a quiet window next to it (at most reach_s, never into a removed word's label).
     removed: [(start, end)] of the words the cut removes on purpose. total: the source's frame count.
     Returns (frames, moved [(old_s, new_s)], left [edge_s]): left are edges no quiet frame could fix."""
     frames = [list(f) for f in frames]
-    reach = int(SPLICE_REACH_S * fps)
+    reach = int(reach_s * fps)
 
     def quiet(g):
         w = int(g / fps / RMS_WIN_S)

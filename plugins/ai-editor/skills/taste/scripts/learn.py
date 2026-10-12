@@ -19,7 +19,8 @@ reused on a re-run. The words are lined up, then it measures:
              hooks). Each one is a good take our first edit would destroy.
   missed     words the posted cut removed that our default cut keeps (their taste we do not cut yet)
 
-Writes learn.json in --out, then the settings into the user's taste with the counts as the rule text
+Writes learn.json in --out, a row with the false cuts in $AI_EDITOR_HOME/metrics.jsonl (the cut skill's
+`trend.py tally` shows the trend), then the settings into the user's taste with the counts as the rule text
 (lib/ai_editor/taste.py add): only what was measured often enough, and only what differs from the default.
 --dry-run measures and prints without saving. Exit codes: 0 ok, 1 error, 2 usage
 """
@@ -39,6 +40,7 @@ sys.path.insert(0, str(CUT))
 sys.path.insert(0, str(HERE.parents[2] / "lib"))
 import build_timeline as bt  # noqa: E402
 import retakes  # noqa: E402
+import trend  # noqa: E402
 from textnorm import canon_src, nwords  # noqa: E402
 from ai_editor import taste  # noqa: E402
 
@@ -352,6 +354,8 @@ def main():
         sys.exit("ERROR: a transcript has no words")
     m, saved = learn(raw, pub, a.dry_run, sil_raw, sil_pub)
     (out / "learn.json").write_text(json.dumps({**m, "saved": saved}, indent=1), encoding="utf-8")
+    if not a.dry_run:
+        trend.append(Path(a.raw).stem.lower(), raw[-1]["end"], pub[-1]["end"], m["false_cuts"]["words"], source="learn")
     print(report(m, saved))
     print(out / "learn.json")
 

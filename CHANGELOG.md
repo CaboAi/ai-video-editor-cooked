@@ -4,6 +4,13 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Cut quality: a script (`transcribe.py --script`, or `--keyterm Name`) now spells its names, product
+  names and jargon right: up to 100 picked terms go to ElevenLabs Scribe as keyterms (about 20% more on
+  that request) and into Whisper's prompt. Each approved cut adds one line to `metrics.jsonl` in the
+  editor's home (lengths, judge precision; `taste/scripts/learn.py` adds false cuts), and `trend.py tally`
+  shows the false-cut trend. `verify_cut.py` now lists joins that land inside loud speech;
+  `splice_check.py <edit> --fix` moves each to a quiet trough within 0.12 s and says what moved.
+  Test: `transcribe.py demo`, `trend.py demo`, `splice_check.py demo`.
 - Review page: while Claude is making a round (it ran `status`, `round` or `resolve` in the last 15 min) the
   page says "Claude is working. Notes you send now are next." instead of "Claude is not listening".
 - Claude's questions in the window: when Claude asks a question (AskUserQuestion) and the home page or a

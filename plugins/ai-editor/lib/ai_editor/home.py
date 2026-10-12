@@ -482,7 +482,7 @@ def preset_state(root, sid, st, base, changed):
     zp = dig(changed, "zoom.preset")
     zsel = zp if zp in presets.ZOOM else presets.closest_zoom(st.get("zoom"))
     cut = dig(st, "cut.max_pause") or 0.15
-    cpm = dig(st, "cards.per_min")   # only the user's pick caps the cards (plan.py thin_cards); unset: none is marked
+    cpm = dig(st, "cards.per_min")   # what caps the cards (plan.py thin_cards): the user's pick, or the default style's 4
     sfx = (prof.get("sound") or {}).get("sfx", True) if sid == "mine" and st.get("sfx") is None else st.get("sfx", True)
     music = st["music"] if "music" in st else bool((prof.get("sound") or {}).get("music"))
     clips = newest_edit(("report.json", "words.raw.json"), entries)
@@ -1803,7 +1803,7 @@ def demo():
     assert [t["id"] for t in pz["captions"]["tiles"]][:5] == ["", "plain", "bold", "karaoke", "minimal"] and pz["captions"]["sel"] == ""
     assert pz["captions"]["tiles"][0]["name"] == "Theirs" and pz["captions"]["tag"] == "from @sample.creator"
     assert pz["cut"]["sel"] == "natural" and pz["cards"]["on"] and pz["cards"]["look"] == "neutral" and pz["sound"]["sfx"]
-    assert pz["cards"]["sel"] == "", "no card cap is marked until the user picks one"
+    assert pz["cards"]["sel"] == "", "a creator's style has no card cap until the user picks one"
     tb = [t["block"] for t in pz["captions"]["tiles"]]
     pg = post("/style/set", {"id": "@sample.creator", "key": "captions.y_pct", "value": 50})
     assert [t["block"] for t in pg["presets"]["captions"]["tiles"]] == tb and pg["presets"]["captions"]["y"] == 50, "a drag leaves the tiles alone"

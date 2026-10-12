@@ -542,9 +542,9 @@ def with_presets(style, mine):
 
 
 def thin_cards(cards, duration, cards_cfg):
-    """style.json "cards", set only by the user on the style page (Cards and graphics): on=false plans none; per_min
-    keeps at most that many cards a minute, spread through the video in spoken order (0: none). Unset: every card
-    stays. Each card left out is named on stderr."""
+    """style.json "cards" (the style page's Cards and graphics; the default style has per_min 4): on=false plans none;
+    per_min keeps at most that many cards a minute, spread through the video in spoken order (0: none). Unset (a
+    creator's style the user has not changed): every card stays. Each card left out is named on stderr."""
     cfg = cards_cfg or {}
     pm = cfg.get("per_min")
     cap = 0 if cfg.get("on") is False else None if pm is None else max(0, math.ceil(duration / 60 * pm)) if pm > 0 else 0
@@ -555,7 +555,7 @@ def thin_cards(cards, duration, cards_cfg):
     keep = set() if cap == 0 else {id(order[round(i * (len(order) - 1) / max(1, cap - 1))]) for i in range(cap)} if cap > 1 else {id(order[0])}
     gone = [c for c in order if id(c) not in keep]
     why = "cards are off" if cfg.get("on") is False else f"at most {pm:g} cards a minute"
-    print(f"note: {len(gone)} card{'s' if len(gone) != 1 else ''} left out ({why}, set on the style page): " +
+    print(f"note: {len(gone)} card{'s' if len(gone) != 1 else ''} left out ({why}; the style page's Cards and graphics): " +
           ", ".join(f"{c.get('trigger_word') or (c.get('anim') or {}).get('type') or c.get('src')}@{c['start']:.1f}s" for c in gone),
           file=sys.stderr)
     return [c for c in cards if id(c) in keep]
@@ -2218,7 +2218,8 @@ def demo():
     assert len(build({**DEFAULT_STYLE, "cards": {"per_min": 99}}, words, pv, many)["cards"]) == 12
     assert build({**DEFAULT_STYLE, "cards": {"on": False}}, words, pv, many)["cards"] == []
     assert build({**DEFAULT_STYLE, "cards": {"per_min": 0}}, words, pv, many)["cards"] == [], "0 a minute is none, not unlimited"
-    assert len(build(DEFAULT_STYLE, words, pv, many)["cards"]) == 12, "no cap unless the user set one"
+    assert len(build(DEFAULT_STYLE, words, pv, many)["cards"]) <= math.ceil(t / 60 * 4), "the default style lands cards Sometimes"
+    assert len(build({k: v for k, v in DEFAULT_STYLE.items() if k != "cards"}, words, pv, many)["cards"]) == 12, "no cap when none is set"
     for name in presets.LOOKS:
         assert build({**DEFAULT_STYLE, "look": {"preset": name}}, words, pv)["look"]["preset"] == name, name
     # the sample's punch at 28.05 s, 0.15 s before a flow scene at 28.2 s, snapped: a zoom change in a scene's

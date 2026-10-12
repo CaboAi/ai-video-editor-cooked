@@ -229,7 +229,7 @@ def resolve_look(style, prof=None, warn=print):
 # 1 / 3 / 3 words a caption, 4.7 / 5.5 / 6.5% type, y 62 / 66 / 75%, lower case in all three. Captions are the owner's
 # plain look (PLAIN_CAPTIONS), smaller than the measured median; words a page and y stay measured. The three measured
 # punch zooms; the default pushes, because check.py render judges a punch by its one-frame travel. The zoom is the
-# style page's Smooth preset (presets.py: a 0.8 s push at scale 1.18, a change at least every 5 s).
+# style page's Smooth preset (presets.py: a 0.8 s push at scale 1.18, a change at least every 5 s); cards land "Sometimes" (at most 4 a minute, plan.py thin_cards).
 # max_hold_s: a sentence longer than this still gets a zoom change (plan.py place_zooms), so nothing holds still
 # past check.py's 6 s.
 DEFAULT_STYLE = {
@@ -237,6 +237,7 @@ DEFAULT_STYLE = {
     "pace": {"median_shot_s": 2.4, "max_pause_s": 0.25},
     "motion": "smooth",
     "zoom": dict(presets.ZOOM["smooth"]["zoom"]),
+    "cards": {"per_min": presets.CARDS["sometimes"]["per_min"]},
     "captions": {"present": True, "words_per_caption": 3, "y_pct": 66, **PLAIN_CAPTIONS},
 }
 
@@ -378,6 +379,7 @@ def demo():
         # the recommended path passes the editor's own smoothness check: a push eased at least 0.8 s (check.py
         # PUSH_MIN_S), never a punch of 0.0 s that the render check reads as a one-frame snap
         assert st["zoom"]["kind"] == "push" and st["zoom"]["duration_s"] >= 0.8, st["zoom"]
+        assert st["cards"] == {"per_min": 4}, "a new user's cards land Sometimes"
         # captions off in the profile, but an audio-only podcast clip keeps them: its words are the picture
         save({"captions": {"on": False}})
         (Path(d) / "clip.json").write_text(json.dumps({"audio_only": True}), encoding="utf-8")

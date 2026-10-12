@@ -52,8 +52,8 @@ What changed for every user, newest first.
   at 1.18x, a zoom change at least every 5 s) and Punchy (1.15x snap, about 6 a minute). Cut: Relaxed / Natural /
   Tight (0.25 / 0.15 / 0.12 s pauses) with "Play 5 s of your video, before and after", cut from the newest
   edit's raw take with that pause rule. Cards and graphics: on/off, Rarely / Sometimes / Often (at most 2 /
-  4 / 8 cards a minute, only once the user picks one; plan.py names every card it leaves out) and the card
-  look. Sound: effects and background music.
+  4 / 8 cards a minute; the default style is Sometimes, a copied creator's style has no cap until the user
+  picks one; plan.py names every card it leaves out) and the card look. Sound: effects and background music.
   Each section says "you changed this" or "from @creator" and has its own Reset. Every pick is saved as a
   correction through the style's skill (`captions.preset`, `zoom.preset`, `cut.max_pause`, `cards.on`,
   `cards.per_min`, `look.preset`, `sfx`, `music`), and plan.py applies each one (`presets.py`; a demo check
@@ -62,7 +62,8 @@ What changed for every user, newest first.
   Changed for existing users: the default style's zoom block is now the Smooth preset (`per_min` 3 instead
   of 9.5, with the same 5 s longest hold, push, 0.8 s and 1.18x). On most takes the hold rule still lands a
   zoom change every 5 s, so edits look the same; long sentence-free stretches no longer get the extra
-  changes the old rate added. A caption answer from onboarding (bold, karaoke, minimal) is now the whole
+  changes the old rate added. The default style now lands at most 4 cards a minute ("Sometimes"); plan.py
+  names each card it leaves out. A caption answer from onboarding (bold, karaoke, minimal) is now the whole
   preset, so its size and TikTok Sans replace a copied creator's measured caption size and font.
 - First run opens the editor's window first. Before, a new install went straight to several minutes of
   installs in the terminal and the window never opened. Now the window opens at once (it needs nothing

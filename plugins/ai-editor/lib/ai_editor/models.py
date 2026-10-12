@@ -6,6 +6,7 @@ match its sha256 is deleted, never used. Stdlib only.
     python models.py     self-check (no network)
 """
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -68,11 +69,36 @@ def name(rel):
     return {"rvm_mobilenetv3_fp32.onnx": "the cutout model", "yunet.onnx": "the face finder"}.get(rel, rel)
 
 
-def announce(what, edit=None, run=None, say=None):
+def _before(edit):
+    """(the home page's newest step on edit's video job, the review page's open activity): what announce re-posts
+    when the download is over, so it does not stay the current step."""
+    step = act = None
+    try:
+        try:
+            from ai_editor import home, progress
+        except ImportError:
+            import home
+            import progress
+        d = json.loads(progress.state_file().read_text(encoding="utf-8"))
+        j = home.mine(d, "video", edit)
+        step = j["steps"][-1]["text"] if j and j["steps"] and not j["steps"][-1].get("done") else None
+    except Exception:   # noqa: BLE001  no page, no job: nothing to re-post
+        pass
+    try:
+        a = json.loads((Path(edit) / "review.json").read_text(encoding="utf-8")).get("activity") or []
+        act = a[-1] if a and not a[-1].get("done") else None
+    except (OSError, ValueError, TypeError):
+        pass
+    return step, act
+
+
+def announce(what, edit=None, run=None, say=None, bar=True):
     """A download that still happens during an edit (setup fetches everything it can), said where the user is
     looking: a step on the home page's video job for edit ("Downloading the cutout model, first time only",
     detail "12 of 15 MB", through progress.py), and Claude's activity on the edit's review page when it has one,
-    its bar read from a log of "12/15" lines. Returns a urlretrieve reporthook. Best effort: never fails the edit."""
+    its bar read from a log of "12/15" lines (bar=False: no bar, for a download with no progress). Returns a
+    urlretrieve reporthook; call its .done() when the download is over: the step that was current before comes
+    back on both pages. Best effort: never fails the edit."""
     here = Path(__file__).resolve().parent
     step = f"Downloading {what}, first time only"
     if say is None:
@@ -80,18 +106,21 @@ def announce(what, edit=None, run=None, say=None):
             from ai_editor import progress
         except ImportError:   # run as a script from this folder
             import progress
-        say = lambda **k: progress.step(step, job="video", key=edit, **k)   # noqa: E731
+        say = lambda text=step, **k: progress.step(text, job="video", key=edit, **k)   # noqa: E731
 
     def call(script, *args):
         try:
             (run or subprocess.run)([sys.executable, str(here / script), *map(str, args)], capture_output=True, timeout=30)
         except (OSError, subprocess.TimeoutExpired):
             pass
-    log = Path(edit) / ".download.log" if edit and (Path(edit) / "review.json").exists() else None
+    page = bool(edit) and (Path(edit) / "review.json").exists()
+    prev_step, prev_act = _before(edit) if edit else (None, None)
+    log = Path(edit) / ".download.log" if page and bar else None
     say()
-    if log:
-        log.write_text("", encoding="utf-8")
-        call("review.py", edit, "status", step, "--log", log)
+    if page:
+        if log:
+            log.write_text("", encoding="utf-8")
+        call("review.py", edit, "status", step, *(["--log", log] if log else []))
     seen = [0.0]
 
     def hook(blocks, size, total):
@@ -103,6 +132,14 @@ def announce(what, edit=None, run=None, say=None):
         if log:
             with open(log, "a", encoding="utf-8") as f:
                 f.write(f"{got // 10**6}/{total // 10**6} MB\n")
+
+    def done():
+        if prev_step:
+            say(prev_step)
+        if page:
+            call("review.py", edit, "status", *([prev_act["text"]] + (["--log", prev_act["log"]] if prev_act.get("log") else [])
+                                                if prev_act else ["--done"]))
+    hook.done = done
     return hook
 
 
@@ -114,7 +151,8 @@ def fetch(rel, check=True, hook=None, edit=None):
     dest = DIR / rel
     if dest.exists() and (not check or sha256(dest) == want):
         return dest
-    hook = hook or announce(name(rel), edit)
+    said = None if hook else announce(name(rel), edit)
+    hook = hook or said
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = dest.with_name(dest.name + ".part")
     print(f"downloading {rel}", flush=True)
@@ -125,6 +163,8 @@ def fetch(rel, check=True, hook=None, edit=None):
         sys.exit(f"ERROR: {rel} downloaded with sha256 {got}, expected {want}. Nothing kept. "
                  "Try again; if it repeats, the file changed upstream: report it as a bug.")
     part.replace(dest)
+    if said:
+        said.done()
     return dest
 
 
@@ -143,15 +183,17 @@ def whisper(size, check=True, hook=None, edit=None):
     if size not in WHISPER:
         return None
     rev, files = WHISPER[size]
-    if not hook and not whisper_dir(size):
-        hook = announce(name(f"faster-whisper-{size}/"), edit)
     old = DIR / f"models--Systran--faster-whisper-{size}" / "snapshots" / rev
     for f, want in files.items():
         dest = DIR / f"faster-whisper-{size}" / f
         if not dest.exists() and (old / f).exists() and sha256(old / f) == want:
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(old / f, dest)
-        fetch(f"faster-whisper-{size}/{f}", check, hook)
+    said = None if hook or whisper_dir(size) else announce(name(f"faster-whisper-{size}/"), edit)   # still missing
+    for f in files:
+        fetch(f"faster-whisper-{size}/{f}", check, hook or said or (lambda *a: None))
+    if said:
+        said.done()
     return DIR / f"faster-whisper-{size}"
 
 
@@ -184,22 +226,31 @@ def demo():
             net.retrieve = real
             PINS.pop("t.bin")
         assert out.getvalue() == "downloading t.bin\n", out.getvalue()
-        # a first-use download: a step on the video job and the review page, "N of M MB" at most once a second
+        # a first-use download: a step on the video job and the review page, "N of M MB" at most once a second;
+        # done() brings back the step that was current (here the review page's render, with its log)
         edit = Path(d) / "e"
         edit.mkdir()
-        (edit / "review.json").write_text("{}", encoding="utf-8")
+        (edit / "review.json").write_text(json.dumps({"activity": [{"text": "Rendering", "log": "r.log", "done": False}]}),
+                                          encoding="utf-8")
         calls, said = [], []
-        hook = announce(name("rvm_mobilenetv3_fp32.onnx"), edit, run=lambda cmd, **k: calls.append(cmd[1:]),
-                        say=lambda **k: said.append(k))
+        hook = announce(name("rvm_mobilenetv3_fp32.onnx"), edit, run=lambda cmd, **k: calls.append(cmd[2:]),
+                        say=lambda *a, **k: said.append((a, k)))
         hook(0, 8192, 15_000_000)
         hook(1, 8192, 15_000_000)                  # under a second later: not said again
         hook(2000, 8192, 15_000_000)               # the last block: always said
+        hook.done()
         step = "Downloading the cutout model, first time only"
-        assert said == [{}, {"detail": "0 of 15 MB", "progress": 0.0}, {"detail": "15 of 15 MB", "progress": 1.0}], said
-        assert [c[1:] for c in calls] == [[str(edit), "status", step, "--log", str(edit / ".download.log")]], calls
+        assert said == [((), {}), ((), {"detail": "0 of 15 MB", "progress": 0.0}),
+                        ((), {"detail": "15 of 15 MB", "progress": 1.0})], said   # no home step before: none re-posted
+        assert calls == [[str(edit), "status", step, "--log", str(edit / ".download.log")],
+                         [str(edit), "status", "Rendering", "--log", "r.log"]], calls
         assert (edit / ".download.log").read_text(encoding="utf-8").splitlines() == ["0/15 MB", "15/15 MB"]
+        calls.clear()   # no progress (npm, faster-whisper's own download): no bar, and nothing open before: --done
+        (edit / "review.json").write_text("{}", encoding="utf-8")
+        announce("the renderer", edit, run=lambda cmd, **k: calls.append(cmd[2:]), say=lambda *a, **k: None, bar=False).done()
+        assert calls == [[str(edit), "status", "Downloading the renderer, first time only"], [str(edit), "status", "--done"]], calls
         silent = []
-        announce("x", None, run=lambda cmd, **k: silent.append(cmd), say=lambda **k: None)(1, 1, 5e6)   # no review page
+        announce("x", None, run=lambda cmd, **k: silent.append(cmd), say=lambda *a, **k: None)(1, 1, 5e6)   # no review page
         assert silent == [], silent
         assert name("faster-whisper-small/model.bin") == "the small transcription model" and name("yunet.onnx") == "the face finder"
     DIR = keep

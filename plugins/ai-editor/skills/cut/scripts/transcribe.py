@@ -123,10 +123,17 @@ def run_whisper(wav, lang, terms=()):
     name = os.environ.get("AI_EDITOR_WHISPER_MODEL", "small")
     print(f"whisper model {name} (cpu, int8)", flush=True)
     # The pinned model (setup.py model); a size with no pin downloads from the Hub as before.
-    if name not in models.WHISPER and not Path(name).is_dir() and not any((HOME / "models").glob(f"**/*faster-whisper-{name}*")):
-        models.announce(f"the {name} transcription model", EDIT)   # a size with no pin: faster-whisper downloads it
+    said = None
+    if name not in models.WHISPER and not Path(name).is_dir():   # a size with no pin: faster-whisper downloads it
+        from faster_whisper.utils import download_model
+        try:
+            download_model(name, local_files_only=True, cache_dir=str(HOME / "models"))
+        except Exception:   # noqa: BLE001  not in its cache yet (any repo name: distil-large-v3, an org/model id)
+            said = models.announce(f"the {name} transcription model", EDIT, bar=False)
     model = WhisperModel(str(models.whisper(name, check=False, edit=EDIT) or name), device="cpu", compute_type="int8",
                          download_root=str(HOME / "models"))
+    if said:
+        said.done()
     prompt = whisper_prompt(list(terms))
     # condition_on_previous_text=False: with it on, whisper tends to collapse a
     # repeated line into one, and repeated lines are exactly the retakes.

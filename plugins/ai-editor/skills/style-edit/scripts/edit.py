@@ -45,8 +45,9 @@ def sync_renderer(edit=None):
     if not (REMOTION / "node_modules" / "remotion").exists() or not same_deps:
         sys.path.insert(0, str(PLUGIN / "lib"))
         from ai_editor import models
-        models.announce("the renderer" + (" update" if (REMOTION / "node_modules").exists() else ""), edit)
+        said = models.announce("the renderer" + (" update" if (REMOTION / "node_modules").exists() else ""), edit, bar=False)
         subprocess.run([sys.executable, str(SETUP), "remotion"], check=True)
+        said.done()
     mirror(SRC / "src", REMOTION / "src")
     for f in ("render.mjs", "tsconfig.json"):
         copy_changed(SRC / f, REMOTION / f)

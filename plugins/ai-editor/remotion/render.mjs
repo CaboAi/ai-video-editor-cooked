@@ -107,15 +107,27 @@ async function stills(publicDir, planPath, outDir, ...pairs) {
 }
 
 async function many(publicDir, jobsPath) {
+  // Each still that worked prints "ok <out>" (the caller keeps only those); a failed one prints "failed <out>: why"
+  // and the others still run. The bundle (a copy of the public dir) is removed however this ends.
   const jobs = readPlan(jobsPath);
   const serveUrl = await bundle({ entryPoint: ENTRY, publicDir: path.resolve(publicDir) });
-  process.on("exit", () => { try { fs.rmSync(serveUrl, { recursive: true, force: true }); } catch {} });
-  for (const j of jobs) {
-    const composition = await selectComposition({ serveUrl, id: j.plan.composition || ID, inputProps: j.plan });
-    await renderStill({ serveUrl, composition, inputProps: j.plan, output: j.out, frame: j.frame, imageFormat: "jpeg",
-      jpegQuality: 88, timeoutInMilliseconds: TIMEOUT_MS });
-    console.log(j.out);
+  let failed = 0;
+  try {
+    for (const j of jobs) {
+      try {
+        const composition = await selectComposition({ serveUrl, id: j.plan.composition || ID, inputProps: j.plan });
+        await renderStill({ serveUrl, composition, inputProps: j.plan, output: j.out, frame: j.frame, imageFormat: "jpeg",
+          jpegQuality: 88, timeoutInMilliseconds: TIMEOUT_MS });
+        console.log(`ok ${j.out}`);
+      } catch (e) {
+        failed++;
+        console.error(`failed ${j.out}: ${String(e?.message ?? e).split("\n")[0]}`);
+      }
+    }
+  } finally {
+    fs.rmSync(serveUrl, { recursive: true, force: true });
   }
+  if (failed) process.exitCode = 1;
 }
 
 async function bench(publicDir, planPath) {

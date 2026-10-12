@@ -384,7 +384,7 @@ CONTROLS = {"captions.size_pct": ("captions", float, 2.5, 9), "captions.words_pe
             "captions.y_pct": ("captions", float, 40, 85), "captions.preset": ("captions", "choice", None, None),
             "zoom.per_min": ("visuals", float, 0, 20), "zoom.preset": ("visuals", "choice", None, None),
             "cut.max_pause": ("cut", float, 0.05, 0.6), "cards.on": ("visuals", bool, None, None),
-            "cards.per_min": ("visuals", float, 0, 20), "look.preset": ("visuals", "choice", None, None),
+            "cards.per_min": ("visuals", float, 1, 20), "look.preset": ("visuals", "choice", None, None),
             "sfx": ("sound", bool, None, None), "music": ("sound", bool, None, None)}
 # Reset per section: every setting under these prefixes goes back to the style's own (or the default).
 SECTIONS = {"captions": ("captions.",), "zoom": ("zoom.",), "cut": ("cut.",), "cards": ("cards.", "look."), "sound": ("sfx", "music")}
@@ -420,25 +420,28 @@ def dig(d, key):
     return d
 
 
-def newest_edit(need=("words.json",)):
+def newest_edit(need=("words.json",), entries=None):
     """The newest edit folder in the library holding all of `need`, else None."""
-    return next((Path(e["dir"]) for e in library.entries() if all((Path(e["dir"]) / f).is_file() for f in need)), None)
+    return next((Path(e["dir"]) for e in (library.entries() if entries is None else entries)
+                 if all((Path(e["dir"]) / f).is_file() for f in need)), None)
 
 
 def preview_source(root, sid):
-    """(picture for the previews, what it is): the style's chosen image, else the user's newest raw take, else a demo photo."""
+    """(picture for the previews, what it is): the style's chosen image, else the user's newest raw take (a video, never
+    a finished render or an audio file), else a demo photo."""
     d = style_dir(root, sid)
     if d and (d / "cover.jpg").is_file():
         return d / "cover.jpg", "Your image"
     eds = [Path(e).resolve() for e in library.edit_dirs()]
-    raw = next((Path(r["path"]) for r in recent_list(read()) if Path(r["path"]).is_file()
-                and not is_output(Path(r["path"]).resolve(), eds)), None)
+    raw = next((Path(r["path"]) for r in recent_list(read()) if Path(r["path"]).suffix.lower() in links.VIDEO_EXT
+                and Path(r["path"]).is_file() and not is_output(Path(r["path"]).resolve(), eds)), None)
     return (raw, "Your video") if raw else (DEMO / "person-1.jpg", "Example photo")
 
 
 def preset_state(root, sid, st, base, changed):
-    """The style page's preset sections: which tile is on in each, where it came from, and the caption tiles
-    (real stills, rendered in the background on the first ask)."""
+    """The style page's preset sections: which tile is on in each, where it came from, and the caption stills
+    (real renders, made in the background on the first ask). The tiles are rendered at each preset's own height, so
+    dragging the caption re-renders only the big preview."""
     prof = _profile()
     tag = lambda prefixes, measured: "you changed this" if any(k.startswith(prefixes) and dig(changed, k) is not None for k in CONTROLS) \
         else f"from @{base}" if base and measured else "default"
@@ -448,44 +451,52 @@ def preset_state(root, sid, st, base, changed):
             creator = json.loads((Path(root) / "creator-teardowns" / base / "style.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             creator = {}
+    from ai_editor.profile import DEFAULT_STYLE
     caps = {k: v for k, v in (st.get("captions") or {}).items() if k != "preset"}
-    mine_keys = {k: dig(changed, f"captions.{k}") for k in ("size_pct", "y_pct") if dig(changed, f"captions.{k}") is not None}
+    own_y = (creator.get("captions") or DEFAULT_STYLE["captions"]).get("y_pct") or 66   # the style's height, before the user's
+    size = dig(changed, "captions.size_pct")
+    user_y = dig(changed, "captions.y_pct")
     src, what = preview_source(root, sid)
-    ws, real = presets.phrase(newest_edit())
-    tiles = []
-    for name, block in presets.captions().items():
-        full = {**caps, **block, **mine_keys, "present": True}
-        _, img, err = presets.tile(full, ws, real, src)
-        tiles.append({"id": name, "name": presets.label(name), "note": presets.note(full, caps.get("words_per_caption")),
-                      "img": img, "err": bool(err), "block": {k: full.get(k) for k in ("size_pct", "y_pct")}})
+    entries = library.entries()
+    ws, real = presets.phrase(newest_edit(entries=entries))
+    blocks = [(name, presets.label(name), {**caps, **block}) for name, block in presets.captions().items()]
     if base and (creator.get("captions") or {}).get("present") is not False and creator.get("captions"):
-        full = {**caps, **mine_keys, "present": True}
+        blocks.insert(0, ("", "Theirs" if sid != "mine" else f"@{base}'s", dict(caps)))
+    tiles = []
+    for tid, name, full in blocks:
+        full = {**full, "y_pct": full.get("y_pct") if tid else own_y, **({"size_pct": size} if size is not None else {}), "present": True}
+        if tid and "y_pct" not in presets.caption(tid):
+            full["y_pct"] = own_y
         _, img, err = presets.tile(full, ws, real, src)
-        tiles.insert(0, {"id": "", "name": "Theirs" if sid != "mine" else f"@{base}'s", "note": presets.note(full, caps.get("words_per_caption")),
-                         "img": img, "err": bool(err), "block": {k: full.get(k) for k in ("size_pct", "y_pct")}})
+        tiles.append({"id": tid, "name": name, "note": presets.note(full, caps.get("words_per_caption")), "img": img,
+                      "err": bool(err), "block": {k: full.get(k) for k in ("size_pct", "y_pct")}, "_full": full})
     ids = [t["id"] for t in tiles]
     cp = dig(changed, "captions.preset")
     answer = (prof.get("captions") or {}).get("style")
     sel = cp if cp in ids else answer if sid == "mine" and answer in ids and answer != "creator" else "" if "" in ids else "plain"
+    pick = next(t for t in tiles if t["id"] == sel)
+    y = user_y or pick["block"]["y_pct"] or 66
+    _, big, big_err = presets.tile({**pick["_full"], "y_pct": y}, ws, real, src) if user_y else (None, pick["img"], pick["err"])
+    for t in tiles:
+        t.pop("_full")
     zp = dig(changed, "zoom.preset")
     zsel = zp if zp in presets.ZOOM else presets.closest_zoom(st.get("zoom"))
     cut = dig(st, "cut.max_pause") or 0.15
-    cpm = dig(st, "cards.per_min") or (creator.get("graphics") or {}).get("per_min") or presets.CARDS["sometimes"]["per_min"]
+    cpm = dig(st, "cards.per_min")   # only the user's pick caps the cards (plan.py thin_cards); unset: none is marked
     sfx = (prof.get("sound") or {}).get("sfx", True) if sid == "mine" and st.get("sfx") is None else st.get("sfx", True)
     music = st["music"] if "music" in st else bool((prof.get("sound") or {}).get("music"))
-    clips = newest_edit(("report.json", "words.raw.json"))
+    clips = newest_edit(("report.json", "words.raw.json"), entries)
     return {"pic": what,
-            "captions": {"tiles": tiles, "sel": sel, "tag": tag(("captions.",), sel == ""), "size": caps.get("size_pct") or 4.2,
-                         "y": caps.get("y_pct") or 66, "off": caps.get("present") is False},
+            "captions": {"tiles": tiles, "sel": sel, "tag": tag(("captions.",), sel == ""), "size": pick["block"]["size_pct"] or 4.2,
+                         "y": y, "big": big, "big_err": bool(big_err), "off": caps.get("present") is False},
             "zoom": {"opts": [{"id": k, "label": v["label"], "sub": v["sub"]} for k, v in presets.ZOOM.items()], "sel": zsel,
                      "tag": tag(("zoom.",), bool(creator.get("zoom")))},
             "cut": {"opts": [{"id": k, "label": v["label"], "sub": v["sub"], "value": v["max_pause"]} for k, v in presets.CUT.items()],
                     "sel": presets.nearest(presets.CUT, "max_pause", cut), "value": cut, "tag": tag(("cut.",), False),
                     "clips": bool(clips)},
             "cards": {"on": dig(st, "cards.on") is not False, "opts": [{"id": k, "label": v["label"], "value": v["per_min"]} for k, v in presets.CARDS.items()],
-                      "sel": presets.nearest(presets.CARDS, "per_min", cpm), "look": dig(st, "look.preset") or "neutral",
-                      "looks": [[k, v] for k, v in presets.LOOKS.items()],
-                      "tag": tag(("cards.", "look."), bool((creator.get("graphics") or {}).get("per_min")))},
+                      "sel": presets.nearest(presets.CARDS, "per_min", cpm) if cpm is not None else "", "look": dig(st, "look.preset") or "neutral",
+                      "looks": [[k, v] for k, v in presets.LOOKS.items()], "tag": tag(("cards.", "look."), False)},
             "sound": {"sfx": bool(sfx), "music": bool(music), "tag": tag(("sfx", "music"), False)}}
 
 
@@ -1792,6 +1803,11 @@ def demo():
     assert [t["id"] for t in pz["captions"]["tiles"]][:5] == ["", "plain", "bold", "karaoke", "minimal"] and pz["captions"]["sel"] == ""
     assert pz["captions"]["tiles"][0]["name"] == "Theirs" and pz["captions"]["tag"] == "from @sample.creator"
     assert pz["cut"]["sel"] == "natural" and pz["cards"]["on"] and pz["cards"]["look"] == "neutral" and pz["sound"]["sfx"]
+    assert pz["cards"]["sel"] == "", "no card cap is marked until the user picks one"
+    tb = [t["block"] for t in pz["captions"]["tiles"]]
+    pg = post("/style/set", {"id": "@sample.creator", "key": "captions.y_pct", "value": 50})
+    assert [t["block"] for t in pg["presets"]["captions"]["tiles"]] == tb and pg["presets"]["captions"]["y"] == 50, "a drag leaves the tiles alone"
+    post("/style/reset", {"id": "@sample.creator", "section": "captions"})
     pg = post("/style/set", {"id": "@sample.creator", "key": "captions.preset", "value": "karaoke"})
     assert pg["presets"]["captions"]["sel"] == "karaoke" and pg["presets"]["captions"]["tag"] == "you changed this"
     assert json.loads((td / "style.overrides.json").read_text(encoding="utf-8"))["captions"]["preset"] == "karaoke"

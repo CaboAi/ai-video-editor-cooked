@@ -1201,8 +1201,7 @@ function spDrag(e){
   box.onpointerup=ev=>{box.onpointermove=box.onpointerup=null;ui.spdrag=0;setCtl('captions.y_pct',at(ev))};
 }
 function spPreview(P){
-  const C=P.presets.captions,t=C.tiles.find(x=>x.id===C.sel)||C.tiles[0]||{},pic=picOf(P,0),cl=ui.spclip;
-  const y=(t.block||{}).y_pct||C.y;
+  const C=P.presets.captions,pic=picOf(P,0),cl=ui.spclip,t={img:C.big},y=C.y;
   const inner=cl&&cl.before?`<video id="sp-clip" src="${esc(cl.at==='after'?cl.after:cl.before)}" autoplay playsinline onended="cutEnded(this)" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0C0A09"></video>
       <span class="extag" id="sp-cliptag">${cl.at==='after'?'After: '+esc(cl.label):'Before'}</span><div class="picbtns" style="opacity:1"><button onclick="ui.spclip=null;render()">Close</button></div>`
     :`${t.img?`<img src="${esc(t.img)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`:''}

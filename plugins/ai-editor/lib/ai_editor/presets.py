@@ -27,6 +27,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -35,13 +36,16 @@ import custom  # noqa: E402
 PLUGIN = Path(__file__).resolve().parents[2]
 BUILT_IN = PLUGIN / "presets" / "captions"
 ORDER = ("plain", "bold", "karaoke", "minimal")
+AUDIO_EXT = (".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus")
 EFFECT_NOTE = {"pop": "pops in", "karaoke": "lights up", "reveal": "fades in", "slide": "slides up", "lift": "lifts"}
 
 # Zoom presets: a zoom block of style.json (plan.py place_zooms). per_min counts zoom changes a minute.
 ZOOM = {
     "none": {"label": "None", "sub": "Camera stays still", "zoom": {"per_min": 0}},
+    # the house default (profile.py DEFAULT_STYLE): a 0.8 s push on a sentence start, and never more than 5 s without
+    # a zoom change, so on most takes a change lands every 5 s
     "smooth": {"label": "Smooth", "sub": "Slow push in, 0.8 s",
-               "zoom": {"per_min": 3, "kind": "push", "scale": 1.12, "duration_s": 0.8, "on": "sentence_start"}},
+               "zoom": {"per_min": 3, "kind": "push", "scale": 1.18, "duration_s": 0.8, "on": "sentence_start", "max_hold_s": 5.0}},
     "punchy": {"label": "Punchy", "sub": "Snaps in fast",
                "zoom": {"per_min": 6, "kind": "punch", "scale": 1.15, "duration_s": 0, "on": "sentence_start"}},
 }
@@ -59,20 +63,64 @@ LOOKS = {"neutral": "Neutral, white cards", "editorial": "Editorial, warm paper"
 DEFAULTS = {"captions": "plain", "zoom": "smooth", "cut": "natural", "cards": "sometimes", "look": "neutral"}
 
 
+# What a caption preset may set (Captions.tsx CaptionStyle): key -> (type, low, high) or a set of allowed words.
+# Anything else in a file, or a value of the wrong type or out of range, is dropped with a warning.
+HEX = re.compile(r"#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|#[0-9A-Fa-f]{3}")
+FIELDS = {"style": str, "font_match": str, "size_pct": (float, 1, 15), "weight": (int, 100, 900), "case": {"as_is", "lower", "upper", "sentence"},
+          "words_per_caption": (int, 1, 8), "max_lines": (int, 1, 3), "y_pct": (float, 10, 95), "width_pct": (float, 30, 100),
+          "color": HEX, "highlight_color": HEX, "emphasis_color": HEX, "box_color": HEX, "inactive_opacity": (float, 0, 1),
+          "active_scale": (float, 1, 2), "active_lift": (float, 0, 40), "stroke": bool, "box": bool, "shadow": bool, "present": bool,
+          "effect": {"pop", "slide", "word_highlight", "karaoke", "reveal", "lift", "none"},
+          "animation": {"pop", "slide", "word_highlight", "none"}}
+
+
+def clean(block, where):
+    """The keys of a caption block FIELDS allows, with sane types; each one dropped is named once on stderr."""
+    out, bad = {}, []
+    for k, v in (block or {}).items():
+        rule = FIELDS.get(k)
+        if rule is bool:
+            ok = isinstance(v, bool)
+        elif rule is str:
+            ok = isinstance(v, str) and 0 < len(v) <= 64
+        elif isinstance(rule, set):
+            ok = v in rule
+        elif isinstance(rule, re.Pattern):
+            ok = isinstance(v, str) and bool(rule.fullmatch(v))
+        elif isinstance(rule, tuple):
+            ok = isinstance(v, (int, float)) and not isinstance(v, bool) and rule[1] <= v <= rule[2]
+            v = rule[0](v) if ok else v
+        else:
+            ok = False
+        if ok:
+            out[k] = v
+        else:
+            bad.append(k)
+    if bad:
+        print(f"warning: {where}: ignored {', '.join(f'{k}={block[k]!r}' for k in bad)} (not a caption setting, or a bad value)", file=sys.stderr)
+    return out
+
+
 def _read(f):
     try:
         d = json.loads(Path(f).read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
         print(f"warning: {f} is not valid JSON ({e}); ignored", file=sys.stderr)
         return {}
-    return d if isinstance(d, dict) else {}
+    return clean(d, f) if isinstance(d, dict) else {}
+
+
+def built_in():
+    """{name: captions block} of the presets shipped with the plugin, in ORDER (the user's files never replace these)."""
+    fs = sorted(BUILT_IN.glob("*.json"), key=lambda f: (f.stem not in ORDER, ORDER.index(f.stem) if f.stem in ORDER else 0, f.stem))
+    return {k: v for k, v in ((f.stem, _read(f)) for f in fs) if v}
 
 
 def captions():
-    """{name: captions block}: the built-in ones in ORDER, then the user's custom/captions/*.json."""
-    out = {f.stem: _read(f) for f in sorted(BUILT_IN.glob("*.json"), key=lambda f: (f.stem not in ORDER, ORDER.index(f.stem) if f.stem in ORDER else 0, f.stem))}
+    """{name: captions block}: the built-in ones in ORDER, then the user's custom/captions/*.json (same name: the user's)."""
+    out = built_in()
     for f in sorted((custom.path(False) / "captions").glob("*.json")):
-        out[f.stem] = _read(f)
+        out[f.stem] = _read(f) or out.get(f.stem)
     return {k: v for k, v in out.items() if v}
 
 
@@ -80,7 +128,8 @@ def caption(name):
     """One caption preset by name ({} when there is none), stamped with its name as "style"."""
     if not name or not re.fullmatch(r"[A-Za-z0-9 _.-]{1,64}", str(name)):
         return {}
-    block = custom.load_json("captions", name) or (_read(BUILT_IN / f"{name}.json") if (BUILT_IN / f"{name}.json").is_file() else {})
+    f = custom.find("captions", f"{name}.json")
+    block = (_read(f) if f else {}) or (_read(BUILT_IN / f"{name}.json") if (BUILT_IN / f"{name}.json").is_file() else {})
     return {**block, "style": block.get("style") or name} if block else {}
 
 
@@ -183,6 +232,8 @@ def chunk_of(words, effect):
 
 def frame_of(src, out, size=(720, 1280)):
     """One 9:16 frame of src (a clip a quarter of the way in, or an image) as a 3 s still video for the renderer."""
+    if src and Path(src).suffix.lower() in AUDIO_EXT:
+        return None
     w, h = size
     fit = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}"
     jpg = Path(out).with_suffix(".jpg")
@@ -211,19 +262,29 @@ def band_luma(jpg, y_pct):
     return r.stdout[0] if r.stdout else 0
 
 
+FAIL_TTL_S = 120   # a failed tile is tried again after this long (the renderer may have been installed since)
+KEEP_FILES, KEEP_DAYS = 60, 7   # the preview cache: at most this many files, none older than this
+
+
 class Renderer:
-    """Renders missing tiles in the background, one batch at a time. want() returns the cached file or None."""
+    """Renders missing tiles in the background, one batch at a time. want() returns the cached file or None.
+    A key queued or being rendered is never queued again (the page polls every 1.5 s)."""
     def __init__(self):
         self.lock = threading.Lock()
-        self.queue, self.busy, self.failed = {}, False, {}
+        self.queue, self.inflight, self.busy, self.failed = {}, set(), False, {}
+
+    def error(self, key):
+        e = self.failed.get(key)
+        return e[1] if e and time.time() - e[0] < FAIL_TTL_S else None
 
     def want(self, key, job):
         f = cache_dir() / f"{key}.jpg"
         if f.is_file():
             return f
         with self.lock:
-            if key in self.failed:
+            if self.error(key) or key in self.queue or key in self.inflight:
                 return None
+            self.failed.pop(key, None)
             self.queue[key] = job
             if not self.busy:
                 self.busy = True
@@ -231,31 +292,54 @@ class Renderer:
         return None
 
     def _run(self):
-        while True:
-            with self.lock:
-                batch, self.queue = dict(self.queue), {}
-                if not batch:
-                    self.busy = False
-                    return
-            try:
-                err = render_batch(batch)
-            except (OSError, subprocess.SubprocessError, ValueError) as e:
-                err = str(e)
-            if err:
+        try:
+            while True:
                 with self.lock:
+                    batch = {k: j for k, j in self.queue.items() if not (cache_dir() / f"{k}.jpg").is_file()}
+                    self.queue = {}
+                    if not batch:
+                        return
+                    self.inflight = set(batch)
+                try:
+                    err = render_batch(batch)
+                except Exception as e:   # noqa: BLE001  a render thread that dies would leave busy set for good
+                    err = f"{type(e).__name__}: {e}"
+                with self.lock:
+                    self.inflight = set()
                     for k in batch:
-                        if not (cache_dir() / f"{k}.jpg").is_file():
-                            self.failed[k] = err
-                print(f"presets: previews did not render: {err[-400:]}", file=sys.stderr)
+                        if err and not (cache_dir() / f"{k}.jpg").is_file():
+                            self.failed[k] = (time.time(), err)
+                if err:
+                    print(f"presets: previews did not render: {err[-400:]}", file=sys.stderr)
+                prune()
+        finally:
+            with self.lock:
+                self.busy, self.inflight = False, set()
+
+
+def prune():
+    """The preview cache stays small: files older than KEEP_DAYS go, then all but the KEEP_FILES newest."""
+    d = cache_dir()
+    if not d.is_dir():
+        return
+    fs = sorted((f for f in d.iterdir() if f.is_file()), key=lambda f: f.stat().st_mtime, reverse=True)
+    old = time.time() - KEEP_DAYS * 86400
+    for i, f in enumerate(fs):
+        if i >= KEEP_FILES or f.stat().st_mtime < old or (f.name.endswith((".tmp.jpg", ".part.mp4")) and f.stat().st_mtime < time.time() - 900):
+            f.unlink(missing_ok=True)
 
 
 RENDERER = Renderer()
 
 
+_EDIT = str(PLUGIN / "skills" / "style-edit" / "scripts")
+
+
 def renderer_dir():
     """The installed renderer with this plugin's composition source copied in, or None when it is not installed
     (the page never installs it: the setup skill does)."""
-    sys.path.insert(0, str(PLUGIN / "skills" / "style-edit" / "scripts"))
+    if _EDIT not in sys.path:
+        sys.path.append(_EDIT)
     import edit
     if not (edit.REMOTION / "node_modules" / "remotion").exists():
         return None
@@ -296,21 +380,39 @@ def render_batch(batch):
         jf.write_text(json.dumps(jobs), encoding="utf-8")
         r = subprocess.run(["node", str(rem / "render.mjs"), "many", str(pub), str(jf)], cwd=rem, capture_output=True,
                            text=True, timeout=600)
+        done = {Path(x[3:].strip()).name for x in r.stdout.splitlines() if x.startswith("ok ")}   # what node says it wrote
         for key in batch:
             tmp = out_dir / f"{key}.tmp.jpg"
-            if tmp.is_file():
+            if tmp.name in done and tmp.is_file():
                 os.replace(tmp, out_dir / f"{key}.jpg")
-        return (r.stderr or r.stdout or "render.mjs failed")[-800:] if r.returncode else None
+            else:
+                tmp.unlink(missing_ok=True)
+        missing = [k for k in batch if not (out_dir / f"{k}.jpg").is_file()]
+        return ((r.stderr or r.stdout or "render.mjs failed")[-800:]) if r.returncode or missing else None
     finally:
         shutil.rmtree(pub, ignore_errors=True)
 
 
+_SRC_HASH = []
+
+
+def renderer_version():
+    """A hash of the composition source (remotion/src): a changed caption renderer re-renders every tile."""
+    if not _SRC_HASH:
+        h = hashlib.sha1()
+        for f in sorted((PLUGIN / "remotion" / "src").rglob("*")):
+            if f.is_file():
+                h.update(f.name.encode() + f.read_bytes())
+        _SRC_HASH.append(h.hexdigest()[:12])
+    return _SRC_HASH[0]
+
+
 def tile(block, words, real, src):
-    """(key, url or None) for one caption tile; a missing one is queued for the renderer."""
+    """(key, url or None, error) for one caption still; a missing one is queued for the renderer."""
     ws = words_for(block, words, real)
-    key = _key(block, ws, source_key(src), "v1")
+    key = _key(block, ws, source_key(src), renderer_version())
     f = RENDERER.want(key, {"block": block, "words": ws, "src": src})
-    return key, (f"/style/tile?k={key}&v={int(f.stat().st_mtime)}" if f else None), RENDERER.failed.get(key)
+    return key, (f"/style/tile?k={key}&v={int(f.stat().st_mtime)}" if f else None), RENDERER.error(key)
 
 
 # ---------------------------------------------------------------- the cut: 5 s before and after
@@ -331,45 +433,66 @@ def tighten(words, a, b, max_pause):
     return [(round(x, 3), round(y, 3)) for x, y in spans if y > x]
 
 
+_CUT_LOCKS = {}
+_CUT_LOCK = threading.Lock()
+
+
+def _encode(cmd, out, timeout):
+    """ffmpeg into out.part.mp4, renamed only when it worked: a stopped or failed encode never leaves a broken file."""
+    part = out.with_name(out.stem + ".part.mp4")
+    try:
+        r = subprocess.run([*cmd, str(part)], capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        part.unlink(missing_ok=True)
+        return False
+    if r.returncode or not part.is_file():
+        part.unlink(missing_ok=True)
+        return False
+    os.replace(part, out)
+    return True
+
+
 def cut_clips(edit_dir, max_pause, seconds=5.0):
     """(before.mp4, after.mp4) for the newest cut's opening seconds: the raw take as filmed, then the same words with
-    this preset's pause rule. Cached by edit, take and setting. None when the edit has no raw take to read."""
+    this preset's pause rule. Cached by take, transcript and setting. None when there is nothing to cut from."""
     edit_dir = Path(edit_dir)
     try:
         src = Path(json.loads((edit_dir / "report.json").read_text(encoding="utf-8"))["source"])
-        words = json.loads((edit_dir / "words.raw.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError, KeyError, TypeError):
+        wf = edit_dir / "words.raw.json"
+        words = json.loads(wf.read_text(encoding="utf-8"))
+        words = words.get("words", []) if isinstance(words, dict) else words
+        a = max(0.0, next(w["start"] for w in words if isinstance(w, dict) and w.get("type", "word") == "word") - 0.1)
+    except (OSError, ValueError, KeyError, TypeError, StopIteration):
         return None
-    words = words.get("words", []) if isinstance(words, dict) else words
-    if not src.is_file() or not words:
+    if not src.is_file():
         return None
-    a = max(0.0, next(w["start"] for w in words if w.get("type", "word") == "word") - 0.1)
     b = a + seconds
     out = cache_dir()
     out.mkdir(parents=True, exist_ok=True)
-    base = _key(source_key(src), a, seconds, "cut-v1")
+    base = _key(source_key(src), int(wf.stat().st_mtime), a, seconds, "cut-v2")
     before, after = out / f"{base}-before.mp4", out / f"{base}-{max_pause:g}.mp4"
-    enc = ["-vf", "scale=540:-2", "-c:v", "libx264", "-preset", "veryfast", "-crf", "28", "-c:a", "aac", "-b:a", "128k",
-           "-movflags", "+faststart"]
-    if not before.is_file():
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{a:.3f}", "-t", f"{seconds:.3f}", "-i", str(src), *enc,
-                        str(before)], capture_output=True, timeout=120)
-    if not after.is_file():
-        spans = tighten(words, a, b + 3, max_pause)
-        got, kept = [], 0.0
-        for x, y in spans:   # the same 5 s of footage after the cut: spans until they add up to `seconds`
-            if kept >= seconds:
-                break
-            y = min(y, x + seconds - kept)
-            got.append((x, y))
-            kept += y - x
-        # input seeking to a: the trims are relative to it
-        parts = "".join(f"[0:v]trim={x - a:.3f}:{y - a:.3f},setpts=PTS-STARTPTS[v{i}];"
-                        f"[0:a]atrim={x - a:.3f}:{y - a:.3f},asetpts=PTS-STARTPTS[a{i}];" for i, (x, y) in enumerate(got))
-        cat = "".join(f"[v{i}][a{i}]" for i in range(len(got))) + f"concat=n={len(got)}:v=1:a=1[vc][a];[vc]scale=540:-2[v]"
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{a:.3f}", "-t", f"{b + 3 - a:.3f}", "-i", str(src),
-                        "-filter_complex", parts + cat, "-map", "[v]", "-map", "[a]", *enc[2:], str(after)],
-                       capture_output=True, timeout=180)
+    enc = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "28", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", "-f", "mp4"]
+    with _CUT_LOCK:
+        lock = _CUT_LOCKS.setdefault(base, threading.Lock())
+    with lock:   # two clicks at once make the clips once
+        if not before.is_file():
+            _encode(["ffmpeg", "-v", "error", "-y", "-ss", f"{a:.3f}", "-t", f"{seconds:.3f}", "-i", str(src),
+                     "-vf", "scale=540:-2", *enc], before, 120)
+        if not after.is_file():
+            got, kept = [], 0.0
+            for x, y in tighten(words, a, b + 3, max_pause):   # the same 5 s of footage after the cut
+                if kept >= seconds:
+                    break
+                y = min(y, x + seconds - kept)
+                got.append((x, y))
+                kept += y - x
+            # input seeking to a: the trims are relative to it
+            parts = "".join(f"[0:v]trim={x - a:.3f}:{y - a:.3f},setpts=PTS-STARTPTS[v{i}];"
+                            f"[0:a]atrim={x - a:.3f}:{y - a:.3f},asetpts=PTS-STARTPTS[a{i}];" for i, (x, y) in enumerate(got))
+            cat = "".join(f"[v{i}][a{i}]" for i in range(len(got))) + f"concat=n={len(got)}:v=1:a=1[vc][a];[vc]scale=540:-2[v]"
+            _encode(["ffmpeg", "-v", "error", "-y", "-ss", f"{a:.3f}", "-t", f"{b + 3 - a:.3f}", "-i", str(src),
+                     "-filter_complex", parts + cat, "-map", "[v]", "-map", "[a]", *enc], after, 180)
+    prune()
     return (before, after) if before.is_file() and after.is_file() else None
 
 
@@ -387,10 +510,40 @@ def demo():
     (custom.path() / "captions" / "yellow.json").write_text('{"color": "#FFE14D", "weight": 800}', encoding="utf-8")
     assert list(captions())[-1] == "yellow" and caption("yellow")["style"] == "yellow"
     assert caption("../etc") == {} and caption("nope") == {}
+    # a user's file never replaces the built-in set profile.py builds from, and bad values are dropped, not passed on
+    (custom.path() / "captions" / "plain.json").write_text("{broken", encoding="utf-8")
+    assert built_in()["plain"] == plain and captions()["plain"] == plain, "a broken custom plain.json keeps the built-in one"
+    (custom.path() / "captions" / "odd.json").write_text('{"words_per_caption": "two", "size_pct": 99, "color": "red", "weight": 700, "x": 1}',
+                                                       encoding="utf-8")
+    assert caption("odd") == {"weight": 700, "style": "odd"} and "odd" in captions()
+    assert clean({"size_pct": 5, "box": "yes", "case": "upper"}, "t") == {"size_pct": 5.0, "case": "upper"}
+    # the renderer: a queued key is not queued twice, a failure is retried after its TTL, a crash never leaves it busy
+    rr = Renderer()
+    rr.busy = True   # no thread: only the bookkeeping
+    assert rr.want("k1", {}) is None and rr.want("k1", {}) is None and list(rr.queue) == ["k1"]
+    rr.failed["k2"] = (time.time() - FAIL_TTL_S - 1, "old")
+    assert rr.error("k2") is None and rr.want("k2", {}) is None and "k2" in rr.queue
+    global render_batch
+    real_rb, render_batch = render_batch, lambda b: 1 / 0
+    rr2 = Renderer()
+    rr2.queue = {"k3": {}}
+    rr2.busy = True
+    rr2._run()
+    render_batch = real_rb
+    assert not rr2.busy and rr2.error("k3").startswith("ZeroDivisionError"), rr2.failed
+    # the cache is capped
+    cd = cache_dir()
+    cd.mkdir(parents=True)
+    for i in range(KEEP_FILES + 5):
+        (cd / f"{i:020x}.jpg").write_bytes(b"x")
+    (cd / "old.jpg").write_bytes(b"x")
+    os.utime(cd / "old.jpg", (1, 1))
+    prune()
+    assert len(list(cd.iterdir())) == KEEP_FILES and not (cd / "old.jpg").exists()
     st = {"captions": {"size_pct": 7, "words_per_caption": 1, "font_match": "Inter"}, "zoom": {"per_min": 9, "kind": "punch", "on": "every_cut"}}
     got = apply(st, {"captions": {"preset": "karaoke", "size_pct": 5}, "zoom": {"preset": "smooth"}})
     assert got["captions"]["effect"] == "karaoke" and got["captions"]["words_per_caption"] == 4 and got["captions"]["font_match"] == "TikTok Sans"
-    assert got["zoom"] == {"per_min": 3, "kind": "push", "on": "sentence_start", "scale": 1.12, "duration_s": 0.8}, got["zoom"]
+    assert got["zoom"] == {"per_min": 3, "kind": "push", "on": "sentence_start", "scale": 1.18, "duration_s": 0.8, "max_hold_s": 5.0}, got["zoom"]
     assert apply(st, {"zoom": {"preset": "none"}})["zoom"]["per_min"] == 0 and apply(st, {}) == st
     assert closest_zoom({"per_min": 9.5, "kind": "push"}) == "smooth" and closest_zoom({"per_min": 4, "kind": "punch"}) == "punchy"
     assert closest_zoom({}) == "none" and nearest(CUT, "max_pause", 0.2) == "relaxed" and nearest(CARDS, "per_min", 5) == "sometimes"

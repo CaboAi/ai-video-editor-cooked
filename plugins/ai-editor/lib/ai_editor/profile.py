@@ -69,7 +69,7 @@ FLAT_GROUND_PRESETS = ("poster-red", "poster-green", "poster-blue")
 # plain: the no-creator default and an answer of its own. White TikTok Sans (SIL OFL, on Google Fonts) at 4.2% of the
 # long side, weight 600, as spoken (no forced case), no stroke, box, shadow, highlight or animation: each page cuts on.
 # plan.py's contrast ladder adds a soft shadow first, and more only where the footage behind a page needs it.
-CAPTION_STYLES = {k: v for k, v in presets.captions().items() if k in presets.ORDER}
+CAPTION_STYLES = {k: v for k, v in presets.built_in().items() if k in presets.ORDER}   # never the user's files
 PLAIN_CAPTIONS = CAPTION_STYLES["plain"]
 
 
@@ -229,15 +229,14 @@ def resolve_look(style, prof=None, warn=print):
 # 1 / 3 / 3 words a caption, 4.7 / 5.5 / 6.5% type, y 62 / 66 / 75%, lower case in all three. Captions are the owner's
 # plain look (PLAIN_CAPTIONS), smaller than the measured median; words a page and y stay measured. The three measured
 # punch zooms; the default pushes, because check.py render judges a punch by its one-frame travel. The zoom is the
-# style page's Smooth preset (presets.py: a 0.8 s push, about 3 changes a minute) and cards land "Sometimes".
+# style page's Smooth preset (presets.py: a 0.8 s push at scale 1.18, a change at least every 5 s).
 # max_hold_s: a sentence longer than this still gets a zoom change (plan.py place_zooms), so nothing holds still
 # past check.py's 6 s.
 DEFAULT_STYLE = {
     "handle": "default",
     "pace": {"median_shot_s": 2.4, "max_pause_s": 0.25},
     "motion": "smooth",
-    "zoom": {**presets.ZOOM["smooth"]["zoom"], "max_hold_s": 5.0},
-    "cards": {"per_min": presets.CARDS["sometimes"]["per_min"]},
+    "zoom": dict(presets.ZOOM["smooth"]["zoom"]),
     "captions": {"present": True, "words_per_caption": 3, "y_pct": 66, **PLAIN_CAPTIONS},
 }
 

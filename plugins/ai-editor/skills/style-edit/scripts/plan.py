@@ -542,17 +542,22 @@ def with_presets(style, mine):
 
 
 def thin_cards(cards, duration, cards_cfg):
-    """style.json "cards" (the style page's Cards and graphics): on=false plans none; per_min keeps at most that
-    many cards a minute, spread through the video in spoken order."""
-    if (cards_cfg or {}).get("on") is False:
-        return []
-    pm = (cards_cfg or {}).get("per_min")
-    cap = max(1, math.ceil(duration / 60 * pm)) if pm else None
-    if not cap or len(cards) <= cap:
+    """style.json "cards", set only by the user on the style page (Cards and graphics): on=false plans none; per_min
+    keeps at most that many cards a minute, spread through the video in spoken order (0: none). Unset: every card
+    stays. Each card left out is named on stderr."""
+    cfg = cards_cfg or {}
+    pm = cfg.get("per_min")
+    cap = 0 if cfg.get("on") is False else None if pm is None else max(0, math.ceil(duration / 60 * pm)) if pm > 0 else 0
+    if cap is None or len(cards) <= cap:
         return cards
     # ponytail: an even pick by order; rank by beat strength if a weak card wins a slot
     order = sorted(cards, key=lambda c: c["start"])
-    keep = {id(order[round(i * (len(order) - 1) / max(1, cap - 1))]) for i in range(cap)} if cap > 1 else {id(order[0])}
+    keep = set() if cap == 0 else {id(order[round(i * (len(order) - 1) / max(1, cap - 1))]) for i in range(cap)} if cap > 1 else {id(order[0])}
+    gone = [c for c in order if id(c) not in keep]
+    why = "cards are off" if cfg.get("on") is False else f"at most {pm:g} cards a minute"
+    print(f"note: {len(gone)} card{'s' if len(gone) != 1 else ''} left out ({why}, set on the style page): " +
+          ", ".join(f"{c.get('trigger_word') or (c.get('anim') or {}).get('type') or c.get('src')}@{c['start']:.1f}s" for c in gone),
+          file=sys.stderr)
     return [c for c in cards if id(c) in keep]
 
 
@@ -2212,6 +2217,8 @@ def demo():
         assert n <= math.ceil(t / 60 * p["per_min"]), (name, n)
     assert len(build({**DEFAULT_STYLE, "cards": {"per_min": 99}}, words, pv, many)["cards"]) == 12
     assert build({**DEFAULT_STYLE, "cards": {"on": False}}, words, pv, many)["cards"] == []
+    assert build({**DEFAULT_STYLE, "cards": {"per_min": 0}}, words, pv, many)["cards"] == [], "0 a minute is none, not unlimited"
+    assert len(build(DEFAULT_STYLE, words, pv, many)["cards"]) == 12, "no cap unless the user set one"
     for name in presets.LOOKS:
         assert build({**DEFAULT_STYLE, "look": {"preset": name}}, words, pv)["look"]["preset"] == name, name
     # the sample's punch at 28.05 s, 0.15 s before a flow scene at 28.2 s, snapped: a zoom change in a scene's

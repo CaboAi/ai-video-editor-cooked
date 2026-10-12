@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- A review page keeps its address when its server restarts (same port when free, same token), so an open tab or a
+  saved link keeps working. Before, every restart gave a new port and token and the open tab went dead.
 - The home window shows progress on its own. A tester pressed Copy and the window sat blank while Claude
   installed and ran the teardown, because steps only reached it when Claude ran `home.py status`. Now the
   long scripts report themselves while Claude has that job taken (a script never takes a queued job, so

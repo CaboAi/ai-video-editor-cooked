@@ -80,14 +80,20 @@ def candidates(line, toks, at):
             if s in seen:
                 continue
             seen.add(s)
-            win = [x[0] for x in toks[s:s + len(L) + slack]]
-            blocks = [b for b in difflib.SequenceMatcher(a=L, b=win, autojunk=False).get_matching_blocks() if b.size]
-            got = sum(b.size for b in blocks)
-            if got < MIN_WORDS or got < PARTIAL * len(L):
-                continue
-            first, last = s + blocks[0].b, s + blocks[-1].b + blocks[-1].size - 1
-            ends = blocks[-1].a + blocks[-1].size == len(L)
-            out.append((got / len(L), got, first, last, got >= COMPLETE * len(L) and ends))
+            # the full window finds a take; the line-long one also finds a false start the next take follows
+            for n in (len(L) + slack, len(L)):
+                win = [x[0] for x in toks[s:s + n]]
+                blocks = [b for b in difflib.SequenceMatcher(a=L, b=win, autojunk=False).get_matching_blocks() if b.size]
+                while len(blocks) > 1 and blocks[-1].size == 1 and blocks[-1].b > blocks[-2].b + blocks[-2].size:
+                    blocks.pop()   # a lone word after a gap is the next take's, not this one's ending
+                while len(blocks) > 1 and blocks[0].size == 1 and blocks[1].b > blocks[0].b + 1:
+                    blocks.pop(0)
+                got = sum(b.size for b in blocks)
+                if got < MIN_WORDS or got < PARTIAL * len(L):
+                    continue
+                first, last = s + blocks[0].b, s + blocks[-1].b + blocks[-1].size - 1
+                ends = blocks[-1].a + blocks[-1].size == len(L)
+                out.append((got / len(L), got, first, last, got >= COMPLETE * len(L) and ends))
     return out
 
 
@@ -111,9 +117,10 @@ def match(script_text, words):
         takes.append({"line": li, "alt": [li], "first": first, "last": last, "cov": cov, "complete": complete})
     takes.sort(key=lambda t: t["first"])
     # A take of a line the script says twice: first the copies whose script neighbours bracket it in time.
-    # Then, in a run of such takes, walking back from the end, each complete take moves to the copy before:
-    # the last copy gets the last take, the first copy every earlier take (its retakes).
-    # ponytail: retakes of a LATER copy land on the copy before it; every copy still keeps a take of its own
+    # Then, in a run of such takes: no more complete takes than copies, the last copy gets the last take
+    # and each copy before it the one before. More complete takes than copies: the first goes to the first
+    # copy, the last ones to the later copies, and those between are ambiguous (a retake of either copy):
+    # Claude decides by order or voice, and no copy's only take is ever called an earlier take.
     uniq = [o for o in takes if len(o["alt"]) == 1]
 
     def fit(t, li):
@@ -133,18 +140,24 @@ def match(script_text, words):
         else:
             runs.append([t])
     for r in runs:
-        cur = len(r[0]["alt"]) - 1
+        k, comp = len(r[0]["alt"]), [t for t in r if t["complete"]]
+        if len(comp) > k:
+            at = {id(comp[0]): 0, **{id(comp[len(comp) - k + j]): j for j in range(1, k)}}
+        else:
+            at = {id(t): k - len(comp) + j for j, t in enumerate(comp)}
+        cur = k - 1   # a partial belongs with the complete take after it
         for t in reversed(r):
-            t["line"] = t["alt"][cur]
-            if t["complete"] and cur:
-                cur -= 1
+            if t["complete"]:
+                cur = at.get(id(t))
+            t["line"], t["either"] = (t["alt"][cur], None) if cur is not None else (t["alt"][0], list(t["alt"]))
     for t in takes:
         a, b = toks[t["first"]], toks[t["last"]]
+        t.setdefault("either", None)
         t.update(start=a[1], end=b[2], quote=" ".join(words[i]["text"].strip() for i in range(a[3], b[3] + 1)
                                                      if words[i].get("type", "word") == "word"), keeper=False)
         del t["alt"]
     for li in range(len(lines)):
-        done = [t for t in takes if t["line"] == li and t["complete"]]
+        done = [t for t in takes if t["line"] == li and t["complete"] and not t["either"]]
         if done:
             done[-1]["keeper"] = True
     covered = set()
@@ -169,8 +182,9 @@ def report(m, name):
     out = [f"# Script match: {name}", "",
            f"{len(lines)} script lines, {len(takes)} takes found, {len(m['twice'])} lines the script says twice.",
            "Keeper = the last complete take of a line. A say-twice line keeps its own keeper: the script says it",
-           "again on purpose, so a take that matches a separate script line is never a retake. Off-script words are",
-           "never cut for being off-script. This file writes nothing else: spans.json is still yours.", ""]
+           "again on purpose, so a take that matches a separate script line is never a retake. A take marked",
+           "ambiguous could belong to either copy: decide by order or voice, never cut it as a retake. Off-script",
+           "words are never cut for being off-script. This file writes nothing else: spans.json is still yours.", ""]
     for li, line in enumerate(lines):
         who = f"{line['speaker']}: " if line["speaker"] else ""
         out.append(f"## {line['n']}. {who}{line['text']}")
@@ -179,9 +193,10 @@ def report(m, name):
                        "): keep every take that matches a separate script line")
         if li in m["short"]:
             out.append("too short to match by words: find it by ear in transcript.txt")
-        mine = [t for t in takes if t["line"] == li]
+        mine = [t for t in takes if (li in t["either"] if t["either"] else t["line"] == li)]
         for t in mine:
-            tag = "KEEPER" if t["keeper"] else "complete, earlier take" if t["complete"] else "partial"
+            tag = ("ambiguous: decide by order or voice (line " + " or ".join(str(lines[j]["n"]) for j in t["either"]) + ")"
+                   if t["either"] else "KEEPER" if t["keeper"] else "complete, earlier take" if t["complete"] else "partial")
             out.append(f"- {t['start']:.2f}-{t['end']:.2f} \"{t['quote']}\" {tag}")
         if li not in m["short"] and not mine:
             out.append("- not found in the transcript")
@@ -214,19 +229,23 @@ INTERN (whispering): Add a cache in front of the database.
 MANAGER: Exactly. Now ship it.
 INTERN: Yes.
 """
-    said = [("we need to scale this to a million users", 0.0),
+    said = [("we need to scale this", -8.0),                    # false start
+            ("we need to scale this to a million users", -4.0),  # earlier complete take: not the keeper
+            ("we need to scale this to a million users", 0.0),   # the keeper
             ("okay so what do we do first", 4.0),
-            ("add a cache in front of the", 8.0),             # false start
-            ("add a cache in front of the database", 11.0),   # earlier complete take: not the keeper
-            ("um hang on let me get the coffee", 15.0),       # off-script
-            ("add a cache in front of the database", 19.0),   # manager's keeper
-            ("add a cache in front of the database", 23.0),   # the intern repeats it: a separate line, kept
+            ("um hang on let me get the coffee", 15.0),          # off-script
+            ("add a cache in front of the database", 19.0),      # the manager's line
+            ("add a cache in front of the database", 23.0),      # the intern repeats it: a separate line, kept
             ("exactly now ship it", 27.0), ("yes", 30.0)]
-    words = []
-    for text, t in said:
-        for k, w in enumerate(text.split()):
-            words.append({"text": w, "start": round(t + 0.3 * k, 2), "end": round(t + 0.3 * k + 0.25, 2), "type": "word"})
-            words.append({"text": " ", "start": 0, "end": 0, "type": "spacing"})
+
+    def timed_words(said):
+        out = []
+        for text, t in said:
+            for k, w in enumerate(text.split()):
+                out.append({"text": w, "start": round(t + 0.3 * k, 2), "end": round(t + 0.3 * k + 0.25, 2), "type": "word"})
+                out.append({"text": " ", "start": 0, "end": 0, "type": "spacing"})
+        return out
+    words = timed_words(said)
     m = match(script, words)
     L = m["lines"]
     assert [x["speaker"] for x in L] == ["MANAGER", "INTERN", "MANAGER", "INTERN", "MANAGER", "INTERN"], L
@@ -234,18 +253,27 @@ INTERN: Yes.
     by = {}
     for t in m["takes"]:
         by.setdefault(t["line"], []).append(t)
-    cache = by[2]
-    assert [round(t["start"]) for t in cache] == [8, 11, 19], [(t["start"], t["complete"]) for t in cache]
-    assert not cache[0]["complete"] and cache[1]["complete"] and not cache[1]["keeper"] and cache[2]["keeper"], cache
+    scale = by[0]
+    assert [round(t["start"]) for t in scale] == [-8, -4, 0], [(t["start"], t["complete"]) for t in scale]
+    assert not scale[0]["complete"] and scale[1]["complete"] and not scale[1]["keeper"] and scale[2]["keeper"], scale
+    assert len(by[2]) == 1 and round(by[2][0]["start"]) == 19 and by[2][0]["keeper"], by.get(2)
     assert len(by[3]) == 1 and round(by[3][0]["start"]) == 23 and by[3][0]["keeper"], by.get(3)
-    assert by[0][0]["keeper"] and by[4][0]["keeper"] and 5 not in by and m["short"] == [5], (by, m["short"])
+    assert by[4][0]["keeper"] and 5 not in by and m["short"] == [5], (by, m["short"])
     assert [o["quote"] for o in m["off"]] == ["um hang on let me get the coffee"], m["off"]
     md = report(m, "skit")
     assert "say-twice (also line 7): keep every take that matches a separate script line" in md, md
     assert '- 19.00-21.35 "add a cache in front of the database" KEEPER' in md, md
-    assert '- 11.00-13.35 "add a cache in front of the database" complete, earlier take' in md, md
+    assert '- -4.00--1.35 "we need to scale this to a million users" complete, earlier take' in md, md
     assert '- 23.00-25.35 "add a cache in front of the database" KEEPER' in md, md
     assert "## Off-script (not cut for that reason)" in md and "spans.json is still yours" in md and "\u2014" not in md
+    # more takes than copies (manager 4 s, intern 8 s, intern 12 s): the middle one is ambiguous, never cut
+    # as an earlier take, and the manager's only take stays its keeper
+    m = match("MANAGER: Add a cache in front of the database.\nINTERN: Add a cache in front of the database.\n",
+              timed_words([("add a cache in front of the database", t) for t in (4.0, 8.0, 12.0)]))
+    got = [(round(t["start"]), t["line"], t["either"], t["keeper"]) for t in m["takes"]]
+    assert got == [(4, 0, None, True), (8, 0, [0, 1], False), (12, 1, None, True)], got
+    md = report(m, "skit")
+    assert md.count("ambiguous: decide by order or voice (line 1 or 2)") == 2 and "earlier take" not in md, md
     print("script_match demo ok")
 
 

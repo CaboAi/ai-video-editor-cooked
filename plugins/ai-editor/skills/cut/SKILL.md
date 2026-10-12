@@ -107,9 +107,7 @@ Every pause (breaths too) over `--max-pause` (0.15 s) becomes 0.10 s; under musi
 are trimmed. Fix any dry-run `ERROR`, then run it for real.
 
 Then the `cut-judge` agent scores `paper-edit.md` (what plays, `<<n>>` at each join)
-and fixes `spans.json`: a flub, restart or "wait" left in (add a span), a bad join or two takes
-stitched into a sentence nobody said (move it), a good line lost that no better take replaces
-(remove it). Launch, readers for takes over 5 min, and the approval score: `references/judge.md`.
+and fixes `spans.json` (a flub left in, a bad join, a good line lost). Launch, readers for takes over 5 min, and the approval score: `references/judge.md`.
 - `CLIPPED` in `paper-edit.md`: a pause cut ate a word. Raise `--pad`, rebuild. Still there: a label
   is off; step 5 says if it plays.
 - Joins inside speech move to a quiet frame. Any `still in speech`: listen in step 5.

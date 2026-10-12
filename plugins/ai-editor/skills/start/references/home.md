@@ -1,7 +1,7 @@
 # The home page
 
 The editor's window in the browser. A first run gets setup checks, optional keys, pick a creator, watch
-their videos get studied, see the style and the skill it became, drop a video. After that it opens on
+their style get copied, see the style and the skill it became, drop a video. After that it opens on
 Home (welcome back), New video (pick clips, then pick a style), Your videos, My style and Settings.
 The page only queues jobs. Claude does every job with the usual skills and reports back, so the page
 never decides anything itself.
@@ -45,7 +45,11 @@ ask for a key in the chat, and never read the key file. "Skip, add later" runs `
 
 ## The jobs
 
-Report progress with `status`. A new `--step` closes the step before it; `--done` or
+Progress is automatic: while the page has a job queued or taken, the long scripts (creator-teardown's,
+the cut's transcribe, join, build and render, setup's install-all) post their own steps with a count
+("video 3 of 7"), and the page shows a live strip with a clock, so it never looks stopped. You still
+report the steps you own (the result, `--done`, `--failed`, steps no script covers) with `status`. The
+same words update the same row, never a second one. A new `--step` closes the step before it; `--done` or
 `--failed "<plain sentence>"` ends the job:
 
 ```bash
@@ -55,12 +59,12 @@ python3 "$H" status <job> --result '<json>' --done
 
 ### `JOB teardown @handle platform=<p> take=<parts> root=<dir>`
 
-The user pasted a creator and pressed "Study their videos". Run the creator-teardown skill's
+The user pasted a creator and pressed "Copy this style". Run the creator-teardown skill's
 **Quick mode** (its SKILL.md) on that handle and platform, in `root`. With `urls=<file>` instead of
 a platform, use `list <handle> --urls <file>`. Do not ask the parts question: the page asks it.
 No Gemini key: skip `gemini.py` (do not offer the key in the chat; the page has it).
 
-Report these steps, in this order and these words (the page lists the ones still to come):
+The scripts report these steps themselves; use these words if you report one (the page lists the ones still to come):
 
 1. `Listed their videos` (fetch.py list)
 2. `Downloaded the top 5 and 2 median` (visual.py download --top 5)
@@ -119,7 +123,7 @@ no question: the page asked it). "Separate videos" arrives as one JOB per clip; 
 
 `as=mine`: keep the profile as it is. `as=defaults`: `profile.py set creators=[]`. `as=@handle`:
 `profile.py set 'creators=[{"handle":"<h>","take":["captions","pace","visuals"]}]'`. When
-`creator-teardowns/<h>/style.json` is not there yet, that creator is still being studied: cut now
+`creator-teardowns/<h>/style.json` is not there yet, that creator is still being copied: cut now
 (the cut needs no style) and start the styled pass once the teardown job is done.
 `aspect`: `profile.py set aspect=<a>`.
 
@@ -134,9 +138,10 @@ python3 "$H" status video --result '{"review_url": "<that URL>"}'
 ```
 
 Round 0 has no Approve; notes left on it wait for the cut. Then the start skill from step 2 on, with
-this file (or joined.mp4) as the video. Report each step on both pages, in these words:
-`Joined your clips in order` (takes only), `Wrote down every word you said`, `Cutting out the mistakes`,
-as `python3 "$R" <edit> status "<step>"` and `python3 "$H" status video --step "<step>"`. The cut's
+this file (or joined.mp4) as the video. The steps
+`Joined your clips in order` (takes only), `Wrote down every word you said`, `Cutting out the mistakes`
+reach the home page by themselves (join.py, transcribe.py, build_timeline.py, render.py); put each on the
+review page with `python3 "$R" <edit> status "<step>"`. The cut's
 own `start` (cut skill step 6) then opens round 1 on the same page, with the round 0 notes moved onto
 the cut: run `wait` and carry on there. `status video --done` once round 1 is up.
 

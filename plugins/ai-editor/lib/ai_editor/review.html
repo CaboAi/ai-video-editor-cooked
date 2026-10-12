@@ -1,6 +1,6 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>review</title><link rel="icon" href="data:,">
-<script>try{const t=localStorage.getItem('review-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+
 <style>
 /* stone, monochrome: black marks only the current thing */
 :root{--page:#FAFAF9;--panel:#FFFFFF;--raise:#FFFFFF;--line:#E7E5E4;--line2:#D6D3D1;--chip:#F5F5F4;--hover:#EFEEEC;
@@ -32,12 +32,12 @@ button:disabled{cursor:default}
 .seg>button small{font-size:13px;line-height:16px;color:var(--muted);font-weight:400}
 
 header{position:relative;height:64px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 28px}
-.brand{width:260px;display:flex;align-items:baseline;gap:10px;flex-shrink:0;min-width:0}
+.brand{flex:1 1 0;display:flex;align-items:center;gap:12px;min-width:0;padding-right:20px}
 .homebtn{display:inline-flex;align-items:center;gap:8px;align-self:center;height:40px;padding:0 16px 0 13px;border:1px solid var(--line2);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit;font-size:14px;font-weight:600;cursor:pointer;flex-shrink:0}
 .homebtn:hover{border-color:var(--strong)}
 .homemsg{position:absolute;top:56px;left:28px;z-index:30;max-width:340px;white-space:normal!important;background:var(--panel,#fff);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:13px!important;line-height:18px!important;color:var(--ink2)!important;box-shadow:var(--pop)}
-.brand b{font-size:17px;line-height:22px;font-weight:600;letter-spacing:-.01em;color:var(--strong)}
-.brand span{font-size:14px;line-height:18px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand .homebtn{flex-shrink:0}
+.brand #name{font-size:15px;line-height:20px;font-weight:600;color:var(--strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 #stages{gap:6px}
 #stages>button{gap:8px;padding:7px 14px;color:var(--quiet);font-weight:400}
 #stages>button .n{font-size:13px;line-height:16px}
@@ -45,7 +45,7 @@ header{position:relative;height:64px;flex-shrink:0;display:flex;align-items:cent
 #stages>button.done{color:var(--muted)}
 #stages>button:disabled{color:var(--quiet)}
 #stages>button.on{color:var(--strong);font-weight:600}#stages>button.on small{font-weight:400}
-.status{min-width:260px;white-space:nowrap;flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;gap:8px;color:var(--muted)}
+.status{flex:1 1 0;min-width:260px;white-space:nowrap;display:flex;align-items:center;justify-content:flex-end;gap:8px;color:var(--muted)}
 .status i{width:8px;height:8px;border-radius:4px;background:var(--quiet);flex-shrink:0}
 .status.work{color:var(--ink)}.status.work i{background:var(--ink)}
 #howbtn,.themebtn{width:26px;height:26px;border-radius:13px;display:grid;place-items:center;color:var(--muted);flex-shrink:0}
@@ -297,7 +297,7 @@ aside{width:400px;flex-shrink:0;background:var(--panel);border:1px solid var(--l
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style></head><body>
 <header>
- <div class="brand"><button id="homebtn" class="homebtn" title="Back to your videos"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.3 2.7a1 1 0 0 1 1.4 0l9 8.4a1 1 0 0 1-.7 1.7H19V20a1 1 0 0 1-1 1h-4v-6h-4v6H6a1 1 0 0 1-1-1v-7.2H3a1 1 0 0 1-.7-1.7z"/></svg>Home</button><b>review</b><span id="name"></span><span id="homemsg" class="homemsg" hidden></span></div>
+ <div class="brand"><button id="homebtn" class="homebtn" title="Back to your videos"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.3 2.7a1 1 0 0 1 1.4 0l9 8.4a1 1 0 0 1-.7 1.7H19V20a1 1 0 0 1-1 1h-4v-6h-4v6H6a1 1 0 0 1-1-1v-7.2H3a1 1 0 0 1-.7-1.7z"/></svg>Home</button><span id="name"></span><span id="homemsg" class="homemsg" hidden></span></div>
  <div class="seg" id="stages"><button id="st1" data-go="cut"></button><button id="st2" data-go="edit"></button></div>
  <div class="status" id="statusbox"><i></i><span id="listen"></span><button class="themebtn"></button><button id="howbtn" aria-label="how this works and shortcuts" title="how this works (?)"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="10" r="8.3"/><path d="M7.7 7.6a2.4 2.4 0 1 1 3.3 2.2c-.6.3-1 .8-1 1.5v.4"/><circle cx="10" cy="14.4" r=".4" fill="currentColor"/></svg></button></div>
  <div class="mhead"><b id="mstage"></b><span id="msub"></span></div><button class="themebtn mtheme"></button><button id="mapprove"></button>
@@ -399,6 +399,7 @@ async function load(force){
   // live reload: the page or the server changed; never while a note is being typed
   if(d.page){const t=document.activeElement;if(PV&&d.page!==PV&&!(t&&/^(INPUT|TEXTAREA)$/.test(t.tagName)&&t.value)){location.reload();return}PV=PV||d.page}
   S=d;
+  if((d.theme==='light'||d.theme==='dark')&&document.documentElement.dataset.theme!==d.theme){document.documentElement.dataset.theme=d.theme;themeIcon()}   // one theme with the window
   if(!view||(was&&was!==key(cur())&&key(view)===was)){view=cur();if(was&&was!==key(cur()))tab='notes'}   // follow a new round when it lands
   for(const r of S.rounds||[])if(!(key(r) in DATA)){DATA[key(r)]=null;fetch('/data?k='+key(r)).then(x=>x.json()).then(j=>{DATA[key(r)]=j;txKey='';render()}).catch(()=>{})}
   setVideo();render();
@@ -466,7 +467,7 @@ function render(){
   if(!S)return;
   document.body.classList.toggle('vertical',!!S.vertical);
   const p=pending(),lastEv=S.events[S.events.length-1],picked=!!(S.sent&&lastEv&&lastEv.handled),vr=viewRound();
-  $('name').textContent=S.name;document.title=S.name+(p==='send'?' · Claude working':' · round '+S.round);steps();
+  $('name').textContent=S.name;$('name').title=S.name;document.title=S.name+(p==='send'?' · Claude working':' · round '+S.round);steps();
   $('listen').textContent=listenText(S);$('statusbox').classList.toggle('work',picked&&p==='send');
   $('mstage').textContent=STAGE[view.stage];$('msub').textContent=S.name+' · '+rn(view).toLowerCase();
   const mine=S.comments.filter(c=>c.stage===S.stage&&c.round===S.round).length,live=isCur()&&!p;
@@ -757,7 +758,7 @@ const SUN='<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="c
 const OS=matchMedia('(prefers-color-scheme: dark)'),isDark=()=>{const t=document.documentElement.dataset.theme;return t?t==='dark':OS.matches};
 function themeIcon(){const d=isDark();document.querySelectorAll('.themebtn').forEach(b=>{b.innerHTML=d?SUN:MOON;b.title=d?'Light mode':'Dark mode';b.setAttribute('aria-label',b.title)})}
 document.querySelectorAll('.themebtn').forEach(b=>b.onclick=e=>{e.stopPropagation();const t=isDark()?'light':'dark';document.documentElement.dataset.theme=t;
-  try{localStorage.setItem('review-theme',t)}catch(err){}themeIcon()});
+  fetch('/theme',{method:'POST',body:JSON.stringify({theme:t})});themeIcon()});
 OS.addEventListener('change',themeIcon);themeIcon();
 load();setInterval(load,3000);
 </script><script src="/ask.js"></script></body></html>

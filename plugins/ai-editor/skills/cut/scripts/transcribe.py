@@ -43,7 +43,7 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
-from ai_editor import keys, models, net  # noqa: E402
+from ai_editor import keys, models, net, progress  # noqa: E402
 
 HOME = models.HOME
 # Whisper tidies speech by default. A prompt full of hesitations makes it keep
@@ -243,6 +243,7 @@ def demo():
 def main():
     if sys.argv[1:] == ["demo"]:
         return demo()
+    progress.step("Wrote down every word you said", job="video")   # the home page's video job, when there is one
     ap = argparse.ArgumentParser()
     ap.add_argument("media")
     ap.add_argument("out")

@@ -61,6 +61,9 @@ def video_window(s, e, fps, vstart):
 
 
 def main():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
+    from ai_editor import progress   # the home page's video job, when there is one
+    progress.step("Cutting out the mistakes", job="video")
     ap = argparse.ArgumentParser()
     ap.add_argument("source")
     ap.add_argument("edit_dir")

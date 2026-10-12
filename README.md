@@ -72,7 +72,7 @@ it asks you to log in.
 
 **5. Pick "Open the home page".** A page opens in your browser. It checks your computer, takes
 optional keys (saved on your computer, never sent to the chat), and asks for a creator you like.
-Paste their handle or profile link and press **Study their videos**: Claude measures their top
+Paste their handle or profile link and press **Copy this style**: Claude measures their top
 videos (about 3 minutes, free) and shows what makes them work. Then you get a skill in their
 format, the prompts to use it, and a place to drop your video.
 

@@ -4,6 +4,36 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- The home window shows progress on its own. A tester pressed Copy and the window sat blank while Claude
+  installed and ran the teardown, because steps only reached it when Claude ran `home.py status`. Now the
+  long scripts report themselves while the page has that job queued or taken: creator-teardown's
+  `fetch.py list` and `transcribe`, `visual.py download` and `measure`, `look.py`, `graphics.py`,
+  `gemini.py kinds`, `sound.py` and `report.py` post the page's step names with "video 3 of 7" and a bar;
+  the cut's `join.py`, `transcribe.py`, `build_timeline.py` and `render.py` post the video job's steps.
+  It is one `home.py status --if-active` call through `lib/ai_editor/progress.py` (creator-teardown:
+  `scripts/_progress.py`, kept byte-identical), never fails or holds up a script, and the same step text
+  updates the same row. Every view shows a live strip in the header while a job runs: a spinner, the
+  newest step and a clock since anything last arrived; after 60 s with nothing new it says "Still
+  working: <step>. First runs take longer." `home.py` records `claude_seen` on every `wait`, `status`
+  and self-report. Test: `progress.py demo`, `home.py demo`, and a real 3-video teardown run with no
+  `status` calls, its steps landing on the page by themselves (screenshots every 20 s).
+  Also on the window: every Your videos card and Home row opens that video's editor (click or Enter),
+  shows the raw clip's frame instead of a dark box, and while it is made shows the current step with a
+  clock and an "Open the editor" button. My styles and Pick a style group "Your style" and "Copied from
+  creators" (newest first, "New" on one made in the last 24 h, "Made 3 days ago"); My style says it is
+  used on every video, which creator it started as a copy of, and which numbers your feedback changed.
+  A creator's card shows their own frame ("Their video") without the sample caption; My style never uses
+  the creator's frame, and no preview draws the "how it looks" sample caption any more. Every "study" the
+  user reads is now "copy". The first-run step 2 is "Pick videos in a format you like" (tab "Videos", six
+  numbered boxes, "What counts as the same format?", a profile link as the smaller option), and the card
+  on My styles is "Copy an editing style" with a "Copy this style" button. When creator-teardown leaves
+  links out (`format.json`), the copy screen says "Using 4 of 6: 2 look like a different format (...)"
+  and greys those videos. The light/dark choice is one setting for the window and every review page
+  (`$AI_EDITOR_HOME/ui.json`, `POST /theme` on both, put on `<html>` before first paint); before, each
+  page's port had its own and a light window opened a dark review page. The review page header drops the
+  word "review" and shows the video name in full beside Home, centred. Fixed: "to Nonex" in a zoom line
+  with no measured scale, Done tiles breaking "today" letter by letter, and a style page heading
+  breaking a handle mid-word.
 - First run opens the editor's window first. Before, a new install went straight to several minutes of
   installs in the terminal and the window never opened. Now the window opens at once (it needs nothing
   installed, and runs on a Mac's built-in Python 3.9 too) and `setup.py install-all --report` installs the

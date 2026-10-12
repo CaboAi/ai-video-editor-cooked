@@ -66,7 +66,7 @@ import keys  # noqa: E402
 import library  # noqa: E402
 import links  # noqa: E402
 import live  # noqa: E402
-from review import load, now, save  # noqa: E402  (atomic write; review.py's server owns the rest)
+from review import load, now, save, set_theme, theme, themed  # noqa: E402  (atomic write; review.py's server owns the rest)
 
 HTML = Path(__file__).with_name("home.html")
 SETUP = Path(__file__).resolve().parents[2] / "skills" / "setup" / "scripts" / "setup.py"
@@ -130,6 +130,7 @@ def update(fn):
     with _Lock():
         d = read()
         out = fn(d)
+        d["home_py"] = Path(__file__).resolve().as_posix()   # where progress.py finds this file
         save(state_path(), d)
         return out
 
@@ -141,7 +142,7 @@ def link_set(vids):
     plats = {i.get("platform") for i in vids}
     plat = "instagram" if "instagram" in plats else plats.pop() if len(plats) == 1 else "tiktok"
     n = len(vids)
-    note = f"{n} video link{'s' if n > 1 else ''}." + (" 5 or more gives a truer style." if n < 5 else "") \
+    note = f"{n} video link{'s' if n > 1 else ''}." + (" 6 or more gives a truer style." if n < 6 else "") \
         + (" Instagram ranks by likes, not views." if plat == "instagram" else "")
     h = handles.pop() if len(handles) == 1 else None
     return {"kind": "creator", "platform": plat, "urls": [i["url"] for i in vids],
@@ -229,7 +230,8 @@ def measured(root, handle):
     if p.get("median_shot_s") is not None:
         tiles.append({"big": num(p["median_shot_s"], " s"), "label": "between cuts"})
     if z.get("kind") and z.get("per_min"):
-        tiles.append({"big": num(z.get("scale"), "x"), "label": f"{z['kind']} zoom, {num(z['per_min'])} a minute"})
+        tiles.append({"big": num(z["scale"], "x"), "label": f"{z['kind']} zoom, {num(z['per_min'])} a minute"} if z.get("scale")
+                     else {"big": num(z["per_min"]), "label": f"{z['kind']} zooms a minute"})
     if hook.get("first_word_s") is not None:
         tiles.append({"big": num(hook["first_word_s"], " s"), "label": "to the first word"})
     if p.get("wpm"):
@@ -241,8 +243,9 @@ def measured(root, handle):
             p.get("wpm") and f"{num(p['wpm'])} words a minute.") if x)
     if z:
         rows["zooms"] = ("No zooms." if not z.get("kind") else
-                         f"{z['kind'].capitalize()} zooms, {num(z.get('per_min'))} a minute, to {num(z.get('scale'))}x"
-                         + (f", {z['ease']}" if z.get("ease") else "") + ".")
+                         f"{z['kind'].capitalize()} zooms" + (f", {num(z['per_min'])} a minute" if z.get("per_min") else "")
+                         + (f", to {num(z['scale'])}x" if z.get("scale") else "")   # a style without a scale: no "to Nonex"
+                         + (f", {z['ease']}" if z.get("ease") and z["ease"] != "none" else "") + ".")
     if c:
         if c.get("present") is False:
             rows["captions"] = "No captions."
@@ -360,10 +363,13 @@ def style_cards(root):
             line = (f"Your saved style. Started from @{base}." if base else "The default style.") + \
                 (f" {n} change{'s' if n != 1 else ''} from your feedback." if n else " Change it any time.")
         else:
-            line = (f"Measured from {st['videos']} of their videos." if st.get("videos") else "Studied by the editor.") + \
+            line = (f"Measured from {st['videos']} of their videos." if st.get("videos") else "Copied by the editor.") + \
                 (f" {n} change{'s' if n != 1 else ''} from your feedback." if n else "")
+        # when it was made (a creator: their listing, the first thing a copy writes) and last changed (feedback rules)
+        made = next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None) if sp else None
+        changed = taste.rules_path().stat().st_mtime if n and taste.rules_path().exists() else None
         out.append({"id": sid, "name": ss.display(sp), "facts": facts(st), "look": look(st), "base": base,
-                    "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "cover": cover_of(root, sid), "face": face_of(root, base),
+                    "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "made": made, "changed": changed, "cover": cover_of(root, sid), "face": face_of(root, base),
                     "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False})
     return out
 
@@ -652,6 +658,7 @@ def cmd_wait(poll=1.0):
     if listening():   # one waiter at a time, so each job reaches exactly one background task
         print("ALREADY: another `home.py wait` is running; the next job comes out of that one.", flush=True)
         return "ALREADY"
+    update(lambda d: d.update(claude_seen=time.time()))
     try:
         while True:
             beat.touch()
@@ -668,7 +675,8 @@ def cmd_wait(poll=1.0):
                 j["cancel_sent"] = True
                 return f"JOB cancel {j['type']}"
         j = next(j for j in d["jobs"] if j["state"] == "queued")
-        j["state"] = "taken"
+        j["state"], j["u"] = "taken", time.time()
+        d["claude_seen"] = j["u"]
         return job_line(j, d["root"])
     line = update(take)
     print(line, flush=True)
@@ -677,18 +685,27 @@ def cmd_wait(poll=1.0):
 
 def cmd_status(a):
     def f(d):
-        j = latest(d, a.job)
+        t = time.time()
+        d["claude_seen"] = t   # the page's heartbeat: Claude (or a script it runs) is still at work
+        # the job being worked on: the newest taken one (separate videos queue several), else the newest queued
+        act = [j for j in d["jobs"] if j["type"] == a.job and j["state"] in ("queued", "taken")]
+        j = next((j for j in reversed(act) if j["state"] == "taken"), act[-1] if act else None)
+        if getattr(a, "if_active", False) and not j:   # a script's own report (progress.py): never makes a job
+            return None
+        j = j or latest(d, a.job)
         if not j or (a.job == "setup" and j["state"] in ("done", "failed")):
             j = queue(d, a.job, {})
+        if j["state"] == "queued":   # the first step takes the job
             j["state"] = "taken"
-        t = time.time()
-        if a.step:
+        j["u"] = t
+        same = next((s for s in j["steps"] if s["text"] == a.step), None) if a.step else None
+        if a.step and not same:
             for s in j["steps"]:
                 if not s.get("done"):
                     s["done"], s["secs"] = True, round(t - s["t"])
             j["steps"].append({"text": a.step, "detail": a.detail, "progress": a.progress, "t": t, "done": False})
-        elif j["steps"] and (a.detail is not None or a.progress is not None):
-            j["steps"][-1].update({k: v for k, v in (("detail", a.detail), ("progress", a.progress)) if v is not None})
+        elif (same or j["steps"]) and (a.detail is not None or a.progress is not None):   # same text: in place
+            (same or j["steps"][-1]).update({k: v for k, v in (("detail", a.detail), ("progress", a.progress)) if v is not None})
         if a.result:
             r = json.loads(Path(a.result[1:]).read_text(encoding="utf-8") if a.result.startswith("@") else a.result)
             j["result"].update(r)
@@ -702,6 +719,9 @@ def cmd_status(a):
         j.setdefault("started", t)
         return j
     j = update(f)
+    if j is None:
+        print(f"no {a.job} job on the page")
+        return
     if a.job == "setup" and (a.step or a.done or a.failed):   # a step finished: the tool rows tick as it goes
         run_doctor()
     print(f"{j['id']}: {j['state']}" + (f", {a.step}" if a.step else ""))
@@ -750,10 +770,10 @@ def make_handler(token):
             if askhook.route(self, "GET", path, {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()}):   # Claude's questions
                 return
             if path == "/":
-                return self.send(200, HTML.read_bytes(), "text/html; charset=utf-8", cookie=True)
+                return self.send(200, themed(HTML.read_bytes()), "text/html; charset=utf-8", cookie=True)
             if path == "/state":
                 d = read()
-                d["listening"], d["keys"] = listening(), key_rows()
+                d["listening"], d["keys"], d["theme"] = listening(), key_rows(), theme()
                 d["profile"] = (home().parent / "profile.json").exists()   # set up before: a returning user
                 d["update"] = update_info()
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
@@ -764,18 +784,26 @@ def make_handler(token):
                 if td:
                     td["measured"] = measured(d["root"], td["args"]["handle"])
                     td["listing"] = listing(d["root"], td["args"]["handle"])
+                    try:   # creator-teardown's format check, when it ran: which links it left out
+                        td["format"] = json.loads((Path(d["root"]) / "creator-teardowns" / td["args"]["handle"] / "format.json").read_text(encoding="utf-8"))
+                    except (OSError, ValueError):
+                        td["format"] = None
                 return self.send(200, d)
             q = parse_qs(urlsplit(self.path).query)
             if path == "/library":
-                root = read()["root"]
-                vids = [dict(e, thumb=e["video"] and f"/thumb?p={quote(e['video'])}&u={int(e['updated'])}",
-                             media=e["video"] and "/media?p=" + quote(e["video"])) for e in library.entries()]
+                root, jobs = read()["root"], read()["jobs"]
+                raw = {str(Path(j["args"]["edit"]).resolve()): j for j in jobs if j["type"] == "video" and j["args"].get("edit")}
+                # no cut yet: the raw clip's frame (as New video shows it), and the job the card follows
+                vids = [dict(e, thumb=f"/thumb?p={quote(e['video'] or raw[e['dir']]['args']['path'])}&u={int(e['updated'])}"
+                             if e["video"] or e["dir"] in raw else None,
+                             media=e["video"] and "/media?p=" + quote(e["video"]), job=(raw.get(e["dir"]) or {}).get("id"))
+                        for e in library.entries()]
                 cards = style_cards(root)
                 for j in read()["jobs"]:   # a creator still being studied: a card the user can already pick
                     h = j["args"].get("handle")
                     if j["type"] == "teardown" and j["state"] in ("queued", "taken") and "@" + str(h) not in [c["id"] for c in cards]:
                         cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True,
-                                      "line": "Being studied now. Your cut starts first; the style waits for the study."})
+                                      "line": "Being copied now. Your cut starts first; the style waits for the copy."})
                 return self.send(200, {"path": root, "place": place(root), "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
                                        "custom": str(custom.path(False)), "videos": vids, "styles": cards})
             if path == "/recent":
@@ -855,6 +883,12 @@ def make_handler(token):
                 return self.send(400, {"error": "not json"})
             if askhook.route(self, "POST", path, {}, body):
                 return
+            if path == "/theme":   # the toggle: one choice for the window and every review page (review.py)
+                try:
+                    set_theme(body.get("theme"))
+                except ValueError:
+                    return self.send(400, {"error": "light, dark or system"})
+                return self.send(200, {"theme": theme()})
             if path == "/key":
                 name, val = body.get("name"), str(body.get("value") or "").strip()
                 if name not in KEY_NAMES or not val or len(val) > 400 or re.search(r"\s", val):
@@ -1026,7 +1060,7 @@ def make_handler(token):
             elif kind == "skill":
                 td = latest(d, "teardown")
                 if not td or td["state"] != "done":
-                    return self.send(409, {"error": "the study is not finished"})
+                    return self.send(409, {"error": "the copy of their style is not finished"})
                 args = {"handle": td["args"]["handle"], "take": take}
             elif kind == "video":
                 return self.videos(b, d)
@@ -1058,7 +1092,7 @@ def make_handler(token):
                 studying = any(j["type"] == "teardown" and j["args"].get("handle") == h and j["state"] in ("queued", "taken")
                                for j in d["jobs"])   # the cut starts now; the styled pass waits for the study
                 if not studying and not (Path(d["root"]) / "creator-teardowns" / h / "style.json").exists():
-                    return self.send(400, {"ok": False, "msg": f"@{h} has not been studied yet."})
+                    return self.send(400, {"ok": False, "msg": f"@{h}'s style has not been copied yet."})
                 style = "@" + h
             elif want in ("mine", "defaults"):
                 style = want
@@ -1318,6 +1352,16 @@ def demo():
             assert e.code == 403, (p, e.code)
     r = urllib.request.urlopen(base + "/?t=" + tok)
     assert b"ai editor" in r.read() and "SameSite=Strict" in r.headers["Set-Cookie"]
+    # one theme for the window and every review page: saved in $AI_EDITOR_HOME/ui.json, on <html> before first paint
+    assert get("/state")["theme"] == "system" and b"<html data-theme" not in urllib.request.urlopen(base + "/?t=" + tok).read()
+    assert post("/theme", {"theme": "light"})["theme"] == "light" and get("/state")["theme"] == "light"
+    assert b'<html data-theme="light" lang="en">' in urllib.request.urlopen(base + "/?t=" + tok).read()
+    try:
+        post("/theme", {"theme": "pink"})
+        raise AssertionError("a made-up theme was saved")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    post("/theme", {"theme": "system"})
     # Claude's question (askhook.py): the hook posts it, the showing page polls it and answers, the hook clears it
     assert b'src="/ask.js"' in HTML.read_bytes() and b"askq" in urllib.request.urlopen(base + "/ask.js?t=" + tok).read()
     assert askhook.live() == []   # served, but no page has polled yet
@@ -1360,7 +1404,7 @@ def demo():
     assert post("/lookup", {"text": "someone"})["ask_platform"] is True
     assert post("/lookup", {"text": "https://example.com/pricing"})["kind"] != "creator"
     one = post("/lookup", {"text": "https://www.tiktok.com/@some.one/video/7412345678901234567"})
-    assert one["urls"] and one["handle"] == "some.one" and one["platform"] == "tiktok" and "5 or more" in one["note"], one
+    assert one["urls"] and one["handle"] == "some.one" and one["platform"] == "tiktok" and "6 or more" in one["note"], one
     mix = post("/lookup", {"text": "https://youtu.be/abcDEF12345 https://www.youtube.com/shorts/xyzXYZ12345"})
     assert len(mix["urls"]) == 2 and mix["platform"] == "youtube" and mix["handle"] is None, mix
     ig = post("/lookup", {"text": "https://www.instagram.com/someone/"})
@@ -1384,8 +1428,13 @@ def demo():
                                            "result": None, "done": False, "failed": None, **k}))
     st(step="Listed 40 videos, ranked by views")
     st(step="Reading captions and faces", detail="video 3 of 7", progress=0.4)
-    t = get("/state")["jobs"][-1]
+    st(step="Reading captions and faces", detail="video 4 of 7")   # a script's self-report, same text: in place
+    S = get("/state")
+    t = S["jobs"][-1]
     assert t["measured"]["tiles"] == [] and [s["done"] for s in t["steps"]] == [True, False]
+    assert t["steps"][-1]["detail"] == "video 4 of 7" and S["claude_seen"] >= t["u"] - 1, "heartbeat recorded"
+    assert out(cmd_status, ns(job="modal", step="x", detail=None, progress=None, result=None, done=False, failed=None,
+                              if_active=True)) == "no modal job on the page" and latest(read(), "modal") is None, "--if-active never makes a job"
     (td / "style.json").write_text(json.dumps({"videos": 7, "pace": {"wpm": 186, "median_shot_s": 1.9, "max_pause_s": 0.3},
                                                "zoom": {"kind": "punch", "per_min": 6.0, "scale": 1.12},
                                                "captions": {"present": True, "words_per_caption": 2, "y_pct": 62.4,
@@ -1394,6 +1443,12 @@ def demo():
     m = get("/state")["jobs"][-1]["measured"]
     assert [x["big"] for x in m["tiles"]] == ["1.9 s", "1.12x", "186"], m["tiles"]
     assert m["rows"]["captions"].startswith("2 words at a time, 62% down") and "graphics" not in m["rows"], m["rows"]
+    ns_dir = td.parent / "no.scale"   # a zoom with no scale measured: no "to Nonex"
+    ns_dir.mkdir()
+    (ns_dir / "style.json").write_text(json.dumps({"zoom": {"kind": "punch", "per_min": 6, "ease": "none"}}), encoding="utf-8")
+    nm = measured(td.parent.parent, "no.scale")
+    assert nm["rows"]["zooms"] == "Punch zooms, 6 a minute." and nm["tiles"][0]["big"] == "6", nm
+    shutil.rmtree(ns_dir)
     st(result=json.dumps({"reject": ["The follow-for-part-2 close."]}), done=True)
     t = get("/state")["jobs"][-1]
     assert t["state"] == "done" and t["result"]["reject"] and all(s["done"] for s in t["steps"])
@@ -1741,6 +1796,7 @@ def main():
     s.add_argument("--result", help="JSON, or @file.json")
     s.add_argument("--done", action="store_true")
     s.add_argument("--failed", help="a plain sentence for the page")
+    s.add_argument("--if-active", action="store_true", help="only onto a queued or taken job (progress.py)")
     a = ap.parse_args()
     if a.cmd == "serve":
         srv, url = serve(a.root, a.port, open_browser=not a.no_open)

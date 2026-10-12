@@ -614,11 +614,11 @@ async function study(){
 
 // ---------------------------------------------------------------- H3 / H4
 function curVideo(td){const s=td.steps.filter(s=>!s.done).at(-1)||{};const m=/video (\d+) of (\d+)/.exec(s.detail||'');return m?[+m[1],+m[2]]:null}
-// creator-teardown's format check (format.json): the links that look like another format, left out
-const leftOut=td=>{const f=td.format;return f&&f.consistent===false&&Array.isArray(f.left_out)?f.left_out:[]};
-function fmtLine(td){
-  const lo=leftOut(td);if(!lo.length)return '';const k=(td.format.kept||[]).length,n=k+lo.length;
-  return `<div class="msg" style="margin-top:16px;font-size:14px;line-height:20px"><span>Using ${k} of ${n}: ${lo.length} look${lo.length>1?'':'s'} like a different format${lo.some(x=>x.why)?` (${esc(lo.map(x=>x.why).filter(Boolean).join(', '))})`:''}.</span></div>`;
+// creator-teardown's format check (format.json): the links left out (only when it applied: a majority of 3+)
+const leftOut=td=>{const f=td.format;return f&&f.applied&&Array.isArray(f.left_out)?f.left_out:[]};
+function fmtLine(td){   // the check's own line, whenever some videos differ (left out, or a mix it could not split)
+  const f=td.format;if(!f||!f.line||!(f.left_out||[]).length)return '';
+  return `<div class="msg" style="margin-top:16px;font-size:14px;line-height:20px"><span>${esc(f.line)}</span></div>`;
 }
 function h3(td){
   const lk=td.listing,m=td.measured||{rows:{}},cv=curVideo(td),n=lk?lk.videos.length:0;

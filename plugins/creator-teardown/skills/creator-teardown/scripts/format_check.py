@@ -44,6 +44,7 @@ Exit codes: 0 ok - 1 error - 2 usage
 """
 import argparse
 import json
+import os
 import statistics
 import subprocess
 import sys
@@ -258,8 +259,10 @@ def cmd_check(a):
         vdir = outdir / "video"
         later = [s for s, ext in (("graphics.py", "graphics"), ("sound.py", "sound")) if any(vdir.glob(f"*.{ext}.json"))]
         for script in ["visual.py", "look.py", *later]:
+            # a re-merge, not a new measuring step: the home page's steps stay as they are
             r = subprocess.run([sys.executable, str(HERE / script), "measure", a.handle],
-                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+                               capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               env={**os.environ, "AI_EDITOR_NO_PROGRESS": "1"})
             if r.returncode:
                 sys.exit(f"{script} measure failed: {r.stderr.strip()[-400:]}")
         print("style.json merged again from the videos in video/; look.md rewritten.")

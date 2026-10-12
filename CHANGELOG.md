@@ -18,6 +18,12 @@ What changed for every user, newest first.
   touches, makes a `before-update-<date>` branch, merges, runs the fast self-checks, and rolls back
   if they fail. It never pushes, stashes or deletes a branch. README "Want to change the editor
   itself?". Test: `update.py demo`.
+- Sourced proof in the style edit: when a line names a person and what they said, `source.py quote` finds
+  the second they say it in a YouTube video (from its auto-captions) and `source.py clip` downloads only
+  that part into a `video_card`. X posts fall back to the public fxtwitter API when X's embed endpoint
+  returns nothing. Every clip and post is credited in `credits.txt` (url at that second, channel, date),
+  which `chapters.py --intro` puts in `description.txt`. Free, no keys, no login. Test: `source.py demo`,
+  `chapters.py demo`.
 - Review page: while Claude is making a round (it ran `status`, `round` or `resolve` in the last 15 min) the
   page says "Claude is working. Notes you send now are next." instead of "Claude is not listening".
 - Claude's questions in the window: when Claude asks a question (AskUserQuestion) and the home page or a

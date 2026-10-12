@@ -185,6 +185,38 @@ Not sure which sentence is the evidence? Add `"page_text": true`, run capture.mj
 Never invent data. A figure, a quote, a like count or a date on screen comes from one of these
 sources or from the speaker's own words.
 
+### Sourced proof
+
+A line that names a person and what they said gets their real words: the clip from their talk or
+interview, found to the second. A line that quotes a post gets the real post. Never a paraphrase on
+a card. All free: yt-dlp, YouTube's auto-captions, ffmpeg, X's public embed endpoint.
+
+```bash
+python3 "$S/source.py" search "<who> <topic>"                       # id | length | views | channel | title
+python3 "$S/source.py" quote "<youtube url>" "<4-8 words they said>"  # each place it is said, best first
+python3 "$S/source.py" clip edits/<name> "<youtube url>" <start> <end>  # the line quote printed
+python3 "$S/source.py" credits edits/<name>                          # credits.txt, before handing over
+```
+
+- **Pick the source:** the person's own channel or the event's official upload, not a re-upload.
+- **quote** reads the auto-captions, which time every word, and slides a window the length of the
+  phrase over them, scored by word match (a misheard word still lands). It prints the score, the
+  times and the `clip` line padded 0.4 s each side. Captions are not verbatim: under 0.80, try other
+  words from the same sentence. `--lang` for a talk not in English.
+- **clip** downloads only that section, 1080p at most, to `images/clip-<id>-<second>.mp4`. Show it as
+  a `video_card` on the line that names them: `{"word", "nth", "kind": "anim", "type": "video_card",
+  "props": {"src": "images/clip-<id>-<second>.mp4", "label": "<Name>, <where>"}}`. The card plays muted:
+  it shows who said it while the speaker says the line. Keep it 2-8 s.
+- **A post:** a `post` beat with `highlight` the phrase (above). capture.mjs falls back to the public
+  fxtwitter API when X's endpoint returns nothing.
+- **Credits:** every clip goes into `credits.json` (the video's url at that second, channel, title,
+  times); `credits` writes `credits.txt` from it and every `images/post-*.json`. `chapters.py --intro`
+  puts it under the chapters in `description.txt` (render.md). Hand `credits.txt` over with the render.
+- **Exit 3** (a login, a bot check, a 403 or a rate limit): ask in the question box before re-running
+  with `--cookies-from-browser chrome` (or their browser). Rate limited: wait 10 minutes first. One
+  `quote` per video, never a loop of searches.
+- Someone else's clip: short, credited, there to back a point. Say once that reuse is the user's call.
+
 ### logo
 
 Every time a brand or product is named in passing: `{"kind": "logo", "word": "Claude", "nth": 1,

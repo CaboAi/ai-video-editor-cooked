@@ -215,6 +215,7 @@ python3 "$S/chapters.py" edits/<name> [--intro "a plain description draft"]
 ```
 
 It times each chapter off the cut (a re-cut re-times them) and writes `chapters.txt`, plus
-`description.txt` with `--intro` (a run without it removes an older one). YouTube's rules are checked:
+`description.txt` with `--intro`, with `credits.txt` under the chapters when there is one (visuals.md
+"Sourced proof"; a run without `--intro` removes an older description). YouTube's rules are checked:
 first at 0:00, at least 3, each at least 10 s, in order. A FAIL writes nothing: merge or move chapters
 and run it again. Hand over the file's path.

@@ -1,8 +1,8 @@
 # Shapes
 
 The files Claude writes in style-edit, and the rules plan.py holds them to. Read this before writing
-visuals.json. More on each format and where it comes from: `visuals.md`; every file's full shape:
-`contracts.md` (for people, not needed to run the skill).
+visuals.json. More on each format and its source: `visuals.md`; every file's full shape:
+`contracts.md` (for people).
 
 visuals.json is one JSON array, one object per beat, in spoken order. A whole two-beat file:
 

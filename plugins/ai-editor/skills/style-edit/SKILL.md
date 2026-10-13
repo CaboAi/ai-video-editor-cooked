@@ -104,7 +104,7 @@ Vertical captures need a `find` to read on a phone. Card edit: `shapes.md`.
 
 ## 4. Plan
 
-Find the speaker's head first, so no box covers the face, then plan with the style.json from step 1:
+Find the speaker's head first, so no box covers the face, then plan with step 1's style.json:
 
 ```bash
 python3 "$VPY" "$S/face.py" edits/<name>

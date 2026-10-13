@@ -167,6 +167,16 @@ def test_a_multi_word_correction_is_one_token_per_word():
         assert [w["text"] for w in got] == ["we", "are", "using."] and got[1]["end"] <= got[2]["start"], got
 
 
+def test_a_number_heard_as_digits_stays_digits():
+    """The cut text says "four hundred percent", the re-transcription heard "400%": the same words, so the caption
+    keeps "400%" (never "four hundred percent%", the cut words pasted round the heard symbol)."""
+    w = lambda t, a, b: {"text": t, "start": a, "end": b, "type": "word"}
+    cut = [w("grown", 0.0, 0.3), w("four", 0.35, 0.5), w("hundred", 0.5, 0.7), w("percent", 0.7, 1.0), w("since", 1.05, 1.3)]
+    heard = [w("grown", 0.0, 0.3), w("400%", 0.35, 1.0), w("since", 1.05, 1.3)]
+    words, changed = R.caption_words(heard, cut)
+    assert [x["text"] for x in words] == ["grown", "400%", "since"] and not changed, words
+
+
 def test_verify_counts_a_misheard_name_as_heard_differently():
     """Same audio, two passes: 'jev' at 1.2 s heard as 'jeff' is not a missing word; a word gone from the
     audio (nothing heard at its time) still is."""

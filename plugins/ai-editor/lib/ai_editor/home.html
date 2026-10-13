@@ -7,12 +7,12 @@
 <link rel="icon" href="data:,">
 <style>
 :root{--bg:#FAFAF9;--panel:#FFFFFF;--ink:#0C0A09;--t2:#57534E;--t3:#78716C;--t4:#A8A29E;--line:#E7E5E4;--soft:#F5F5F4;--ring:#D6D3D1;
-  --onink:#FFFFFF;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color-scheme:light}
+  --onink:#FFFFFF;--ok:#15803D;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color-scheme:light}
 /* dark: the OS setting until the user picks with the header switch (html[data-theme]), as on the review page */
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#100E0E;--panel:#161413;--ink:#F2F0EB;--t2:rgba(242,240,235,.80);--t3:rgba(242,240,235,.58);--t4:rgba(242,240,235,.42);
-  --line:rgba(255,255,255,.10);--soft:rgba(255,255,255,.06);--ring:rgba(255,255,255,.22);--onink:#100E0E;color-scheme:dark}}
+  --line:rgba(255,255,255,.10);--soft:rgba(255,255,255,.06);--ring:rgba(255,255,255,.22);--onink:#100E0E;--ok:#3DAA6B;color-scheme:dark}}
 :root[data-theme=dark]{--bg:#100E0E;--panel:#161413;--ink:#F2F0EB;--t2:rgba(242,240,235,.80);--t3:rgba(242,240,235,.58);--t4:rgba(242,240,235,.42);
-  --line:rgba(255,255,255,.10);--soft:rgba(255,255,255,.06);--ring:rgba(255,255,255,.22);--onink:#100E0E;color-scheme:dark}
+  --line:rgba(255,255,255,.10);--soft:rgba(255,255,255,.06);--ring:rgba(255,255,255,.22);--onink:#100E0E;--ok:#3DAA6B;color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--ink);font:14px/20px system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
@@ -28,7 +28,7 @@ header{display:flex;align-items:center;justify-content:space-between;height:64px
 .step{display:flex;gap:8px;align-items:center;padding:7px 14px;border-radius:9px;border:0;background:none;color:var(--t4);font-size:14px;line-height:18px}
 .step i{font-style:normal;font-size:13px}
 .step.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px #0C0A0914}
-.step.done{color:var(--t2)}
+.step.done{color:var(--t2)}.step.done svg{color:var(--ok)}   /* done is green (review.html's --done), the current step stays ink */
 .step:disabled{cursor:default}
 .bars{display:none}
 .live{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;gap:8px;align-items:center;justify-content:flex-end;width:260px;flex-shrink:0;font-size:13px;line-height:16px;color:var(--t3);text-align:right}
@@ -68,8 +68,8 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 .faint{color:var(--t4)}
 .row{display:flex;align-items:center;gap:10px}
 .between{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
-.check{width:16px;display:flex;justify-content:center;flex-shrink:0}
-.dot{width:7px;height:7px;border-radius:4px;background:var(--ink)}
+.check{width:16px;display:flex;justify-content:center;flex-shrink:0}.check svg{color:var(--ok)}
+.dot{width:7px;height:7px;border-radius:4px;background:var(--ok)}
 .ring{width:7px;height:7px;border-radius:4px;border:1.5px solid var(--ring)}
 .btn{white-space:nowrap;height:42px;padding:0 22px;border-radius:12px;border:1px solid var(--ink);background:var(--panel);font-weight:600;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
 .btn.dark{background:var(--ink);color:var(--onink)}
@@ -87,7 +87,7 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 .kr{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;padding-top:2px}
 .kname{font-size:15px;line-height:20px;font-weight:600}
 .msg{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:18px;color:var(--t3)}
-.msg.ok,.msg.bad{color:var(--ink)}
+.msg.bad{color:var(--ink)}.msg.ok{color:var(--ok)}
 .foot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 24px;border-top:1px solid var(--line);margin-top:auto}
 .mono{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:12px;line-height:16px;color:var(--t3)}
 .big-input{display:flex;align-items:center;gap:10px;height:72px;border:1.5px solid var(--ink);border-radius:14px;background:var(--panel);padding:0 16px 0 22px}
@@ -159,7 +159,7 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 .file{display:flex;align-items:center;gap:16px;border:1.5px solid var(--ink);border-radius:16px;padding:14px 20px;background:var(--panel)}
 .empty{color:var(--t3);font-size:14px;line-height:21px;padding:24px}
 .hide{display:none!important}
-.tick{width:18px;height:18px;border-radius:9px;background:#16A34A;color:#fff;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.tick{width:18px;height:18px;border-radius:9px;background:var(--ok);color:#fff;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .tick svg{width:10px;height:10px}
 .todo{width:18px;height:18px;border-radius:9px;border:1.5px solid var(--ring);flex-shrink:0}
 .logo{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--t2)}

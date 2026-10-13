@@ -4,6 +4,10 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Done is green in the home window, the same green as the review page: the ticks on finished steps and
+  videos, "Saved. The key works.", the done step numbers and the Ready to watch / Ready to review dot.
+  The current step, buttons and text stay black.
+
 - Folders for Your videos and My styles. A row of folder tiles sits under the heading: name, how many are
   inside and two small pictures, then a dashed New folder tile (type the name, Enter saves, Esc cancels).
   Click a folder to see only what is in it, with "‹ All videos" or "‹ All styles" to go back. Move a video or

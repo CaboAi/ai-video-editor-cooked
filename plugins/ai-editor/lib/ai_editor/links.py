@@ -268,8 +268,8 @@ def classify(raw, own=False):
         if parts and parts[0] not in ("explore", "accounts", "direct"):
             h = parts[0].lower()
             return _item("creator", f"https://www.instagram.com/{h}/", platform="instagram", handle=h,
-                         note="Instagram hides profiles from yt-dlp: paste 3-10 of their reel links, "
-                              "or their TikTok or YouTube handle")
+                         note="Instagram lists a profile only when you are logged in to instagram.com in your browser. "
+                              "Or paste 3-6 of their reel links.")
 
     # X / Twitter
     if host in ("x.com", "twitter.com", "mobile.twitter.com", "fxtwitter.com", "vxtwitter.com"):

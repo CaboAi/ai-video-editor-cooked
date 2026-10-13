@@ -50,8 +50,11 @@ plain `wait` afterwards unless the user asks for more.
 ## Questions
 
 Ask with AskUserQuestion as usual. When the home page or a review page is open and showing, a hook
-(`lib/ai_editor/askhook.py`) puts the question on that page: the options, an Other box, and "Answer in
-Claude Code instead". The answer comes back as the tool's result, the same as a terminal answer. No page
+(`lib/ai_editor/askhook.py`) puts the question on that page: the options, an Other box with a paperclip (an image
+can also be pasted or dropped on the card), and "Answer in Claude Code instead". Images are saved on this
+computer (the review page: `<edit>/review/`; the home page: `<edit>/asks/`, or `$AI_EDITOR_HOME/asks` with no
+edit folder yet) and the answer ends with `Attached images: /abs/a.png (Read each one to see it)`: Read every
+listed image before acting on the answer. The answer comes back as the tool's result, the same as a terminal answer. No page
 showing, "Answer in Claude Code instead", or 10 minutes with no answer: the terminal box shows. Never ask
 a question in plain chat text when AskUserQuestion fits: only the tool reaches the page. A question only
 reaches pages this session works on (the home page while it holds a job there or listens, the review page

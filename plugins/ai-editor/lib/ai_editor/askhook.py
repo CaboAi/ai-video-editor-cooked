@@ -28,12 +28,20 @@ The servers (route() below, called from both):
     GET  /ask[?v=1]              the page's poll: the oldest open question or null (v=1: the page is showing)
     GET  /ask?id=X               the hook's poll: {"result": null | {"answers": [...]} | {"terminal": true}}
     POST /ask {id, questions}    the hook asks
-    POST /ask/answer {id, answers | terminal}   the page answers (one string per question)
+    POST /ask/answer {id, answers | terminal, images?}   the page answers (one string per question; images: one
+                                 list of image data urls per question, saved where the server keeps them, see below)
     POST /ask/clear {id}         the hook is done: every page drops it
     POST /ask/gone               the tab closed (pagehide beacon): not showing any more, so no question waits on it
+
+Images on an answer (the paperclip, a paste or a drop on the card): png, jpeg, gif or webp, under 15 MB each, at most 6
+per answer, the review notes' limits. Saved on this computer only: a review page keeps them in <edit>/review/ beside its
+notes' pictures, the home page in the asking job's <edit>/asks/ (or $AI_EDITOR_HOME/asks with no edit folder yet). The
+answer Claude gets ends with a line "Attached images: /abs/a.png (Read each one to see it)".
 """
+import base64
 import json
 import os
+import re
 import secrets
 import sys
 import time
@@ -45,6 +53,46 @@ JS = Path(__file__).with_name("ask.js")
 LIVE_S = 20          # a page polled this recently is being looked at
 TIMEOUT_S = 600      # then the terminal box shows (hooks.json gives the hook 900 s)
 KEEP_S = TIMEOUT_S + 60   # a question whose hook was stopped (Esc in Claude Code) leaves the pages by then
+MAX_IMAGE = 15 << 20      # an attached image (review notes and answers)
+MAX_IMAGES = 6
+MAX_BODY = MAX_IMAGES * MAX_IMAGE * 4 // 3 + (1 << 20)   # a POST carrying that many, base64
+
+
+def save_images(folder, imgs, prefix, keep=()):
+    """Attached pictures: names already kept (keep) and pasted, dropped or picked data urls (saved into folder).
+    Only png, jpeg, gif and webp, under MAX_IMAGE each, at most MAX_IMAGES. The saved names, in order."""
+    out = []
+    for im in imgs:
+        if len(out) == MAX_IMAGES or not isinstance(im, str):
+            continue
+        if im in keep:
+            out.append(im)
+            continue
+        m = re.match(r"data:image/(png|jpeg|gif|webp);base64,(.+)", im, re.S)
+        if not m:
+            continue
+        try:
+            raw = base64.b64decode(m[2])
+        except ValueError:
+            continue
+        if len(raw) > MAX_IMAGE:
+            continue
+        folder.mkdir(parents=True, exist_ok=True)
+        k = 1
+        while any((folder / f"{prefix}-img{k}.{x}").exists() for x in ("jpg", "png", "gif", "webp")):
+            k += 1
+        name = f"{prefix}-img{k}.{'jpg' if m[1] == 'jpeg' else m[1]}"
+        (folder / name).write_bytes(raw)
+        out.append(name)
+    return out
+
+
+def with_images(text, paths):
+    """An answer and the images attached to it, as the text Claude reads."""
+    if not paths:
+        return text
+    line = "Attached images: " + ", ".join(str(p) for p in paths) + " (Read each one to see it)"
+    return text + "\n" + line if text else line
 
 
 def pages():
@@ -56,12 +104,14 @@ def session():
     return os.environ.get("CLAUDE_CODE_SESSION_ID", "").strip()
 
 
-def register(srv, url, kind=None, owner=None):
+def register(srv, url, kind=None, owner=None, where=None):
     """A server's page file, touched while a page is showing. owner(session_id) -> what the question is
-    about ("" for nothing to name), or None when that session's questions do not belong on this page."""
+    about ("" for nothing to name), or None when that session's questions do not belong on this page.
+    where(session_id) -> the folder an answer's images are saved in (default $AI_EDITOR_HOME/asks)."""
     srv.ask_url, srv.asks = url, {}
     srv.ask_kind = kind or getattr(srv, "ask_kind", None)
     srv.ask_owner = owner or getattr(srv, "ask_owner", None)
+    srv.ask_where = where or getattr(srv, "ask_where", None)
     p = pages() / str(srv.server_address[1])
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -119,18 +169,28 @@ def route(h, method, path, query, body=None):
         about = owner(sid if isinstance(sid, str) else "") if owner else None
         if about is None:   # another session's question: not for this page
             return h.send(409, {}) or True
-        asks[body["id"]] = {"questions": qs, "at": time.time(), "about": about}
+        where = getattr(srv, "ask_where", None)
+        folder = where(sid if isinstance(sid, str) else "") if where else None
+        asks[body["id"]] = {"questions": qs, "at": time.time(), "about": about,
+                            "dir": str(folder or pages().parent / "asks")}
         h.send(200, {})
     elif method == "POST" and path == "/ask/answer":
         a = asks.get(body.get("id"))
         ans = body.get("answers")
         if not a or a.get("result"):
             return h.send(409, {}) or True
+        imgs = body.get("images") or [[] for _ in a["questions"]]
         if body.get("terminal") is True:
             a["result"] = {"terminal": True}
-        elif isinstance(ans, list) and len(ans) == len(a["questions"]) and all(
-                isinstance(x, str) and x.strip() and len(x) <= 4000 for x in ans):
-            a["result"] = {"answers": [x.strip() for x in ans]}
+        elif isinstance(ans, list) and len(ans) == len(a["questions"]) and isinstance(imgs, list) \
+                and len(imgs) == len(ans) and all(isinstance(x, str) and len(x) <= 4000 and isinstance(m, list)
+                                                  and (x.strip() or m) for x, m in zip(ans, imgs)):
+            folder, tag = Path(a["dir"]), re.sub(r"[^\w-]", "", body["id"])[:16]
+            out = [with_images(x.strip(), [folder / n for n in save_images(folder, m, f"ask-{tag}-q{k + 1}")])
+                   for k, (x, m) in enumerate(zip(ans, imgs))]
+            if not all(out):   # images only, and none of them an image
+                return h.send(400, {}) or True
+            a["result"] = {"answers": out}
         else:
             return h.send(400, {}) or True
         h.send(200, {})
@@ -336,6 +396,28 @@ def demo():
     assert o["hookEventName"] == "PreToolUse" and o["permissionDecision"] == "allow", o
     assert o["updatedInput"] == {"questions": qs, "answers": {"Which cut?": "Tight (Recommended)", "Which parts?": "Captions, Zooms"}}, o
     assert _call(url, "/ask?v=1")["ask"] is None and not srv.asks, "answered: it leaves every page"
+    # images on an answer: saved where the server keeps them, their absolute paths in the answer Claude gets
+    png = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJ"
+           "RU5ErkJggg==")
+    srv.ask_where = lambda s: tmp / "edit" / "review"
+    th, box = run_hook()
+    a = page()
+    for bad in ({"id": a["id"], "answers": ["", "x"], "images": [["data:text/html;base64,PGI+"], []]},
+                {"id": a["id"], "answers": ["x", "y"], "images": [[png]]}):
+        try:
+            _call(url, "/ask/answer", bad)
+            raise AssertionError(f"accepted {bad}")
+        except urllib.error.HTTPError as e:
+            assert e.code == 400, e.code
+    _call(url, "/ask/answer", {"id": a["id"], "answers": ["Loose", ""], "images": [[png, "data:text/html;base64,PGI+"], [png]]})
+    th.join()
+    got = json.loads(box["r"].stdout)["hookSpecificOutput"]["updatedInput"]["answers"]
+    saved = sorted((tmp / "edit" / "review").iterdir())
+    assert [f.name for f in saved] == [f"ask-{a['id'][:16]}-q1-img1.png", f"ask-{a['id'][:16]}-q2-img1.png"], saved
+    assert got == {"Which cut?": f"Loose\nAttached images: {saved[0]} (Read each one to see it)",
+                   "Which parts?": f"Attached images: {saved[1]} (Read each one to see it)"}, got
+    assert saved[0].read_bytes()[:4] == b"\x89PNG" and saved[0].is_absolute()
+    srv.ask_where = None
     # "Answer in Claude Code instead": silent, cleared
     th, box = run_hook()
     _call(url, "/ask/answer", {"id": page()["id"], "terminal": True})

@@ -10,6 +10,17 @@ What changed for every user, newest first.
   frame-counted once instead of three times. Reader cuts on takes over 5 minutes go straight in, highlighted,
   and the judge checks them, instead of a second wave of agents. The judge stops after 2 rounds, and the
   mechanical steps (build, render, verify, cut page) run as one command.
+## ai-editor 2.6.7 (2026-10-13)
+
+- Images in your answers. When Claude asks a question in the editor window, attach a picture to your
+  answer with the paperclip, or paste or drop one on the question. For example a screenshot of how a title
+  should look. Claude opens it before it carries on. Images stay on your computer, next to the edit.
+## ai-editor 2.6.6, creator-teardown 2.7.1 (2026-10-13)
+
+- Paste an Instagram profile to see its newest reels, as with TikTok and YouTube. It uses your own
+  Instagram login from your browser, read on your computer and sent only to instagram.com. Not logged in,
+  the window says to log in to instagram.com in Chrome and paste it again, or to paste reel links.
+
 ## ai-editor 2.6.5 (2026-10-13)
 
 - Two videos at once. Make a video while Claude is making another, and a second Claude opens in its own

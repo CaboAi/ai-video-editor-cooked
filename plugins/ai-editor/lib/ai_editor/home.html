@@ -957,7 +957,8 @@ async function startCut(){const r=await queue({type:'video',path:ui.file.path,as
 
 // ---------------------------------------------------------------- returning user (Paper "J launcher + pick")
 // New video (pick clips) -> Pick a style -> Making your video; Home (welcome back), Your videos, My style, Settings.
-let L=null, R=null, rv=null;
+let L=null, R=null, rv=['home','videos','mystyle','settings','new'].includes(location.hash.slice(1))?location.hash.slice(1):null;   // the review page's rail opens a view: #videos
+if(location.hash)history.replaceState(null,'',location.pathname+location.search);
 const nv={sel:[],clips:{},join:true,aspect:'9:16',style:'mine',filter:'all',making:[],up:[],script:'',scriptName:'',scriptMsg:'',draft:null};
 const CMD='nextwork-editor';
 const UP='<svg width="22" height="22" viewBox="0 0 22 22"><path d="M11 15V5M7 9l4-4 4 4M4 15v2a1 1 0 001 1h12a1 1 0 001-1v-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';

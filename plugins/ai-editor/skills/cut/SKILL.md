@@ -32,7 +32,7 @@ Ask for their take's path. Several files: `references/takes.md`. None: offer the
 vertical, retakes, false starts and pauses kept) and download it to their folder:
 
 ```bash
-curl -L -o sample-take.mp4 https://github.com/nextwork-projects/ai-video-editor/releases/download/sample-video/sample-take.mp4
+curl -L -o sample-take.mp4 https://github.com/nextwork-projects/ai-video-editor-cooked/releases/download/sample-video/sample-take.mp4
 ```
 
 ## 0. Ask: the cut first, or everything at once

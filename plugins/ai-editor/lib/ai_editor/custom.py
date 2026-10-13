@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import library  # noqa: E402
 
 KINDS = ("rules", "captions", "templates", "prompts")
-README = """# Your changes to the AI editor
+README = """# Your changes to cooked.
 
 Everything in this folder is yours. Updating the editor replaces the editor's own files, never this
 folder, so what you put here keeps working after every update. The editor reads this folder first.

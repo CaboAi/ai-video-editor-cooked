@@ -1108,34 +1108,37 @@ def new_own_style(root, name, skill=None):
     return "@" + h
 
 
+def default_style(cards):
+    """The style New video starts on: the one the user made default while it exists, else My style."""
+    d = read().get("default_style")
+    return d if any(c["id"] == d for c in cards) else "mine"
+
+
 def delete_style(root, sid, measured=False):
-    """A studied creator's style goes: its picks (<h>-mine), its style.json, corrections and cover, its
-    edit-like skill, and its place in profile.json. The measured videos stay unless `measured`. My style is
-    never deleted. Returns the paths removed ([] when it was already gone)."""
+    """A style goes, to the Trash (never a permanent delete): its picks (<h>-mine), its style.json, corrections
+    and cover, its skill folder, and its place in profile.json. A studied creator's measured videos stay unless
+    `measured`; a style the user built (own-*) goes with its whole folder. My style is never deleted. Returns
+    the paths removed ([] when it was already gone)."""
     d = style_dir(root, sid)
     if d is None or sid == "mine":
         raise ValueError("not a creator style")
     try:
-        sample = json.loads((d / "style.json").read_text(encoding="utf-8")).get("sample")
+        st = json.loads((d / "style.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        sample = False
-    if sample:
+        st = {}
+    if st.get("sample"):
         raise ValueError("a sample style ships with the editor and cannot be deleted")
     _, ss = _taste()
     gone = []
     if (d / "style.json").is_file():
-        sk = ss.remove(d / "style.json")   # its skill folder and its name; the other style skills stop naming it
+        sk = ss.remove(d / "style.json", rm=trash)   # its skill folder and its name; the other style skills stop naming it
         gone.append(str(sk))
-    parts = [d.with_name(d.name + "-mine")] + ([d] if measured else [d / f for f in ("style.json", ss.OVERRIDES, "cover.jpg")])
+    whole = measured or st.get("own") or d.name.startswith("own-")
+    parts = [d.with_name(d.name + "-mine")] + ([d] if whole else [d / f for f in ("style.json", ss.OVERRIDES, "cover.jpg")])
     for p in parts:
-        inside = p.resolve().parent in (d.parent.resolve(), d.resolve())
-        if inside and p.is_dir():
-            shutil.rmtree(p)
-        elif inside and p.is_file():
-            p.unlink()
-        else:
-            continue
-        gone.append(str(p))
+        if p.resolve().parent in (d.parent.resolve(), d.resolve()) and p.exists() and trash(p):
+            gone.append(str(p))
+    update(lambda x: x.__setitem__("archived_styles", [a for a in x.get("archived_styles") or [] if a != sid]))
     pf, prof = home().parent / "profile.json", _profile()
     h = d.name
     if any(c.get("handle") == h for c in prof.get("creators") or []):
@@ -1504,9 +1507,11 @@ def make_handler(token):
                     if j["type"] == "teardown" and j["state"] in ("queued", "taken") and "@" + str(h) not in [c["id"] for c in cards]:
                         cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True, "face": face_of(root, h),
                                       "line": "Being analysed now. Your cut starts first; the style waits for it."})
+                arch = set(read().get("archived_styles") or [])   # Archive: off Styles, Home and Pick a style; files untouched
                 return self.send(200, {"path": root, "place": place(root), "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
-                                       "custom": str(custom.path(False)), "videos": vids, "styles": cards, "folders": folders(),
-                                       "default_style": read().get("default_style") if any(c["id"] == read().get("default_style") for c in cards) else "mine"})
+                                       "custom": str(custom.path(False)), "videos": vids, "folders": folders(),
+                                       "styles": [c for c in cards if c["id"] not in arch], "archived_styles": [c for c in cards if c["id"] in arch],
+                                       "default_style": default_style(cards)})
             if path == "/skills":   # New style, "Use your own skill"
                 return self.send(200, {"skills": editing_skills(read()["root"])})
             if path == "/recent":
@@ -1732,6 +1737,14 @@ def make_handler(token):
                     return self.send(404, {"error": "No such style."})
                 update(lambda d: d.__setitem__("default_style", sid))
                 return self.send(200, {"ok": True, "default_style": sid})
+            if path == "/style/archive":   # {id, on}: on (the default) archives, on=false brings it back
+                sid, on, cards = str(body.get("id") or ""), body.get("on") is not False, style_cards(read()["root"])
+                if not any(c["id"] == sid for c in cards):
+                    return self.send(404, {"error": "No such style."})
+                if on and sid == default_style(cards):
+                    return self.send(400, {"error": "This is your default style. Make another style the default first."})
+                update(lambda d: d.__setitem__("archived_styles", [x for x in d.get("archived_styles") or [] if x != sid] + ([sid] if on else [])))
+                return self.send(200, {"ok": True})
             if path == "/style/reset-all":
                 reset_mine()
                 return self.send(200, {"ok": True})
@@ -2134,6 +2147,8 @@ def demo():
     import atexit
     atexit.register(lambda: [p.terminate() for p in _spawned])   # a failed check leaves no review server behind
     os.environ["AI_EDITOR_HOME"] = str(tmp / "home")
+    # the self-check never touches the real Trash: "trashed" files are removed from the temp folder instead
+    globals()["trash"] = lambda p: (shutil.rmtree(p) if Path(p).is_dir() else Path(p).unlink(missing_ok=True)) or not Path(p).exists()
     for v in keys.VARS.values():
         os.environ.pop(v, None)
     root = tmp / "work"
@@ -2601,7 +2616,30 @@ def demo():
     assert post("/style/default", {"id": oid})["default_style"] == oid and get("/library")["default_style"] == oid
     assert post("/style/set", {"id": oid, "key": "zoom.preset", "value": "none"})["presets"]["zoom"]["sel"] == "none"
     assert post("/style/delete", {"id": oid})["ok"] and get("/library")["default_style"] == "mine"
-    assert oid not in [c["id"] for c in get("/library")["styles"]]
+    assert oid not in [c["id"] for c in get("/library")["styles"]] and not (root / "creator-teardowns" / oid[1:]).exists()
+    # Archive: off the styles list (Styles, Home and Pick a style all read it), files kept; Unarchive brings it back
+    aid = post("/style/new", {"name": "Old reels"})["id"]
+    assert post("/style/archive", {"id": aid})["ok"]
+    lib = get("/library")
+    assert aid not in [c["id"] for c in lib["styles"]] and [c["id"] for c in lib["archived_styles"]] == [aid]
+    assert (root / "creator-teardowns" / aid[1:] / "style.json").is_file(), "archive leaves the files alone"
+    assert post("/style/archive", {"id": aid, "on": False})["ok"] and aid in [c["id"] for c in get("/library")["styles"]]
+    assert get("/library")["archived_styles"] == []
+    for bad, code in (("mine", 400), ("@nope", 404)):   # the default style stays until another is made default
+        try:
+            post("/style/archive", {"id": bad})
+            raise AssertionError(bad)
+        except urllib.error.HTTPError as e:
+            assert e.code == code, (bad, e.code)
+    post("/style/default", {"id": aid})
+    try:
+        post("/style/archive", {"id": aid})
+        raise AssertionError("default archived")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    post("/style/default", {"id": "mine"})
+    assert post("/style/archive", {"id": aid})["ok"] and post("/style/delete", {"id": aid})["ok"]
+    assert get("/library")["archived_styles"] == [] and not (root / "creator-teardowns" / aid[1:]).exists()
     # a skill style: style.json names a skill, the card and page show the skill and no controls, the job carries it
     kd, sks = root / "creator-teardowns" / "own-skilled", root / ".claude" / "skills"
     kd.mkdir()
@@ -2638,7 +2676,9 @@ def demo():
         raise AssertionError("a bad skill name made a style")
     except urllib.error.HTTPError as e:
         assert e.code == 400
+    assert post("/style/archive", {"id": nid})["ok"] and nid in [c["id"] for c in get("/library")["archived_styles"]]   # skill styles archive too
     assert post("/style/delete", {"id": nid})["ok"] and (sks / "my-edit-style" / "SKILL.md").is_file()
+    assert not (root / "creator-teardowns" / nid[1:]).exists() and get("/library")["archived_styles"] == []
     post("/scanhome", {"on": False})   # picked files stay listed without the opt-in
     assert {r["name"] for r in get("/recent")["videos"]} == {"a.mov", "b.mov", "c.mp4", "drop.mp4", "take.mp4"}
 

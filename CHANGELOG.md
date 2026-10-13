@@ -10,6 +10,16 @@ What changed for every user, newest first.
   "Opening Claude in a new Terminal window..." and, if nothing connects within a minute, offers Try again.
   `nextwork-editor` now opens that Claude too when the window is already open and nobody is listening;
   `nextwork-editor --window-only` opens just the window.
+- Every video card has one layout, tall or wide: the picture on top (a tall video shows whole over a blurred
+  copy of itself), then the name, the details, the status and the button at full width along the bottom. The
+  buttons in a row line up. Done tiles and folders use the same picture area.
+- See all on Home opens Your videos or Styles instead of growing Home.
+- New folder sits next to New style on Styles and at the top of Your videos.
+- Archive a style from its ⋯ menu to take it off Styles, Home and Pick a style without deleting anything. An
+  Archived tab brings it back. Deleting a style moves it and its skill to the Trash.
+
+- Every page in the window ends with space under its last row, so the last card or line never sits on the
+  bottom edge of the window.
 - Card edits show real things, never a card of words on white. In the Card edit style (and your own
   card-edit style) every card is a screenshot of the page or app named, framed round it to fill the band
   above your head, a logo on its own white card, your photo or an animation. Cards come at the style's rate

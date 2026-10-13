@@ -557,7 +557,10 @@ body.rh main.hmain{padding:28px 40px 32px}
 /* ---- the app shell (Paper "P App: main"): a labelled sidebar, or the icon rail when collapsed or narrow ---- */
 body.rh{background:var(--page)}body.rh header{display:none}
 body.rh main{padding:28px 40px 24px}
-main.pg{display:block;overflow-y:auto;padding:36px 40px 32px!important}
+main.pg{display:block;overflow-y:auto;padding:36px 40px 0!important;scrollbar-gutter:stable}
+/* the scrolling page: its content ends 56 px above the window edge (a spacer, because a max-height child's overflow
+   is not followed by the scroller's own bottom padding) */
+main.pg>*{max-height:none}main.pg>:not(.pgc){padding-bottom:56px}main.pg>.pgc::after{content:"";display:block;height:24px;flex-shrink:0}
 .sbar{width:232px;flex-shrink:0;height:100vh;height:100dvh;position:sticky;top:0;display:flex;flex-direction:column;gap:4px;padding:16px 12px;background:var(--side);border-right:1px solid var(--line);overflow:hidden}
 .sbar button{border:0;background:none;padding:0;text-align:left}
 .sb-brand{display:flex;align-items:center;justify-content:space-between;height:48px;padding:0 4px 12px 12px;flex-shrink:0}
@@ -612,9 +615,10 @@ body.rail .sb-theme{margin-top:2px}
 .cmenu hr{border:0;border-top:1px solid var(--line);margin:4px 8px}
 .cmenu.top{position:fixed!important;right:auto!important;margin:0}
 #menus{position:fixed;inset:0;pointer-events:none;z-index:70}#menus>*{pointer-events:auto}
+.cmenu .mnote{display:flex;gap:10px;padding:8px;font-size:14px;line-height:18px;color:var(--t3);white-space:normal;max-width:260px}.cmenu .mnote svg{flex-shrink:0;margin-top:1px}.cmenu .mnote small{display:block;font-size:12px;line-height:16px;margin-top:2px}
 .cmenu .mh{padding:8px 8px 4px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--t3)}
 .cmenu .sub{min-width:200px;left:calc(100% + 6px);top:-5px}
-.th .cmenu,.dt .pic .cmenu{left:calc(100% - 40px);right:auto;top:38px}
+.th .cmenu,.pa .cmenu{left:calc(100% - 40px);right:auto;top:38px}
 .cmenu.flip{left:auto!important;right:6px!important}.cmenu.subflip .sub{left:auto;right:calc(100% + 6px)}
 /* page heads and sections */
 .ph{display:flex;flex-direction:column;gap:4px}
@@ -626,35 +630,37 @@ body.rail .sb-theme{margin-top:2px}
 .sh b{font-size:17px;line-height:22px;font-weight:600}
 .back{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;border:0;background:none;padding:2px 4px;margin:0 0 6px -4px;border-radius:6px;font-size:15px;line-height:20px;color:var(--t2);text-decoration:underline 1px;text-underline-offset:4px;outline:1.5px solid transparent;outline-offset:-1.5px}
 .back:hover{color:var(--ink)}.back.over{outline-color:var(--ink);text-decoration:none}
-/* video cards: the status bar along the bottom (green and full when done, black and part-filled while being made) */
-/* video cards: a grid of equal columns; each card lays itself out from its own width (container query):
-   narrow, the picture sits on top; wide enough, beside the text. Text never wraps or leaves the card. */
-.vcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
-.vc{container-type:inline-size;min-width:0;cursor:pointer}.vc.dragsrc,.dt.dragsrc{opacity:.45}
-.vi{position:relative;display:flex;flex-direction:column;gap:10px;padding:12px 12px 16px;border-radius:12px;background:var(--card);height:100%;min-width:0}
-.vi>.th{position:relative;flex-shrink:0;height:90px;aspect-ratio:16/9;align-self:flex-start;border-radius:8px;background:#45403C center/cover}
-.vc:not(.vw) .vi>.th{height:160px;aspect-ratio:9/16}
-.vi .tx{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:10px}
+/* video cards: one layout for every video, tall or wide. A grid of equal columns, every card in a row the same
+   height: the picture area (one height), title, meta, status, then the button pinned to the bottom at full width,
+   so the buttons in a row line up. The status bar runs along the bottom (green and full when done, black while made). */
+.vcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;align-items:stretch}
+.vc{min-width:0;cursor:pointer}.vc.dragsrc,.dt.dragsrc{opacity:.45}
+.vi{position:relative;display:flex;flex-direction:column;gap:12px;padding:14px 14px 18px;border-radius:12px;background:var(--card);height:100%;min-width:0}
+/* the picture area: a wide frame fills it; a tall frame shows whole, centred, over a blurred copy of itself */
+.pa{position:relative;flex-shrink:0;height:168px;border-radius:8px;overflow:hidden;background-color:#45403C;background-image:var(--u,none);background-position:center;background-size:cover}
+.pa.tall{background-image:none}
+.pa.tall::before{content:"";position:absolute;inset:-20px;background:var(--u,none) center/cover;filter:blur(16px) brightness(.85)}
+.pa.tall::after{content:"";position:absolute;inset:0;background:var(--u,none) center/contain no-repeat}
+.vi .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
 .vi .nm,.vi .mt,.vi .stt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
 .vi .nm{font-size:16px;line-height:20px;font-weight:500;color:var(--ink)}
 .vi .mt{font-size:13px;line-height:16px;color:var(--t3);margin-top:4px}
-.vi .st{display:flex;flex-direction:column;align-items:stretch;gap:8px;min-width:0}
+.vi .st{display:flex;flex-direction:column;align-items:stretch;gap:12px;min-width:0;margin-top:auto}
 .vi .stt{font-size:13px;line-height:16px;font-weight:600;color:var(--ink)}.vi .stt.ok{color:var(--oktext)}.vi .stt span{font-variant-numeric:tabular-nums}
-.vi .st>button{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.vi .st>button{width:100%;overflow:hidden;text-overflow:ellipsis}
 .vi .nclaude{font-size:13px;line-height:18px;min-width:0}.vi .nclaude .btn{max-width:100%;white-space:normal;height:auto;min-height:38px;padding:6px 14px}
 .vi .bar{position:absolute;left:0;right:0;bottom:0;height:4px;border-radius:0 0 12px 12px;background:var(--track);overflow:hidden}.vi .bar.ok{background:var(--ok)}
 .vi .bar>i{display:block;height:4px;background:var(--ink)}.vi .bar.indet>i{width:40%;animation:slide 1.3s ease-in-out infinite}
-@container (min-width:300px){.vc:not(.vw) .vi{flex-direction:row;gap:16px}.vc:not(.vw) .vi>.th{height:172px}.vc:not(.vw) .vi .st{align-items:flex-start}.vc:not(.vw) .vi .tx{padding-top:4px}}
-@container (min-width:440px){.vc.vw .vi{flex-direction:row;gap:16px}.vc.vw .vi>.th{height:95px}.vc.vw .vi .st{align-items:flex-start}.vc.vw .vi .tx{padding-top:4px}}
 @media (min-width:761px) and (max-height:780px){main.pg .pgc{gap:24px}.pgc .hdrop{height:68px}}
 .vfill{flex:1 1 0;min-width:0}
-/* done tiles: one row height, the width follows the video's shape */
-.dts{display:flex;gap:14px;flex-wrap:wrap;row-gap:20px}
-.dt{display:flex;flex-direction:column;gap:6px;flex-shrink:0;min-width:0;cursor:pointer}
-.dt .pic{position:relative;border-radius:8px;background:#45403C center/cover}
+.hact{gap:8px;flex-shrink:0}
+.nfhead{display:flex;flex-direction:column;gap:4px}.nfhead input{height:40px;width:220px;padding:0 12px;border:1px solid var(--ink);border-radius:10px;background:var(--inbg);color:var(--ink);font:inherit;font-size:14px;outline:0}.nfhead .msg{font-size:12px}
+/* done tiles: the cards' columns and picture area, without the card */
+.dts{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px 12px}
+.dt{display:flex;flex-direction:column;gap:6px;min-width:0;cursor:pointer}
 .dt .nm{font-size:14px;line-height:18px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dt .mt{font-size:13px;line-height:16px;color:var(--t3);margin-top:-2px}
-.dt:hover .pic{filter:brightness(.96)}
+.dt:hover .pa{filter:brightness(.96)}
 /* home */
 .hdrop{display:flex;gap:12px;height:76px;flex-shrink:0}
 .hdrop>*{flex:1 1 0;min-width:0;border-radius:12px;display:flex;align-items:center}
@@ -1467,7 +1473,7 @@ function flashBuilt(){
 }
 // ---- styles (Paper "P App: styles"): Your styles (own) and Creator styles as cards with icon facts; the analysing
 // card first while a format is being analysed; a delete or reset asks in a dialog
-const IC2={cut:'<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/>',
+const IC2={archive:'<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/>',cut:'<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/>',
  pace:'<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/>',caption:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 11h10M7 15h6"/>',
  zoom:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4M11 8v6M8 11h6"/>',sound:'<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/>',
  x:'<path d="M6 6l12 12M18 6 6 18"/>',star:'<path d="M12 4l2.4 5 5.6.6-4.2 3.8 1.2 5.6L12 16.2 7 19l1.2-5.6L4 9.6 9.6 9z"/>'};
@@ -1518,18 +1524,20 @@ function mineCard(c,i){
 const newTile=()=>`<button class="cs newt" onclick="buildYourself()">${ic('plus',20,2)}<b>Build a style yourself</b><span class="t2">Name it, then pick captions, zooms, cut and sound.</span></button>`;
 // rows of three equal cards (My style takes two places)
 function gridRows(items,per=3){const out=[];for(let i=0;i<items.length;i+=per){const r=items.slice(i,i+per);out.push(`<div class="cgrid" style="--per:${per}">${r.join('')}</div>`)}return `<div class="cgrids">${out.join('')}</div>`}
-const STABS=[['all','All'],['own','Built by you'],['cr','From creators'],['sample','Samples']];
+const STABS=[['all','All'],['own','Built by you'],['cr','From creators'],['sample','Samples'],['arch','Archived']];
 const inTab=(c,t)=>t==='all'||(t==='own'?c.own&&!c.sample:t==='cr'?!c.own&&!c.sample:!!c.sample);
 // Styles: one list, every style is the user's; tabs filter it; a style folder (sidebar) filters it too
 function vMyStyle(){
   if(ui.fold.styles&&!fd('styles').folders.some(f=>f.id===ui.fold.styles))ui.fold.styles=null;
-  const st=L?L.styles:[],idx=c=>st.indexOf(c),per=perRow(),f=ui.fold.styles&&fd('styles').folders.find(x=>x.id===ui.fold.styles);
-  const base=f?st.filter(c=>inFold('styles',c.id)===f.id):st,tab=ui.stab||'all';
-  const shown=base.filter(c=>inTab(c,tab)).sort((a,b)=>(!!b.studying-!!a.studying)||(isDefault(b)-isDefault(a))||((b.id==='mine')-(a.id==='mine'))||((b.made||0)-(a.made||0)));
-  const tabs=STABS.filter(([t])=>t!=='sample'||base.some(c=>c.sample)).map(([t,l])=>`<button class="${tab===t?'on':''}" onclick="ui.stab='${t}';render()">${l} <span>${base.filter(c=>inTab(c,t)).length}</span></button>`).join('');
+  const st=L?L.styles:[],all=[...st,...(L&&L.archived_styles||[])],idx=c=>all.indexOf(c),per=perRow(),f=ui.fold.styles&&fd('styles').folders.find(x=>x.id===ui.fold.styles);
+  const inF=c=>!f||inFold('styles',c.id)===f.id,base=st.filter(inF),arch=(L.archived_styles||[]).filter(inF);
+  if(ui.stab==='arch'&&!arch.length)ui.stab='all';
+  const tab=ui.stab||'all',cnt=t=>t==='arch'?arch.length:base.filter(c=>inTab(c,t)).length;
+  const shown=(tab==='arch'?arch:base.filter(c=>inTab(c,tab))).sort((a,b)=>(!!b.studying-!!a.studying)||(isDefault(b)-isDefault(a))||((b.id==='mine')-(a.id==='mine'))||((b.made||0)-(a.made||0)));
+  const tabs=STABS.filter(([t])=>t==='arch'?arch.length:t!=='sample'||base.some(c=>c.sample)).map(([t,l])=>`<button class="${tab===t?'on':''}" onclick="ui.stab='${t}';render()">${l} <span>${cnt(t)}</span></button>`).join('');
   const head=f?`<div class="ph"><button class="back" onclick="ui.fold.styles=null;render()" ${dropAttrs('styles',null)}>${ic('back',14,2)}Styles</button><h1>${esc(f.name)}</h1><p>${base.length} style${base.length===1?'':'s'}. Drag a style onto a folder to move it.</p></div>`
     :`<div class="ph"><h1>Styles</h1><p>How your videos get edited. Each one learns from your reviews.</p></div>`;
-  return `<div class="pgc"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">${head}<button class="b1" style="margin-top:${f?32:0}px" onclick="openCreate()">${ic('plus',16,2.2)}New style</button></div>
+  return `<div class="pgc"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">${head}<div class="row hact" style="margin-top:${f?32:0}px">${newFoldBtn('styles')}<button class="b1" onclick="openCreate()">${ic('plus',16,2.2)}New style</button></div></div>
     <div class="stabs" role="tablist">${tabs}</div>
     ${shown.length||tab==='all'||tab==='own'?gridRows([...shown.map(c=>crCard(c,idx(c))),...(!f&&(tab==='all'||tab==='own')?[newTile()]:[])],per):`<div class="none">${tab==='cr'?'No styles from creators yet. New style analyses 3 to 6 videos edited the same way.':'Nothing here yet.'}</div>`}</div>`;
 }
@@ -1545,7 +1553,7 @@ function renameStyle(id){ui.edit={kind:'name',id,val:null};openStyle(id);setTime
 // a delete or reset asks first, in a dialog (Esc or Keep closes it)
 function askDel(id){ui.del={id,measured:false};ui.delmsg=null;render()}
 function delModal(){
-  const c=ui.del&&((L&&L.styles||[]).find(x=>x.id===ui.del.id)||(ui.spage&&ui.spage.id===ui.del.id?ui.spage:null));if(!c)return '';
+  const c=ui.del&&(styleById(ui.del.id)||(ui.spage&&ui.spage.id===ui.del.id?ui.spage:null));if(!c)return '';
   const mine=c.id==='mine',vids=!c.own&&c.videos;
   return `<div class="modalbg" onclick="if(event.target===this){ui.del=null;render()}"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dtitle">
     <b id="dtitle">${mine?`Reset ${esc(c.name)} to the default style?`:`Delete ${esc(c.name)}?`}</b>
@@ -1559,10 +1567,20 @@ async function delStyle(id){
   if(!r._ok){ui.delmsg={id,msg:r.error||(id==='mine'?'That did not reset.':'That did not delete.')};return render()}
   ui.del=null;if(nv.style===id)nv.style='mine';await loadLib();if(rv==='stylepage'&&id!=='mine')rgo('mystyle');else{if(rv==='stylepage')await loadStyle();render()}
 }
-const sMenu=(c,side='',fold=true)=>c.studying?'':dotsBtn('s:'+c.id,'More for this style')+cMenu('s:'+c.id,[
+// Archive takes a style off Styles, Home and Pick a style (its files stay); the Archived tab brings it back
+const isArch=c=>!!(L&&(L.archived_styles||[]).some(x=>x.id===c.id));
+const styleById=id=>L?[...(L.styles||[]),...(L.archived_styles||[])].find(c=>c.id===id):null;
+const archItem=c=>isDefault(c)?`<div class="mnote">${ic('archive',16)}<span>Archive<small>This is your default style. Make another style the default first.</small></span></div>`:['Archive',`archStyle(${J(c.id)},true)`,'archive'];
+const sMenu=(c,side='',fold=true)=>c.studying?'':dotsBtn('s:'+c.id,'More for this style')+cMenu('s:'+c.id,isArch(c)?[
+  ['Unarchive',`archStyle(${J(c.id)},false)`,'archive'],!c.sample&&c.id!=='mine'&&'hr',!c.sample&&c.id!=='mine'&&['Delete style',`askDel(${J(c.id)})`,'trash']]:[
   !isDefault(c)&&['Make default',`makeDefault(${J(c.id)})`,'star'],['Rename',`renameStyle(${J(c.id)})`,'pencil'],
-  fold&&ui.cmenu==='s:'+c.id&&subMenu('styles',c.id,c.name),['Change image',`pickCover(${J(c.id)})`,'image'],c.cover&&!c.sample&&['Remove image',`removeCover(${J(c.id)})`,'minus'],!c.sample&&'hr',
+  fold&&ui.cmenu==='s:'+c.id&&subMenu('styles',c.id,c.name),['Change image',`pickCover(${J(c.id)})`,'image'],c.cover&&!c.sample&&['Remove image',`removeCover(${J(c.id)})`,'minus'],archItem(c),!c.sample&&'hr',
   c.sample?null:c.id==='mine'?['Reset to default style',`askDel('mine')`,'trash']:['Delete style',`askDel(${J(c.id)})`,'trash']],side);
+async function archStyle(id,on){
+  const c=styleById(id),r=await post('/style/archive',{id,on});if(!r._ok){toast(r.error||'That did not work.');return}
+  await loadLib();if(!(L.archived_styles||[]).length&&ui.stab==='arch')ui.stab='all';
+  toast(on?`Archived ${c?dname(c):'the style'}. It is under Archived in Styles.`:`${c?dname(c):'The style'} is back in Styles.`);render();
+}
 
 // ---- New style: Analyse a format (3 to 6 links, any creators; or pick them from a profile), or Build it yourself
 function openCreate(){ui.create=true;ui.study={};render();setTimeout(()=>{const e=$('#lb-study');if(e)e.focus()},0)}
@@ -1686,7 +1704,7 @@ function useFor(P){
 async function setUse(wide){const r=await post('/style/usefor',{id:ui.sp,text:wide?'Wide 16:9 videos':'Tall 9:16 videos'});if(r._ok){ui.spage=r;loadLib()}render()}
 // a skill style's page: its skill makes the edit, so no Captions/Zooms/Cut/Cards/Sound here
 function vSkillPage(P){
-  const card=(L.styles||[]).find(c=>c.id===P.id)||P,K=P.skill,editing=ui.edit&&ui.edit.kind==='name'&&ui.edit.id===P.id,pic=picOf(P,0);
+  const card=styleById(P.id)||P,K=P.skill,editing=ui.edit&&ui.edit.kind==='name'&&ui.edit.id===P.id,pic=picOf(P,0);
   return `<div class="spg"><div class="spl"><button class="back" style="text-decoration:none;font-size:14px" onclick="rgo('mystyle')">${ic('back',14,2)}Styles</button><div class="pic sprev2" style="background-image:url('${esc(pic.url)}')"></div>
       ${ui.covermsg&&ui.covermsg.id===P.id?`<div class="msg bad">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
       <button class="b1" style="width:100%" onclick="nv.style=${J(P.id)};nv.picked=1;rgo('new')">Make a video with this style</button></div>
@@ -1702,7 +1720,7 @@ function vSkillPage(P){
 function vStylePage(){
   const P=ui.spage;if(!P)return `<div class="pgc"><div class="none">Loading the style...</div></div>`;
   if(P.kind==='skill')return vSkillPage(P);
-  const Z=P.presets,C=Z.captions,job=P.job,jr=job&&job.result||{},card=(L.styles||[]).find(c=>c.id===P.id)||P;
+  const Z=P.presets,C=Z.captions,job=P.job,jr=job&&job.result||{},card=styleById(P.id)||P;
   const jobLine=!job?'':job.state==='queued'?(S.listening?'Claude is picking this up.':connectHTML('Waiting for Claude.')):job.state==='taken'?`Claude: ${esc((job.steps.at(-1)||{}).text||'working on it')}`:job.state==='done'?`Changed: ${esc((jr.changed||[]).join('; ')||'nothing')}`:job.state==='failed'?esc(job.error):'';
   const size=+((C.tiles.find(x=>x.id===C.sel)||{}).block||{}).size_pct||C.size,h=P.own?'':handleOf({...P,own:false});
   const editing=ui.edit&&ui.edit.kind==='name'&&ui.edit.id===P.id,n=card.changes||0;
@@ -1813,17 +1831,19 @@ function vStat(v){
   return {txt:v.round?'Fixing your notes':'Being made',frac:null,btn:see};
 }
 function vCard(v){
-  const s=vStat(v),nc=newClaude(vJob(v)),fn=(fd('videos').folders.find(f=>f.id===inFold('videos',v.dir))||{}).name,meta=[fn,v.stage==='edit'?'Full edit':'Cut',v.wide?'16:9':v.round?`round ${v.round}`:'',ago(v.updated)].filter(Boolean).join(' · ');
-  return `<div class="vc ${v.wide?'vw':''}" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name,v.thumb)}><div class="vi"><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${vMenu(v)}</div>
+  const s=vStat(v),nc=newClaude(vJob(v)),fn=rv==='videos'&&ui.fold.videos?'':(fd('videos').folders.find(f=>f.id===inFold('videos',v.dir))||{}).name,meta=[fn,v.stage==='edit'?'Full edit':'Cut',v.wide?'16:9':v.round?`round ${v.round}`:'',ago(v.updated)].filter(Boolean).join(' · ');
+  return `<div class="vc" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name,v.thumb)}><div class="vi">${picArea(v)}
     <div class="tx"><div style="min-width:0"><div class="nm" title="${esc(v.name)}">${esc(v.name)}</div><div class="mt">${meta}</div></div><div class="st">${nc||`<div class="stt ${s.ok?'ok':''}" title="${esc(s.title||'')}">${s.txt}</div>${s.btn}`}</div></div>
     <div class="bar ${s.ok?'ok':s.frac==null?'indet':''}">${s.ok?'':`<i style="width:${s.frac==null?40:Math.round(s.frac*100)}%"></i>`}</div></div></div>`;
 }
-// how many cards fit across the page view (the same rule as the grid's auto-fill columns: 300 px each, 12 px apart)
-const perRow=()=>Math.max(1,Math.floor((cw()+12)/312));
+// the picture area every video card and tile shares: one height; wide fills it, tall shows whole over a blurred copy
+const picArea=v=>`<div class="pa ${v.wide?'':'tall'}" style="${v.thumb?`--u:url('${esc(v.thumb)}')`:''}">${vMenu(v)}</div>`;
+// how many cards fit across the page view (the same rule as the grid's auto-fill columns: 260 px each, 12 px apart)
+const perRow=()=>Math.max(1,Math.floor((cw()+12)/272));
 function cardRows(vs){return `<div class="vcs">${vs.map(vCard).join('')}</div>`}
-// a finished video as a tile: one row height, the width follows its shape
-function tile(v,h){
-  return `<div class="dt" style="width:${Math.round(h*(v.wide?16/9:9/16))}px" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name,v.thumb)}><div class="pic" style="height:${h}px;${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${vMenu(v)}</div><div class="nm" title="${esc(v.name)}">${esc(v.name)}</div><div class="mt">${[ui.fold.videos?'':(fd('videos').folders.find(f=>f.id===inFold('videos',v.dir))||{}).name,ago(v.updated)].filter(Boolean).map(esc).join(' · ')}</div></div>`;
+// a finished video as a tile: the card's picture area, its name and when
+function tile(v){
+  return `<div class="dt" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name,v.thumb)}>${picArea(v)}<div class="nm" title="${esc(v.name)}">${esc(v.name)}</div><div class="mt">${[ui.fold.videos?'':(fd('videos').folders.find(f=>f.id===inFold('videos',v.dir))||{}).name,ago(v.updated)].filter(Boolean).map(esc).join(' · ')}</div></div>`;
 }
 function checkCards(){
   const bad=[];for(const c of document.querySelectorAll('.vi,.cs,.pc,.dt')){const r=c.getBoundingClientRect();
@@ -1831,8 +1851,9 @@ function checkCards(){
     for(const t of c.querySelectorAll('.stt,.nm,.mt')){if(t.getClientRects().length>1||t.offsetHeight>parseFloat(getComputedStyle(t).lineHeight)*1.5)bad.push(t.textContent+' wraps')}}
   return bad;
 }
-function fitRow(vs,h,gap,W){let x=0,n=0;for(const v of vs){const w=h*(v.wide?16/9:9/16);if(n&&x+gap+w>W)break;x+=(n?gap:0)+w;n++}return n}
 const seeAll=(k,n,shown)=>n>shown||ui.exp[k]?`<button class="b2 s" onclick="ui.exp.${k}=!ui.exp.${k};render()">${ui.exp[k]?'Show less':`See all ${n}`}</button>`:'';
+// Home never scrolls: its See all opens that section's own page
+const seeAllGo=(n,shown,js)=>n>shown?`<button class="b2 s" onclick="${js}">See all ${n}</button>`:'';
 // ---- Home: drop box and the newest clips, Your videos, My styles and Creator styles. One row each; See all opens
 // the rest in place. No inner scrollbars: fewer items show on a smaller window.
 // ---- first run (Paper "P App: onboarding"): Set up, Analyse a format, Make your first video, inside the shell.
@@ -1963,28 +1984,28 @@ function vHome(){
     <button class="more2" aria-label="More for this clip" aria-expanded="${ui.clipmenu===v.path}" title="More" onclick="event.stopPropagation();ui.cmenu=null;ui.clipmenu=ui.clipmenu===${P(v.path)}?null:${P(v.path)};render()">${DOTS}</button>${ui.clipmenu===v.path?`<div class="cmenu" onclick="event.stopPropagation()"><button onclick="clipAct('hide',${P(v.path)})">${ic('minus',16)}<span class="lb">Remove from this list</span></button><button onclick="ui.clipmenu=null;ui.cliptrash=${P(v.path)};rgo('new')">${ic('trash',16)}<span class="lb">Move to Trash</span></button></div>`:''}</div>`;
   const stl=(c,i)=>`<div class="stl" style="width:${tw}px" ${c.studying?'aria-disabled="true"':`role="button" tabindex="0" onclick="openStyle(${P(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)openStyle(${P(c.id)})"`}><div class="pic" style="background-image:url('${esc(picOf(c,i).url)}')">${sMenu(c)}</div><div class="t1">${esc(c.name)}</div></div>`;
   const crow=c=>`<button class="cr" ${c.studying?'disabled':''} onclick="openStyle(${P(c.id)})"><span class="ava" style="${c.face?`background-image:url('${esc(c.face)}')`:''}">${c.face?'':SIL}</span><span style="min-width:0"><span class="t1" style="display:block">${esc(dname({name:c.id}))}</span><span class="t2" style="display:block">${c.studying?'Being analysed now':c.videos?`Analysed from ${c.videos} videos`:'Analysed'}</span></span></button>`;
-  const shelves=()=>`<div class="sec2"><div class="sh"><b>Built by you</b>${seeAll('hs',own.length,ns)}</div><div class="sts">${(ui.exp.hs?own:own.slice(0,ns)).map(c=>stl(c,st.indexOf(c))).join('')||'<div class="none">No styles yet.</div>'}</div></div>
-    <div class="sec2"><div class="sh"><b>From creators</b>${seeAll('hc',cr.length,3)}</div><div class="crs">${(ui.exp.hc?cr:cr.slice(0,3)).map(crow).join('')||'<div class="none">No creator styles yet. Analyse one from My styles.</div>'}</div></div>`;
+  const shelves=()=>`<div class="sec2"><div class="sh"><b>Built by you</b>${seeAllGo(own.length,ns,"ui.fold.styles=null;ui.stab='own';rgo('mystyle')")}</div><div class="sts">${own.slice(0,ns).map(c=>stl(c,st.indexOf(c))).join('')||'<div class="none">No styles yet.</div>'}</div></div>
+    <div class="sec2"><div class="sh"><b>From creators</b>${seeAllGo(cr.length,3,"ui.fold.styles=null;ui.stab='cr';rgo('mystyle')")}</div><div class="crs">${cr.slice(0,3).map(crow).join('')||'<div class="none">No creator styles yet. Analyse one from My styles.</div>'}</div></div>`;
   if(vids.length===1)return `<div class="pgc">${firstVideoHome(vids[0])}<div class="hshelf">${shelves()}</div></div>`;
   return `<div class="pgc">
   <div class="ph"><h1>Home</h1>${vids.length?`<p>${[`${done} done.`,making?`${making} being made.`:''].filter(Boolean).join(' ')}</p>`:''}</div>
   <div class="hdrop"><label class="hd-box" id="droptile">${ic('up',20)}<div><div class="t1" style="font-weight:600">Drop a video here</div><div class="t2">or choose a file</div></div><input type="file" multiple accept="video/*,.mov,.mkv,.mp4" class="hide" onchange="const f=[...this.files];this.value='';rgo('new');chooseFiles(f)"></label>${rec.map(clip).join('')}${'<div aria-hidden="true"></div>'.repeat(nc-rec.length)}</div>
-  <div class="sec2"><div class="sh"><b>Your videos</b>${seeAll('hv',vids.length,per)}</div>${vids.length?cardRows(ui.exp.hv?vids:vids.slice(0,per)):'<div class="none">No videos yet. Drop a clip above to start one.</div>'}</div>
+  <div class="sec2"><div class="sh"><b>Your videos</b>${seeAllGo(vids.length,per,"ui.fold.videos=null;rgo('videos')")}</div>${vids.length?cardRows(vids.slice(0,per)):'<div class="none">No videos yet. Drop a clip above to start one.</div>'}</div>
   <div class="hshelf">${shelves()}</div></div>`;
 }
 // ---- Your videos: Now (cards) and Done (tiles); a folder opens from the sidebar
 function vVideos(){
   if(ui.fold.videos&&!fd('videos').folders.some(f=>f.id===ui.fold.videos))ui.fold.videos=null;
   const fid=ui.fold.videos,all=L.videos,vids=fid?all.filter(v=>inFold('videos',v.dir)===fid):all,W=cw(),pl=n=>n===1?'':'s';   // Your videos is everything; a folder filters
-  if(fid){const f=fd('videos').folders.find(x=>x.id===fid),per=W>=1500?4:3,h=Math.max(120,Math.floor((W-(per-1)*20)/per*9/16)-1);   // 3 wide tiles across, 4 on a big screen
+  if(fid){const f=fd('videos').folders.find(x=>x.id===fid);
     return `<div class="pgc"><div class="ph"><button class="back" onclick="ui.fold.videos=null;render()" ${dropAttrs('videos',null)}>${ic('back',14,2)}Your videos</button><h1>${esc(f.name)}</h1><p>${vids.length} video${pl(vids.length)}. Drag a video onto a folder to move it.</p></div>${editTrashRow()}
-      ${vids.length?`<div class="dts" style="gap:20px">${vids.map(v=>tile(v,h)).join('')}</div>`:'<div class="none">Nothing in this folder yet. Drag a video onto it in the sidebar, or use ⋯ then Move to folder.</div>'}</div>`}
+      ${vids.length?cardRows(vids):'<div class="none">Nothing in this folder yet. Drag a video onto it in the sidebar, or use ⋯ then Move to folder.</div>'}</div>`}
   const now=vids.filter(v=>v.status!=='done'),done=vids.filter(v=>v.status==='done'),making=all.filter(v=>v.status==='making'||v.status==='cutting').length,ready=all.filter(v=>v.status==='ready').length;
   const lede=`${all.length} video${pl(all.length)}.${ready?` ${ready} ready to watch.`:''}${making?` ${making} being made.`:''}`;
-  const th=184,fit=fitRow(done,th,14,W);
-  return `<div class="pgc"><div class="ph"><h1>Your videos</h1>${all.length?`<p>${lede}</p>`:''}</div>${editTrashRow()}
+  const fit=perRow();
+  return `<div class="pgc"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px"><div class="ph"><h1>Your videos</h1>${all.length?`<p>${lede}</p>`:''}</div><div class="row hact">${newFoldBtn('videos')}</div></div>${editTrashRow()}
     ${now.length?`<div class="sec2"><div class="sh"><b>Now</b></div>${cardRows(now)}</div>`:''}
-    ${done.length?`<div class="sec2"><div class="sh"><b>Done</b>${seeAll('done',done.length,fit)}</div><div class="dts">${(ui.exp.done?done:done.slice(0,fit)).map(v=>tile(v,th)).join('')}</div></div>`:''}
+    ${done.length?`<div class="sec2"><div class="sh"><b>Done</b>${seeAll('done',done.length,fit)}</div><div class="dts">${(ui.exp.done?done:done.slice(0,fit)).map(tile).join('')}</div></div>`:''}
     ${all.length?'':`<div>${EXROW}</div>`}</div>`;
 }
 function editTrashRow(){
@@ -2042,6 +2063,13 @@ function jobInfo(){
 }
 const ringSvg=f=>{const C=2*Math.PI*10;return `<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="var(--line)" stroke-width="2.5"/><circle cx="12" cy="12" r="10" fill="none" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-(f==null?.25:f))).toFixed(1)}" transform="rotate(-90 12 12)"/></svg>`};
 function openFold(id,k='videos'){ui.fold[k]=id;rgo(k==='videos'?'videos':'mystyle')}
+// the page header's New folder: a name field in place of the button (Enter saves, Esc cancels); the folder then
+// shows in the sidebar
+function newFoldBtn(k){
+  const e=ui.newfold;
+  if(!(e&&e.kind===k&&e.at==='head'))return `<button class="b2" onclick="ui.cmenu=null;ui.newfold={kind:'${k}',at:'head'};render();setTimeout(()=>{const x=$('#fold-name');if(x)x.focus()},0)">${ic('folder',16)}New folder</button>`;
+  return `<span class="nfhead"><input id="fold-name" value="${esc(e.val||'')}" placeholder="${k==='styles'?'Style folder name':'Folder name'}" maxlength="40" aria-label="Folder name" oninput="ui.newfold.val=this.value" onkeydown="event.stopPropagation();if(event.key==='Enter')foldSave();if(event.key==='Escape'){ui.newfold=null;render()}">${e.msg?`<span class="msg bad">${esc(e.msg)}</span>`:''}</span>`;
+}
 function newFolder(move,name,kind='videos'){
   if(isRail()){const n=prompt(kind==='videos'?'Folder name':'Style folder name');if(n)foldSaveName({kind,move,name},n);return}
   ui.newfold={kind,move,name};render();setTimeout(()=>{const e=$('#fold-name');if(e)e.focus()},0);
@@ -2069,7 +2097,7 @@ function sideHTML(){
     if(ren)return `<div class="sb-row">${ic(icn)}${inp(ui.renfold,'Folder name')}</div>`;
     const on=k==='videos'?cur==='videos'&&ui.fold.videos===f.id:cur==='mystyle'&&ui.fold.styles===f.id;
     return `<div class="sb-row sfold ${on?'on':''}" role="button" tabindex="0" onclick="openFold(${J(f.id)},'${k}')" onkeydown="if(event.key==='Enter'&&event.target===this)this.click()" ${dropAttrs(k,f.id)}>${ic(icn)}<span class="lb">${esc(f.name)}</span>${moreBtn(K,'More for this folder')}<span class="n hv">${cnt(k,f.id)}</span>${cMenu(K,[['Rename',`ui.renfold={kind:'${k}',id:${J(f.id)},val:${J(f.name)}};render();setTimeout(()=>{const e=$('#fold-name');if(e){e.focus();e.select()}},0)`,'pencil'],['Delete folder',`foldDel('${k}',${J(f.id)})`,'trash']])}</div>`};
-  const nf=ui.newfold?`<div class="sb-row">${ic(ui.newfold.kind==='videos'?'folder':'styles')}${inp(ui.newfold,'Folder name')}</div>${ui.newfold.msg?`<div class="msg bad" style="padding:0 12px;font-size:12px">${esc(ui.newfold.msg)}</div>`:''}`:'';
+  const nf=ui.newfold&&ui.newfold.at!=='head'?`<div class="sb-row">${ic(ui.newfold.kind==='videos'?'folder':'styles')}${inp(ui.newfold,'Folder name')}</div>${ui.newfold.msg?`<div class="msg bad" style="padding:0 12px;font-size:12px">${esc(ui.newfold.msg)}</div>`:''}`:'';
   return `<div class="sb-brand"><button class="brand" data-home onclick="goHome()" title="Home"><span class="mark" aria-hidden="true">${PAN(18)}</span><b>cooked.</b></button>${tog}</div>
     <button class="sb-new" ${GS().setup?'':'disabled title="New video opens once setup is done"'} onclick="rgo('new')">${ic('plus',16,2.2)}New video</button>
     <nav class="sb-nav"><button class="sb-row ${cur==='home'?'on':''}" onclick="goHome()">${ic('home')}<span class="lb">Home</span></button>
@@ -2102,7 +2130,7 @@ const cMenu=(k,items,side='')=>ui.cmenu===k?`<div class="cmenu ${side}" role="me
 function subMenu(kind,item,name){
   const F=fd(kind),cur=F.items[item],cf=F.folders.find(f=>f.id===cur),n=id=>Object.values(F.items).filter(x=>x===id).length;
   const nf=`newFolder(${J(item)},${J(name)},'${kind}')`;
-  return `<button class="hasub ${ui.sub?'on':''}" onclick="ui.sub=!ui.sub;render()">${ic('folder',16)}<span class="lb">Move to folder</span>${ic('chev',14,2)}</button>${ui.sub?`<div class="cmenu sub">${kind==='styles'?'<div class="mh">Style folders</div>':''}${F.folders.map(f=>`<button onclick="ui.cmenu=null;moveTo('${kind}',${J(item)},${J(f.id)},${J(name)})">${ic(kind==='styles'?'styles':'folder',16)}<span class="lb">${esc(f.name)}</span>${f.id===cur?ic('check',14,2.4):`<span class="n">${n(f.id)}</span>`}</button>`).join('')}${F.folders.length?'<hr>':''}<button onclick="ui.cmenu=null;${nf}">${ic('plus',16)}<span class="lb">${kind==='styles'?'New style folder':'New folder'}</span></button>${cf?`<button onclick="ui.cmenu=null;moveTo('${kind}',${J(item)},null,${J(name)})">${ic('minus',16)}<span class="lb">Take out of ${esc(cf.name)}</span></button>`:''}</div>`:''}`;
+  return `<button class="hasub ${ui.sub?'on':''}" onclick="ui.sub=!ui.sub;render()">${ic('folder',16)}<span class="lb">Move to folder</span>${ic('chev',14,2)}</button>${ui.sub?`<div class="cmenu sub">${kind==='styles'?'<div class="mh">Style folders</div>':''}${F.folders.map(f=>`<button onclick="ui.cmenu=null;moveTo('${kind}',${J(item)},${J(f.id)},${J(name)})">${ic(kind==='styles'?'styles':'folder',16)}<span class="lb">${esc(f.name)}</span>${f.id===cur?ic('check',14,2.4):`<span class="n">${n(f.id)}</span>`}</button>`).join('')}${F.folders.length?'<hr>':''}<button onclick="ui.cmenu=null;${nf}">${ic('plus',16)}<span class="lb">New folder</span></button>${cf?`<button onclick="ui.cmenu=null;moveTo('${kind}',${J(item)},null,${J(name)})">${ic('minus',16)}<span class="lb">Take out of ${esc(cf.name)}</span></button>`:''}</div>`:''}`;
 }
 const vMenu=v=>dotsBtn('v:'+v.dir,'More for this video')+cMenu('v:'+v.dir,[['Remove from this list',`hideEdit(${J(v.dir)})`,'minus'],ui.cmenu==='v:'+v.dir&&subMenu('videos',v.dir,v.name),
   v.status==='done'&&v.media&&['Download',`location.href=${J(v.media)}`,'down'],'hr',['Move to Trash',`askTrash(${J(v.dir)})`,'trash']]);

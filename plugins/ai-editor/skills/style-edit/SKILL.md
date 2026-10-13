@@ -92,15 +92,15 @@ on screen and the rules plan.py enforces.
 3. **Fill the overlays:** for the overlay picks, write only the props (`references/shapes.md`). Hand it to the `template-filler` agent (haiku) with the full path of `references/shapes.md` when available, else write them. Only
    words and numbers the speaker said. There are no type cards.
 4. **Fetch:** `node "$S/capture.mjs" edits/<name>` screenshots, fetches logos, posts and
-   free sources into `images/`, hides cookie banners, measures marks. Do not open them: the step 5 sheet shows all.
+   free sources into `images/`, hides cookie banners, measures marks. Do not open them: the sheet shows all.
 
 Pacing: a copied creator's rate wins. route.py prints her cards a minute, kinds and place in the frame,
 and marks that many sentences `want` (named ones first). Give each a card of her kind with a `box` at her
 place, clear of the head: the user's own photo, else a capture of the real thing the line is about (page,
 profile, post), else their own clip as a `video_card`. Never a made-up or stock picture: a `want` with
-nothing real stays empty. Never ask what to show: pick the real capture (their own product's too); the sheet shows it. No creator: a card only where a line names something real. Never two at once; no
+nothing real stays empty. Never ask what to show: pick the real capture (their own product's too). No creator: a card only where a line names something real. Never two at once; no
 stretch without a card over `card_gap_s` (plan.py adds zooms there, `references/plan.md` "Pacing").
-Vertical captures need a `find` to read on a phone.
+Vertical captures need a `find` to read on a phone. Card edit: `shapes.md`.
 
 ## 4. Plan
 

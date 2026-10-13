@@ -31,7 +31,12 @@ local, so they are made now and made again if the cut changes.
    post; the speaker's own product counts: its public page or repo), else leave it empty. No rate: a card
    where a sentence names something real, and in any stretch over 10 s with no card (plan.py's card gap),
    one for the line there that is about something real. On 9:16 a `capture` is a `sticker` with a `find` mark
-   on the line's words, so it reads on a phone. Never a `file://` page from the user's config folders.
+   on the line's words, so it reads on a phone, except in a card edit (style.json `card_kinds` without `text`):
+   there every card is a real picture, a `capture` with `"format": "shot"` and a `find` mark on the named thing
+   (capture.mjs frames the page round it to fill the band), a `logo`, the user's photo, or an animation from
+   real parts (`flow`, `chat`, `terminal`, `toasts`, `side_by_side`, `video_card`) for a line that explains
+   something with no page to show. Never a sticker. A line that names nothing real gets no card.
+   Never a `file://` or `127.0.0.1` page: it is gone when the video plays.
    Decide it all yourself: the caller must not have to ask the user what to show.
 5. **Fetch and face:** `node "$S/capture.mjs" EDIT` (free: local Chrome screenshots, logos, posts), then
    `python3 "$PY" "$S/face.py" EDIT`.

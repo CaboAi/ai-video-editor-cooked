@@ -99,6 +99,24 @@ sits in the split panel when the layout is split, else a box. A beat with its ow
 `"layout": "split"` (vertical only) puts a card in the split layout's top panel; `--layout split`
 does it for the whole edit. Neither is the default any more.
 
+## Card edit: pictures only
+
+A style.json `"card_kinds"` that leaves out `"text"` (the sample Card edit: `["capture", "logo", "photo",
+"animation"]`; a user's own `own-card-edit` style with no card settings takes the sample's, profile.py
+`like_sample`) makes every card a real picture: a screenshot of the page, app, repo or post named, a logo, the
+user's photo, or an animation built from real parts. In that style:
+
+- capture.mjs shoots a `sticker` beat as a `shot`, at a 640 px viewport (the page's narrow layout, as a phone
+  shows it), and with a `find` mark and no `clip` frames a band-shaped window (1.86:1) round the mark, so the
+  named thing fills the band above the head.
+- plan.py drops a re-set sentence (a capture.mjs sticker, `xh` in images.json), draws a sticker of the page as
+  a shot, and keeps a screenshot whose small text would read under 28 px as a picture (its push-in carries the
+  mark) instead of cutting it to a line of words; check.py plan FAILs a sentence on white and WARNs small text.
+- route.py prints the allowed kinds; a text card or chart in a creator's mix routes to `capture:shot`.
+- `"behind": true` tucks the card behind the speaker's hair (matte.py), and `graphics.per_min` sets the rate.
+
+A line that names nothing real gets a logo of a brand it names, an animation of the idea, or no card.
+
 ## From the teardown
 
 A creator-teardown style.json carries measured fields beyond captions and pace. Each one is used only when

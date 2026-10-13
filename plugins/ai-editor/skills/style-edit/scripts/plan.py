@@ -422,7 +422,8 @@ def kind_formats(images, style):
     mix = {}
     for k, v in (graphics(style, "graphics").get("kinds") or {}).items():
         if k in KIND_FORMAT:
-            mix[KIND_FORMAT[k]] = mix.get(KIND_FORMAT[k], 0) + v
+            f = "shot" if pictures_only(style) and KIND_FORMAT[k] == "sticker" else KIND_FORMAT[k]
+            mix[f] = mix.get(f, 0) + v
     free = [i for i, im in enumerate(images) if not im.get("format") and str(im.get("src", "")).startswith("images/capture-")]
     images = [dict(im) for im in images]
     for i, f in zip(free, deal(mix, len(free))):
@@ -546,6 +547,34 @@ def with_presets(style, mine):
     keys still win (they are merged after this)."""
     from ai_editor import presets
     return presets.apply(style, mine)
+
+
+def pictures_only(style):
+    """True when style.json "card_kinds" (a card edit: ["capture", "logo", "photo", "animation"]) leaves out "text":
+    every card is a real screenshot, logo, photo or animation. No sticker of a re-set sentence, and a capture whose
+    text reads small stays a picture (the shot pushes into its mark) instead of being cut to a line of words."""
+    ks = style.get("card_kinds")
+    return bool(ks) and "text" not in ks
+
+
+def text_labels(cards, style):
+    """A pictures-only style draws a sticker whose capture is the page itself as a shot, and drops a capture.mjs
+    sticker (a sentence re-set alone on white, images.json "xh"): a text label, not a screenshot. capture.mjs shoots
+    the page instead once style.json is current."""
+    if not pictures_only(style):
+        return cards
+    out = []
+    for c in cards:
+        if c.get("format") == "sticker" and not c.get("xh"):   # the page itself: drawn whole as the picture
+            c = {**c, "format": "shot", "props": {k: v for k, v in (c.get("props") or {}).items() if k != "crop"}}
+            c["props"] or c.pop("props")
+        if c.get("format") == "sticker":
+            print(f"warning: '{c.get('word')}' {c.get('src')}: a sentence set alone on white is a text card, and this style "
+                  "shows only screenshots, logos, photos and animations. Dropped: give the beat \"format\": \"shot\" "
+                  "and run capture.mjs again", file=sys.stderr)
+            continue
+        out.append(c)
+    return out
 
 
 def card_rate(style):
@@ -937,14 +966,14 @@ def tight(ln, lines):
                and 0 < abs(o[1] - ln[1]) < CAPTION_LEADING / LINE_BOX_EM * max(o[3], ln[3]) for o in lines)
 
 
-def readable_captures(cards, aspect):
+def readable_captures(cards, aspect, pictures=False):
     """On vertical a capture whose evidence would render under READ_XH becomes a sticker cropped to that
     evidence: the crop takes the band's shape around the evidence's first lines (as many as still read) at the
     largest size that holds them (at most MAX_UP frame px per picture px), every line whole. The evidence is the
     words the speaker says, marked on the page ("find" / "highlight"): with none marked, or marked words set
     tighter than the captions, the card is dropped (never a sticker of the page's own headline, never lines that
     touch). One that still reads small is left for check.py to FAIL."""
-    if aspect != "9:16":
+    if aspect != "9:16" or pictures:   # pictures_only: a screenshot stays a screenshot
         return cards
     W, H = SIZES[aspect]
     keep = []
@@ -1657,7 +1686,7 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
     seam = lay["seam"]
     split_y = min(seam + SPLIT_CAP_BELOW, 100 - bottom - 4)
     split_now = split_ok and (explicit == "split")
-    images = kind_formats(with_formats(images, visuals), style)
+    images = text_labels(kind_formats(with_formats(images, visuals), style), style)
     probe_cards = place_cards(list(images) + anim_items(visuals, edit_dir, style), words, duration, style, aspect)
     _, wants_split = lay_out(probe_cards, aspect, face, style, split_ok)
     split_now = split_now or wants_split
@@ -1693,7 +1722,7 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         cap["y_pct"] = split_y
         # a logo is dropped while a scene or a panel card is up (the frame is already showing the visual)
         rest = split_cards(rest + [{**c, "lane": None} for c in scenes], art)
-        rest = readable_captures([c for c in rest if c.get("_f") != "scene"], aspect)
+        rest = readable_captures([c for c in rest if c.get("_f") != "scene"], aspect, pictures_only(style))
         out = {**head, "layout": {"mode": "split", "ground": lay["ground"], "seam": seam, "art": art,
                                   "speaker": speaker_frame(face, seam), "caption_full_y": full_y}}
     else:
@@ -1709,14 +1738,14 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
                                            for h in face["heads"]]}
         rest = place_overlays(rest, seen, cap["y_pct"], aspect, graphics(style, "layout").get("layout"))
         rest = avoid_heads(rest, seen, cap["y_pct"], aspect)
-        rest = readable_captures(rest, aspect)
+        rest = readable_captures(rest, aspect, pictures_only(style))
         if behind:
             rest = tuck_behind(rest, face, aspect)
         out = dict(head)
     cards = creator_motion(sorted(rest + scenes, key=lambda c: c["start"]), style, aspect)
     for c in cards:
         px = c.get("layout") != "scene" and c.get("size") and capture_xh(c, aspect)
-        if px and px < READ_XH and (aspect == "9:16" or c.get("format") == "sticker"):
+        if px and px < READ_XH and (aspect == "9:16" or c.get("format") == "sticker") and not pictures_only(style):
             print(f"warning: '{c['trigger_word']}' capture text renders at {px:.0f} px x-height (under {READ_XH}: "
                   "too small on a phone; check.py plan FAILs it on vertical). Cut it to a shorter sentence, a smaller \"fit\", "
                   "or a \"crop\" round the evidence in visuals.json", file=sys.stderr)
@@ -1730,6 +1759,8 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
             k = z["scale"]
             c["anim"]["props"]["head"] = [round(ox + (hd[0] - ox) * k, 1), round(oy + (hd[1] - oy) * k, 1), round(hd[2] * k, 1), round(hd[3] * k, 1)]
     extra = {"cover": cover} if cover and not split_now else {}
+    if pictures_only(style):
+        extra["card_kinds"] = list(style["card_kinds"])   # check.py plan: screenshots stay pictures, text labels FAIL
     pans = place_pans((style.get("camera") or {}) if took(style, "pace") else {}, duration)
     if pans and not split_now:
         extra["pans"] = pans
@@ -2311,6 +2342,18 @@ def demo():
     assert mv(zq, 30, t) == mv(place_zooms(sparse, words, t, []), 30, t)
     assert card_gaps([{"start": 1, "end": 3}, {"start": 2, "end": 4}, {"start": 9, "end": 10}], 12) == [(0.0, 1), (4, 9), (10, 12)]
     assert card_gap_s({}) == GAP_S and card_gap_s({"graphics": {"per_min": 5.0}}) == 24.0
+    # a card edit (card_kinds without "text"): a re-set sentence (capture.mjs "xh") is dropped, a sticker of the page
+    # itself is drawn as a shot, and a small-text screenshot stays a picture instead of being cut to a line of words
+    ce = {"card_kinds": ["capture", "logo", "photo", "animation"]}
+    assert pictures_only(ce) and not pictures_only({}) and not pictures_only({"card_kinds": ["capture", "text"]})
+    tl = text_labels([{"src": "a", "format": "sticker", "xh": 20}, {"src": "b", "format": "sticker", "props": {"crop": [0, 0, 9, 9]}},
+                      {"src": "c"}], ce)
+    assert [(c["src"], c.get("format"), c.get("props")) for c in tl] == [("b", "shot", None), ("c", None, None)], tl
+    assert kind_formats([{"src": "images/capture-1-a.png"}], {**ce, "graphics": {"kinds": {"text card": 100}}})[0]["format"] == "shot"
+    small = {"src": "images/capture-1-a.png", "size": [2000, 1400], "box": [13, 14, 74, 20], "trigger_word": "a", "start": 1, "end": 3,
+             "lines": [[100, 600, 900, 40]], "marks": [{"kind": "highlight", "find": "x", "rect": [100, 600, 900, 40]}]}
+    assert readable_captures([dict(small)], "9:16", True) == [small]
+    assert readable_captures([dict(small)], "9:16")[0]["format"] == "sticker"
     demo_contrast()
     demo_beats()
     print("demo ok")

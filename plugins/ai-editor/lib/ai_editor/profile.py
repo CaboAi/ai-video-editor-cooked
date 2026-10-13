@@ -279,7 +279,8 @@ def fill_transitions(style, warn=print):
 # The same keys as creator-teardown editplan.py PARTS: camera goes with pace, face and hook with visuals, and sound
 # is its own part (claimed by nobody in the profile, so it comes from the first creator, as every unclaimed part does).
 PARTS = {"captions": ("captions",), "pace": ("pace", "zoom", "cuts", "motion", "transitions", "camera"),
-         "visuals": ("graphics", "look", "layout", "cats", "events", "face", "hook", "per_min", "first_in_s", "gap_s", "behind"),
+         "visuals": ("graphics", "look", "layout", "cats", "events", "face", "hook", "per_min", "first_in_s", "gap_s", "behind",
+                     "cards", "card_kinds"),
          "sound": ("sound", "sfx")}
 HOME_TAKE = {"captions", "pace", "graphics", "sound"}   # the home page's four boxes (home.py TAKE)
 
@@ -305,13 +306,29 @@ def heal(style, path=None):
     return style
 
 
+SAMPLE_KEYS = ("card_kinds", "behind", "graphics", "cats", "format")   # what makes a sample style's cards its own
+
+
+def like_sample(style, handle):
+    """A style the user made themselves (own-<x>, e.g. imported from their own card-edit skill) that names a sample's
+    format (sample-<x>: own-card-edit -> sample-card-edit) but carries no card settings takes the sample's: its card
+    kinds (real pictures only), cards behind the speaker, rate, place and motion. Its own keys always win.
+    ponytail: matched by name; a style page "format" pick would be the general way."""
+    base = re.sub(r"-\d+$", "", handle or "")
+    src = Path(__file__).resolve().parents[2] / "presets" / "styles" / ("sample-" + base[4:]) / "style.json"
+    if not base.startswith("own-") or style.get("card_kinds") or not src.is_file():
+        return style
+    sample = json.loads(src.read_text(encoding="utf-8"))
+    return {**{k: sample[k] for k in SAMPLE_KEYS if k in sample}, **style}
+
+
 def creator_style(root, handle):
     """(style, path) for one profile creator: the parts the user ticked (<h>-mine, the same file its edit-like skill
     and its corrections use) when there is one, else the whole measured <h>/style.json. (None, path) when neither."""
     d = Path(root) / "creator-teardowns"
     for p in (d / f"{handle}-mine" / "style.json", d / handle / "style.json"):
         if p.is_file():
-            return heal(json.loads(p.read_text(encoding="utf-8")), p), p
+            return like_sample(heal(json.loads(p.read_text(encoding="utf-8")), p), handle), p
     return None, d / handle / "style.json"
 
 
@@ -361,7 +378,8 @@ def write_style(edit_dir, root=Path("."), out=None, src=None):
     if src:
         if not Path(src).is_file():
             sys.exit(f"ERROR: no {src}")
-        style, paths = answers(heal(json.loads(Path(src).read_text(encoding="utf-8")), src), prof), [str(Path(src).resolve())]
+        style, paths = answers(like_sample(heal(json.loads(Path(src).read_text(encoding="utf-8")), src),
+                                           Path(src).resolve().parent.name), prof), [str(Path(src).resolve())]
         style.setdefault("handle", Path(src).resolve().parent.name)
     elif not prof.get("creators"):
         style = default_style(prof)
@@ -509,6 +527,12 @@ def demo():
         b = blend({"h": st}, [{"handle": "h", "take": ["captions", "pace", "visuals"]}], {})
         assert b["camera"]["pan_per_min"] == 4 and b["sound"]["sfx_per_min"] == 2 and b["graphics"]["entrances"], b
         assert creator_style(d, "nobody")[0] is None
+        # a user's own card-edit style with no card settings takes the sample Card edit's; its own keys win
+        own = like_sample({"handle": "own-card-edit", "cards": {"per_min": 15}}, "own-card-edit")
+        assert "text" not in own["card_kinds"] and own["behind"] and own["graphics"]["per_min"] and own["cards"] == {"per_min": 15}, own
+        assert like_sample({"x": 1}, "own-50-50") == {"x": 1} and "card_kinds" not in like_sample({}, "card-edit")
+        st = blend({"own-card-edit": own}, [{"handle": "own-card-edit", "take": ["captions", "pace", "visuals"]}])
+        assert st["card_kinds"] == own["card_kinds"] and st["cards"] == {"per_min": 15}, st
     print("profile ok")
 
 

@@ -25,7 +25,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
 
 # graphics.kinds (creator-teardown style.json) -> the routes that show that kind of thing from a real source.
-# A text card is never built (type cards were removed): it routes to a sticker of the real sentence.
+# A text card is never built (type cards were removed): it routes to a sticker of the real sentence, or, in a
+# card edit (style.json "card_kinds" without "text"), to a shot of the real page.
 KIND_ROUTES = {"real screenshot": ("capture:shot", "capture:sticker"), "UI recording": ("capture:browser", "video_card"),
                "text card": ("capture:sticker",), "chart": ("capture:sticker",), "photo": ("capture:shot",),
                "meme": ("capture:shot",), "logo": ("logo", "logo_cluster"), "b-roll": ("video_card",)}
@@ -82,10 +83,12 @@ def found_names(beats):
 def prefer(style):
     """{route: 0-1}: the creator's graphics.kinds mix, each kind's share split over its routes. {} when the
     style has none or the blend did not take "graphics"."""
-    from plan import graphics
+    from plan import graphics, pictures_only
     out = {}
     for k, v in (graphics(style or {}, "graphics").get("kinds") or {}).items():
         rs = KIND_ROUTES.get(k, ())
+        if pictures_only(style or {}):   # a card edit: no sentence on white, the page itself instead
+            rs = tuple(dict.fromkeys("capture:shot" if r == "capture:sticker" else r for r in rs))
         for r in rs:
             out[r] = round(out.get(r, 0) + v / 100 / len(rs), 3)
     return out
@@ -152,6 +155,9 @@ def demo():
     pr = prefer({"graphics": {"kinds": {"text card": 55, "real screenshot": 40, "chart": 3}}})
     assert pr == {"capture:sticker": 0.78, "capture:shot": 0.2}, pr
     assert prefer({"graphics": {"kinds": {"chart": 100}}, "blend": {"take": ["captions"]}}) == {}
+    # a card edit (card_kinds without "text"): the text card's share goes to a shot of the real page
+    pc = prefer({"graphics": {"kinds": {"text card": 50, "real screenshot": 50}}, "card_kinds": ["capture", "logo"]})
+    assert pc == {"capture:shot": 1.0}, pc
     # her rate: 6 a minute over 30 s = 3 cards; the named sentence first, never two within 5 s, none in the first second
     wb = [{"start": t, "end": t + d, "names": nm} for t, d, nm in
           ((0.0, 0.9, ["Jev"]), (2.0, 2.0, []), (4.0, 3.0, []), (9.0, 1.0, ["Claude"]), (14.0, 4.0, []), (25.0, 5.0, []))]
@@ -190,6 +196,11 @@ def main():
         st = edit / "style.json"
         from plan import effective_style   # the style the plan will use: the user's choices over the creator's
         style = effective_style(st, prof, edit, count=False) if st.exists() else {}
+        from plan import pictures_only
+        if pictures_only(style):
+            print(f"this style's cards ({', '.join(style['card_kinds'])}): a capture:shot of the real thing named, "
+                  "a logo, the user's photo, or an animation (flow, chat, terminal, toasts, side_by_side, video_card) "
+                  "from real parts. Never a sticker or words on a ground; a line that names nothing real gets none")
         pref = prefer(style)
         if pref:
             print("the creator's mix: " + ", ".join(f"{k} {v:.0%}" for k, v in sorted(pref.items(), key=lambda kv: -kv[1])))

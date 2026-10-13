@@ -1,8 +1,7 @@
 # Shapes
 
-The files Claude writes in style-edit, and the rules plan.py holds them to. Read this before writing
-visuals.json. More on each format and its source: `visuals.md`; every file's full shape:
-`contracts.md` (for people).
+The files Claude writes in style-edit, and the rules plan.py holds them to. More on each format:
+`visuals.md`.
 
 visuals.json is one JSON array, one object per beat, in spoken order. A whole two-beat file:
 
@@ -15,7 +14,7 @@ visuals.json is one JSON array, one object per beat, in spoken order. A whole tw
 ## images.json (the user's own pictures, first on screen)
 
 `[{"src": "images/dashboard.png", "word": "dashboard", "nth": 1}]`, optional `layout`, `hold_s`,
-`entrance`, `box`. Transparent PNG and Lottie `.json` work.
+`entrance`, `box`.
 
 ## visuals.json
 
@@ -33,7 +32,7 @@ once, none in the first second unless it is the hook's subject. A capture on the
 |---|---|
 | `capture:shot` | `{"kind": "capture", "url", "format": "shot", "clip"?, "marks": [{"kind": "highlight" or "ring", "find": "exact page text", "at_word"}], "props": {"label"?}}` |
 | `capture:browser` | the same with `"format": "browser"` (`props.url` defaults to the beat's) |
-| `capture:sticker` | `{"kind": "capture", "url", "format": "sticker", "marks": [{"kind": "highlight", "find": "the said words as the page writes them", "at_word"}]}`. No `crop`: capture.mjs cuts the sentence holding the first mark and sets it at a phone-readable size |
+| `capture:sticker` | `{"kind": "capture", "url", "format": "sticker", "marks": [{"kind": "highlight", "find": "the said words as the page writes them", "at_word"}]}`. No `crop`: capture.mjs re-sets that sentence |
 | `post` | `{"kind": "post", "url", "highlight": "the phrase said, as the post writes it"}` |
 | `logo` | `{"kind": "logo", "brand", "domain"?}` |
 | `logo_cluster` | `{"kind": "anim", "type": "logo_cluster", "props": {"logos": [{"logo", "domain"?, "word"?}]}}` |
@@ -51,11 +50,16 @@ Capture options: `clip` `[x, y, w, h]` in page px or `selector` (CSS); `width` (
 3+); `page_text: true` to pick the sentence later with `route.py highlight`; `wait_ms`. Each mark adds
 something the capture does not already show.
 
+## Card edit
+
+style.json `card_kinds` without `"text"`: pictures only. A `capture:shot` of the thing named, a `find`
+mark on it (capture.mjs frames the page round it), a logo, their photo, or an animation from real
+parts (`flow`, `chat`, `terminal`) where nothing can be shown. No sticker. Nothing real: no card.
+
 ## Rules (plan.py enforces them and warns)
 
-- Only the speaker's words and the product's real names. Never invent a figure, quote, like count or date.
+- Only the speaker's words and real names. Never invent a figure, quote, like count or date.
 - Pictures are `{"logo": "brand"}` or a file in `images/`. Never `{"icon": ...}` alone, never emoji.
-- No type cards (a big number, heading, list or chart on a plain ground): they were removed. A stat
-  is shown inside the real page that published it, marked as it is said.
-- No stock photo sites, no purple-blue accent, no dark glass with neon, no Inter-style display face.
-- Labels of a few words, `find` text copied exactly as the page writes it.
+- No type cards (words on a plain ground). A stat is shown inside the page that published it, marked.
+- No stock photos, purple-blue accent, dark glass with neon or Inter-style display face.
+- Labels of a few words; `find` text exactly as the page writes it.

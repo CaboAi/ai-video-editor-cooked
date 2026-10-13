@@ -98,9 +98,9 @@ Pacing: a copied creator's rate wins. route.py prints her cards a minute, kinds 
 and marks that many sentences `want` (named ones first). Give each a card of her kind with a `box` at her
 place, clear of the head: the user's own photo, else a capture of the real thing the line is about (page,
 profile, post), else their own clip as a `video_card`. Never a made-up or stock picture: a `want` with
-nothing real stays empty. Never ask what to show: pick the real capture (their own product's too); the sheet shows it. No creator: a card only where a line names something real. Never two at once; no
+nothing real stays empty. Never ask what to show: pick the real capture (their own product's too). No creator: a card only where a line names something real. Never two at once; no
 stretch without a card over `card_gap_s` (plan.py adds zooms there, `references/plan.md` "Pacing").
-Vertical captures need a `find` to read on a phone.
+Vertical captures need a `find` to read on a phone. Card edit: `shapes.md`.
 
 ## 4. Plan
 

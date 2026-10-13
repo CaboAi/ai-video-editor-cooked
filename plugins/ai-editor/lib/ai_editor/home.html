@@ -623,20 +623,26 @@ body.rail .sb-theme{margin-top:2px}
 .back{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;border:0;background:none;padding:2px 4px;margin:0 0 6px -4px;border-radius:6px;font-size:15px;line-height:20px;color:var(--t2);text-decoration:underline 1px;text-underline-offset:4px;outline:1.5px solid transparent;outline-offset:-1.5px}
 .back:hover{color:var(--ink)}.back.over{outline-color:var(--ink);text-decoration:none}
 /* video cards: the status bar along the bottom (green and full when done, black and part-filled while being made) */
-.vcs{display:flex;gap:12px}.vcs+.vcs{margin-top:12px}
-.vc{--th:clamp(150px,calc(100dvh - 628px),260px);position:relative;display:flex;gap:12px;padding:12px;border-radius:12px;background:var(--card);flex:1 1 0;min-width:0;cursor:pointer}
-.vc.vw{flex-grow:1.25}.vc.dragsrc,.dt.dragsrc{opacity:.45}
-.vc>.th{position:relative;flex-shrink:0;height:var(--th);aspect-ratio:9/16;border-radius:8px;background:#45403C center/cover}
-.vc.vw>.th{height:calc(var(--th)*.552);aspect-ratio:16/9}
-.vc .tx{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:10px;padding-top:4px}
-.vc .nm{font-size:16px;line-height:20px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.vc .mt{font-size:13px;line-height:16px;color:var(--t3);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.vc .st{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0}
-.vc .stt{font-size:13px;line-height:16px;font-weight:600;color:var(--ink)}.vc .stt.ok{color:var(--oktext)}
-.vc .stt span{font-variant-numeric:tabular-nums}
-.vc .bar{position:absolute;left:0;right:0;bottom:0;height:4px;border-radius:0 0 12px 12px;background:var(--track);overflow:hidden}.vc .bar.ok{background:var(--ok)}
-.vc .bar>i{display:block;height:4px;background:var(--ink)}.vc .bar.indet>i{width:40%;animation:slide 1.3s ease-in-out infinite}
-.vc .nclaude{font-size:13px;line-height:18px}
+/* video cards: a grid of equal columns; each card lays itself out from its own width (container query):
+   narrow, the picture sits on top; wide enough, beside the text. Text never wraps or leaves the card. */
+.vcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.vc{container-type:inline-size;min-width:0;cursor:pointer}.vc.dragsrc,.dt.dragsrc{opacity:.45}
+.vi{position:relative;display:flex;flex-direction:column;gap:10px;padding:12px 12px 16px;border-radius:12px;background:var(--card);height:100%;min-width:0}
+.vi>.th{position:relative;flex-shrink:0;height:90px;aspect-ratio:16/9;align-self:flex-start;border-radius:8px;background:#45403C center/cover}
+.vc:not(.vw) .vi>.th{height:160px;aspect-ratio:9/16}
+.vi .tx{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:10px}
+.vi .nm,.vi .mt,.vi .stt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
+.vi .nm{font-size:16px;line-height:20px;font-weight:500;color:var(--ink)}
+.vi .mt{font-size:13px;line-height:16px;color:var(--t3);margin-top:4px}
+.vi .st{display:flex;flex-direction:column;align-items:stretch;gap:8px;min-width:0}
+.vi .stt{font-size:13px;line-height:16px;font-weight:600;color:var(--ink)}.vi .stt.ok{color:var(--oktext)}.vi .stt span{font-variant-numeric:tabular-nums}
+.vi .st>button{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.vi .nclaude{font-size:13px;line-height:18px;min-width:0}.vi .nclaude .btn{max-width:100%;white-space:normal;height:auto;min-height:38px;padding:6px 14px}
+.vi .bar{position:absolute;left:0;right:0;bottom:0;height:4px;border-radius:0 0 12px 12px;background:var(--track);overflow:hidden}.vi .bar.ok{background:var(--ok)}
+.vi .bar>i{display:block;height:4px;background:var(--ink)}.vi .bar.indet>i{width:40%;animation:slide 1.3s ease-in-out infinite}
+@container (min-width:300px){.vc:not(.vw) .vi{flex-direction:row;gap:16px}.vc:not(.vw) .vi>.th{height:172px}.vc:not(.vw) .vi .st{align-items:flex-start}.vc:not(.vw) .vi .tx{padding-top:4px}}
+@container (min-width:440px){.vc.vw .vi{flex-direction:row;gap:16px}.vc.vw .vi>.th{height:95px}.vc.vw .vi .st{align-items:flex-start}.vc.vw .vi .tx{padding-top:4px}}
+@media (min-width:761px) and (max-height:780px){.pgc{gap:24px}.hdrop{height:68px}}
 .vfill{flex:1 1 0;min-width:0}
 /* done tiles: one row height, the width follows the video's shape */
 .dts{display:flex;gap:14px;flex-wrap:wrap;row-gap:20px}
@@ -1314,7 +1320,7 @@ function factRows(c){
   return c.facts.map(([k,v])=>{const w=b&&was[k]!=null&&was[k]!==v?was[k]:null;return `<div class="frow"><span>${esc(k)}</span><span>${w?`<span class="chg">${esc(v)}</span><s class="was">${esc(w)}</s>`:esc(v)}</span></div>`}).join('');
 }
 function styleGroups(pick){
-  const st=(L?L.styles:[]).filter(c=>pick||!inFold('styles',c.id)),me=st.find(c=>c.id==='mine');
+  const st=(L?L.styles:[]),me=st.find(c=>c.id==='mine');
   const cr=st.filter(c=>c.id!=='mine').sort((a,b)=>(!!b.studying-!!a.studying)||((b.made||0)-(a.made||0)));
   return `${me?`<div class="sgroup"><div class="gh"><span class="h" style="font-size:17px">Your styles</span></div><div style="display:flex;flex-wrap:wrap;gap:24px">${styleCard(me,pick,0)}</div></div>`:''}
     <div class="sgroup"><div class="gh" style="align-items:center"><span class="h" style="font-size:17px">Creator styles</span><span class="muted">newest first</span><button class="btn quiet sm" style="margin-left:auto" onclick="openCreate()">+ New style</button></div><div style="display:flex;flex-wrap:wrap;gap:24px">${cr.map((c,i)=>styleCard(c,pick,i+1)).join('')||'<div class="muted">No creator styles yet. Analyse one with + New style.</div>'}</div></div>`;
@@ -1448,21 +1454,27 @@ function vStat(v){
   if(v.status==='ready'||v.status==='done')return {ok:1,txt:v.duration?`Done. ${fmtT(Math.round(v.duration))} long`:'Done',btn:open};
   const j=vJob(v);
   if(j){const s=j.steps.filter(x=>!x.done).at(-1),t=s?s.t:jobStart(j),w=s?s.text:j.state==='queued'?(S.listening?'Starting':'Waiting for Claude'):'Starting';
-    return {txt:`${esc(w)} · <span data-since="${t}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-t)))}</span>`,frac:j.state==='queued'?0:jobFrac(j),btn:see}}
+    return {title:w,txt:`${esc(w)} · <span data-since="${t}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-t)))}</span>`,frac:j.state==='queued'?0:jobFrac(j),btn:see}}
   return {txt:v.round?'Fixing your notes':'Being made',frac:null,btn:see};
 }
 function vCard(v){
-  const s=vStat(v),nc=newClaude(vJob(v)),meta=[v.stage==='edit'?'Full edit':'Cut',v.wide?'16:9':v.round?`round ${v.round}`:'',ago(v.updated)].filter(Boolean).join(' · ');
-  return `<div class="vc ${v.wide?'vw':''}" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name,v.thumb)}><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${vMenu(v)}</div>
-    <div class="tx"><div style="min-width:0"><div class="nm" title="${esc(v.name)}">${esc(v.name)}</div><div class="mt">${meta}</div></div><div class="st">${nc||`<div class="stt ${s.ok?'ok':''}">${s.txt}</div>${s.btn}`}</div></div>
-    <div class="bar ${s.ok?'ok':s.frac==null?'indet':''}">${s.ok?'':`<i style="width:${s.frac==null?40:Math.round(s.frac*100)}%"></i>`}</div></div>`;
+  const s=vStat(v),nc=newClaude(vJob(v)),fn=(fd('videos').folders.find(f=>f.id===inFold('videos',v.dir))||{}).name,meta=[fn,v.stage==='edit'?'Full edit':'Cut',v.wide?'16:9':v.round?`round ${v.round}`:'',ago(v.updated)].filter(Boolean).join(' · ');
+  return `<div class="vc ${v.wide?'vw':''}" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name,v.thumb)}><div class="vi"><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${vMenu(v)}</div>
+    <div class="tx"><div style="min-width:0"><div class="nm" title="${esc(v.name)}">${esc(v.name)}</div><div class="mt">${meta}</div></div><div class="st">${nc||`<div class="stt ${s.ok?'ok':''}" title="${esc(s.title||'')}">${s.txt}</div>${s.btn}`}</div></div>
+    <div class="bar ${s.ok?'ok':s.frac==null?'indet':''}">${s.ok?'':`<i style="width:${s.frac==null?40:Math.round(s.frac*100)}%"></i>`}</div></div></div>`;
 }
-const perRow=()=>cw()>=860?3:cw()>=540?2:1;
-// rows of cards, every card the same width (a 16:9 one a little wider); a short last row keeps that width
-function cardRows(vs,per){const out=[];for(let i=0;i<vs.length;i+=per){const r=vs.slice(i,i+per);out.push(`<div class="vcs">${r.map(vCard).join('')}${'<div class="vfill"></div>'.repeat(per-r.length)}</div>`)}return out.join('')}
+// how many cards fit across the page view (the same rule as the grid's auto-fill columns: 300 px each, 12 px apart)
+const perRow=()=>Math.max(1,Math.floor((cw()+12)/312));
+function cardRows(vs){return `<div class="vcs">${vs.map(vCard).join('')}</div>`}
 // a finished video as a tile: one row height, the width follows its shape
 function tile(v,h){
-  return `<div class="dt" style="width:${Math.round(h*(v.wide?16/9:9/16))}px" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name,v.thumb)}><div class="pic" style="height:${h}px;${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${vMenu(v)}</div><div class="nm" title="${esc(v.name)}">${esc(v.name)}</div><div class="mt">${ago(v.updated)}</div></div>`;
+  return `<div class="dt" style="width:${Math.round(h*(v.wide?16/9:9/16))}px" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name,v.thumb)}><div class="pic" style="height:${h}px;${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${vMenu(v)}</div><div class="nm" title="${esc(v.name)}">${esc(v.name)}</div><div class="mt">${[ui.fold.videos?'':(fd('videos').folders.find(f=>f.id===inFold('videos',v.dir))||{}).name,ago(v.updated)].filter(Boolean).map(esc).join(' · ')}</div></div>`;
+}
+function checkCards(){
+  const bad=[];for(const c of document.querySelectorAll('.vi,.cs,.pc,.dt')){const r=c.getBoundingClientRect();
+    for(const e of c.querySelectorAll('*')){const q=e.getBoundingClientRect();if(q.width&&(q.right>r.right+1||q.left<r.left-1)&&!e.parentElement.closest('.stt,.bar,.cmenu,.nm,.mt')&&!e.closest('.cmenu'))bad.push((c.querySelector('.nm,.ttl')||{}).textContent+': '+(e.className||e.tagName)+' leaves the card')}
+    for(const t of c.querySelectorAll('.stt,.nm,.mt')){if(t.getClientRects().length>1||t.offsetHeight>parseFloat(getComputedStyle(t).lineHeight)*1.5)bad.push(t.textContent+' wraps')}}
+  return bad;
 }
 function fitRow(vs,h,gap,W){let x=0,n=0;for(const v of vs){const w=h*(v.wide?16/9:9/16);if(n&&x+gap+w>W)break;x+=(n?gap:0)+w;n++}return n}
 const seeAll=(k,n,shown)=>n>shown||ui.exp[k]?`<button class="b2 s" onclick="ui.exp.${k}=!ui.exp.${k};render()">${ui.exp[k]?'Show less':`See all ${n}`}</button>`:'';
@@ -1480,7 +1492,7 @@ function vHome(){
   return `<div class="pgc">
   <div class="ph"><h1>Home</h1>${vids.length?`<p>${[`${done} done.`,making?`${making} being made.`:''].filter(Boolean).join(' ')}</p>`:''}</div>
   <div class="hdrop"><label class="hd-box" id="droptile">${ic('up',20)}<div><div class="t1" style="font-weight:600">Drop a video here</div><div class="t2">or choose a file</div></div><input type="file" multiple accept="video/*,.mov,.mkv,.mp4" class="hide" onchange="const f=[...this.files];this.value='';rgo('new');chooseFiles(f)"></label>${rec.map(clip).join('')}${'<div aria-hidden="true"></div>'.repeat(nc-rec.length)}</div>
-  <div class="sec2"><div class="sh"><b>Your videos</b>${seeAll('hv',vids.length,per)}</div>${vids.length?cardRows(ui.exp.hv?vids:vids.slice(0,per),per):'<div class="none">No videos yet. Drop a clip above to start one.</div>'}</div>
+  <div class="sec2"><div class="sh"><b>Your videos</b>${seeAll('hv',vids.length,per)}</div>${vids.length?cardRows(ui.exp.hv?vids:vids.slice(0,per)):'<div class="none">No videos yet. Drop a clip above to start one.</div>'}</div>
   <div class="hshelf">
     <div class="sec2"><div class="sh"><b>My styles</b>${seeAll('hs',own.length,ns)}</div><div class="sts">${(ui.exp.hs?own:own.slice(0,ns)).map(c=>stl(c,st.indexOf(c))).join('')||'<div class="none">No styles yet.</div>'}</div></div>
     <div class="sec2"><div class="sh"><b>Creator styles</b>${seeAll('hc',cr.length,3)}</div><div class="crs">${(ui.exp.hc?cr:cr.slice(0,3)).map(crow).join('')||'<div class="none">No creator styles yet. Analyse one from My styles.</div>'}</div></div>
@@ -1489,15 +1501,15 @@ function vHome(){
 // ---- Your videos: Now (cards) and Done (tiles); a folder opens from the sidebar
 function vVideos(){
   if(ui.fold.videos&&!fd('videos').folders.some(f=>f.id===ui.fold.videos))ui.fold.videos=null;
-  const fid=ui.fold.videos,all=L.videos,vids=all.filter(v=>inFold('videos',v.dir)===fid),W=cw(),pl=n=>n===1?'':'s';
+  const fid=ui.fold.videos,all=L.videos,vids=fid?all.filter(v=>inFold('videos',v.dir)===fid):all,W=cw(),pl=n=>n===1?'':'s';   // Your videos is everything; a folder filters
   if(fid){const f=fd('videos').folders.find(x=>x.id===fid),h=Math.max(120,Math.round((W-40)/3*9/16));
     return `<div class="pgc"><div class="ph"><button class="back" onclick="ui.fold.videos=null;render()" ${dropAttrs('videos',null)}>${ic('back',14,2)}Your videos</button><h1>${esc(f.name)}</h1><p>${vids.length} video${pl(vids.length)}. Drag a video onto a folder to move it.</p></div>${editTrashRow()}
       ${vids.length?`<div class="dts" style="gap:20px">${vids.map(v=>tile(v,h)).join('')}</div>`:'<div class="none">Nothing in this folder yet. Drag a video onto it in the sidebar, or use ⋯ then Move to folder.</div>'}</div>`}
-  const now=vids.filter(v=>v.status!=='done'),done=vids.filter(v=>v.status==='done'),inF=all.length-vids.length,making=all.filter(v=>v.status==='making'||v.status==='cutting').length;
-  const lede=inF?`${vids.length} video${pl(vids.length)} here. ${inF} in folders.`:`${all.length} video${pl(all.length)}.${making?` ${making} being made.`:''}`;
+  const now=vids.filter(v=>v.status!=='done'),done=vids.filter(v=>v.status==='done'),making=all.filter(v=>v.status==='making'||v.status==='cutting').length,ready=all.filter(v=>v.status==='ready').length;
+  const lede=`${all.length} video${pl(all.length)}.${ready?` ${ready} ready to watch.`:''}${making?` ${making} being made.`:''}`;
   const th=184,fit=fitRow(done,th,14,W);
   return `<div class="pgc"><div class="ph"><h1>Your videos</h1>${all.length?`<p>${lede}</p>`:''}</div>${editTrashRow()}
-    ${now.length?`<div class="sec2"><div class="sh"><b>Now</b></div>${cardRows(now,perRow())}</div>`:''}
+    ${now.length?`<div class="sec2"><div class="sh"><b>Now</b></div>${cardRows(now)}</div>`:''}
     ${done.length?`<div class="sec2"><div class="sh"><b>Done</b>${seeAll('done',done.length,fit)}</div><div class="dts">${(ui.exp.done?done:done.slice(0,fit)).map(v=>tile(v,th)).join('')}</div></div>`:''}
     ${all.length?'':`<div>${EXROW}</div>`}</div>`;
 }
@@ -1530,7 +1542,7 @@ let railPref=false;try{railPref=localStorage.getItem('ave-rail')==='1'}catch(e){
 const narrow=()=>innerWidth<1100,isRail=()=>narrow()||railPref;
 function setRail(on){railPref=!!on;try{localStorage.setItem('ave-rail',on?'1':'0')}catch(e){}render()}
 // the content width of a page view (for how many cards fit in one row)
-const cw=()=>innerWidth-(isRail()?80:232)-(innerWidth<=760?32:80);
+const cw=()=>{const m=$('#main');if(m&&m.classList.contains('pg')&&m.clientWidth){const c=getComputedStyle(m);return m.clientWidth-parseFloat(c.paddingLeft)-parseFloat(c.paddingRight)}return innerWidth-(isRail()?80:232)-(innerWidth<=760?32:80)};
 const inApp=()=>!!(L&&S&&!ui.onboard&&(returning()||ui.forceR));
 // how far a job is: its steps against the plan for its kind (null: no plan, the bar slides)
 function jobFrac(j){

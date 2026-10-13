@@ -193,6 +193,11 @@ and need no job.
 The user pressed "Log in with your browser". Follow the setup skill's step 6 (Modal), reporting
 each of its steps with `status modal --step "..."`, and `status modal --done` when it works.
 
+### `JOB setup`
+
+The user pressed Start setup on the first-run Home. Run `setup.py install-all --report` in the background
+(the setup skill's step 0); it reports its own steps onto this job, as in Setup from the page below.
+
 ### `JOB update`
 
 The user pressed Update in Settings (the page saw a newer version on GitHub main than this plugin.json).

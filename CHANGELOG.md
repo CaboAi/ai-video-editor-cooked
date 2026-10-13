@@ -4,6 +4,13 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- A first run happens inside the window: Home shows three steps (Set up, Analyse a format, Make your first
+  video) with one Start setup, then setup's real steps and sizes, the two optional keys with the ElevenLabs
+  key settings beside them, Analyse a format with link rows, the analysis's real steps, the format ready to
+  rename, and a drop box for the first clip that goes straight to Pick a style with the new format picked.
+  A Getting started block in the sidebar follows the real state (1, 2, 3 of 3) and goes once the first cut
+  is ready. Wide folder tiles fit three across (four on a big screen).
+
 - Styles is one list: every style is yours, and each card says where it came from (Built by you, Learned
   from your edits, From @creator) with its cut, zooms and captions as icon rows. Tabs filter it (All, Built
   by you, From creators). New style opens Analyse a format (paste 3 to 6 videos edited the same way, from any

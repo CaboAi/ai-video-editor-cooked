@@ -1122,6 +1122,17 @@ def job_line(j, root):
     return f"JOB {j['type']}"
 
 
+def getting_started(d):
+    """The sidebar's Getting started block, from the real state (so it holds across reloads): the tools set up,
+    a format analysed (or the default style chosen instead), the first video made (a cut ready or done)."""
+    rows = (d.get("doctor") or {}).get("rows") or []
+    setup = any(j["type"] == "setup" and j["state"] == "done" for j in d["jobs"]) or bool(rows) and all(r.get("ok") for r in rows)
+    style = bool(d.get("style_skipped")) or any(j["type"] == "teardown" and j["state"] == "done" for j in d["jobs"]) \
+        or any(not h.startswith(("own-", "sample-")) for h, _ in library.styles(d["root"]))
+    video = any(e["status"] in ("ready", "done") for e in library.entries())
+    return {"setup": setup, "style": style, "video": video}
+
+
 def busy_with(d, sid):
     """The video job session sid is making now, or None."""
     return next((j for j in reversed(d["jobs"]) if j["type"] == "video" and j["state"] == "taken"
@@ -1347,6 +1358,7 @@ def make_handler(token):
                 d["busy"] = bz and {"id": bz["id"], "name": job_name(bz)}
                 d["profile"] = (home().parent / "profile.json").exists()   # set up before: a returning user
                 d["update"] = update_info()
+                d["getting_started"] = getting_started(d)
                 import launcher   # "Make it in a new Claude chat" only where a terminal window can be opened
                 d["new_claude"] = bool(launcher.terminal(d["root"], ["claude"], platform.system()))
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
@@ -1508,6 +1520,9 @@ def make_handler(token):
                 update_info()
                 return self.send(200, {})
             if path == "/later":
+                if body.get("names") == ["style"]:   # first run: "Skip, use the default style"
+                    update(lambda d: d.__setitem__("style_skipped", True))
+                    return self.send(200, {})
                 for n in body.get("names") or []:
                     if n in KEY_NAMES + ("modal",):
                         subprocess.run([sys.executable, str(SETUP), "later", n], capture_output=True, timeout=30)
@@ -1727,7 +1742,9 @@ def make_handler(token):
                 args = {"handle": td["args"]["handle"], "take": take}
             elif kind == "video":
                 return self.videos(b, d)
-            elif kind in ("modal", "update"):
+            elif kind in ("modal", "update", "setup"):   # setup: the first run's Start setup (JOB setup, install-all --report)
+                if kind == "setup" and any(j["type"] == "setup" and j["state"] in ("queued", "taken") for j in d["jobs"]):
+                    return self.send(200, {"id": latest(d, "setup")["id"]})
                 args = {}
             elif kind == "style-change":   # "Tell it what to change": Claude turns the words into rules at that style's scope
                 text = re.sub(r"\s+", " ", str(b.get("text") or "")).strip()[:400]
@@ -2410,6 +2427,16 @@ def demo():
     assert sr("Wrote down every word you said", q["args"]["edit"]) == "no video job on the page"   # never takes it
     assert latest(read(), "video")["state"] == "queued" and not latest(read(), "video")["steps"]
     assert " as=@newbie " in out(cmd_wait, 0.01)
+    # Getting started: from the real state, so it holds across reloads
+    gs = get("/state")["getting_started"]
+    assert gs["style"] and not gs["video"], gs   # @sample.creator was analysed above; no cut is ready yet
+    sid0 = post("/job", {"type": "setup"})["id"]
+    assert post("/job", {"type": "setup"})["id"] == sid0 and latest(read(), "setup")["state"] == "queued"   # one at a time
+    update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["id"] != sid0]))
+    post("/later", {"names": ["style"]})
+    assert read()["style_skipped"] and get("/state")["getting_started"]["style"]
+    assert getting_started({**read(), "style_skipped": False, "jobs": [], "doctor": {"rows": [{"ok": False}]}, "root": str(tmp)}) == \
+        {"setup": False, "style": False, "video": False}   # a fresh library: nothing done yet
     # Analyse a format: links from several creators are one job, every link in its picks.txt
     fl = ["https://www.tiktok.com/@a.one/video/7412345678901234567", "https://www.tiktok.com/@b.two/video/7412345678901234568",
           "https://www.tiktok.com/@c.three/video/7412345678901234569"]

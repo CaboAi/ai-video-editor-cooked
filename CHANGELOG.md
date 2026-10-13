@@ -4,6 +4,16 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Scrolling holds on the home window and the review page. The home window redraws every 1.5 s, and each
+  redraw put every inner list (Your videos, My styles, a style's page, Settings) back at the top. Now a
+  redraw with nothing new leaves the page alone, and one with something new keeps every list where it
+  was. On the review page, after Send, each status line from Claude no longer pulls the notes list to
+  the bottom, and the transcript's follow-along now also waits 3 s after Page Up/Down, the arrow keys,
+  Home/End or a long scrollbar drag, not only after the wheel. The returning Home view lines up: both
+  columns share one top line and the header's left and right edges, recent clips have their name under
+  their own thumbnail, the Your videos rows and their buttons end on the divider's edges, and cards use
+  one 24 px padding and gap.
+
 - My style gets a name right away. When it is picked on Pick a style, or its page opens, before the user
   has named it, the name is a field already focused with a suggestion selected ("Like @<creator>" when
   it started from a creator, else the computer's login + " style"). Typing replaces it. Enter or

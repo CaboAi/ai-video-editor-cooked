@@ -56,7 +56,7 @@ header{display:flex;align-items:center;justify-content:space-between;height:64px
 .frow .was{color:var(--t4);font-size:12px;margin-left:6px}
 .frow .chg{color:var(--ink);font-weight:600}
 .live.on::before{content:"";width:8px;height:8px;border-radius:4px;background:var(--ink);flex-shrink:0}
-main{flex:1;display:flex;gap:20px;padding:12px 20px 20px;min-height:0}
+main{flex:1;display:flex;gap:24px;padding:12px 28px 20px;min-height:0}
 .col{display:flex;flex-direction:column;flex-shrink:0}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:20px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .grow{flex:1 1 0;min-width:0}
@@ -229,13 +229,13 @@ body.dragging #dropov{display:flex}
 .steps2 .cur .t{color:var(--ink);font-weight:600}
 .steps2 .later .t{color:var(--t3)}
 .steps2 .s{margin-left:auto;color:var(--t4);font-size:14px}
-.vrow{display:flex;align-items:center;gap:20px;padding:14px 0;border-top:1px solid var(--line)}
-.vrow .th{width:50px;height:88px;border-radius:6px;background:#45403C center/cover;flex-shrink:0}
+.vrow{display:flex;align-items:center;gap:16px;padding:12px 0;border-top:1px solid var(--line)}
+.vrow .th{width:48px;height:88px;border-radius:6px;background:#45403C center/cover;flex-shrink:0}
 .vrow .st{width:170px;flex-shrink:0;display:flex;align-items:center;gap:8px;font-size:14px}
-.vrow .act{width:150px;flex-shrink:0;display:flex;justify-content:center}
+.vrow .act{width:152px;flex-shrink:0;display:flex;justify-content:flex-end}
 .btn.sm{height:38px;padding:0 18px;font-size:14px}
 .ini{width:36px;height:36px;border-radius:18px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--t2);flex-shrink:0}
-.kv{display:flex;flex-direction:column;gap:2px}.kv span{font-size:13px;color:var(--t3)}.kv b{font-weight:500;font-size:15px}
+.kv{display:flex;flex-direction:column;gap:4px}.kv span{font-size:13px;line-height:16px;color:var(--t3)}.kv b{font-weight:500;font-size:15px}
 .nclaude{display:flex;flex-direction:column;align-items:flex-start;gap:10px;font-size:14px;line-height:20px;color:var(--t2)}
 .nclaude .codebox{align-self:stretch;gap:12px}.nclaude .codebox span{min-width:0;overflow-wrap:anywhere}
 .codebox{display:flex;justify-content:space-between;align-items:center;background:var(--soft);border-radius:10px;padding:10px 14px;font:14px var(--mono)}
@@ -335,7 +335,7 @@ body.dragging #dropov{display:flex}
 .dtile .tick{position:absolute;top:8px;right:8px}
 .tagq{background:var(--soft);border-radius:8px;padding:4px 10px;font-size:12px;line-height:16px;color:var(--t2);white-space:nowrap;flex-shrink:0}
 .recrow{flex-wrap:wrap}
-.crow{display:flex;align-items:center;gap:14px;margin-top:14px;width:100%;border:0;background:none;padding:0;text-align:left}
+.crow{display:flex;align-items:center;gap:16px;margin-top:16px;width:100%;border:0;background:none;padding:0;text-align:left}
 .crow:hover .cn{text-decoration:underline}
 .confirm{border:1.5px solid var(--ink);border-radius:14px;padding:14px 16px;background:var(--panel);display:flex;flex-direction:column;gap:10px}
 @media (max-width:1100px){.rv-side{width:400px!important}.sp-side{width:100%!important}.spwrap{flex-wrap:wrap}}
@@ -404,7 +404,7 @@ body.dragging #dropov{display:flex}
 }
 @media (min-width:761px) and (max-height:800px){
   header{height:56px}
-  main{padding:8px 20px 14px}
+  main{padding:8px 28px 14px}
   h1{font-size:34px;line-height:38px}
   .krow{padding:14px 24px}
   .sec{padding:14px 24px}.sec:first-child{padding-top:16px}
@@ -1175,7 +1175,7 @@ function vMaking(){
   if(!js.length)return `<div class="col grow"><div class="empty">Nothing is being made. <a href="#" onclick="rgo('new');return false">Make a video</a></div></div>`;
   const mine=new Set(js.map(j=>j.args.edit));
   const others=(L?L.videos:[]).filter(v=>!mine.has(v.dir)).slice(0,3);
-  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:34px"><div><h1>Making your video${js.length>1?'s':''}</h1><p class="lede" style="margin-top:10px">The editor opens as soon as Claude starts.</p></div>${js.map(jobBlock).join('<div style="border-top:1px solid var(--line)"></div>')}</div>
+  return `<div class="col grow" style="min-width:0;gap:34px"><div><h1>Making your video${js.length>1?'s':''}</h1><p class="lede" style="margin-top:10px">The editor opens as soon as Claude starts.</p></div>${js.map(jobBlock).join('<div style="border-top:1px solid var(--line)"></div>')}</div>
   <div class="panel rv-side" style="width:420px;flex-shrink:0">
     <div class="sec"><div class="h" style="font-size:16px">Make another while you wait</div><button class="btn" style="height:44px;border-color:var(--ring)" onclick="rgo('new')">+ Make another</button></div>
     <div class="sec"><div class="h" style="font-size:16px">Also on your list</div>${others.length?others.map(v=>`<div class="row" style="gap:14px"><div style="width:36px;height:64px;border-radius:6px;flex-shrink:0;background:#45403C ${v.thumb?`url('${esc(v.thumb)}') center/cover`:''}"></div><div class="grow" style="min-width:0"><div style="font-size:15px">${esc(v.name)}</div><div class="muted" style="margin-top:2px;font-size:14px">${STATUS[v.status]} · ${ago(v.updated)}</div></div>${v.review?`<a href="/review?dir=${encodeURIComponent(v.dir)}">Watch</a>`:''}</div>`).join(''):'<div class="muted">Nothing else yet.</div>'}</div>
@@ -1207,20 +1207,20 @@ function vRow(v){
 const EXROW=`<div class="vrow ex"><div class="th" style="background-image:url('/demo/person-2.jpg')"></div><div class="grow" style="min-width:0"><div style="font-size:16px">my-first-video</div><div class="sub" style="margin-top:4px">Example. Your videos show here.</div></div><div class="st"><span class="tagq">Example</span></div></div>`;
 function styleSide(){
   const st=L?L.styles:[],me=st[0],pic=me&&picOf(me,0);
-  return `<div class="col rv-side" style="width:500px;gap:24px">${me?`<div class="panel"><div class="between" style="padding:22px 28px 0"><span class="h" style="font-size:17px">${esc(me.name)}</span><a href="#" onclick="openStyle('mine');return false">Change</a></div>
-    <div class="row" style="gap:28px;padding:18px 28px 22px;align-items:flex-start"><div class="pic" style="position:relative;width:138px;height:246px;flex-shrink:0;border-radius:14px;overflow:hidden;background:#45403C url('${esc(pic.url)}') center/cover">${pic.demo?'<span class="extag">Example photo</span>':''}</div><div style="display:flex;flex-direction:column;gap:16px">${me.facts.map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div></div></div>`:''}
-    <div class="panel" style="padding:22px 28px"><div class="between"><span class="h" style="font-size:17px">Creators you copied</span><span class="muted">${st.length-1}</span></div>
+  return `<div class="col rv-side" style="width:500px;gap:24px">${me?`<div class="panel"><div class="between" style="padding:24px 24px 0"><span class="h" style="font-size:17px">${esc(me.name)}</span><a href="#" onclick="openStyle('mine');return false">Change</a></div>
+    <div class="row" style="gap:24px;padding:16px 24px 24px;align-items:flex-start"><div class="pic" style="position:relative;width:138px;height:246px;flex-shrink:0;border-radius:14px;overflow:hidden;background:#45403C url('${esc(pic.url)}') center/cover">${pic.demo?'<span class="extag">Example photo</span>':''}</div><div style="display:flex;flex-direction:column;gap:16px;margin-top:-2px">${me.facts.map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div></div></div>`:''}
+    <div class="panel" style="padding:24px"><div class="between"><span class="h" style="font-size:17px">Creators you copied</span><span class="muted">${st.length-1}</span></div>
     ${st.length>1?'':`<div class="crow ex"><div class="ini">EX</div><div class="grow" style="min-width:0"><div style="font-size:15px;font-weight:500">@example.creator</div><div class="muted" style="font-size:14px;margin-top:2px">Example. The creators you copy show here.</div></div><span class="tagq">Example</span></div>`}
-    ${st.slice(1).map(c=>`<button class="crow" ${c.studying?'disabled':''} onclick="openStyle(${esc(JSON.stringify(c.id))})"><div class="ini">${esc(c.id.slice(1,3).toUpperCase())}</div><div class="grow" style="min-width:0"><div class="cn" style="font-size:15px;font-weight:500">${esc(c.name)}</div><div class="muted" style="font-size:14px;margin-top:2px">${c.studying?'being copied now':[c.videos?`${c.videos} video${c.videos>1?'s':''}`:'',c.facts[0]?c.facts[0].join(' '):''].filter(Boolean).join(' · ')}</div></div>${me&&me.base&&'@'+me.base===c.id?'<span class="tagq">In my style</span>':''}</button>`).join('')}
-    <button class="hlink" style="margin-top:18px;font-size:14px;color:var(--ink)" onclick="rgo('mystyle')">+ Copy a creator</button></div></div>`;
+    ${st.slice(1).map(c=>`<button class="crow" ${c.studying?'disabled':''} onclick="openStyle(${esc(JSON.stringify(c.id))})"><div class="ini">${esc(c.id.slice(1,3).toUpperCase())}</div><div class="grow" style="min-width:0"><div class="cn" style="font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</div><div class="muted" style="font-size:14px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.studying?'being copied now':[c.videos?`${c.videos} video${c.videos>1?'s':''}`:'',c.facts[0]?c.facts[0].join(' '):''].filter(Boolean).join(' · ')}</div></div>${me&&me.base&&'@'+me.base===c.id?'<span class="tagq">In my style</span>':''}</button>`).join('')}
+    <button class="hlink" style="margin-top:16px;align-self:flex-start;font-size:14px;color:var(--ink)" onclick="rgo('mystyle')">+ Copy a creator</button></div></div>`;
 }
 function vHome(){
   const vids=L.videos,ready=vids.filter(v=>v.status==='ready').length,making=vids.filter(v=>v.status==='making'||v.status==='cutting').length;
   const rec=(R?R.videos:[]).slice(0,4);
-  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:28px"><div><h1>Welcome back</h1>${ready||making?`<p class="lede" style="margin-top:10px">${[ready?`${ready} ready for you to watch.`:'',making?`${making} still being made.`:''].filter(Boolean).join(' ')}</p>`:''}</div>
-    <div class="panel" style="padding:24px 28px;gap:22px"><div class="between" style="align-items:flex-start;flex-wrap:wrap"><div><div style="font-size:22px;font-weight:600">New video</div></div><button class="btn dark" style="height:52px;padding:0 40px;font-size:16px" onclick="rgo('new')">+ New video</button></div>
-      <div class="row recrow" style="gap:12px;align-items:flex-end"><div class="droptile" id="droptile" style="width:150px;height:150px" onclick="rgo('new')">${UP}<div style="font-weight:500;font-size:13px">Drop files here</div><div class="muted" style="font-size:12px">or choose files</div></div>${rec.map(v=>`<button class="clip" style="width:84px" onclick="nv.sel=[${esc(JSON.stringify(v.path))}];rgo('new')"><div class="pic" style="width:84px;height:150px;background-image:url('${esc(v.thumb)}')"></div></button>`).join('')}${rec[0]?`<div class="reclabel" style="padding-left:12px;min-width:140px"><div style="font-size:15px">${esc(rec[0].name)}</div><div class="muted" style="margin-top:4px;font-size:14px">${esc(rec[0].where)} · ${ago(rec[0].mtime)}</div></div>`
-        :[0,1,2].map(i=>`<div class="clip ex" style="width:84px"><div class="pic" style="width:84px;height:150px;background-image:url('${DEMO(i)}')"></div></div>`).join('')+`<div class="reclabel muted" style="padding-left:12px;min-width:140px;font-size:14px;line-height:20px">Example clips. Your newest clips show here.</div>`}</div></div>
+  return `<div class="col grow" style="min-width:0;gap:24px"><div><h1>Welcome back</h1>${ready||making?`<p class="lede" style="margin-top:10px">${[ready?`${ready} ready for you to watch.`:'',making?`${making} still being made.`:''].filter(Boolean).join(' ')}</p>`:''}</div>
+    <div class="panel" style="padding:24px;gap:24px"><div class="between" style="align-items:center;flex-wrap:wrap;gap:16px"><div style="font-size:22px;line-height:28px;font-weight:600">New video</div><button class="btn dark" style="height:48px;padding:0 40px;font-size:16px" onclick="rgo('new')">+ New video</button></div>
+      <div class="row recrow" style="gap:16px;align-items:flex-start"><div class="droptile" id="droptile" style="width:150px;height:150px" onclick="rgo('new')">${UP}<div style="font-weight:500;font-size:13px">Drop files here</div><div class="muted" style="font-size:12px">or choose files</div></div>${rec.map(v=>`<button class="clip" style="width:128px;gap:8px" title="${esc(v.name)}" onclick="nv.sel=[${esc(JSON.stringify(v.path))}];rgo('new')"><div class="pic" style="width:84px;height:150px;background-image:url('${esc(v.thumb)}')"></div><div style="min-width:0"><div class="nm" style="font-size:13px;line-height:16px">${esc(v.name)}</div><div class="wh" style="margin-top:4px">${esc(v.where)} · ${ago(v.mtime)}</div></div></button>`).join('')}${rec[0]?''
+        :[0,1,2].map(i=>`<div class="clip ex" style="width:84px"><div class="pic" style="width:84px;height:150px;background-image:url('${DEMO(i)}')"></div></div>`).join('')+`<div class="reclabel muted" style="align-self:flex-end;min-width:140px;font-size:14px;line-height:20px">Example clips. Your newest clips show here.</div>`}</div></div>
     <div><div class="between" style="padding-bottom:12px"><span class="h" style="font-size:17px">Your videos</span>${vids.length>3?`<a href="#" onclick="rgo('videos');return false">See all ${vids.length}</a>`:''}</div>${vids.slice(0,3).map(vRow).join('')||EXROW}</div>
   </div>${styleSide()}`;
 }
@@ -1243,14 +1243,14 @@ const rmLink=v=>`<button class="hlink" style="font-size:13px" onclick="event.sto
 function vVideos(){
   const now=L.videos.filter(v=>v.status!=='done'),done=L.videos.filter(v=>v.status==='done');
   const lede=[now.filter(v=>v.status==='ready').length?`${now.filter(v=>v.status==='ready').length} ready for you to watch.`:'',now.filter(v=>v.status!=='ready').length?`${now.filter(v=>v.status!=='ready').length} still being made.`:'',done.length?`${done.length} done.`:''].filter(Boolean).join(' ');
-  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:26px"><div class="between" style="align-items:flex-end;flex-wrap:wrap;gap:12px"><div><h1>Your videos</h1>${lede?`<p class="lede" style="margin-top:10px">${lede}</p>`:''}</div><div class="row"><button class="btn quiet" onclick="post('/reveal',{})">Show in ${/Mac/.test(navigator.platform)?'Finder':'Explorer'}</button><button class="btn dark" onclick="rgo('new')">+ New video</button></div></div>
+  return `<div class="col grow" style="min-width:0;gap:26px"><div class="between" style="align-items:flex-end;flex-wrap:wrap;gap:12px"><div><h1>Your videos</h1>${lede?`<p class="lede" style="margin-top:10px">${lede}</p>`:''}</div><div class="row"><button class="btn quiet" onclick="post('/reveal',{})">Show in ${/Mac/.test(navigator.platform)?'Finder':'Explorer'}</button><button class="btn dark" onclick="rgo('new')">+ New video</button></div></div>
     ${editTrashRow()}
     ${now.length?`<div><div class="h" style="margin-bottom:12px">Now</div><div class="nowg">${now.map(nowCard).join('')}</div></div>`:''}
     ${done.length?`<div><div class="between" style="margin-bottom:12px"><span class="h">Done</span><span class="muted">newest first</span></div><div class="doneg">${done.map(v=>`<div class="dtile"><a href="${v.review?'/review?dir='+encodeURIComponent(v.dir):esc(v.media||'#')}" style="text-decoration:none"><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${TICK}</div></a><div style="font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.name)}</div><div class="between"><span class="muted">${ago(v.updated)}</span><span class="row" style="gap:10px">${v.media?`<a class="muted" style="color:var(--ink)" href="${esc(v.media)}" download>Download</a>`:''}${rmLink(v)}</span></div></div>`).join('')}</div></div>`:''}
     ${L.videos.length?'':`<div>${EXROW}</div>`}</div>`;
 }
 function vMyStyle(){
-  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:24px"><div><h1>My styles</h1></div>
+  return `<div class="col grow" style="min-width:0;gap:24px"><div><h1>My styles</h1></div>
     ${styleGroups(false)}</div>`;
 }
 // ---- Settings: keys (each with its own status), updates, the videos folder, the theme, this computer
@@ -1401,9 +1401,7 @@ function rrender(){
   rheader();
   if(rv==='settings'&&!ui.disk)loadDisk();
   const h=rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='making'?vMaking():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='settings'?vSettings():vHome();
-  const side=$('#main .rv-side'),sideY=side?side.scrollTop:0;   // the side panel keeps its scroll through a re-render
-  $('#main').innerHTML=h;$('#main').classList.toggle('spwrap',rv==='stylepage');
-  if(sideY&&$('#main .rv-side'))$('#main .rv-side').scrollTop=sideY;
+  paint($('#main'),h,rv+'|'+ui.sp);$('#main').classList.toggle('spwrap',rv==='stylepage');
   if(rv==='mystyle'||rv==='style')flashBuilt();
   const o=$('#order');if(o)o.querySelectorAll('[draggable]').forEach(el=>{
     el.ondragstart=e=>{e.dataTransfer.setData('text/plain',el.dataset.i)};el.ondragover=e=>e.preventDefault();
@@ -1423,6 +1421,15 @@ window.addEventListener('keydown',e=>{if(e.key==='Escape')dragOff()});
 window.addEventListener('drop',()=>{dragN=0;document.body.classList.remove('dragging')},true);
 
 // ---------------------------------------------------------------- render loop
+// The poll redraws every 1.5 s. Same HTML: the DOM is left alone. New HTML on the same view: every inner
+// scroller (a column, panel or list) gets its scroll back, found again by its place in the tree.
+function paint(el,h,view){
+  if(el._h===h&&el._v===view)return;
+  const keep=[];
+  if(el._v===view)(function walk(e,path){if(e.scrollTop||e.scrollLeft)keep.push([path,e.scrollTop,e.scrollLeft]);[...e.children].forEach((c,i)=>walk(c,[...path,i]))})(el,[]);
+  el.innerHTML=h;el._h=h;el._v=view;
+  for(const [path,t,l] of keep){const e=path.reduce((x,i)=>x&&x.children[i],el);if(e){e.scrollTop=t;e.scrollLeft=l}}
+}
 function render(){
   if(!S)return;
   const keep=document.activeElement&&document.activeElement.id,pos=keep&&document.activeElement.selectionStart,end=keep&&document.activeElement.selectionEnd,val=keep&&document.activeElement.value;
@@ -1437,7 +1444,7 @@ function render(){
   if(v===0)html=h1();else if(v===1)html=h2();
   else if(v===2){const td=latest('teardown');html=!td?`<div class="col grow"><div class="empty">Pick a creator first.</div></div>`:td.state==='done'?h4(td):h3(td)}
   else if(v===3)html=h5();else html=h6();
-  $('#main').innerHTML=html;
+  paint($('#main'),html,'v'+v);
   if(keep){const e=document.getElementById(keep);if(e&&'value' in e){if(e.type!=='file')e.value=val;e.focus();try{e.setSelectionRange(pos,end??pos)}catch(x){}}}
   const d=$('#drop');if(d){d.ondragover=e=>{e.preventDefault();d.classList.add('over')};d.ondragleave=()=>d.classList.remove('over');d.ondrop=e=>{e.preventDefault();d.classList.remove('over');const f=e.dataTransfer.files[0];if(f)upload(f)}}
   }

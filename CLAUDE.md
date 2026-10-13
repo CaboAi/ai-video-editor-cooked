@@ -1,4 +1,4 @@
-# AI Video Editor
+# Cooked Editor
 
 Most people who open this folder want to edit a video. When the user asks for an edit, drops a
 video, pastes a link, names a creator, or asks how to start:
@@ -8,7 +8,7 @@ video, pastes a link, names a creator, or asks how to start:
 2. If it is not (the folder was not trusted, or this Claude Code is too old to load plugins from
    `.claude/settings.json`), ask in the question box (AskUserQuestion) whether to install the
    editor, recommended option first. On yes, run:
-   `claude plugin marketplace add nextwork-projects/ai-video-editor` then
+   `claude plugin marketplace add nextwork-projects/ai-video-editor-cooked` then
    `claude plugin install ai-editor@nextwork`. Then tell the user to type `/reload-plugins` and
    say "edit my video" again.
 

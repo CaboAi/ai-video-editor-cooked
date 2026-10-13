@@ -3,17 +3,17 @@
   "version": "2.2.0",
   "description": "Measure how a short-form creator edits, then cut and edit your own talking-head video in that style: retakes and pauses out, captions, zooms and cards rendered with Remotion.",
   "author": { "name": "NextWork", "url": "https://nextwork.ai" },
-  "homepage": "https://github.com/nextwork-projects/ai-video-editor",
-  "repository": "https://github.com/nextwork-projects/ai-video-editor",
+  "homepage": "https://github.com/nextwork-projects/ai-video-editor-cooked",
+  "repository": "https://github.com/nextwork-projects/ai-video-editor-cooked",
   "license": "MIT",
   "keywords": ["video", "video-editing", "captions", "jump-cut", "remotion", "creator", "tiktok", "youtube-shorts"],
   "skills": ["./plugins/ai-editor/skills/", "./plugins/creator-teardown/skills/"],
   "interface": {
-    "displayName": "AI Video Editor",
+    "displayName": "Cooked Editor",
     "shortDescription": "Cut and edit your talking-head video in a creator's measured style",
     "developerName": "NextWork",
     "category": "Media",
     "defaultPrompt": ["Break down @creator on TikTok.", "Cut my video and edit it like @creator."],
-    "websiteURL": "https://github.com/nextwork-projects/ai-video-editor"
+    "websiteURL": "https://github.com/nextwork-projects/ai-video-editor-cooked"
   }
 }

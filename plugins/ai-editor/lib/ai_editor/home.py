@@ -97,7 +97,7 @@ REVIEW = Path(__file__).with_name("review.py")
 DEMO = Path(__file__).with_name("demo")   # stock photos for empty previews (demo/CREDITS.md)
 HANDLE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 PLUGIN_JSON = Path(__file__).resolve().parents[2] / ".claude-plugin" / "plugin.json"
-RAW = "https://raw.githubusercontent.com/nextwork-projects/ai-video-editor/main/"
+RAW = "https://raw.githubusercontent.com/nextwork-projects/ai-video-editor-cooked/main/"
 COVER_MAX = 50 << 20   # a style's chosen image, or a short clip to take a frame from
 SCRIPT_MAX = 200_000   # a script's text, in bytes; the file it came from may be up to 1 MB (a .docx with a logo)
 SCRIPT_EXT = (".txt", ".md", ".docx", ".pdf")
@@ -1886,7 +1886,7 @@ def demo():
         except urllib.error.HTTPError as e:
             assert e.code == 403, (p, e.code)
     r = urllib.request.urlopen(base + "/?t=" + tok)
-    assert b"ai editor" in r.read() and "SameSite=Strict" in r.headers["Set-Cookie"]
+    assert b"Cooked Editor" in r.read() and "SameSite=Strict" in r.headers["Set-Cookie"]
     # one theme for the window and every review page: saved in $AI_EDITOR_HOME/ui.json, on <html> before first paint
     assert get("/state")["theme"] == "system" and b"<html data-theme" not in urllib.request.urlopen(base + "/?t=" + tok).read()
     assert post("/theme", {"theme": "light"})["theme"] == "light" and get("/state")["theme"] == "light"

@@ -1,4 +1,4 @@
-# AI Video Editor
+# Cooked Editor
 
 Edit your own talking-head video in the style of a creator you like. Open the folder in Claude Code
 and say **edit my video**, or paste a link.
@@ -60,8 +60,8 @@ plan or an API key). Pick one of three ways.
 
 - **No git:** at the top of this page click the green **Code** button, then **Download ZIP**. Unzip
   it (double-click on Mac, right-click > **Extract All** on Windows). You get a folder called
-  `ai-video-editor-main`.
-- **With git:** `git clone https://github.com/nextwork-projects/ai-video-editor.git`
+  `ai-video-editor-cooked-main`.
+- **With git:** `git clone https://github.com/nextwork-projects/ai-video-editor-cooked.git`
 
 **3. Open Claude Code in that folder.** In the terminal type `cd ` (with a space after it), drag the
 folder onto the terminal window, press Enter. Then type `claude` and press Enter. The first time,
@@ -84,7 +84,7 @@ it offers to install it: say yes, then type `/reload-plugins`.
 Inside Claude Code, type these two lines (same on every computer):
 
 ```
-/plugin marketplace add nextwork-projects/ai-video-editor
+/plugin marketplace add nextwork-projects/ai-video-editor-cooked
 /plugin install ai-editor@nextwork
 ```
 
@@ -96,7 +96,7 @@ Your edits land in your library folder (above), wherever you started Claude Code
 In a terminal, on a computer with [Node.js](https://nodejs.org):
 
 ```
-npx skills add nextwork-projects/ai-video-editor
+npx skills add nextwork-projects/ai-video-editor-cooked
 ```
 
 `AGENTS.md` (and its copy `GEMINI.md`) tells the agent where to start. The skills share code in
@@ -114,7 +114,7 @@ If you want to change the editor's own code:
 1. On GitHub, press **Fork** at the top of this page. You get your own copy.
 2. In Claude Code, install the editor from your copy:
    ```
-   /plugin marketplace add <your-github-name>/ai-video-editor
+   /plugin marketplace add <your-github-name>/ai-video-editor-cooked
    /plugin install ai-editor@nextwork
    ```
 3. Clone your fork and change anything you like.

@@ -4,6 +4,11 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- The editor is now called Cooked Editor. The home window, page titles, setup messages and docs use the
+  new name. The repo moved to nextwork-projects/ai-video-editor-cooked (old links redirect), and the
+  install lines and update checks point there. Nothing to reinstall: the plugin is still `ai-editor`,
+  the commands, settings folder (`~/.ai-video-editor`) and library folder (`~/Movies/AI Editor`) stay the same.
+
 - Scrolling holds on the home window and the review page. The home window redraws every 1.5 s, and each
   redraw put every inner list (Your videos, My styles, a style's page, Settings) back at the top. Now a
   redraw with nothing new leaves the page alone, and one with something new keeps every list where it

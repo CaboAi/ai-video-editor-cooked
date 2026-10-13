@@ -21,7 +21,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-UPSTREAM = "https://github.com/nextwork-projects/ai-video-editor.git"
+UPSTREAM = "https://github.com/nextwork-projects/ai-video-editor-cooked.git"
 LIB = Path(__file__).resolve().parents[3] / "lib"
 
 
@@ -35,7 +35,7 @@ def norm(url):
 
 def is_upstream(url):
     u, up = norm(url), norm(upstream_url())
-    return u == up or u.endswith("nextwork-projects/ai-video-editor")
+    return u == up or u.endswith(("nextwork-projects/ai-video-editor", "nextwork-projects/ai-video-editor-cooked"))
 
 
 def git(repo, *args, check=True):
@@ -87,8 +87,8 @@ def say_where(repo):
     elif kind == "clone":
         print(f"install: a plain clone of upstream ({repo.as_posix()})\n"
               "update: `git pull` here. To change the editor and keep your changes across updates, use a fork:\n"
-              "  1. On GitHub, open nextwork-projects/ai-video-editor and press Fork.\n"
-              "  2. In Claude Code: /plugin marketplace add <your-github-name>/ai-video-editor\n"
+              "  1. On GitHub, open nextwork-projects/ai-video-editor-cooked and press Fork.\n"
+              "  2. In Claude Code: /plugin marketplace add <your-github-name>/ai-video-editor-cooked\n"
               "     then /plugin install ai-editor@nextwork\n"
               "  3. Clone your fork, change what you like, and say \"update the editor\" to pull new versions.")
     else:

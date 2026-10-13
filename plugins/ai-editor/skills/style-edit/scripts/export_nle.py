@@ -359,7 +359,7 @@ def fcpxml(ctx, cards, sfx, caps, marks):
         it["rid"] = rid
 
     lib = ET.SubElement(root, "library")
-    ev = ET.SubElement(lib, "event", name=f"AI editor {ctx['name']}")
+    ev = ET.SubElement(lib, "event", name=f"Cooked Editor {ctx['name']}")
     pj = ET.SubElement(ev, "project", name=ctx["name"])
     seq = ET.SubElement(pj, "sequence", format="r1", duration=T(ctx["total_f"]), tcStart="0s", tcFormat="NDF",
                         audioLayout="stereo", audioRate="48k")

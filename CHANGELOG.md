@@ -4,6 +4,11 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- A creator shows their own profile picture. When their videos are listed, creator-teardown saves the
+  account picture as `creator-teardowns/<handle>/avatar.jpg`: YouTube's channel avatar from one
+  `yt-dlp -J` call, TikTok's from the profile page. It replaces the frame from their top video on the
+  style cards, Creators you copied, the style page and the copy's progress card (as soon as it is
+  saved). Instagram, private accounts and no network keep the video frame. No new tools or keys.
 - The editor is now called cooked. The home window, page titles, setup messages and docs use the
   new name. Its logo is a pan with three lines of sizzle: in a small tile beside the name in the home
   window header, as the browser tab icon of the home window and the review page, and at the top of the

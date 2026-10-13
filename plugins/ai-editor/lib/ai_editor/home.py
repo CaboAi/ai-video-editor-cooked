@@ -761,6 +761,18 @@ def reset_section(root, sid, section):
     ss.write(str(sp) if sp else None)
 
 
+def reset_mine():
+    """My style back to the default: every feedback rule at its scope forgotten, taste.json and taste.md
+    emptied, the my-style skill rewritten. My style itself stays (every video uses it)."""
+    taste, ss = _taste()
+    if taste.rules_path().exists():
+        for r in [r for r in taste.load_rules() if r["scope"] == ss.scope(None)]:
+            taste.forget(r["id"])
+    taste.save_json({})
+    taste.save_md({s: [] for s in taste.SECTIONS})
+    ss.write(None)
+
+
 _UPD = {"at": 0.0, "latest": None, "notes": [], "busy": False}
 
 
@@ -1252,7 +1264,7 @@ def make_handler(token):
                 vids = [dict(e, thumb=f"/thumb?p={quote(e['video'] or raw[e['dir']]['args']['path'])}&u={int(e['updated'])}"
                              if e["video"] or e["dir"] in raw else None,
                              media=e["video"] and "/media?p=" + quote(e["video"]), job=(raw.get(e["dir"]) or {}).get("id"))
-                        for e in library.entries()]
+                        for e in library.entries() if e["dir"] not in set(read().get("hidden_edits") or [])]   # Remove from this list
                 cards = style_cards(root)
                 for j in read()["jobs"]:   # a creator still being studied: a card the user can already pick
                     h = j["args"].get("handle")
@@ -1457,6 +1469,9 @@ def make_handler(token):
                     return self.send(404, {"error": "no such style"})
                 except (ValueError, TypeError) as e:
                     return self.send(400, {"error": str(e)})
+            if path == "/style/reset-all":
+                reset_mine()
+                return self.send(200, {"ok": True})
             if path in ("/style/delete", "/style/cover/remove"):
                 root, sid = read()["root"], str(body.get("id") or "")
                 if path == "/style/cover/remove":
@@ -1469,12 +1484,15 @@ def make_handler(token):
                     return self.send(200, {"ok": True, "removed": delete_style(root, sid, body.get("measured") is True)})
                 except ValueError as e:
                     return self.send(400, {"error": str(e)})
-            if path in ("/clip/hide", "/clip/trash", "/edit/trash"):   # only what the page listed; Trash, never a delete
+            if path in ("/clip/hide", "/clip/trash", "/edit/trash", "/edit/hide"):   # only what the page listed; Trash, never a delete
                 st = read()
-                if path == "/edit/trash":
+                if path in ("/edit/trash", "/edit/hide"):
                     d = Path(str(body.get("dir") or "")).resolve()
                     if d not in library.edit_dirs() or Path(st["root"]).resolve() not in d.parents:
                         return self.send(400, {"ok": False, "msg": "That is not one of your videos."})
+                    if path == "/edit/hide":   # off the window only: its folder stays as it is
+                        update(lambda x: x.__setitem__("hidden_edits", (x.get("hidden_edits") or []) + [str(d)]))
+                        return self.send(200, {"ok": True})
                     ok = trash(d)
                     return self.send(200, {"ok": True} if ok else {"ok": False, "msg": "It could not be moved to the Trash."})
                 f = Path(str(body.get("path") or "")).resolve()
@@ -2396,6 +2414,16 @@ def demo():
                 raise AssertionError(bad)
             except urllib.error.HTTPError as e:
                 assert e.code == 400, bad
+        yv = root / "videos" / "yours.mp4"   # a clip in the library's videos/ ("Your videos"): hidden, never moved
+        yv.parent.mkdir(exist_ok=True)
+        shutil.copyfile(vid, yv)
+        assert next(v for v in get("/recent")["videos"] if v["name"] == "yours.mp4")["where"] == "Your videos"
+        assert post("/clip/hide", {"path": str(yv)})["ok"] and "yours.mp4" not in names() and yv.exists()
+        hid = root / "edits" / "hide-me"
+        hid.mkdir(parents=True)
+        shutil.copyfile(vid, hid / "cut.mp4")
+        assert str(hid.resolve()) in [v["dir"] for v in get("/library")["videos"]]
+        assert post("/edit/hide", {"dir": str(hid)})["ok"] and (hid / "cut.mp4").exists() and str(hid.resolve()) not in [v["dir"] for v in get("/library")["videos"]]
         gone = root / "edits" / "old-edit"
         gone.mkdir(parents=True)
         shutil.copyfile(vid, gone / "cut.mp4")
@@ -2499,6 +2527,12 @@ def demo():
             raise AssertionError(bad)
         except urllib.error.HTTPError as e:
             assert e.code == 400, bad
+    # My style can't be deleted, only reset: feedback rules, taste.json and taste.md go, the style stays
+    assert json.loads((tmp / "home" / "taste.json").read_text(encoding="utf-8")), "set above: zoom.per_min 0"
+    assert post("/style/reset-all", {})["ok"]
+    assert json.loads((tmp / "home" / "taste.json").read_text(encoding="utf-8")) == {} and get("/style?id=mine")["rules"] == []
+    assert "No zooms" not in (tmp / "skills" / "my-style" / "SKILL.md").read_text(encoding="utf-8")
+    assert "mine" in [c["id"] for c in get("/library")["styles"]]
     # updates: the version on GitHub (faked here) against plugin.json; Update queues one JOB line
     t0 = time.time()
     while not get("/state")["update"]["latest"] and time.time() - t0 < 5:

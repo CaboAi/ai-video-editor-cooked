@@ -4,6 +4,14 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Every video and style card has a ⋯ button on its picture, always showing, in Your videos (Now cards and Done
+  tiles), My styles, Pick a style and the Home shelves. Videos and clips get "Remove from this list" (off the
+  window, no file is touched) and "Move to Trash" (asks first). A creator's style gets "Delete style"; My style
+  gets "Reset to default style", which clears your feedback changes after asking. Change image and Remove image
+  moved into the same menu. The small Remove and Delete links are gone. A clip in Your videos can now be
+  removed from the list too. Create a new style is a "+ New style" button on the Copied from creators row that
+  opens the two choices in a window over the page (Esc, the X or a click outside closes it).
+
 - Scrolling holds on the home window and the review page. The home window redraws every 1.5 s, and each
   redraw put every inner list (Your videos, My styles, a style's page, Settings) back at the top. Now a
   redraw with nothing new leaves the page alone, and one with something new keeps every list where it

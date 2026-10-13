@@ -4,12 +4,18 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.6.2 (2026-10-13)
+
 - Connect Claude. When no Claude is listening, the window shows one button, **Connect Claude**, instead of
   "type nextwork-editor in Terminal". It opens a new Terminal window with Claude Code in your videos folder,
   allowed only the editor's own commands, and it picks up what you queued. One at a time: the window says
   "Opening Claude in a new Terminal window..." and, if nothing connects within a minute, offers Try again.
   `nextwork-editor` now opens that Claude too when the window is already open and nobody is listening;
   `nextwork-editor --window-only` opens just the window.
+
+- Settings > Update always finishes. Claude runs the update itself, marks it done or failed on the page,
+  and keeps listening. Before, the page could sit on "Claude is picking this up" after Claude stopped.
+
 ## ai-editor 2.6.1 (2026-10-13)
 
 - Settings > Update now updates. Claude runs `claude plugin marketplace update nextwork` and

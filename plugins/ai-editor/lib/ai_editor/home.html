@@ -1481,12 +1481,12 @@ function fact3(c){
   return (c.facts||[]).map(([k,v])=>/^cut/i.test(k)?['cut','Cut','Every '+v]:/^zoom/i.test(k)?['zoom','Zooms',v]:/^caption/i.test(k)?['caption','Captions',v]
     :/^music|^sound/i.test(k)?['sound','Sound',v]:/^card/i.test(k)?['styles','Cards',v]:/^pace/i.test(k)?['pace','Pace',v]:['image',k,v]).slice(0,3);
 }
-const factList=c=>`<div class="fl">${fact3(c).map(([i,k,v])=>`<div class="fr2">${ic(i)}<span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join('')||'<div class="fr2"><span class="v" style="color:var(--t3);font-weight:400">The default style</span></div>'}</div>`;
+const factList=c=>c.kind==='skill'?`<div class="fl"><div class="fr2"><span class="v" style="color:var(--t3);font-weight:400;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal">${esc(c.description||'')}</span></div></div>`:`<div class="fl">${fact3(c).map(([i,k,v])=>`<div class="fr2">${ic(i)}<span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join('')||'<div class="fr2"><span class="v" style="color:var(--t3);font-weight:400">The default style</span></div>'}</div>`;
 const handleOf=c=>c.id.startsWith('@')&&!c.own?c.id.slice(1):'';
 const avaHTML=(url,px=32)=>`<span class="ava" style="width:${px}px;height:${px}px;border-radius:${px/2}px;${url?`background-image:url('${esc(url)}')`:''}">${url?'':SIL}</span>`;
 const framePic=u=>`<i style="background-image:url('${esc(u)}')"></i><img src="${esc(u)}" alt="" loading="lazy" onload="if(this.naturalWidth>this.naturalHeight)this.parentElement.classList.add('wd')">`;
 const dname=c=>/^@links-/.test(c.name||'')?'New format':c.name;
-const origin=c=>c.sample?'Sample':c.id==='mine'?'Learned from your edits':c.own?'Built by you':c.studying?'Being analysed now':(handleOf(c).startsWith('links-')?'From several creators':`From @${handleOf(c)}`)+(c.videos?` · ${c.videos} videos`:'');
+const origin=c=>c.kind==='skill'?(c.found?`Runs /${c.skill}`:'Skill not found here'):c.sample?'Sample':c.id==='mine'?'Learned from your edits':c.own?'Built by you':c.studying?'Being analysed now':(handleOf(c).startsWith('links-')?'From several creators':`From @${handleOf(c)}`)+(c.videos?` · ${c.videos} videos`:'');
 const isDefault=c=>(L&&L.default_style||'mine')===c.id;
 const ownSub=c=>c.id==='mine'?(c.learned_from?`Learned from ${c.learned_from} video${c.learned_from>1?'s':''}`:c.base?`Started from @${c.base}`:'The default style'):`Built yourself${c.made?' · '+ago(c.made):''}`;
 const crSub=c=>c.studying?'Being analysed now':handleOf(c).startsWith('links-')?'From several creators':`From @${handleOf(c)}`;
@@ -1592,6 +1592,7 @@ function linkRow(u,i){
 function createModal(){
   const st=ui.study||{},b=lbOf('study'),rows=b.rows.filter(r=>!isProfile(r));
   if(st.pick)return pickModal();
+  if(st.skills)return skillModal();
   return `<div class="modalbg" onclick="if(event.target===this)closeCreate()"><div class="modal nsm" role="dialog" aria-modal="true" aria-labelledby="mtitle">
     <div class="row" style="justify-content:space-between"><b class="mt2" id="mtitle">New style</b><button class="mx2" aria-label="Close" title="Close" onclick="closeCreate()">${ic('x',18,2)}</button></div>
     <div class="nbox"><div class="row" style="justify-content:space-between;align-items:baseline"><b>Analyse a format</b><span class="t2">about 3 min</span></div>
@@ -1601,7 +1602,25 @@ function createModal(){
       ${st.msg?`<div class="msg bad">${CROSS}<span>${esc(st.msg)}</span></div>`:''}
       <div class="row" style="justify-content:space-between;gap:16px;flex-wrap:wrap"><div><div class="t1" style="font-weight:600">${rows.length} video${rows.length===1?'':'s'} · 6 works best</div><button class="ul" onclick="ui.study={pick:{}};render();setTimeout(()=>{const e=$('#pf-in');if(e)e.focus()},0)">Or paste a profile and pick its videos</button></div>
         <button class="b1" ${rows.length&&!st.busy?'':'disabled'} onclick="studyLink()">${st.busy?'Starting...':'Analyse this format'}</button></div></div>
-    <button class="nbox brow" onclick="buildYourself()"><div><b>Build it yourself</b><p>Pick captions, zooms, cut and sound yourself.</p></div>${ic('chev',18,2)}</button></div></div>`;
+    <button class="nbox brow" onclick="buildYourself()"><div><b>Build it yourself</b><p>Pick captions, zooms, cut and sound yourself.</p></div>${ic('chev',18,2)}</button>
+    <button class="nbox brow" onclick="openSkills()"><div><b>Use your own skill</b><p>A Claude Code skill that edits videos makes the edit.</p></div>${ic('chev',18,2)}</button></div></div>`;
+}
+// "Use your own skill": the editing skills Claude Code can load (/skills), pick one, name it, Create
+async function openSkills(){ui.study={skills:{list:null}};render();try{ui.study.skills.list=(await (await fetch('/skills')).json()).skills}catch(e){ui.study.skills.list=[]}render()}
+function skillModal(){
+  const k=ui.study.skills,ls=k.list;
+  const body=!ls?'<div class="t2">Looking for skills...</div>':!ls.length?'<div class="t2" style="white-space:normal">No editing skills found. Put one at ~/.claude/skills/&lt;name&gt;/SKILL.md, then open this again.</div>'
+    :ls.map(x=>`<button class="nbox brow" style="${k.sel===x.name?'outline:1.5px solid var(--ink)':''}" onclick="ui.study.skills.sel=${J(x.name)};ui.study.skills.name=ui.study.skills.name||${J(x.name.replace(/-/g,' ').replace(/^./,c=>c.toUpperCase()).slice(0,40))};render()"><div style="min-width:0"><b style="font-family:var(--mono)">/${esc(x.name)}</b><p style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(x.description||'')}</p></div></button>`).join('');
+  return `<div class="modalbg" onclick="if(event.target===this)closeCreate()"><div class="modal nsm" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+    <div class="row" style="justify-content:space-between"><button class="back" style="text-decoration:none" onclick="ui.study={};render()">${ic('back',14,2)}<b class="mt2" id="mtitle">Use your own skill</b></button><button class="mx2" aria-label="Close" title="Close" onclick="closeCreate()">${ic('x',18,2)}</button></div>
+    <div style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow:auto">${body}</div>
+    ${k.sel?`<div class="fld"><div class="in2"><input id="sk-name" value="${esc(k.name||'')}" placeholder="Name your style" aria-label="Style name" oninput="ui.study.skills.name=this.value" onkeydown="if(event.key==='Enter')createSkillStyle()"></div><button class="b1" onclick="createSkillStyle()">Create</button></div>`:''}
+    ${k.msg?`<div class="msg bad">${CROSS}<span>${esc(k.msg)}</span></div>`:''}</div></div>`;
+}
+async function createSkillStyle(){
+  const k=ui.study.skills,r=await post('/style/new',{name:k.name||k.sel,skill:k.sel});
+  if(!r._ok){k.msg=r.error||'That did not work.';return render()}
+  ui.create=false;ui.study=null;await loadLib();openStyle(r.id);
 }
 // a profile's newest videos as ticks (the same listing the first run uses, /lookup); Use these adds them as links
 function pickModal(){
@@ -1682,8 +1701,24 @@ function useFor(P){
   return `<div class="row" style="gap:12px"><span class="t2" style="color:var(--t2)">Use for</span><span class="seg4"><button class="${wide?'':'on'}" onclick="setUse(false)"><i style="width:9px;height:14px"></i>Tall 9:16</button><button class="${wide?'on':''}" onclick="setUse(true)"><i style="width:14px;height:9px"></i>Wide 16:9</button></span></div>`;
 }
 async function setUse(wide){const r=await post('/style/usefor',{id:ui.sp,text:wide?'Wide 16:9 videos':'Tall 9:16 videos'});if(r._ok){ui.spage=r;loadLib()}render()}
+// a skill style's page: its skill makes the edit, so no Captions/Zooms/Cut/Cards/Sound here
+function vSkillPage(P){
+  const card=styleById(P.id)||P,K=P.skill,editing=ui.edit&&ui.edit.kind==='name'&&ui.edit.id===P.id,pic=picOf(P,0);
+  return `<div class="spg"><div class="spl"><button class="back" style="text-decoration:none;font-size:14px" onclick="rgo('mystyle')">${ic('back',14,2)}Styles</button><div class="pic sprev2" style="background-image:url('${esc(pic.url)}')"></div>
+      ${ui.covermsg&&ui.covermsg.id===P.id?`<div class="msg bad">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
+      <button class="b1" style="width:100%" onclick="nv.style=${J(P.id)};nv.picked=1;rgo('new')">Make a video with this style</button></div>
+    <div class="spr"><div style="display:flex;flex-direction:column;gap:10px"><div class="row" style="justify-content:space-between;gap:12px"><span class="row" style="gap:8px;min-width:0;flex:1">${editing?'':`<h1 class="sname">${esc(dname(P))}</h1>`}${editField('name',P.id,P.name,'font-size:24px;font-weight:600')}</span><span class="pgdots">${sMenu(card)}</span></div>
+        <span style="font:500 14px var(--mono)">/${esc(K.name)}</span>
+        <div class="t1" style="white-space:normal;line-height:22px">${K.found?esc(K.description||'This style runs its own skill.'):`Skill not found here: ${esc(K.name)} is not in the skill folders this editor can see. Making a video still asks Claude to run it, and offers the generic edit if that session doesn't have it.`}</div>
+        <div class="t2" style="white-space:normal">Making a video cuts it here, then runs /${esc(K.name)} on the approved cut for the captions, visuals and render.</div></div>
+      ${K.calls&&K.calls.length?`<div class="ssec"><div class="shd"><b>Skills it calls</b></div><div class="row" style="gap:8px;flex-wrap:wrap">${K.calls.map(x=>`<span class="tagc" style="font-family:var(--mono)">/${esc(x)}</span>`).join('')}</div></div>`:''}
+      ${P.rules.length?`<div class="ssec"><div class="shd"><b style="font-size:17px">What it learned from you</b><span class="t2">From your review notes and chats</span></div>
+        ${P.rules.map(r=>`<div class="lrow2"><div style="min-width:0"><div>${esc(r.rule)}</div><div class="t2" style="white-space:normal">Said ${r.said}x${r.last?` · last ${esc(r.last)}`:''}</div></div><button class="b2 s" onclick="forgetRule(${r.id})">Forget</button></div>`).join('')}</div>`:''}
+      ${P.references&&P.references.videos.length?`<div class="ssec"><div class="shd"><b>Analysed from</b></div><div class="refs">${P.references.videos.map(v=>`<a class="ref" href="${esc(v.url)}" target="_blank" rel="noopener"><span class="rth" style="${v.thumbnail?`background-image:url('${esc(v.thumbnail)}')`:''}">${v.thumbnail?'':LINKG}</span><span style="min-width:0;flex:1"><span class="t1" style="display:block">${esc(v.title||shortLink(v.url))}</span></span></a>`).join('')}</div></div>`:''}</div></div>`;
+}
 function vStylePage(){
   const P=ui.spage;if(!P)return `<div class="pgc"><div class="none">Loading the style...</div></div>`;
+  if(P.kind==='skill')return vSkillPage(P);
   const Z=P.presets,C=Z.captions,job=P.job,jr=job&&job.result||{},card=styleById(P.id)||P;
   const jobLine=!job?'':job.state==='queued'?(S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal.`):job.state==='taken'?`Claude: ${esc((job.steps.at(-1)||{}).text||'working on it')}`:job.state==='done'?`Changed: ${esc((jr.changed||[]).join('; ')||'nothing')}`:job.state==='failed'?esc(job.error):'';
   const size=+((C.tiles.find(x=>x.id===C.sel)||{}).block||{}).size_pct||C.size,h=P.own?'':handleOf({...P,own:false});

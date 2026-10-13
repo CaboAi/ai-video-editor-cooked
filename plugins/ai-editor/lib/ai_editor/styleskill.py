@@ -176,7 +176,11 @@ def remove(style_path, rm=None):
     d = names()
     d.pop(key(style_path), None)
     _save_names(d)
-    if sk.is_dir() and sk.parent == skills_dir() and sk.name != MINE:
+    try:   # a skill style's own skill (style.json "skill") is the user's, never ours to delete
+        theirs = json.loads(Path(style_path).read_text(encoding="utf-8") or "{}").get("skill")
+    except (OSError, ValueError, TypeError):
+        theirs = None
+    if sk.is_dir() and sk.parent == skills_dir() and sk.name not in (MINE, theirs):
         import shutil
         (rm or shutil.rmtree)(sk)   # home.py passes its Trash
     rewrite_all()

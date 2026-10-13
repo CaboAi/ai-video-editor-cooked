@@ -14,6 +14,13 @@ What changed for every user, newest first.
 
 - Every page in the window ends with space under its last row, so the last card or line never sits on the
   bottom edge of the window.
+- Skill styles. A style can point at a Claude Code skill (`"skill": "<name>"` in its style.json, or New style >
+  Use your own skill). Its card says "Runs /<name>", its page shows the skill's description and the skills it
+  calls instead of the caption, zoom, cut, card and sound controls, and making a video cuts it as usual, then
+  runs that skill on the approved cut and puts its render on the review page. When the session doesn't have
+  the skill, the window says so and offers the generic edit with the style's numbers.
+
+## ai-editor 2.5.0, creator-teardown 2.7.0 (2026-10-13)
 
 - Making the edit is faster and asks less. While you review the cut, the visuals, the plan and the stills
   sheet are made in the background (all free, on your computer), so approving the cut goes straight to the

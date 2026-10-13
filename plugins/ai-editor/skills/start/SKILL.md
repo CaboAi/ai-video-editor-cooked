@@ -87,6 +87,7 @@ Do each step in order, skipping what is already done. Read each skill's SKILL.md
    profile itself: the brand kit sets the look, `names` get real logos and captures, `assets_dir`
    images go on screen first, `avoid` is enforced by plan.py. Letterbox (wide take, title on top):
    cut `--max-pause 0.5`, `--layout letterbox`.
+   `skill=<skill>` on the job: step 5 is that skill, not style-edit (`references/home.md`, Skill style).
 
 Between steps say one line about what is next. Never ask the user to do a step the skill can do.
 

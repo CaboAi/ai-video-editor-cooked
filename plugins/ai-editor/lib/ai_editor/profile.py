@@ -272,7 +272,7 @@ def fill_transitions(style, warn=print):
 # The same keys as creator-teardown editplan.py PARTS: camera goes with pace, face and hook with visuals, and sound
 # is its own part (claimed by nobody in the profile, so it comes from the first creator, as every unclaimed part does).
 PARTS = {"captions": ("captions",), "pace": ("pace", "zoom", "cuts", "motion", "transitions", "camera"),
-         "visuals": ("graphics", "look", "layout", "cats", "events", "face", "hook", "per_min", "first_in_s", "gap_s"),
+         "visuals": ("graphics", "look", "layout", "cats", "events", "face", "hook", "per_min", "first_in_s", "gap_s", "behind"),
          "sound": ("sound", "sfx")}
 HOME_TAKE = {"captions", "pace", "graphics", "sound"}   # the home page's four boxes (home.py TAKE)
 

@@ -24,6 +24,21 @@ What changed for every user, newest first.
   place. Settings has its keys, updates, videos folder and theme in two columns. Done green is now #16A34A
   (#4ADE80 in dark).
 
+- Vertical videos keep everything inside the reels safe zone: x 60-940, y 250-1440 of the 1080x1920
+  frame, for every style. Cards, overlays, logos, captions and scene content no longer reach the top bar,
+  the like and share rail or the caption block. The band above the head is now 74% of the width (it was
+  92%) and starts at 13.1% down (it was 10%). Captions are at most 74% wide. `check.py plan` fails any card
+  outside the zone, cards behind the speaker included, and captions that are too wide. Wide videos are
+  unchanged.
+
+- A sample style ships with the editor: Card edit. It shows in My styles and on Pick a style for every user
+  under Sample styles, with no creator to copy first. Real image cards land 0.1 s before the word that names
+  them, about 14 a minute, in the band above the speaker's head and tucked behind a cutout of it (matte.py),
+  popping in from 54% in 0.23 s or on a hard cut, still while up, leaving on a cut. Captions are one white word
+  at a time in TikTok Sans. It edits through the same style-edit path as a copied creator, its settings change
+  on its style page like any other, and it cannot be deleted. A style.json can now ask for cards behind the
+  speaker itself (`"behind": true`). Fixed: a creator's measured entrance longer than the card's lead (about
+  0.17 s) hid the card for its whole life in the render.
 - Done is green in the home window, the same green as the review page: the ticks on finished steps and
   videos, "Saved. The key works.", the done step numbers and the Ready to watch / Ready to review dot.
   The current step, buttons and text stay black.

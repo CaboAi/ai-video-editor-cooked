@@ -240,7 +240,7 @@ def demo():
         script = ran[0][2]   # osascript -e '<the Terminal script>'
         assert LISTEN in script and "Bash(python3 " in script and "Bash(ffmpeg *)" in script and "Bash(*)" not in script, script
         os.environ["AI_EDITOR_HOME"] = str(tmp / "home")
-        assert f" && env AI_EDITOR_HOME={tmp / 'home'} " in open_claude(tmp, LISTEN)[1], "the new Claude uses the window's home"
+        assert " && env " + shlex.quote(f"AI_EDITOR_HOME={tmp / 'home'}") + " " in open_claude(tmp, LISTEN)[1], "the new Claude uses the window's home"
         assert "dangerously" not in script and "bypass" not in script.lower(), "never bypass permissions"
         ran.clear()
         assert connect(tmp) == ("pending", "") and not ran, "no second terminal while one is pending"

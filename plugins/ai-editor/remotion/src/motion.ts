@@ -228,7 +228,9 @@ export const fitIn = (tl: gsap.core.Timeline, el: Element | undefined, at: Pos, 
   tl.set(el, { autoAlpha: 0 }, 0);
   const d = f.dur ?? 0;
   if (f.kind === "cut" || d <= 0) { tl.set(el, { autoAlpha: 1 }, at); return; }
-  const start = typeof at === "number" ? Math.max(0, at - d) : `${at}-=${+d.toFixed(3)}`;
+  // a label at a time: a number, clamped at 0 (a tween placed before 0 in a nested timeline is never shown)
+  const t = typeof at === "number" ? at : tl.labels[at];
+  const start = t !== undefined ? Math.max(0, t - d) : `${at}-=${+d.toFixed(3)}`;
   tl.fromTo(el, { autoAlpha: f.fade || f.kind === "fade" ? 0 : 1, ...away(f, U) },
     { autoAlpha: 1, ...rest(f), duration: d, ease: f.ease ?? "none", immediateRender: false }, start);
 };

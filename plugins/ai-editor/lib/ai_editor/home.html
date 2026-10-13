@@ -1104,7 +1104,7 @@ const rawThumb=()=>{const c=nv.sel.length?clipOf(nv.sel[0]):null;return (c&&c.ra
 // a creator's style shows the creator (their account picture, else a frame of their video); My style its base creator's, else the user's own clip
 // My style never shows its base creator's frame: it is the user's style, not theirs
 const picOf=(c,i)=>c.cover?{url:c.cover,mine:1}:c.id!=='mine'&&c.face?{url:c.face,face:!c.face.includes('&a=1')}:c.id==='mine'&&rawThumb()?{url:rawThumb(),clip:1}:{url:DEMO(i),demo:1};
-function picBtns(c){return c.studying?'':`<div class="picbtns"><button onclick="event.stopPropagation();pickCover(${esc(JSON.stringify(c.id))})">Change image</button>${c.cover?`<button onclick="event.stopPropagation();removeCover(${esc(JSON.stringify(c.id))})">Remove image</button>`:''}</div>`}
+function picBtns(c){return c.studying?'':`<div class="picbtns"><button onclick="event.stopPropagation();pickCover(${esc(JSON.stringify(c.id))})">Change image</button>${c.cover&&!c.sample?`<button onclick="event.stopPropagation();removeCover(${esc(JSON.stringify(c.id))})">Remove image</button>`:''}</div>`}
 function pickCover(id){ui.coverFor=id;$('#coverf').click()}
 async function setCover(f){
   const id=ui.coverFor;if(!id)return;
@@ -1156,17 +1156,18 @@ async function delStyle(id){
 }
 const skillBusy=id=>{const k=latest('skill');return k&&(k.state==='queued'||k.state==='taken')&&'@'+k.args.handle===id?k:null};
 const madeAgo=t=>{if(!t)return '';const d=Math.floor((Date.now()/1000-t)/86400);return d<1?'today':d<2?'yesterday':`${d} days ago`};
-const isNewStyle=c=>c.id!=='mine'&&!c.studying&&c.made&&Date.now()/1000-c.made<86400;
+const isNewStyle=c=>c.id!=='mine'&&!c.studying&&!c.sample&&c.made&&Date.now()/1000-c.made<86400;
 const learnedN=c=>c.learned_from?` · Learned from ${c.learned_from} video${c.learned_from>1?'s':''}`:'';
 // what the card is, in plain words; My style says what it started as and what feedback changed
 function styleWhat(c){
   if(c.studying)return `<div class="sub" style="padding:8px 6px 10px;font-size:14px;line-height:21px">${esc(c.line)}</div>`;
+  if(c.sample)return `<div class="sub" style="padding:8px 6px 4px;font-size:14px;line-height:21px">${esc(c.line)}</div><div class="muted" style="padding:0 6px 10px;font-size:13px">Ships with the editor${learnedN(c)}</div>`;
   if(c.id!=='mine')return `<div class="sub" style="padding:8px 6px 4px;font-size:14px;line-height:21px">${esc(c.id)}'s style${c.videos?`, measured from ${c.videos} of their videos`:''}. Pick it to edit exactly like them.</div><div class="muted" style="padding:0 6px 10px;font-size:13px">Made ${madeAgo(c.made)||'here'}${learnedN(c)}</div>`;
   const b=c.base&&(L.styles.find(x=>x.id==='@'+c.base)||{}),was=Object.fromEntries((b&&b.facts)||[]);
   const n=Math.max(c.changes||0,b?c.facts.filter(([k,v])=>was[k]!=null&&was[k]!==v).length:0);   // a changed number counts even before its rule is written
   return `<div class="sub" style="padding:8px 6px 8px;font-size:14px;line-height:21px">Your style. Used on every video unless you pick another.</div>
-    ${c.base?`<div class="basechip"><i style="${b.face?`background-image:url('${esc(b.face)}')`:''}"></i>Started as a copy of @${esc(c.base)}</div>`:''}
-    <div class="muted" style="padding:8px 6px 10px;font-size:13px;line-height:19px">${n?`${n} change${n>1?'s':''} from your feedback${c.changed?` · last ${madeAgo(c.changed)}`:''}${learnedN(c)}`:c.base?`No changes yet: it edits exactly like @${esc(c.base)}. Your feedback on videos changes it.`:'Starts from the default style. Your feedback on videos changes it.'}</div>`;
+    ${c.base?`<div class="basechip"><i style="${b.face?`background-image:url('${esc(b.face)}')`:''}"></i>Started as a copy of ${esc(b.name||'@'+c.base)}</div>`:''}
+    <div class="muted" style="padding:8px 6px 10px;font-size:13px;line-height:19px">${n?`${n} change${n>1?'s':''} from your feedback${c.changed?` · last ${madeAgo(c.changed)}`:''}${learnedN(c)}`:c.base?`No changes yet: it edits exactly like ${esc(b.name||'@'+c.base)}. Your feedback on videos changes it.`:'Starts from the default style. Your feedback on videos changes it.'}</div>`;
 }
 function factRows(c){
   const b=c.id==='mine'&&c.base&&(L.styles.find(x=>x.id==='@'+c.base)||{}),was=Object.fromEntries((b&&b.facts)||[]);
@@ -1174,9 +1175,10 @@ function factRows(c){
 }
 function styleGroups(pick){
   const st=(L?L.styles:[]).filter(c=>pick||!inFold('styles',c.id)),me=st.find(c=>c.id==='mine');
-  const cr=st.filter(c=>c.id!=='mine').sort((a,b)=>(!!b.studying-!!a.studying)||((b.made||0)-(a.made||0)));
+  const cr=st.filter(c=>c.id!=='mine'&&!c.sample).sort((a,b)=>(!!b.studying-!!a.studying)||((b.made||0)-(a.made||0))),sm=st.filter(c=>c.sample);
   return `${me?`<div class="sgroup"><div class="gh"><span class="h" style="font-size:17px">Your style</span></div><div style="display:flex;flex-wrap:wrap;gap:24px">${styleCard(me,pick,0)}</div></div>`:''}
-    <div class="sgroup"><div class="gh" style="align-items:center"><span class="h" style="font-size:17px">Creator styles</span><span class="muted">newest first</span><button class="btn quiet sm" style="margin-left:auto" onclick="openCreate()">+ New style</button></div><div style="display:flex;flex-wrap:wrap;gap:24px">${cr.map((c,i)=>styleCard(c,pick,i+1)).join('')||'<div class="muted">No creators yet. Copy one with + New style.</div>'}</div></div>`;
+    ${sm.length?`<div class="sgroup"><div class="gh"><span class="h" style="font-size:17px">Sample styles</span></div><div style="display:flex;flex-wrap:wrap;gap:24px">${sm.map((c,i)=>styleCard(c,pick,i+1)).join('')}</div></div>`:''}
+    <div class="sgroup"><div class="gh" style="align-items:center"><span class="h" style="font-size:17px">Creator styles</span><span class="muted">newest first</span><button class="btn quiet sm" style="margin-left:auto" onclick="openCreate()">+ New style</button></div><div style="display:flex;flex-wrap:wrap;gap:24px">${cr.map((c,i)=>styleCard(c,pick,i+1+sm.length)).join('')||'<div class="muted">No creators yet. Copy one with + New style.</div>'}</div></div>`;
 }
 // right after a skill build: that creator's card flashes once and scrolls into view
 function flashBuilt(){
@@ -1187,9 +1189,9 @@ function flashBuilt(){
 }
 function styleCard(c,pick,i){
   const pic=picOf(c,i),on=pick&&nv.style===c.id,editing=ui.edit&&ui.edit.kind==='name'&&ui.edit.id===c.id;
-  const del=!c.studying&&ui.del&&ui.del.id===c.id;
+  const del=!c.studying&&!c.sample&&ui.del&&ui.del.id===c.id;
   const base=L&&L.styles[0]&&L.styles[0].base;
-  return `<div class="scard ${on?'on':''} ${isNewStyle(c)?'new':''}" id="sc-${esc(c.id)}" ${!pick&&!c.studying?dragAttrs('styles',c.id,c.name):''} onclick="${pick?`nv.style='${esc(c.id)}';nv.picked=1;render()`:`openStyle('${esc(c.id)}')`}"><div class="pic${mo('s:'+c.id)}" style="background-image:url('${esc(pic.url)}')">${pic.demo?'<span class="extag">Example photo</span>':pic.face?'<span class="extag">Their video</span>':''}${isNewStyle(c)?'<span class="newtag">New</span>':''}${sMenu(c,'r',!pick)}${c.studying?'<div class="studying">Copying their style now</div>':skillBusy(c.id)?`<div class="buildtag"><div class="spin"></div><span>Building its skill · <span data-since="${jobStart(skillBusy(c.id))}">${secs(Math.max(0,Math.round(Date.now()/1000-jobStart(skillBusy(c.id)))))}</span></span></div>`:''}</div>
+  return `<div class="scard ${on?'on':''} ${isNewStyle(c)?'new':''}" id="sc-${esc(c.id)}" ${!pick&&!c.studying?dragAttrs('styles',c.id,c.name):''} onclick="${pick?`nv.style='${esc(c.id)}';nv.picked=1;render()`:`openStyle('${esc(c.id)}')`}"><div class="pic${mo('s:'+c.id)}" style="background-image:url('${esc(pic.url)}')">${c.sample?'<span class="extag">Sample style</span>':pic.demo?'<span class="extag">Example photo</span>':pic.face?'<span class="extag">Their video</span>':''}${isNewStyle(c)?'<span class="newtag">New</span>':''}${sMenu(c,'r',!pick)}${c.studying?'<div class="studying">Copying their style now</div>':skillBusy(c.id)?`<div class="buildtag"><div class="spin"></div><span>Building its skill · <span data-since="${jobStart(skillBusy(c.id))}">${secs(Math.max(0,Math.round(Date.now()/1000-jobStart(skillBusy(c.id)))))}</span></span></div>`:''}</div>
     ${ui.covermsg&&ui.covermsg.id===c.id?`<div class="msg bad" style="margin:10px 6px 0">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
     <div class="between" style="align-items:center;margin-top:16px;padding:0 6px"><span class="row" style="gap:6px;min-width:0;flex:1">${editing?'':`<span style="font-size:18px;font-weight:600">${esc(c.name)}</span>`}${c.studying?'':editField('name',c.id,c.name,'font-size:16px')}</span>${pick?`<div class="radio ${on?'on':''}"></div>`:''}</div>
     ${styleWhat(c)}
@@ -1326,7 +1328,7 @@ function hmCard(v){
 }
 function vHome(){
   const vids=L.videos,ready=vids.filter(v=>v.status==='ready').length,making=vids.filter(v=>v.status==='making'||v.status==='cutting').length;
-  const fit=homeFit(),rec=(R?R.videos:[]).slice(0,fit.clips),st=L.styles||[],cr=st.filter(c=>c.id!=='mine');
+  const fit=homeFit(),rec=(R?R.videos:[]).slice(0,fit.clips),st=L.styles||[],cr=st.filter(c=>c.id!=='mine'&&!c.sample);
   const hd=(t,n,go)=>`<div class="hm-hd"><b>${t}</b>${n?`<button onclick="rgo('${go}')">${go==='videos'?'See all':'All'} ${n}</button>`:''}</div>`;
   const P=v=>esc(JSON.stringify(v));
   return `<div class="hm">
@@ -1368,7 +1370,7 @@ function subMenu(kind,item,name){
 }
 const withSub=(html,sub)=>html.replace('role="menu" onclick="event.stopPropagation();event.preventDefault()">','role="menu" onclick="event.stopPropagation();event.preventDefault()">'+sub);
 const vMenu=(v,side)=>moreBtn('v:'+v.dir,'More for this video')+withSub(cMenu('v:'+v.dir,[['Remove from this list',`hideEdit(${J(v.dir)})`],['Move to Trash',`askTrash(${J(v.dir)})`]],side),ui.cmenu==='v:'+v.dir?subMenu('videos',v.dir,v.name):'');
-const sMenu=(c,side,fold=true)=>c.studying?'':moreBtn('s:'+c.id,'More for this style')+withSub(cMenu('s:'+c.id,[['Change image',`pickCover(${J(c.id)})`],c.cover&&['Remove image',`removeCover(${J(c.id)})`],c.id==='mine'?['Reset to default style',`askDel('mine')`]:['Delete style',`askDel(${J(c.id)})`]],side),fold&&ui.cmenu==='s:'+c.id?subMenu('styles',c.id,c.name):'');
+const sMenu=(c,side,fold=true)=>c.studying?'':moreBtn('s:'+c.id,'More for this style')+withSub(cMenu('s:'+c.id,[['Change image',`pickCover(${J(c.id)})`],c.cover&&!c.sample&&['Remove image',`removeCover(${J(c.id)})`],c.id==='mine'?['Reset to default style',`askDel('mine')`]:!c.sample&&['Delete style',`askDel(${J(c.id)})`]],side),fold&&ui.cmenu==='s:'+c.id?subMenu('styles',c.id,c.name):'');
 // ---- folders (Your videos and My styles): folders.json through /folder/*; All shows what is in no folder
 const fd=k=>(L&&L.folders||{})[k]||{folders:[],items:{}};
 const inFold=(k,item)=>{const F=fd(k),f=F.items[item];return F.folders.some(x=>x.id===f)?f:null};
@@ -1545,9 +1547,9 @@ function vStylePage(){
   const size=+((C.tiles.find(x=>x.id===C.sel)||{}).block||{}).size_pct||C.size;
   const opt=(o,on,ill,key,val)=>`<button class="sp-opt ${on?'on':''}" onclick="setCtl('${key}',${val})"><span class="sp-ill">${ill}</span><span><b>${esc(o.label)}</b><span class="muted">${esc(o.sub)}</span></span></button>`;
   return `<div class="col" style="width:340px;gap:18px;padding:12px 14px 0"><button class="hlink" style="font-size:14px;color:var(--t2);align-self:flex-start" onclick="rgo('mystyle')">‹ All your styles</button><div><div class="row" style="gap:8px;align-items:center">${ui.edit&&ui.edit.kind==='name'&&ui.edit.id===P.id?'':`<h1 style="white-space:nowrap;font-size:${Math.min(40,Math.floor(560/Math.max(1,P.name.length)))}px;line-height:1.1">${esc(P.name)}</h1>`}${editField('name',P.id,P.name,'font-size:28px;font-weight:700')}</div><p class="lede" style="margin-top:8px">How your videos get edited. Shown on ${Z.pic==='Example photo'?'an example photo':'your own video'}.</p></div>${spPreview(P)}${ui.covermsg&&ui.covermsg.id===P.id?`<div class="msg bad">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
-    ${P.id==='mine'?'':ui.del&&ui.del.id===P.id?delRow(P,P.delete_note):`<button class="hlink" style="align-self:flex-start;font-size:14px" onclick="ui.del={id:${esc(JSON.stringify(P.id))},measured:false};render()">Delete this style</button>`}</div>
+    ${P.id==='mine'||P.sample?'':ui.del&&ui.del.id===P.id?delRow(P,P.delete_note):`<button class="hlink" style="align-self:flex-start;font-size:14px" onclick="ui.del={id:${esc(JSON.stringify(P.id))},measured:false};render()">Delete this style</button>`}</div>
   <div class="panel grow sp-panel">
-    <div class="sp-top"><div class="row" style="gap:10px;align-items:center;min-width:0"><div class="ini">${esc((P.base||'ds').slice(0,2).toUpperCase())}</div><div class="sub">${P.id!=='mine'?`Copied from @${esc(P.base)}'s videos.`:P.base?`Started from @${esc(P.base)}.`:'Started from the default style.'} ${P.changed.length?`You changed ${P.changed.length} thing${P.changed.length>1?'s':''}.`:'Nothing changed yet.'}</div></div>${P.changed.length?`<button class="btn quiet sm" onclick="resetAll()">Reset all</button>`:''}</div>
+    <div class="sp-top"><div class="row" style="gap:10px;align-items:center;min-width:0"><div class="ini">${esc((P.base||'ds').slice(0,2).toUpperCase())}</div><div class="sub">${P.sample?'A sample style that ships with the editor.':P.id!=='mine'?`Copied from @${esc(P.base)}'s videos.`:P.base?`Started from ${esc(styleName('@'+P.base)||'@'+P.base)}.`:'Started from the default style.'} ${P.changed.length?`You changed ${P.changed.length} thing${P.changed.length>1?'s':''}.`:'Nothing changed yet.'}</div></div>${P.changed.length?`<button class="btn quiet sm" onclick="resetAll()">Reset all</button>`:''}</div>
     <div class="sp-sec"><div class="between"><span class="h">Captions</span>${spTag(C.tag,'captions')}</div>
       <div class="sp-caps">${C.tiles.map(t=>`<button class="sp-cap ${t.id===C.sel?'on':''}" onclick="setCtl('captions.preset',${esc(JSON.stringify(t.id))})"><span class="sp-capimg">${t.img?`<img src="${esc(t.img)}" alt="${esc(t.name)} captions" style="object-position:50% ${t.block.y_pct||C.y}%">`:`<span class="muted">${t.err?'No preview':'Rendering...'}</span>`}</span><span class="between" style="padding:0 4px;gap:6px"><b>${esc(t.name)}</b><span class="muted" style="font-size:12px;white-space:nowrap">${esc(t.note)}</span></span></button>`).join('')}</div>
       <div class="row sp-size"><span style="width:34px;color:var(--t2);font-size:13px">Size</span><span style="color:var(--t4);font-size:12px">A</span><input type="range" min="3" max="8" step="0.2" value="${size}" aria-label="Caption size" onchange="setCtl('captions.size_pct',+this.value)"><span style="color:var(--t4);font-size:16px">A</span><span style="width:56px;font-size:13px">${size<4?'Small':size<5.2?'Medium':'Large'}</span><i class="sp-vr"></i><svg width="14" height="14" viewBox="0 0 14 14" style="flex-shrink:0"><path d="M7 1.5v11M1.5 7h11M7 1.5l-2 2M7 1.5l2 2M7 12.5l-2-2M7 12.5l2-2M1.5 7l2-2M1.5 7l2 2M12.5 7l-2-2M12.5 7l-2 2" fill="none" stroke="var(--t3)" stroke-width="1.3" stroke-linecap="round"/></svg><span style="color:var(--t2);font-size:13px">Drag the caption on your video to move it</span></div></div>

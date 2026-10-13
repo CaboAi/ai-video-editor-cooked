@@ -4,6 +4,9 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Auto-updates. Setup, Settings > Updates and the README show how to turn them on: type /plugin, open
+  Marketplaces, pick nextwork, choose Enable auto-update.
+  The repo's `.claude/settings.json` sets `autoUpdate` on the nextwork marketplace.
 - Every video card has one layout, tall or wide: the picture on top (a tall video shows whole over a blurred
   copy of itself), then the name, the details, the status and the button at full width along the bottom. The
   buttons in a row line up. Done tiles and folders use the same picture area.

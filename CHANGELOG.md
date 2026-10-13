@@ -4,12 +4,17 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.6.3 (2026-10-13)
+
 - `nextwork-editor` always runs the newest installed version. It was fixed to the version it was installed
   from, so after `/plugin update` it kept opening the old editor. The window also repoints an older
   `nextwork-editor` the first time it starts.
 
 - The trust question: the steps now name the right option ("Yes, I trust this folder") and say to press
   the down arrow first, because Enter alone picks "No, exit".
+
+- Faster after you approve the cut: the background prep checks and fixes its own stills sheet, so Claude
+  looks once and asks. Card stills are taken 0.7 s before a card ends, not during its exit.
 
 ## ai-editor 2.6.2 (2026-10-13)
 

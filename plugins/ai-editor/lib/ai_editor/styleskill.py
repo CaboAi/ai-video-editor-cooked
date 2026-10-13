@@ -170,7 +170,7 @@ def rewrite_all():
         write(sp)
 
 
-def remove(style_path):
+def remove(style_path, rm=None):
     """A deleted style: its skill folder and its names entry go; the other skills stop naming it."""
     sk = skills_dir() / name(style_path)
     d = names()
@@ -182,7 +182,7 @@ def remove(style_path):
         theirs = None
     if sk.is_dir() and sk.parent == skills_dir() and sk.name not in (MINE, theirs):
         import shutil
-        shutil.rmtree(sk)
+        (rm or shutil.rmtree)(sk)   # home.py passes its Trash
     rewrite_all()
     return sk
 

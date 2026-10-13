@@ -855,7 +855,7 @@ def _place(images, words, duration, hold, ent, box, aspect):
         card = {"src": im["src"]} if "src" in im else {"anim": im["anim"]}
         if im.get("lane"):
             card["lane"] = im["lane"]
-        for k in ("highlight", "size", "layout", "transition_in", "transition_out", "focus", "format", "props", "_own_box", "xh", "lines"):
+        for k in ("highlight", "size", "layout", "transition_in", "transition_out", "focus", "format", "props", "_own_box", "xh", "lines", "pics"):
             if im.get(k):
                 card[k] = im[k]
         if im.get("marks"):
@@ -911,6 +911,8 @@ def avoid_heads(cards, face, cap_y, aspect):
         if (c.get("anim") or {}).get("type") == "logo" and h < 20 and not (c["anim"].get("props") or {}).get("card"):
             if bottom + HEAD_GAP + h <= cap_y - 1:
                 new = [x, bottom + HEAD_GAP, w, h]
+            elif max(bottom + HEAD_GAP, cap_y + 5) + h <= 100 - SAFE[aspect][3]:    # under the captions
+                new = [x, max(bottom + HEAD_GAP, cap_y + 5), w, h]
             elif 100 - r_safe - (right + HEAD_GAP) >= w:
                 new = [right + HEAD_GAP, (top + bottom - h) / 2, w, h]
             elif left - HEAD_GAP - l_safe >= w:
@@ -927,6 +929,26 @@ def avoid_heads(cards, face, cap_y, aspect):
     return out
 
 
+def clear_caption_paths(cards, cap_y, aspect):
+    """A card that slides in (or out) from the top or bottom never crosses the caption band on the way: a card
+    under the captions comes from and leaves to the bottom, one above them the top. The measured move is kept,
+    only its side is turned (a slide down through the captions read as the card covering them)."""
+    W, H = SIZES[aspect]
+    lo, hi = cap_y - 5, cap_y + 5
+    for c in cards:
+        x, y, w, h = c.get("box") or (0, 0, 0, 0)
+        p = (c.get("anim") or {}).get("props") if c.get("anim") else c.get("props")
+        for key in ("enter", "exit"):
+            f = (p or {}).get(key)
+            if not f or f.get("kind") != "slide" or f.get("dir") not in ("top", "bottom"):
+                continue
+            d = (f.get("dist") or 5) * min(W, H) / H     # % of the frame's height
+            top, bot = (y - d, y + h) if f["dir"] == "top" else (y, y + h + d)
+            if top < hi and bot > lo and not (y < hi and y + h > lo):
+                props(c)[key] = {**f, "dir": "bottom" if y >= hi else "top"}
+    return cards
+
+
 def free_regions(hd, cap_y, aspect):
     """The frame around the head, as boxes clear of the app's UI and the captions: above, left, right."""
     l, t, r, b = SAFE[aspect]
@@ -937,6 +959,11 @@ def free_regions(hd, cap_y, aspect):
     out = [[side, top, 100 - 2 * side, htop - HEAD_GAP - top]]
     if aspect == "9:16":
         out += [[OVERLAY_EDGE, htop, left - HEAD_GAP - OVERLAY_EDGE, floor - htop], [right + HEAD_GAP, htop, 100 - r - (right + HEAD_GAP), floor - htop]]
+        # below the chin, over the body: where most talking-head creators put a photo when the face fills the top.
+        # Two bands, never over the captions: chin to the captions, and the captions to the app's bottom UI.
+        # Kept inside the side margins check.py plan holds: the right edge is under the like and comment buttons.
+        side, chin = max(l, r), hbot + HEAD_GAP
+        out += [[side, y0, 100 - 2 * side, y1 - y0] for y0, y1 in ((chin, cap_y - 5), (max(chin, cap_y + 5), 100 - b))]
     else:
         out += [[l, top, left - HEAD_GAP - l, floor - top], [right + HEAD_GAP, top, 100 - r - (right + HEAD_GAP), floor - top]]
     return [[round(v, 1) for v in bx] for bx in out if bx[2] >= 12 and bx[3] >= 9]
@@ -1019,12 +1046,31 @@ def capture_scale(c, aspect):
     return min(w * 0.96 / iw, h * 0.92 / ih)
 
 
+PICTURE_SHARE = 0.5   # a capture this much picture (a book cover, a product photo) is shown for the picture
+
+
+def picture_share(c):
+    """The share of a capture's PNG that its pictures cover (capture.mjs "pics", overlaps counted once per row
+    of 10 px), 0-1."""
+    iw, ih = c.get("size") or (0, 0)
+    if not c.get("pics") or not iw or not ih:
+        return 0.0
+    covered = 0
+    for y in range(0, int(ih), 10):
+        spans = sorted((p[0], p[0] + p[2]) for p in c["pics"] if p[1] <= y < p[1] + p[3])
+        end = 0
+        for a, b in spans:
+            covered += max(0, b - max(a, end)) * 10
+            end = max(end, b)
+    return min(1.0, covered / (iw * ih))
+
+
 def capture_xh(c, aspect):
     """The rendered x-height (px on a 1080-wide frame) of a capture card's evidence text, from its DOM line
     boxes; None when it has none. A capture.mjs sticker's own measured "xh" wins."""
     if c.get("format") == "sticker" and c.get("xh") and c.get("size"):
         return sticker_xh(c, aspect) * 1080 / min(SIZES[aspect])
-    if not c.get("size") or c.get("format") == "plain":
+    if not c.get("size") or c.get("format") == "plain" or picture_share(c) >= PICTURE_SHARE:
         return None
     ev = evidence_lines(c)
     if not ev:
@@ -1412,6 +1458,8 @@ LB_SAFE = (60, 250, 940, 1440)
 LB_TITLE_X = 140        # title and word side margins: centred, the right edge inside the safe zone
 LB_TITLE_GAP = 24       # the title's last line ends this far above the band
 LB_TITLE_PX = 58
+LB_TITLE_EM = 0.46      # a regular lowercase title's width per character, in em (measured 0.42 on a render)
+LB_TITLE_MIN_PX = 40    # a title that needs smaller than this to sit on one line wraps at LB_TITLE_PX instead
 LB_WORD_PX = 46
 LB_WORD_Y = 0.18        # the word's centre sits this share of the band's height above its bottom
 LB_CARD = (0.41, 0.25)  # the photo: side and top inset, as shares of the band's height
@@ -1420,13 +1468,19 @@ LB_TITLE_WORDS = 8
 LB_OPEN_MAX_S = 6.0     # the photo leaves at the end of the first sentence, or by this
 
 
+DANGLING = {"and", "or", "but", "so", "the", "a", "an", "to", "of", "if", "with", "for", "that", "because", "like"}
+
+
 def letterbox_title(words):
-    """The first sentence, lowercase, at most LB_TITLE_WORDS words; a question keeps its mark."""
+    """The fallback when Claude wrote no --title: the first sentence or clause, lowercase, at most LB_TITLE_WORDS
+    words, never ending on a joining word ("... horrible mindset and"); a question keeps its mark."""
     out = []
     for w in words:
         out.append(w["text"].strip())
-        if w["text"].rstrip().endswith((".", "?", "!")) or len(out) >= LB_TITLE_WORDS:
+        if w["text"].rstrip().endswith((".", "?", "!", ",")) or len(out) >= LB_TITLE_WORDS:
             break
+    while len(out) > 1 and clean(out[-1]).lower() in DANGLING:
+        out.pop()
     q = out and out[-1].endswith("?")
     return " ".join(clean(x) for x in out if clean(x)).lower() + ("?" if q else "")
 
@@ -1443,6 +1497,8 @@ def letterbox_plan(head, style, words, meta, images, face, lay):
     title = (lay.get("title") or letterbox_title(words)).strip().lower()
     if len(title) > 90:
         print(f"warning: the title is {len(title)} characters; over about 90 it no longer fits above the band", file=sys.stderr)
+    # one line when it fits: the largest size from LB_TITLE_PX down to LB_TITLE_MIN_PX that holds it, else wrap at full size
+    tpx = next((px for px in range(LB_TITLE_PX, LB_TITLE_MIN_PX - 1, -2) if len(title) * px * LB_TITLE_EM <= W - 2 * LB_TITLE_X), LB_TITLE_PX)
     cs = style.get("captions") or {}
     # the creator's highlight when she has one (not her fill colour), else yellow; layout.highlight wins
     hi = lay.get("highlight") or (cs.get("highlight_color") if cs.get("highlight_color") not in (None, cs.get("color", "#FFFFFF")) else LB_HIGHLIGHT)
@@ -1454,7 +1510,7 @@ def letterbox_plan(head, style, words, meta, images, face, lay):
     out = {**head, "width": W, "height": H, "durationInFrames": round(meta["duration"] * head["fps"]),
            "layout": {"mode": "letterbox", "band": [0, pct(by, H), 100, pct(bh, H)], "title": title,
                       "title_box": [pct(LB_TITLE_X, W), pct(LB_SAFE[1], H), pct(W - 2 * LB_TITLE_X, W),
-                                    pct(by - LB_TITLE_GAP - LB_SAFE[1], H)], "title_px": LB_TITLE_PX},
+                                    pct(by - LB_TITLE_GAP - LB_SAFE[1], H)], "title_px": tpx},
            "captions": {"style": cap, "chunks": chunks}, "zooms": [], "cards": []}
     img = next((i for i in images if i.get("src")), None)
     if not img:
@@ -1826,7 +1882,7 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         if behind:
             rest = tuck_behind(rest, face, aspect)
         out = dict(head)
-    cards = creator_motion(sorted(rest + scenes, key=lambda c: c["start"]), style, aspect)
+    cards = clear_caption_paths(creator_motion(sorted(rest + scenes, key=lambda c: c["start"]), style, aspect), cap["y_pct"], aspect)
     for c in cards:
         px = c.get("layout") != "scene" and c.get("size") and capture_xh(c, aspect)
         if px and px < READ_XH and (aspect == "9:16" or c.get("format") == "sticker") and not pictures_only(style):
@@ -2289,6 +2345,21 @@ def demo():
     tall = {"src": "images/t.png", "size": [600, 1400], "start": 0.0, "end": 2.0, "trigger_word": "t", "box": [1, 1, 1, 1]}
     lc = {"anim": {"type": "logo_cluster", "props": {}}, "start": 0.0, "end": 2.0, "trigger_word": "l", "box": [1, 1, 1, 1]}
     pw, pt, pl = place_overlays([wide, tall, lc], hd_face, 68, "9:16")
+    # a close face fills the top: the photo goes below the chin, over the body, inside the side margins, never
+    # over the captions (the band above the head is too thin to read)
+    close = {"step_s": 0.5, "heads": [{"t": float(i) / 2, "box": [28, 12, 44, 26]} for i in range(30)]}
+    [lo] = place_overlays([dict(wide)], close, 52.6, "9:16")
+    assert lo["box"][1] >= 52.6 + 5 and lo["box"][0] == SAFE["9:16"][2] and lo["box"][1] + lo["box"][3] <= 100 - SAFE["9:16"][3], lo["box"]
+    # a capture that is mostly picture (a book cover with a small caption) is kept for the picture
+    cover = {"src": "images/c.png", "size": [600, 800], "pics": [[20, 20, 560, 700]], "lines": [[40, 740, 300, 20]], "box": [14, 58, 72, 20]}
+    assert picture_share(cover) > 0.8 and capture_xh(cover, "9:16") is None and readable_captures([cover], "9:16") == [cover]
+    assert 50 <= max(px for px in range(40, 59, 2) if 32 * px * LB_TITLE_EM <= 800) < LB_TITLE_PX   # a 32-character title: one line, near full size
+    # a card under the captions that would slide down through them comes up from the bottom instead
+    sl = {"src": "x.png", "box": [14, 60, 72, 18], "props": {"enter": {"kind": "slide", "dir": "top", "dist": 26}, "exit": {"kind": "slide", "dir": "left", "dist": 20}}}
+    [sl] = clear_caption_paths([sl], 52.6, "9:16")
+    assert sl["props"]["enter"]["dir"] == "bottom" and sl["props"]["exit"]["dir"] == "left", sl
+    lw2 = [{"text": t, "start": 0.3 * i, "end": 0.3 * i + 0.2} for i, t in enumerate("I think you have a horrible mindset and you need".split())]
+    assert letterbox_title(lw2) == "i think you have a horrible mindset", letterbox_title(lw2)
     assert pw["box"][:3] == [13.0, OVERLAY_TOP, 74.0] and pw["box"][1] + pw["box"][3] <= 34 - HEAD_GAP + 1e-6, pw["box"]
     assert pt["box"] == pw["box"], pt["box"]
     assert pl["box"] == [0, 0, 100, 100] and pl["anim"]["props"]["head"] == [32, 34, 28, 23], pl

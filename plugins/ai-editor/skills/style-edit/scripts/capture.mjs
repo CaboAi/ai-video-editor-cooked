@@ -507,7 +507,14 @@ async function shoot(cdp, beat, out) {
     // the text's line boxes in the PNG's px: a card's crop keeps each line whole (plan.py whole_lines)
     const lns = (near?.lines || []).filter(([x, y, w, h]) => x >= clip.x && y >= clip.y && x + w <= clip.x + clip.width && y + h <= clip.y + clip.height)
       .map(([x, y, w, h]) => [x - clip.x, y - clip.y, w, h].map((v) => Math.round(v * k)));
-    return { highlight, size, marks, lines: lns };
+    // the pictures in the shot (a book cover, a product photo), clipped to it: plan.py holds a capture that is
+    // mostly picture to the picture, not to the size of its small print
+    const pics = (near?.images || []).map(([x, y, w, h]) => {
+      const x0 = Math.max(x, clip.x), y0 = Math.max(y, clip.y);
+      const x1 = Math.min(x + w, clip.x + clip.width), y1 = Math.min(y + h, clip.y + clip.height);
+      return x1 > x0 && y1 > y0 ? [x0 - clip.x, y0 - clip.y, x1 - x0, y1 - y0].map((v) => Math.round(v * k)) : null;
+    }).filter(Boolean);
+    return { highlight, size, marks, lines: lns, pics };
   } finally {
     await cdp.send("Target.closeTarget", { targetId });
   }
@@ -773,6 +780,7 @@ async function main() {
         if (shot.marks.length) im.marks = shot.marks;
         if (shot.xh) im.xh = shot.xh;
         if (shot.lines?.length) im.lines = shot.lines;
+        if (shot.pics?.length) im.pics = shot.pics;
         console.log(`${src}  <- ${b.url}`);
         return im;
       })).filter(Boolean);

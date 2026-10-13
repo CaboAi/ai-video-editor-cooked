@@ -131,7 +131,7 @@ export const useFonts = (look: Look): Fonts => {
   const [handle] = useState(() => delayRender("fonts"));
   useEffect(() => {
     Promise.all([
-      loadFamily(look.font, [look.weight, 500, 700]),
+      loadFamily(look.font, [look.weight, 400, 500, 700]),   // 400: the letterbox title is set regular
       loadFamily(look.font_display, [look.weight_display]),
       look.font_serif ? loadFamily(look.font_serif, [400]) : Promise.resolve("serif"),
     ])

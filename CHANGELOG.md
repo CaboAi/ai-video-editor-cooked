@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.6.8 (2026-10-13)
+
 - The cut page opens sooner on long takes. The render starts encoding the kept parts while the judge reads,
   and a later render (after a judge fix, a verify fix or a review note) re-encodes only the parts that changed:
   on a 10-minute 4K take, a re-render after a judge change went from about 105 s to 29 s. The finished file is

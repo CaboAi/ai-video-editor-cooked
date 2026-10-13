@@ -1,6 +1,6 @@
 ---
 name: update
-description: Updates the AI video editor to its newest version. Works out how it was installed and does the right thing for each. The official plugin from the marketplace gets the three plugin commands. A fork the user owns (the power-user route, where they change the editor's own code) gets its new versions pulled from nextwork-projects/ai-video-editor and merged with their changes kept, after a backup branch, then the fast self-checks, with a rollback if they fail. A plain clone gets the fork route in three steps. Use when the user says "update the editor", "get the latest version", "sync my fork", "pull the new version", or asks how to stay up to date after changing the editor's code. Not for changing a style or a setting (that is taste or the home page), and not for maintainers turning feedback into fixes (that is improve).
+description: Updates Cooked Editor to its newest version. Works out how it was installed and does the right thing for each. The official plugin from the marketplace gets the three plugin commands. A fork the user owns (the power-user route, where they change the editor's own code) gets its new versions pulled from nextwork-projects/ai-video-editor-cooked and merged with their changes kept, after a backup branch, then the fast self-checks, with a rollback if they fail. A plain clone gets the fork route in three steps. Use when the user says "update the editor", "get the latest version", "sync my fork", "pull the new version", or asks how to stay up to date after changing the editor's code. Not for changing a style or a setting (that is taste or the home page), and not for maintainers turning feedback into fixes (that is improve).
 license: MIT
 compatibility: Python 3.9+, standard library only, and git. Fork updates run in the user's git checkout of their fork; the self-checks need bash (Git Bash on Windows).
 ---
@@ -28,7 +28,7 @@ python3 "$U" where
   their own folder and survive (docs/customise.md). Stop here.
 - **plain clone**: say the three fork steps it prints. Stop here.
 - **a fork, run outside its clone**: ask for the folder of their clone, then use `--repo`.
-- **fork, upstream missing**: ask "Add nextwork-projects/ai-video-editor as `upstream` so updates
+- **fork, upstream missing**: ask "Add nextwork-projects/ai-video-editor-cooked as `upstream` so updates
   can come from it?" (**Yes, add it (Recommended)** / **No**). On yes: `python3 "$U" add-upstream`.
 
 ## 2. Check

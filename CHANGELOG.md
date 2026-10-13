@@ -23,6 +23,10 @@ What changed for every user, newest first.
   moved into the same menu. The small Remove and Delete links are gone. A clip in Your videos can now be
   removed from the list too. Create a new style is a "+ New style" button on the Copied from creators row that
   opens the two choices in a window over the page (Esc, the X or a click outside closes it).
+- The editor is now called Cooked Editor. The home window, page titles, setup messages and docs use the
+  new name. The repo moved to nextwork-projects/ai-video-editor-cooked (old links redirect), and the
+  install lines and update checks point there. Nothing to reinstall: the plugin is still `ai-editor`,
+  the commands, settings folder (`~/.ai-video-editor`) and library folder (`~/Movies/AI Editor`) stay the same.
 
 - Scrolling holds on the home window and the review page. The home window redraws every 1.5 s, and each
   redraw put every inner list (Your videos, My styles, a style's page, Settings) back at the top. Now a

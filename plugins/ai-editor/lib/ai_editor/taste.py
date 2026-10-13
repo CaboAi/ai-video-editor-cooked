@@ -103,7 +103,7 @@ def load_md():
 def save_md(md):
     HOME.mkdir(parents=True, exist_ok=True)
     lines = ["# My editing taste", "",
-             "Rules I've given the AI video editor. It reads this before every edit.", ""]
+             "Rules I've given Cooked Editor. It reads this before every edit.", ""]
     for s, rules in md.items():
         lines += [f"## {s}", ""] + [f"- {r}" for r in rules] + [""]
     md_path().write_text("\n".join(lines), encoding="utf-8")
@@ -387,7 +387,7 @@ def report():
     return "\n".join(lines)
 
 
-REPO = "nextwork-projects/ai-video-editor"
+REPO = "nextwork-projects/ai-video-editor-cooked"
 MEDIA = r"[\w.-]+\.(?:mov|mp4|m4v|mkv|webm|avi|wav|mp3|m4a|aac|png|jpe?g|heic|gif)"
 
 
@@ -455,7 +455,7 @@ def issue(yes=False):
     r = rows[-1]
     title = f"Suggestion: {r['rule'][:80]}"
     body = (f"**What was wrong:** {r['what']}\n\n**The general rule:** {r['rule']}\n\n**Owner:** {r['owner']}\n\n"
-            + (f"**Example:** {r['example']}\n\n" if r["example"] else "") + "Sent from the AI video editor's taste skill.")
+            + (f"**Example:** {r['example']}\n\n" if r["example"] else "") + "Sent from Cooked Editor's taste skill.")
     if not yes:
         return f"{title}\n\n{body}"
     if not shutil.which("gh") or subprocess.run(["gh", "auth", "status"], capture_output=True).returncode:

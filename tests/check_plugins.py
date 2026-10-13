@@ -199,8 +199,8 @@ def main():
         if proj.get("enabledPlugins", {}).get(f"{entry['name']}@{market.get('name')}") is not True:
             errors.append(f".claude/settings.json: enabledPlugins does not turn on {entry['name']}@{market.get('name')}")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    for path in ("Way 1: open this folder in Claude Code", "/plugin marketplace add nextwork-projects/ai-video-editor",
-                 "npx skills add nextwork-projects/ai-video-editor"):
+    for path in ("Way 1: open this folder in Claude Code", "/plugin marketplace add nextwork-projects/ai-video-editor-cooked",
+                 "npx skills add nextwork-projects/ai-video-editor-cooked"):
         if path not in readme:
             errors.append(f"README.md: lost the start path {path!r}")
     case = (ROOT / "plugins/ai-editor/evals/repo-no-plugin/prompt.md").read_text(encoding="utf-8")

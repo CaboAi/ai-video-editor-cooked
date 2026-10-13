@@ -971,6 +971,8 @@ function renderTools(){
   else if(n)h=`<b class="num" title="not applied yet">${plural(n,'change')}</b><button class="pbtn" data-undo title="Cmd+Z">Undo</button><button class="pbtn" data-discard>Discard</button>`;
   else h=txSeen()?'<p></p>':'<p>Select words to cut or restore them.</p>';
   if(canPreview()&&(ed||previewOn))h+=`<button class="pbtn${previewOn?' on':''}" data-preview>${previewOn?'Back to the cut':'Preview'}</button>`;
+  const nf=ed&&p!=='send'&&p!=='approve'?$('txlines').querySelectorAll('[data-acc]').length:0;   // Claude's suggested cuts still showing
+  if(nf>1)h+=`<button class="pbtn" data-accall title="keep every suggested cut">Accept all ${nf}</button>`;
   if(ed&&n)h+='<button class="pbtn go" data-apply>Apply</button>';
   const el=$('txtools');if(el._h!==h){el._h=h;el.innerHTML=h}
 }
@@ -984,7 +986,7 @@ function renderTx(){
   const tx=src[0],box=$('txlines'),top=box.scrollTop;
   $('txmeta').textContent=`Struck words were cut · ${plural(tx.cuts,'cut')} · ${fmt(tx.source_s)} to ${fmt((DATA[src[1]]||{}).duration||D())}`;
   box.innerHTML=txHtml(tx);box.scrollTop=top;txLines=[...box.children];
-  tickTx();if(txSel)showBar();
+  renderTools();tickTx();if(txSel)showBar();
 }
 let txHand=0,txPast=-1;   // txHand: when the user last scrolled the transcript by hand (auto-scroll waits 3 s)
 function tickTx(){
@@ -1069,6 +1071,7 @@ $('txtools').addEventListener('click',e=>{const b=e.target.closest('button');if(
   if(b.dataset.undo!=null)return txUndo();
   if(b.dataset.discard!=null){PEND=[];HIST=HIST.filter(h=>h.ack);return txChanged()}
   if(b.dataset.preview!=null)return togglePreview();
+  if(b.dataset.accall!=null){$('txlines').querySelectorAll('[data-acc]').forEach(x=>{ACK.add(x.dataset.acc);HIST.push({ack:x.dataset.acc})});saveAck();return txChanged()}
   if(b.dataset.apply!=null)return applyEdits();
 });
 async function applyEdits(){

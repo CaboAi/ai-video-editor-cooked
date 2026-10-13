@@ -4,6 +4,12 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.6.6, creator-teardown 2.7.1 (2026-10-13)
+
+- Paste an Instagram profile to see its newest reels, as with TikTok and YouTube. It uses your own
+  Instagram login from your browser, read on your computer and sent only to instagram.com. Not logged in,
+  the window says to log in to instagram.com in Chrome and paste it again, or to paste reel links.
+
 ## ai-editor 2.6.5 (2026-10-13)
 
 - Two videos at once. Make a video while Claude is making another, and a second Claude opens in its own

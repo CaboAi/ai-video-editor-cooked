@@ -312,11 +312,12 @@ SAMPLE_KEYS = ("card_kinds", "behind", "graphics", "cats", "format")   # what ma
 def like_sample(style, handle):
     """A style the user made themselves (own-<x>, e.g. imported from their own card-edit skill) that names a sample's
     format (sample-<x>: own-card-edit -> sample-card-edit) but carries no card settings takes the sample's: its card
-    kinds (real pictures only), cards behind the speaker, rate, place and motion. Its own keys always win.
+    kinds (real pictures only), cards behind the speaker, rate, place and motion. Its own keys always win. A skill style
+    ("skill" set) takes nothing: its skill decides the cards.
     ponytail: matched by name; a style page "format" pick would be the general way."""
     base = re.sub(r"-\d+$", "", handle or "")
     src = Path(__file__).resolve().parents[2] / "presets" / "styles" / ("sample-" + base[4:]) / "style.json"
-    if not base.startswith("own-") or style.get("card_kinds") or not src.is_file():
+    if not base.startswith("own-") or style.get("card_kinds") or style.get("skill") or not src.is_file():
         return style
     sample = json.loads(src.read_text(encoding="utf-8"))
     return {**{k: sample[k] for k in SAMPLE_KEYS if k in sample}, **style}
@@ -531,6 +532,7 @@ def demo():
         own = like_sample({"handle": "own-card-edit", "cards": {"per_min": 15}}, "own-card-edit")
         assert "text" not in own["card_kinds"] and own["behind"] and own["graphics"]["per_min"] and own["cards"] == {"per_min": 15}, own
         assert like_sample({"x": 1}, "own-50-50") == {"x": 1} and "card_kinds" not in like_sample({}, "card-edit")
+        assert like_sample({"skill": "my-edit"}, "own-card-edit") == {"skill": "my-edit"}   # a skill style: its skill decides
         st = blend({"own-card-edit": own}, [{"handle": "own-card-edit", "take": ["captions", "pace", "visuals"]}])
         assert st["card_kinds"] == own["card_kinds"] and st["cards"] == {"per_min": 15}, st
     print("profile ok")

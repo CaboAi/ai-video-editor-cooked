@@ -1174,7 +1174,7 @@ function styleGroups(pick){
   const st=(L?L.styles:[]).filter(c=>pick||!inFold('styles',c.id)),me=st.find(c=>c.id==='mine');
   const cr=st.filter(c=>c.id!=='mine').sort((a,b)=>(!!b.studying-!!a.studying)||((b.made||0)-(a.made||0)));
   return `${me?`<div class="sgroup"><div class="gh"><span class="h" style="font-size:17px">Your style</span></div><div style="display:flex;flex-wrap:wrap;gap:24px">${styleCard(me,pick,0)}</div></div>`:''}
-    <div class="sgroup"><div class="gh" style="align-items:center"><span class="h" style="font-size:17px">Copied from creators</span><span class="muted">newest first</span><button class="btn quiet sm" style="margin-left:auto" onclick="openCreate()">+ New style</button></div><div style="display:flex;flex-wrap:wrap;gap:24px">${cr.map((c,i)=>styleCard(c,pick,i+1)).join('')||'<div class="muted">No creators yet. Copy one with + New style.</div>'}</div></div>`;
+    <div class="sgroup"><div class="gh" style="align-items:center"><span class="h" style="font-size:17px">Creator styles</span><span class="muted">newest first</span><button class="btn quiet sm" style="margin-left:auto" onclick="openCreate()">+ New style</button></div><div style="display:flex;flex-wrap:wrap;gap:24px">${cr.map((c,i)=>styleCard(c,pick,i+1)).join('')||'<div class="muted">No creators yet. Copy one with + New style.</div>'}</div></div>`;
 }
 // right after a skill build: that creator's card flashes once and scrolls into view
 function flashBuilt(){
@@ -1336,7 +1336,7 @@ function vHome(){
   <div class="hm-sec">${hd('Your videos',vids.length,'videos')}<div class="hm-cards">${vids.slice(0,3).map(hmCard).join('')||'<div class="hm-none">No videos yet. Drop a clip above to start one.</div>'}</div></div>
   <div class="hm-lib">
     <div class="hm-sec">${hd('My styles',st.length,'mystyle')}<div class="hm-styles" style="--n:${fit.styles}">${st.slice(0,fit.styles).map((c,i)=>`<div class="hm-style" ${c.studying?'aria-disabled="true"':`role="button" tabindex="0" onclick="openStyle(${P(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)openStyle(${P(c.id)})"`}><div class="pic pin" style="background-image:url('${esc(picOf(c,i).url)}')">${sMenu(c,'l')}</div><span class="nm1">${esc(c.name)}</span></div>`).join('')||'<div class="hm-none">No styles yet.</div>'}</div></div>
-    <div class="hm-sec">${hd('Creators you copied',cr.length,'mystyle')}<div class="hm-crs">${cr.slice(0,4).map(c=>`<button class="hm-cr" ${c.studying?'disabled':''} onclick="openStyle(${P(c.id)})"><div class="ini" style="${c.face?`background-image:url('${esc(c.face)}')`:''}">${c.face?'':esc(c.id.slice(1,3).toUpperCase())}</div><span class="nm1">${esc(c.id)}</span></button>`).join('')
+    <div class="hm-sec">${hd('Creator styles',cr.length,'mystyle')}<div class="hm-crs">${cr.slice(0,4).map(c=>`<button class="hm-cr" ${c.studying?'disabled':''} onclick="openStyle(${P(c.id)})"><div class="ini" style="${c.face?`background-image:url('${esc(c.face)}')`:''}">${c.face?'':esc(c.id.slice(1,3).toUpperCase())}</div><span class="nm1">${esc(c.id)}</span></button>`).join('')
       ||'<div class="hm-none">No creators yet. Copy one from My styles.</div>'}</div></div>
   </div></div>`;
 }

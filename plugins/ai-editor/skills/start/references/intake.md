@@ -4,11 +4,12 @@ The questions start step 2 asks, grouped into at most four per call, and the com
 answer. Ask only the ids `profile.py missing` printed. The first option of each is the one a beginner
 can accept as is: list it first and mark it "(Recommended)". Free text ("Other") is always allowed.
 
-The ids are `profile.py`'s two lists: the video questions (`audience`, `names`), asked by start for
-every video, and the style questions, asked once at the end of setup (start asks them only when setup
-was skipped). Keep these calls and their order.
+The ids are `profile.py`'s two lists: the video questions (`audience`, `names`) and the style questions,
+asked once at the end of setup (start asks them only when setup was skipped). Start never asks the video
+questions: `profile.py defaults` saves their first options (or keeps the saved answers) and the review page
+says what was used; the user changes them by saying so. Keep these calls and their order.
 
-**This video (start, every video)**
+**This video (saved by `defaults`; set only when the user gives one)**
 
 | id | question | options |
 |---|---|---|
@@ -62,7 +63,7 @@ python3 "$P" set past_edit false                          # true once taste lear
 ```
 
 If the user says "just edit it" or "use the defaults", run `python3 "$P" defaults` and go on. It
-saves every unanswered style question as its default (vertical, no creator unless named, the
+saves every unanswered question as its default (vertical, no creator unless named, the
 editorial look, emoji, stock and icons avoided, the creator's captions, subtle sound, nothing
 behind, no past edit), so they are not asked again. Saving nothing left every style id missing and
 start asked them all again on the next video.

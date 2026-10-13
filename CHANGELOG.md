@@ -4,6 +4,23 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Making the edit is faster and asks less. While you review the cut, the visuals, the plan and the stills
+  sheet are made in the background (all free, on your computer), so approving the cut goes straight to the
+  sheet. The audience and the names in a video are no longer asked: the first answer is used and the review
+  page says which, and you change it by saying so. Where to render and whether to change the volume are
+  asked once and saved. Claude no longer asks what to show before the sheet: it picks the real page and the
+  sheet shows it.
+
+- The Making the edit card names the style ("the Card edit style"), never its folder id
+  ("@own-card-edit's style"). Steps made while you reviewed the cut show as done the moment you approve.
+
+- Plan again no longer crashes on minimal captions with no stroke and no box, which left the old plan in
+  place so a fix render changed nothing. A peak that is already in your take is a warning, not a fail
+  that sent the edit into a render it could not fix.
+
+- A Claude Code the editor opens allows only the editor's own commands (its scripts, ffmpeg, ffprobe,
+  npx remotion), so they no longer ask Allow. The README has the same rules for a Claude Code you start.
+
 - Style cards show their picture tall (4:5), centred on the face, and a wide frame whole over a blurred copy
   of itself. New face frames come from the middle of the video, where its captions and cards are on screen.
   A style's page lists what it was analysed from (each video opens in a new tab, and the creator's profile);

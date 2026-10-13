@@ -881,6 +881,8 @@ def make_handler(folder, token):
                     d.pop("stopped", None)
                     if body["type"] == "approve" and (d["stage"] == "edit" or d.get("final")):   # the finished video
                         d["learn"] = {"state": "reading" if session_notes(d) else "none", "style": style}
+                    elif body["type"] == "approve" and d["stage"] == "cut":
+                        prepared_steps(folder, d)
                     return True
                 if not update(rj, ev):
                     return self.send(409, {"error": "Claude is applying your transcript changes"})
@@ -1251,6 +1253,22 @@ def add_step(d, text, log=None, key=None, done=False):
     d["activity"] = act[-30:]
 
 
+def prepared_steps(folder, d):
+    """visual-prep made these while the cut was reviewed, on this very cut (prep-decisions.json = decisions.json):
+    the Making the edit card shows them done the moment the cut is approved, not as steps still to come."""
+    try:
+        if (folder / "prep-decisions.json").read_bytes() != (folder / "decisions.json").read_bytes():
+            return []
+    except OSError:
+        return []
+    keys = [k for k, f in (("captions", "captions.json"), ("visuals", "visuals.json"), ("plan", "stills/sheet.png"))
+            if (folder / f).exists()]
+    for k in keys:
+        add_step(d, None, None, k)
+    add_step(d, None, done=True)
+    return keys
+
+
 def making_edit(d):
     """Claude is making the styled edit: the cut was approved and no edit round has landed yet, or a sent edit
     round is being redone."""
@@ -1283,8 +1301,12 @@ def making_style(folder):
         src = styleskill.sources(folder)
     except Exception:
         src = []
-    if len(src) == 1:
-        return f"@{re.sub(r'-mine$', '', src[0].parent.name)}'s style"
+    if len(src) == 1:   # the name the style has on the home page ("Card edit"), never the folder id
+        try:
+            n = styleskill.display(src[0])
+        except Exception:
+            n = "@" + re.sub(r"-mine$", "", src[0].parent.name)
+        return f"{n}'s style" if n.startswith("@") else "your style" if n == "My style" else f"the {n} style"
     return "your blended style" if src else "your style"
 
 
@@ -1986,6 +2008,20 @@ def demo():
     srv3.shutdown()
     save(sf / "review.json", keep_d)
     assert making_style(sf) == "your style" and making_style(folder) == "@alice's style"
+    with tempfile.TemporaryDirectory() as pd:   # the approve shows what visual-prep already made on this cut
+        pd = Path(pd)
+        for f in ("decisions.json", "prep-decisions.json", "captions.json", "visuals.json"):
+            (pd / f).write_text("[]", encoding="utf-8")
+        pdd = {"round": 1, "activity": []}
+        assert prepared_steps(pd, pdd) == ["captions", "visuals"] and all(x["done"] for x in pdd["activity"]), pdd
+        (pd / "decisions.json").write_text("[1]", encoding="utf-8")   # re-cut since: nothing is claimed
+        assert prepared_steps(pd, {"round": 1, "activity": []}) == []
+    from ai_editor import styleskill
+    keep_names, styleskill.names = styleskill.names, lambda: {"alice": {"name": "Card edit"}}
+    try:   # a named style shows its name, never the folder id ("@own-card-edit's style")
+        assert making_style(folder) == "the Card edit style", making_style(folder)
+    finally:
+        styleskill.names = keep_names
     with contextlib.redirect_stdout(io.StringIO()):
         cmd_round(ns(video=str(folder / "review" / "v-cut1.mp4"), stage="edit", transcript=None, plan=None, note=None,
                      name=None), sf)

@@ -4,6 +4,11 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.6.4 (2026-10-13)
+
+- Pick a style: the cards are wide enough for their names ("My style" no longer wraps one letter per line)
+  and their facts. The window no longer shows fixed time and cost estimates that real runs don't match.
+
 ## ai-editor 2.6.3 (2026-10-13)
 
 - `nextwork-editor` always runs the newest installed version. It was fixed to the version it was installed

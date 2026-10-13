@@ -114,9 +114,9 @@ def demo():
     assert grid(1, 1080, 1920)[0] == 1
     plan = {"fps": 30, "durationInFrames": 300, "zooms": [], "captions": {"chunks": [{"start": 0, "end": 0.4}]},
             "cards": [{"start": 2, "end": 5, "src": "images/capture-1-x.png"},
-                      {"start": 6, "end": 8, "anim": {"type": "race"}}]}
+                      {"start": 6, "end": 9, "anim": {"type": "race"}}]}
     lab = labels(plan)
-    assert lab["4-card"].endswith("capture") and lab["5-card-late"] == "card 2 late  7.70s  race", lab
+    assert lab["4-card"].endswith("capture") and lab["5-card-late"] == "card 2 late  8.30s  race", lab
     assert lab["1-opening"] == "opening  0.50s", lab
     # time order (the caption at 0.50 s sorts with the opening, not after it by name); no zoom, no gap
     times = [float(v.split("  ")[1].rstrip("s")) for v in lab.values()]

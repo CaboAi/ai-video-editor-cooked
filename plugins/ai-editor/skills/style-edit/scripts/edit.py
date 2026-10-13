@@ -136,6 +136,9 @@ def prepare_public(edit, plan, tag):
     return pub
 
 
+EXIT_S = 0.7   # motion.ts: calm leaves in 0.6 s, plus a frame or two
+
+
 def still_frames(plan):
     """Frames that show each part of the edit: the opening, a caption, a zoom, then every card
     (4-card, 5-card, ...) once its entrance and animation have settled. Every card but a logo tile
@@ -154,10 +157,12 @@ def still_frames(plan):
         inside = [mid(c) for c in chunks if z["start"] <= mid(c) < z["end"]]
         frames["3-zoom"] = inside[0] if inside else mid(z)
     for i, c in enumerate(cards):
-        frames[f"{4 + i}-card"] = max(c["start"], min(c["start"] + 1.6, c["end"] - 0.25))
+        # before the exit (the slowest personality's leaves over 0.6 s), else a short card reads small and faded
+        frames[f"{4 + i}-card"] = card = max(min(c["start"] + 1.6, c["end"] - EXIT_S), mid(c))
         if c.get("lane") != "logo":
             frames[f"{4 + i}-card-early"] = c["start"] + 0.5
-            frames[f"{4 + i}-card-late"] = c["end"] - 0.3
+            if c["end"] - EXIT_S - card >= 0.3:     # a short card's late frame is its main one
+                frames[f"{4 + i}-card-late"] = c["end"] - EXIT_S
             prev = [p for p in cards[:i] if p.get("lane") != "logo"]
             if prev and 0 <= c["start"] - prev[-1]["end"] < 1.2:
                 frames[f"{4 + i}-swap"] = c["start"] + 0.12
@@ -1069,8 +1074,8 @@ def demo():
             "captions": {"chunks": [{"start": 1, "end": 2}, {"start": 5, "end": 6}]},
             "zooms": [{"start": 0.5, "end": 3}], "cards": [{"start": 20, "end": 23}, {"start": 25, "end": 26}]}
     f = still_frames(plan)
-    assert f == {"1-opening": 15, "2-caption": 165, "3-zoom": 45, "4-card": 648, "4-card-early": 615, "4-card-late": 681,
-                 "5-card": 772, "5-card-early": 765, "5-card-late": 771}, f
+    assert f == {"1-opening": 15, "2-caption": 165, "3-zoom": 45, "4-card": 648, "4-card-early": 615, "4-card-late": 669,
+                 "5-card": 765, "5-card-early": 765}, f
     plan["cards"][1]["start"] = 23.5
     assert still_frames(plan)["5-swap"] == 709
     assert "crop=1080:1920" in proxy_filter(1920, 1080, 1080, 1920)

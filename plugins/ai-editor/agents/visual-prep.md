@@ -1,6 +1,6 @@
 ---
 name: visual-prep
-description: Prepares a style-edit's visuals while the user reviews the cut, so the stills sheet is ready the moment they approve. Runs style-edit steps 1-5 up to the stills sheet (images.json, captions, beats, visuals.json, captures, face.py, plan.py, check.py plan, edit.py stills) on the first cut, all local and free, never asks anything, never renders the video, uploads or spends, and returns a short JSON. Use from the cut skill when start called it for a whole edit, launched in the background in the same turn the cut page opens.
+description: Prepares a style-edit's visuals while the user reviews the cut, so the stills sheet is ready the moment they approve. Runs style-edit steps 1-5 up to the stills sheet (images.json, captions, beats, visuals.json, captures, face.py, plan.py, check.py plan, edit.py stills) on the first cut and reviews the sheet against the stills-critic list, all local and free, never asks anything, never renders the video, uploads or spends, and returns a short JSON. Use from the cut skill when start called it for a whole edit, launched in the background in the same turn the cut page opens.
 tools: Bash, Read, Write, Edit
 model: sonnet
 background: true
@@ -22,9 +22,9 @@ local, so they are made now and made again if the cut changes.
 2. **Style and images:** `python3 "<ROOT>/lib/ai_editor/profile.py" style EDIT`; copy the images in the
    profile's `assets_dir` that fit a line into `EDIT/images/` and write `EDIT/images.json`
    (`<ROOT>/skills/style-edit/references/shapes.md`, each with `word` and `nth`).
-3. **Captions and beats:** `python3 "$C/retakes.py" captions EDIT` (proofread `captions.txt`; fix a word
-   with `retakes.py fix`), then `python3 "$S/route.py" beats EDIT` (every pick is null: decide the picks
-   yourself).
+3. **Captions and beats**, one Bash call: `python3 "$C/retakes.py" captions EDIT && python3 "$S/route.py" beats EDIT`.
+   Proofread `captions.txt`; a wrong word is `retakes.py fix` (it fixes captions.json in place, no re-run). Every
+   pick is null: decide the picks yourself.
 4. **Visuals:** write `EDIT/visuals.json` by `shapes.md`, every beat with `word` and `nth`, only the
    speaker's words. A copied creator's pacing wins: route.py prints her cards a minute and marks that many
    sentences `want`; give each `want` the real thing the line is about (the named product, page, repo or
@@ -44,18 +44,33 @@ local, so they are made now and made again if the cut changes.
    `logos`) and one `logo_cluster` per `together` group; capture.mjs keeps its files. No logos.json and two
    or more brands named: follow `<ROOT>/skills/logo-pack/SKILL.md` steps 1-4 first (free, no questions; a logo
    still failing after two rounds is left out), then `route.py beats` again.
-5. **Fetch and face:** `node "$S/capture.mjs" EDIT` (free: local Chrome screenshots, logos, posts), then
-   `python3 "$PY" "$S/face.py" EDIT`.
-6. **Plan and sheet:** `python3 "$S/plan.py" EDIT/style.json EDIT/captions.json --aspect <style.json aspect>`,
-   then `python3 "$S/check.py" plan EDIT --style EDIT/style.json`. A FAIL: fix it in visuals.json or
-   images.json, `capture.mjs` again if a visual changed, plan again (two tries). Then
-   `python3 "$S/edit.py" stills EDIT`. Skip this step when the profile says `"behind": true` (the cutout
-   waits for approval) or `sound.music: true` (the music question is the caller's).
+5. **Fetch, face, plan and sheet**, one Bash call (face.py does not need the captures, so it runs beside them;
+   `edit.py stills` runs `check.py plan` itself and stops on a FAIL):
+
+   ```bash
+   python3 "$PY" "$S/face.py" EDIT & node "$S/capture.mjs" EDIT; wait
+   python3 "$S/plan.py" EDIT/style.json EDIT/captions.json --aspect <style.json aspect> && python3 "$S/edit.py" stills EDIT
+   ```
+
+   A FAIL or a failed capture: fix it in visuals.json or images.json, `capture.mjs` again if a visual changed,
+   then plan and stills again in one call (two tries). With `"behind": true` in the profile (the cutout waits
+   for approval) or `sound.music: true` (the music question is the caller's), stop after `face.py` and
+   `capture.mjs`: no plan, no sheet.
+6. **Review the sheet** (the caller then only looks and asks): read `<ROOT>/agents/stills-critic.md` and check
+   `EDIT/stills/sheet.png` against its list yourself, `reads_as` first. Also: each card shows what its line is
+   about (a diagram's boxes name what the speaker names, every name said is in it), and a logo or text reads at
+   phone size. A fail: fix it in visuals.json or images.json, plan and stills again in one call, look again (up
+   to three rounds, not counted with step 5's tries). Text too small: a wider `"box": [x, y, w, h]` (% of the
+   frame, clear of the face and the safe zone) or fewer, shorter lines; a card on the wrong part: its `find`;
+   still typing as it leaves: an earlier `word` or a longer `hold_s`. Never read plan.py, capture.mjs or the
+   renderer's source to do it: the sheet and `plan.json` are enough. Return `"reviewed": "fail"` only with
+   what three rounds could not fix.
 
 Stop at the first error you cannot fix in two tries and report it. Return only this JSON:
 
 ```json
 {"edit": "EDIT", "status": "ready|failed", "images": 0, "visuals": 0, "captures_failed": ["word: reason"],
- "sheet": "EDIT/stills/sheet.png or empty", "plan_warnings": ["each WARN line of check.py plan"],
+ "sheet": "EDIT/stills/sheet.png or empty", "reviewed": "pass|fail|skipped", "reads_as": ["tile 4: ..."],
+ "still_failing": ["item n: where, why"], "plan_warnings": ["each WARN line of check.py plan"],
  "error": "the failing command and its last line, or empty"}
 ```

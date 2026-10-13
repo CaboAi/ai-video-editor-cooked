@@ -620,6 +620,8 @@ def is_kept(w, spans):
     """A word plays if at least 0.1 s (or half of it, if shorter) is inside a kept
     span. Overlap, not onset or midpoint: transcribers stretch a word into the
     silence before or after it, so either end of its label can sit in a cut."""
+    if w["end"] <= w["start"]:      # a zero-length label plays only if its instant is inside a kept span
+        return any(s["start"] <= w["start"] <= s["end"] for s in spans)
     need = min(0.1, (w["end"] - w["start"]) / 2)
     return sum(max(0.0, min(w["end"], s["end"]) - max(w["start"], s["start"])) for s in spans) >= need
 

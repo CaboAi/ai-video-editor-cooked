@@ -20,6 +20,10 @@
 // Free sources, no keys: "kind": "post" (X post via the public embed endpoint, text verified, fields
 // into images/post-<id>.json for a social_post card), "app" (App Store lookup: icon as the logo, first
 // screenshot as a card), "youtube" (the video's thumbnail), "github" (the repo's social card).
+// A card edit (style.json "card_kinds" without "text"): every capture is a picture of the real page, never a
+// re-set sentence. A sticker beat is shot as a "shot", the viewport is 640 wide (the page's narrow layout, as a
+// phone shows it) and, with a "find" mark and no clip or selector, the shot is a band-shaped window (CARD_BAND
+// wide per tall, at most 1.2x the mark's width) round that mark, so the named thing fills the card above the head.
 // Cookie banners: a bundled list of consent-manager selectors is hidden and a reject/accept button clicked.
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -388,8 +392,10 @@ async function shootSticker(s, beat, out) {
   return { size, marks, xh: Math.round(got.xh * k * 10) / 10, lines: lns };
 }
 
+const CARD_BAND = 1.5;   // the band above the head on 9:16, down to the hair line: about 800 x 530 frame px
 async function shoot(cdp, beat, out) {
-  const width = beat.width || 1000, height = beat.height || 700;
+  const card = beat.frame === "card";
+  const width = beat.width || (card ? 640 : 1000), height = beat.height || (card ? Math.round(640 / CARD_BAND) : 700);
   const sticker = beat.format === "sticker" && !beat.props?.crop && (beat.marks || []).some((mk) => mk.find);
   const dsf = beat.scale || (sticker ? 3 : 2);
   const { targetId } = await cdp.send("Target.createTarget", { url: "about:blank" });
@@ -445,6 +451,17 @@ async function shoot(cdp, beat, out) {
       marks.push({ ...mk, page_rect: [x0 - pad, y0 - pad, x1 - x0 + pad * 2, y1 - y0 + pad * 2], page_rects: rs });
       clip.height = Math.min(Math.max(clip.height, y1 + 140 - clip.y), 3200);
     }
+    // a card edit's window: the found thing centred in a band-shaped shot, wide enough to read as the page
+    const first = card && !beat.clip && !beat.selector && marks.find((mk) => mk.page_rect);
+    if (first) {
+      const [rx, ry, rw, rh] = first.page_rect;
+      const w = Math.min(width, Math.max(380, rw * 1.2)), h = Math.round(w / CARD_BAND);   // tight: the page's words read
+      clip = { x: Math.max(0, Math.min(width - w, rx + rw / 2 - w / 2)), y: Math.max(0, ry + rh / 2 - h / 2), width: w, height: h };
+    }
+    // a header pinned to the viewport (fixed or sticky) would be drawn over a window shot further down the page
+    if (first && clip.y > 0) await s("Runtime.evaluate", { expression: `for (const e of document.querySelectorAll('body *')) {
+      const p = getComputedStyle(e).position;
+      if (p === 'sticky') e.style.position = 'static'; else if (p === 'fixed') e.style.visibility = 'hidden'; }` });
     if (beat.page_text) {
       // the visible text, one line per block, for the planner's highlight pick (route.py highlight)
       const { result } = await s("Runtime.evaluate", { returnByValue: true, expression: `(() => [...document.querySelectorAll(
@@ -490,7 +507,14 @@ async function shoot(cdp, beat, out) {
     // the text's line boxes in the PNG's px: a card's crop keeps each line whole (plan.py whole_lines)
     const lns = (near?.lines || []).filter(([x, y, w, h]) => x >= clip.x && y >= clip.y && x + w <= clip.x + clip.width && y + h <= clip.y + clip.height)
       .map(([x, y, w, h]) => [x - clip.x, y - clip.y, w, h].map((v) => Math.round(v * k)));
-    return { highlight, size, marks, lines: lns };
+    // the pictures in the shot (a book cover, a product photo), clipped to it: plan.py holds a capture that is
+    // mostly picture to the picture, not to the size of its small print
+    const pics = (near?.images || []).map(([x, y, w, h]) => {
+      const x0 = Math.max(x, clip.x), y0 = Math.max(y, clip.y);
+      const x1 = Math.min(x + w, clip.x + clip.width), y1 = Math.min(y + h, clip.y + clip.height);
+      return x1 > x0 && y1 > y0 ? [x0 - clip.x, y0 - clip.y, x1 - x0, y1 - y0].map((v) => Math.round(v * k)) : null;
+    }).filter(Boolean);
+    return { highlight, size, marks, lines: lns, pics };
   } finally {
     await cdp.send("Target.closeTarget", { targetId });
   }
@@ -515,6 +539,8 @@ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g
 // sharpest icon (an SVG icon, else the 180 px apple-touch-icon or a large PNG its page links), and only
 // then Google's favicon service (often a 16-32 px icon blown up to 256). Written to
 // images/logo-<brand>.<ext>, the path plan.py expects. A logo the user already put there is kept.
+// A beat's "url" (the brand's own SVG or press-kit file, found by logo-pack) is tried before all of them.
+// `got`, when given, collects {file, from} per brand slug (logo-pack's logos.json).
 
 // The page's own icons, best first: [url]. Only ones sharper than the favicon service: SVG, apple-touch, >= 180 px.
 const rankIcons = (html, base) => {
@@ -538,18 +564,20 @@ async function siteIcons(domain) {
 }
 const logoPath = (brand, ext) => `images/logo-${slug(brand)}.${ext}`;
 
-async function fetchLogos(edit, beats) {
+async function fetchLogos(edit, beats, got = {}) {
   // one fetch per brand, all brands at once
   const seen = new Set();
   beats = beats.filter((b) => !seen.has(slug(b.brand || b.word)) && seen.add(slug(b.brand || b.word)));
   return (await pool(beats, 8, async (b) => {
     const brand = b.brand || b.word;
-    if (["svg", "png"].some((e) => fs.existsSync(path.join(edit, logoPath(brand, e))))) return 0;
+    const have = ["svg", "png"].find((e) => fs.existsSync(path.join(edit, logoPath(brand, e))));
+    if (have) { got[slug(brand)] ??= { file: logoPath(brand, have), from: null }; return 0; }
     const si = slug(brand).replace(/-/g, "");
     // cdn.simpleicons.org serves the brand colour but refuses some networks (cloud machines, some
     // offices); the same icon set on jsDelivr always answers, in black.
     const tries = [[`https://cdn.simpleicons.org/${si}`, "svg"],
       [`https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${si}.svg`, "svg"]];
+    if (b.url) tries.unshift([b.url, null]);
     if (b.domain) {
       for (const u of (await siteIcons(b.domain)).slice(0, 3)) tries.push([u, null]);
       tries.push([`https://www.google.com/s2/favicons?domain=${b.domain}&sz=256`, "png"]);
@@ -560,11 +588,12 @@ async function fetchLogos(edit, beats) {
       if (!r || !r.ok) continue;
       if (!ext) {    // the site's own icon: SVG or PNG only (plan.py reads those two)
         const ct = r.headers.get("content-type") || "";
-        ext = /svg/.test(ct) ? "svg" : /png/.test(ct) ? "png" : null;
+        ext = /svg/.test(ct) || /\.svg(\?|$)/i.test(url) ? "svg" : /png/.test(ct) || /\.png(\?|$)/i.test(url) ? "png" : null;
         if (!ext) continue;
       }
       fs.writeFileSync(path.join(edit, logoPath(brand, ext)), Buffer.from(await r.arrayBuffer()));
       console.log(`${logoPath(brand, ext)}  <- ${url}`);
+      got[slug(brand)] = { file: logoPath(brand, ext), from: url };
       ok = true;
       break;
     }
@@ -705,6 +734,11 @@ async function main() {
   const images = (fs.existsSync(listPath) ? JSON.parse(fs.readFileSync(listPath, "utf8")) : [])
     .filter((im) => !im.src.startsWith(PREFIX));
   const beats = visuals.filter((v) => v.kind === "capture");
+  // a card edit shows pictures only: its captures are framed shots of the page, never a sentence on white
+  let kinds = null;
+  try { kinds = JSON.parse(fs.readFileSync(path.join(edit, "style.json"), "utf8")).card_kinds; } catch {}
+  if (Array.isArray(kinds) && kinds.length && !kinds.includes("text"))
+    for (const b of beats) Object.assign(b, { frame: "card" }, b.format === "sticker" ? { format: "shot" } : {});
   const bin = beats.length && findBinary(SHELLS);
   if (beats.length && !bin) {
     console.error(`ERROR: no Chrome Headless Shell under ${SHELLS}. Run the setup skill (setup.py remotion) once.`);
@@ -746,6 +780,7 @@ async function main() {
         if (shot.marks.length) im.marks = shot.marks;
         if (shot.xh) im.xh = shot.xh;
         if (shot.lines?.length) im.lines = shot.lines;
+        if (shot.pics?.length) im.pics = shot.pics;
         console.log(`${src}  <- ${b.url}`);
         return im;
       })).filter(Boolean);
@@ -763,5 +798,5 @@ async function main() {
 }
 
 // Imported by product-video/scripts/crawl.mjs for the browser, banner and text-finding helpers.
-export { pool, TABS, launch, findBinary, SHELLS, DISMISS, FIND, lines, TEXT, STICKER, snapClip, noSandbox, sandboxFlags, rankIcons };
+export { pool, TABS, launch, findBinary, SHELLS, DISMISS, FIND, lines, TEXT, STICKER, snapClip, noSandbox, sandboxFlags, rankIcons, fetchLogos, logoPath, slug };
 if (path.basename(process.argv[1] || "") === "capture.mjs") await main();

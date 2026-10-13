@@ -83,7 +83,10 @@ that fails to load stops the render. Cards still come from visuals.json (step 3)
   face.json says it is not) until the first sentence ends. The photo is the first image in images.json: the
   user's own photo (`assets_dir`) or a capture, never a generated image; none means no photo. No zooms, no
   other cards, visuals.json is not drawn. Everything stays inside x 60-940, y 250-1440 of 1080x1920. Cut
-  lightly for it: `--max-pause 0.5` on the cut.
+  lightly for it: `--max-pause 0.5` on the cut. Write the title yourself (`--title`): one short lowercase
+  line in the speaker's words that says what a stranger gets for staying (a number, a surprise, a how), never
+  the first sentence cut short. Give the photo on the first sentence's key word: the user's own photo, else a
+  capture of the thing that line names; no real picture fits, leave it out.
 - **Timing:** each card lands 0.1 s before its word, landing as the render check measures it (an
   overlay starts `OVERLAY_LEAD_S` earlier, the time it takes to carry half its ink; both read it); every part, bar, item and capture mark lands on
   its own word (`word` / `at_word`); a caption_page gets the words said while it is up.

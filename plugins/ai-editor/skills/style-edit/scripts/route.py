@@ -13,6 +13,10 @@ creator's graphics.kinds, her mix is printed for Claude to lean towards. With he
 under the user's own cards cap), her count for this length is printed and that many sentences get "want": true
 (want()): named ones first, then the longest, spread out. Claude gives each a real card at her place in the frame.
 
+logo-pack: when edits/NAME/logos.json exists, its names count as named things and each sentence gets "logos"
+(the brands whose files logo-pack checked, for a `logo` beat's "brand"); two or more in one sentence print a
+`logo_cluster` hint.
+
 highlight: the capture's text blocks (capture.mjs "page_text": true) and the spoken line in; its sentences
 out, the ones sharing the most words with the spoken line first, for Claude to pick the evidence from.
 Stdlib only.
@@ -25,7 +29,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
 
 # graphics.kinds (creator-teardown style.json) -> the routes that show that kind of thing from a real source.
-# A text card is never built (type cards were removed): it routes to a sticker of the real sentence.
+# A text card is never built (type cards were removed): it routes to a sticker of the real sentence, or, in a
+# card edit (style.json "card_kinds" without "text"), to a shot of the real page.
 KIND_ROUTES = {"real screenshot": ("capture:shot", "capture:sticker"), "UI recording": ("capture:browser", "video_card"),
                "text card": ("capture:sticker",), "chart": ("capture:sticker",), "photo": ("capture:shot",),
                "meme": ("capture:shot",), "logo": ("logo", "logo_cluster"), "b-roll": ("video_card",)}
@@ -65,6 +70,11 @@ we're well were what what's when where which while who why will with would yeah 
 check""".split())
 
 
+def logo_hits(text, logos):
+    """logo-pack's logos (logos.json) named in a sentence -> their brand slugs, for a logo beat's "brand"."""
+    return [l.get("brand") or l["name"] for l in logos if named(text, [l])]
+
+
 def found_names(beats):
     """Words written with a capital letter anywhere but a sentence's first word: the products, tools and
     people said, when the profile's names question was left blank. ponytail: a capital-letter heuristic,
@@ -82,10 +92,12 @@ def found_names(beats):
 def prefer(style):
     """{route: 0-1}: the creator's graphics.kinds mix, each kind's share split over its routes. {} when the
     style has none or the blend did not take "graphics"."""
-    from plan import graphics
+    from plan import graphics, pictures_only
     out = {}
     for k, v in (graphics(style or {}, "graphics").get("kinds") or {}).items():
         rs = KIND_ROUTES.get(k, ())
+        if pictures_only(style or {}):   # a card edit: no sentence on white, the page itself instead
+            rs = tuple(dict.fromkeys("capture:shot" if r == "capture:sticker" else r for r in rs))
         for r in rs:
             out[r] = round(out.get(r, 0) + v / 100 / len(rs), 3)
     return out
@@ -148,10 +160,15 @@ def demo():
         "it Can you change it and It saves and You can just see it So you can add reels. And Just send it to Claude".split())])
     assert found_names(run_on) == ["YouTube", "Claude"], found_names(run_on)
     assert named(sample[1]["text"], [{"name": n} for n in found_names(sample)]) == ["Jev"]
+    # logo-pack's logos.json: names map to the brand slug its files are saved under
+    assert logo_hits("Jev picks my Claude model", [{"name": "Jev", "brand": "typesafe"}, {"name": "Claude"}]) == ["typesafe", "Claude"]
     # her mix: text cards route to the sticker, split by her shares
     pr = prefer({"graphics": {"kinds": {"text card": 55, "real screenshot": 40, "chart": 3}}})
     assert pr == {"capture:sticker": 0.78, "capture:shot": 0.2}, pr
     assert prefer({"graphics": {"kinds": {"chart": 100}}, "blend": {"take": ["captions"]}}) == {}
+    # a card edit (card_kinds without "text"): the text card's share goes to a shot of the real page
+    pc = prefer({"graphics": {"kinds": {"text card": 50, "real screenshot": 50}}, "card_kinds": ["capture", "logo"]})
+    assert pc == {"capture:shot": 1.0}, pc
     # her rate: 6 a minute over 30 s = 3 cards; the named sentence first, never two within 5 s, none in the first second
     wb = [{"start": t, "end": t + d, "names": nm} for t, d, nm in
           ((0.0, 0.9, ["Jev"]), (2.0, 2.0, []), (4.0, 3.0, []), (9.0, 1.0, ["Claude"]), (14.0, 4.0, []), (25.0, 5.0, []))]
@@ -185,11 +202,21 @@ def main():
         if extra:
             print(f"names in the words, not in the profile: {', '.join(extra)} (add a domain for any that is not "
                   "famous: profile.py set names)")
+        lp = edit / "logos.json"   # the logo-pack skill's checked logos
+        logos = json.loads(lp.read_text(encoding="utf-8")).get("logos", []) if lp.exists() else []
+        extra += [l["name"] for l in logos if l["name"].lower() not in have and l["name"] not in extra]
         for b in beats:
             b["names"] = named(b["text"], names + [{"name": w} for w in extra])
+            if logos:
+                b["logos"] = logo_hits(b["text"], logos)
         st = edit / "style.json"
         from plan import effective_style   # the style the plan will use: the user's choices over the creator's
         style = effective_style(st, prof, edit, count=False) if st.exists() else {}
+        from plan import pictures_only
+        if pictures_only(style):
+            print(f"this style's cards ({', '.join(style['card_kinds'])}): a capture:shot of the real thing named, "
+                  "a logo, the user's photo, or an animation (flow, chat, terminal, toasts, side_by_side, video_card) "
+                  "from real parts. Never a sticker or words on a ground; a line that names nothing real gets none")
         pref = prefer(style)
         if pref:
             print("the creator's mix: " + ", ".join(f"{k} {v:.0%}" for k, v in sorted(pref.items(), key=lambda kv: -kv[1])))
@@ -202,7 +229,8 @@ def main():
         (edit / "beats.json").write_text(json.dumps(beats, indent=1), encoding="utf-8")
         for b in beats:
             print(f"{b['start']:6.2f} {'*' if b.get('want') else ' '} {str(b.get('pick')):20}  {b['text']}"
-                  + (f"   [{', '.join(b['names'])}]" if b["names"] else ""))
+                  + (f"   [{', '.join(b['names'])}]" if b["names"] else "")
+                  + (f"   logo_cluster? {', '.join(b['logos'])}" if len(b.get("logos") or []) > 1 else ""))
         print(f"-> {edit / 'beats.json'}")
     elif len(a) == 4 and a[0] == "highlight":
         blocks = json.loads((Path(a[1]) / a[2]).read_text(encoding="utf-8") if not Path(a[2]).exists() else Path(a[2]).read_text(encoding="utf-8"))

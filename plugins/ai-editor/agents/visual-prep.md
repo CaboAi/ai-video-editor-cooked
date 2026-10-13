@@ -31,8 +31,19 @@ local, so they are made now and made again if the cut changes.
    post; the speaker's own product counts: its public page or repo), else leave it empty. No rate: a card
    where a sentence names something real, and in any stretch over 10 s with no card (plan.py's card gap),
    one for the line there that is about something real. On 9:16 a `capture` is a `sticker` with a `find` mark
-   on the line's words, so it reads on a phone. Never a `file://` page from the user's config folders.
+   on the line's words, so it reads on a phone, except in a card edit (style.json `card_kinds` without `text`):
+   there every card is a real picture, a `capture` with `"format": "shot"` and a `find` mark on the named thing
+   (capture.mjs frames the page round it to fill the band), a `logo`, the user's photo, or an animation from
+   real parts (`flow`, `chat`, `terminal`, `toasts`, `side_by_side`, `video_card`) for a line that explains
+   something with no page to show. Never a sticker. A line that names nothing real gets no card. Also a
+   `title` (the hook's promise in 2 short lines of their words, from 0 s) and one on the CTA word, a `list`
+   when they count steps, a `stamp` when they say a card's thing does not apply (visuals.md "Card edit").
+   Never a `file://` page from the user's config folders.
    Decide it all yourself: the caller must not have to ask the user what to show.
+   When `EDIT/logos.json` exists (the logo-pack skill), use its `brand` for each `logo` beat (beats.json
+   `logos`) and one `logo_cluster` per `together` group; capture.mjs keeps its files. No logos.json and two
+   or more brands named: follow `<ROOT>/skills/logo-pack/SKILL.md` steps 1-4 first (free, no questions; a logo
+   still failing after two rounds is left out), then `route.py beats` again.
 5. **Fetch and face:** `node "$S/capture.mjs" EDIT` (free: local Chrome screenshots, logos, posts), then
    `python3 "$PY" "$S/face.py" EDIT`.
 6. **Plan and sheet:** `python3 "$S/plan.py" EDIT/style.json EDIT/captions.json --aspect <style.json aspect>`,

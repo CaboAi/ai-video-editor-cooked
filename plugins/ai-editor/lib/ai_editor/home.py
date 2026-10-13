@@ -688,21 +688,21 @@ def style_cards(root):
     return out
 
 
-# The style page's controls: the settings the scripts read (taste skill's table), never a look of their own.
+# The style page's controls: the settings the scripts read (taste skill's table), never a look of their own. The card
+# look is not one: it is part of the style (measured, or built by the user), so no page default can override it.
 # (section, type, low, high); "choice" keys take one of the names presets.py lists.
 CONTROLS = {"captions.size_pct": ("captions", float, 2.5, 9), "captions.words_per_caption": ("captions", int, 1, 6),
             "captions.y_pct": ("captions", float, 40, 85), "captions.preset": ("captions", "choice", None, None),
             "zoom.per_min": ("visuals", float, 0, 20), "zoom.preset": ("visuals", "choice", None, None),
             "cut.max_pause": ("cut", float, 0.05, 0.6), "cards.on": ("visuals", bool, None, None),
-            "cards.per_min": ("visuals", float, 1, 20), "look.preset": ("visuals", "choice", None, None),
+            "cards.per_min": ("visuals", float, 1, 20),
             "sfx": ("sound", bool, None, None), "music": ("sound", bool, None, None)}
 # Reset per section: every setting under these prefixes goes back to the style's own (or the default).
-SECTIONS = {"captions": ("captions.",), "zoom": ("zoom.",), "cut": ("cut.",), "cards": ("cards.", "look."), "sound": ("sfx", "music")}
+SECTIONS = {"captions": ("captions.",), "zoom": ("zoom.",), "cut": ("cut.",), "cards": ("cards.", "look."), "sound": ("sfx", "music")}   # look.: clears an old pick
 
 
 def choices(key):
-    return {"captions.preset": [""] + list(presets.captions()), "zoom.preset": list(presets.ZOOM),
-            "look.preset": list(presets.LOOKS)}[key]
+    return {"captions.preset": [""] + list(presets.captions()), "zoom.preset": list(presets.ZOOM)}[key]
 
 
 def control_rule(key, v):
@@ -719,7 +719,6 @@ def control_rule(key, v):
              "zoom.per_min": lambda: "No zooms" if not v else f"About {v:g} zooms a minute",
              "cut.max_pause": lambda: f"Pauses cut down to {v:g} s", "sfx": lambda: "Sound effects on" if v else "No sound effects",
              "cards.on": lambda: "Logos and screenshots on" if v else "No logos or screenshots",
-             "look.preset": lambda: f"Card look: {presets.LOOKS.get(v, v)}",
              "music": lambda: "Background music on" if v else "No background music"}[key]()
     return r + " (set on the style page)"
 
@@ -793,6 +792,7 @@ def preset_state(root, sid, st, base, changed):
     zsel = zp if zp in presets.ZOOM else presets.closest_zoom(st.get("zoom"))
     cut = dig(st, "cut.max_pause") or 0.15
     cpm = dig(st, "cards.per_min")   # what caps the cards (plan.py thin_cards): the user's pick, or the default style's 4
+    rate = cpm if cpm is not None else dig(st, "graphics.per_min")   # shown: the cap, else the style's measured rate
     sfx = (prof.get("sound") or {}).get("sfx", True) if sid == "mine" and st.get("sfx") is None else st.get("sfx", True)
     music = st["music"] if "music" in st else bool((prof.get("sound") or {}).get("music"))
     clips = newest_edit(("report.json", "words.raw.json"), entries)
@@ -805,8 +805,8 @@ def preset_state(root, sid, st, base, changed):
                     "sel": presets.nearest(presets.CUT, "max_pause", cut), "value": cut, "tag": tag(("cut.",), False),
                     "clips": bool(clips)},
             "cards": {"on": dig(st, "cards.on") is not False, "opts": [{"id": k, "label": v["label"], "value": v["per_min"]} for k, v in presets.CARDS.items()],
-                      "sel": presets.nearest(presets.CARDS, "per_min", cpm) if cpm is not None else "", "look": dig(st, "look.preset") or "neutral",
-                      "looks": [[k, v] for k, v in presets.LOOKS.items()], "tag": tag(("cards.", "look."), False)},
+                      "sel": presets.nearest(presets.CARDS, "per_min", rate) if rate is not None else "",
+                      "tag": tag(("cards.",), False)},
             "sound": {"sfx": bool(sfx), "music": bool(music), "tag": tag(("sfx", "music"), False)}}
 
 
@@ -1108,34 +1108,37 @@ def new_own_style(root, name, skill=None):
     return "@" + h
 
 
+def default_style(cards):
+    """The style New video starts on: the one the user made default while it exists, else My style."""
+    d = read().get("default_style")
+    return d if any(c["id"] == d for c in cards) else "mine"
+
+
 def delete_style(root, sid, measured=False):
-    """A studied creator's style goes: its picks (<h>-mine), its style.json, corrections and cover, its
-    edit-like skill, and its place in profile.json. The measured videos stay unless `measured`. My style is
-    never deleted. Returns the paths removed ([] when it was already gone)."""
+    """A style goes, to the Trash (never a permanent delete): its picks (<h>-mine), its style.json, corrections
+    and cover, its skill folder, and its place in profile.json. A studied creator's measured videos stay unless
+    `measured`; a style the user built (own-*) goes with its whole folder. My style is never deleted. Returns
+    the paths removed ([] when it was already gone)."""
     d = style_dir(root, sid)
     if d is None or sid == "mine":
         raise ValueError("not a creator style")
     try:
-        sample = json.loads((d / "style.json").read_text(encoding="utf-8")).get("sample")
+        st = json.loads((d / "style.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        sample = False
-    if sample:
+        st = {}
+    if st.get("sample"):
         raise ValueError("a sample style ships with the editor and cannot be deleted")
     _, ss = _taste()
     gone = []
     if (d / "style.json").is_file():
-        sk = ss.remove(d / "style.json")   # its skill folder and its name; the other style skills stop naming it
+        sk = ss.remove(d / "style.json", rm=trash)   # its skill folder and its name; the other style skills stop naming it
         gone.append(str(sk))
-    parts = [d.with_name(d.name + "-mine")] + ([d] if measured else [d / f for f in ("style.json", ss.OVERRIDES, "cover.jpg")])
+    whole = measured or st.get("own") or d.name.startswith("own-")
+    parts = [d.with_name(d.name + "-mine")] + ([d] if whole else [d / f for f in ("style.json", ss.OVERRIDES, "cover.jpg")])
     for p in parts:
-        inside = p.resolve().parent in (d.parent.resolve(), d.resolve())
-        if inside and p.is_dir():
-            shutil.rmtree(p)
-        elif inside and p.is_file():
-            p.unlink()
-        else:
-            continue
-        gone.append(str(p))
+        if p.resolve().parent in (d.parent.resolve(), d.resolve()) and p.exists() and trash(p):
+            gone.append(str(p))
+    update(lambda x: x.__setitem__("archived_styles", [a for a in x.get("archived_styles") or [] if a != sid]))
     pf, prof = home().parent / "profile.json", _profile()
     h = d.name
     if any(c.get("handle") == h for c in prof.get("creators") or []):
@@ -1504,9 +1507,11 @@ def make_handler(token):
                     if j["type"] == "teardown" and j["state"] in ("queued", "taken") and "@" + str(h) not in [c["id"] for c in cards]:
                         cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True, "face": face_of(root, h),
                                       "line": "Being analysed now. Your cut starts first; the style waits for it."})
+                arch = set(read().get("archived_styles") or [])   # Archive: off Styles, Home and Pick a style; files untouched
                 return self.send(200, {"path": root, "place": place(root), "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
-                                       "custom": str(custom.path(False)), "videos": vids, "styles": cards, "folders": folders(),
-                                       "default_style": read().get("default_style") if any(c["id"] == read().get("default_style") for c in cards) else "mine"})
+                                       "custom": str(custom.path(False)), "videos": vids, "folders": folders(),
+                                       "styles": [c for c in cards if c["id"] not in arch], "archived_styles": [c for c in cards if c["id"] in arch],
+                                       "default_style": default_style(cards)})
             if path == "/skills":   # New style, "Use your own skill"
                 return self.send(200, {"skills": editing_skills(read()["root"])})
             if path == "/recent":
@@ -1732,6 +1737,14 @@ def make_handler(token):
                     return self.send(404, {"error": "No such style."})
                 update(lambda d: d.__setitem__("default_style", sid))
                 return self.send(200, {"ok": True, "default_style": sid})
+            if path == "/style/archive":   # {id, on}: on (the default) archives, on=false brings it back
+                sid, on, cards = str(body.get("id") or ""), body.get("on") is not False, style_cards(read()["root"])
+                if not any(c["id"] == sid for c in cards):
+                    return self.send(404, {"error": "No such style."})
+                if on and sid == default_style(cards):
+                    return self.send(400, {"error": "This is your default style. Make another style the default first."})
+                update(lambda d: d.__setitem__("archived_styles", [x for x in d.get("archived_styles") or [] if x != sid] + ([sid] if on else [])))
+                return self.send(200, {"ok": True})
             if path == "/style/reset-all":
                 reset_mine()
                 return self.send(200, {"ok": True})
@@ -2130,6 +2143,8 @@ def demo():
     import atexit
     atexit.register(lambda: [p.terminate() for p in _spawned])   # a failed check leaves no review server behind
     os.environ["AI_EDITOR_HOME"] = str(tmp / "home")
+    # the self-check never touches the real Trash: "trashed" files are removed from the temp folder instead
+    globals()["trash"] = lambda p: (shutil.rmtree(p) if Path(p).is_dir() else Path(p).unlink(missing_ok=True)) or not Path(p).exists()
     for v in keys.VARS.values():
         os.environ.pop(v, None)
     root = tmp / "work"
@@ -2586,7 +2601,30 @@ def demo():
     assert post("/style/default", {"id": oid})["default_style"] == oid and get("/library")["default_style"] == oid
     assert post("/style/set", {"id": oid, "key": "zoom.preset", "value": "none"})["presets"]["zoom"]["sel"] == "none"
     assert post("/style/delete", {"id": oid})["ok"] and get("/library")["default_style"] == "mine"
-    assert oid not in [c["id"] for c in get("/library")["styles"]]
+    assert oid not in [c["id"] for c in get("/library")["styles"]] and not (root / "creator-teardowns" / oid[1:]).exists()
+    # Archive: off the styles list (Styles, Home and Pick a style all read it), files kept; Unarchive brings it back
+    aid = post("/style/new", {"name": "Old reels"})["id"]
+    assert post("/style/archive", {"id": aid})["ok"]
+    lib = get("/library")
+    assert aid not in [c["id"] for c in lib["styles"]] and [c["id"] for c in lib["archived_styles"]] == [aid]
+    assert (root / "creator-teardowns" / aid[1:] / "style.json").is_file(), "archive leaves the files alone"
+    assert post("/style/archive", {"id": aid, "on": False})["ok"] and aid in [c["id"] for c in get("/library")["styles"]]
+    assert get("/library")["archived_styles"] == []
+    for bad, code in (("mine", 400), ("@nope", 404)):   # the default style stays until another is made default
+        try:
+            post("/style/archive", {"id": bad})
+            raise AssertionError(bad)
+        except urllib.error.HTTPError as e:
+            assert e.code == code, (bad, e.code)
+    post("/style/default", {"id": aid})
+    try:
+        post("/style/archive", {"id": aid})
+        raise AssertionError("default archived")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    post("/style/default", {"id": "mine"})
+    assert post("/style/archive", {"id": aid})["ok"] and post("/style/delete", {"id": aid})["ok"]
+    assert get("/library")["archived_styles"] == [] and not (root / "creator-teardowns" / aid[1:]).exists()
     # a skill style: style.json names a skill, the card and page show the skill and no controls, the job carries it
     kd, sks = root / "creator-teardowns" / "own-skilled", root / ".claude" / "skills"
     kd.mkdir()
@@ -2623,7 +2661,9 @@ def demo():
         raise AssertionError("a bad skill name made a style")
     except urllib.error.HTTPError as e:
         assert e.code == 400
+    assert post("/style/archive", {"id": nid})["ok"] and nid in [c["id"] for c in get("/library")["archived_styles"]]   # skill styles archive too
     assert post("/style/delete", {"id": nid})["ok"] and (sks / "my-edit-style" / "SKILL.md").is_file()
+    assert not (root / "creator-teardowns" / nid[1:]).exists() and get("/library")["archived_styles"] == []
     post("/scanhome", {"on": False})   # picked files stay listed without the opt-in
     assert {r["name"] for r in get("/recent")["videos"]} == {"a.mov", "b.mov", "c.mp4", "drop.mp4", "take.mp4"}
 
@@ -2705,7 +2745,7 @@ def demo():
     pz = get("/style?id=@sample.creator")["presets"]
     assert [t["id"] for t in pz["captions"]["tiles"]][:5] == ["", "plain", "bold", "karaoke", "minimal"] and pz["captions"]["sel"] == ""
     assert pz["captions"]["tiles"][0]["name"] == "Theirs" and pz["captions"]["tag"] == "from @sample.creator"
-    assert pz["cut"]["sel"] == "natural" and pz["cards"]["on"] and pz["cards"]["look"] == "neutral" and pz["sound"]["sfx"]
+    assert pz["cut"]["sel"] == "natural" and pz["cards"]["on"] and "look" not in pz["cards"] and pz["sound"]["sfx"]
     assert pz["cards"]["sel"] == "", "a creator's style has no card cap until the user picks one"
     tb = [t["block"] for t in pz["captions"]["tiles"]]
     pg = post("/style/set", {"id": "@sample.creator", "key": "captions.y_pct", "value": 50})
@@ -2716,10 +2756,10 @@ def demo():
     assert json.loads((td / "style.overrides.json").read_text(encoding="utf-8"))["captions"]["preset"] == "karaoke"
     pg = post("/style/set", {"id": "@sample.creator", "key": "zoom.preset", "value": "punchy"})
     assert pg["presets"]["zoom"]["sel"] == "punchy" and "Zooms: Punchy (snaps in fast) (set on the style page)" in md.read_text(encoding="utf-8")
-    for key, v in (("cards.per_min", 2), ("cards.on", False), ("look.preset", "editorial"), ("music", True), ("cut.max_pause", 0.25)):
+    for key, v in (("cards.per_min", 2), ("cards.on", False), ("music", True), ("cut.max_pause", 0.25)):
         pg = post("/style/set", {"id": "@sample.creator", "key": key, "value": v})
     c = pg["presets"]
-    assert (c["cards"]["sel"], c["cards"]["on"], c["cards"]["look"], c["sound"]["music"], c["cut"]["sel"]) == ("rarely", False, "editorial", True, "relaxed"), c
+    assert (c["cards"]["sel"], c["cards"]["on"], c["sound"]["music"], c["cut"]["sel"]) == ("rarely", False, True, "relaxed"), c
     for bad in (("captions.preset", "../x"), ("zoom.preset", "wobbly"), ("look.preset", "poster-red")):
         try:
             post("/style/set", {"id": "@sample.creator", "key": bad[0], "value": bad[1]})

@@ -32,12 +32,15 @@ EVALS = [("plugins/ai-editor/evals/setup-window-first", "home.py serve"),
          ("plugins/ai-editor/evals/paste-website-link", "product-video"),
          ("plugins/ai-editor/evals/paste-tiktok-profile", "creator-teardown"),
          ("plugins/ai-editor/evals/repo-no-plugin", "ai-editor@nextwork"),
+         ("plugins/ai-editor/evals/logo-pack-named-tools", "logo-pack"),
+         ("plugins/ai-editor/evals/skill-improver-teach", "skill-improver"),
+         ("plugins/ai-editor/evals/skill-maker-new", "skill-maker"),
          ("plugins/creator-teardown/evals/tear-down-handle", "AskUserQuestion")]
 
 
 # What Claude must read before a skill's first step: SKILL.md plus every file it says to "Read `X` first".
 # Each byte is a token cost on every run, so the talking-head path has a ceiling (bytes).
-READ_BUDGET = {"start": 12000, "cut": 15000, "style-edit": 25000, "product-video": 30000}
+READ_BUDGET = {"start": 12000, "cut": 15000, "style-edit": 25000, "product-video": 30000, "logo-pack": 7000, "skill-improver": 7500, "skill-maker": 9000}
 READ_FIRST = re.compile(r"[Rr]ead \**`([^`]+)`\**:?\s+first")
 
 

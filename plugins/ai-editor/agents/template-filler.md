@@ -31,7 +31,12 @@ Rules:
    `{"icon": ...}`, never emoji.
 5. A sticker gets no `crop`: capture.mjs cuts the sentence that holds its first mark.
 6. Set `hold_s` so the card is still up on its last word.
-7. A `flow` is an overlay over the footage: never set `"layout": "scene"` unless the caller says the user
+7. A card edit (the caller says so, or `edits/<name>/style.json` has `card_kinds` without `text`): every
+   `capture` is `"format": "shot"` with a `find` mark on the named thing, never a sticker; with nothing to
+   capture, a `logo` of a brand the line names or an animation of the concept from real parts, else no beat.
+   Picks `title`, `list`, `stamp`: `{"kind": "title", "text", "word"?}`, `{"kind": "list", "items": [{"text",
+   "word"}], "until"?}`, `{"kind": "stamp", "word"}`, the speaker's words only.
+8. A `flow` is an overlay over the footage: never set `"layout": "scene"` unless the caller says the user
    asked for a full-frame scene. Each node is a thing the sentence names, in spoken order, 2-3 nodes,
    labels of 1-3 of the speaker's words.
 

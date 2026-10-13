@@ -55,7 +55,7 @@ CUT = {"relaxed": {"label": "Relaxed", "sub": "Keeps your pauses", "max_pause": 
        "tight": {"label": "Tight", "sub": "Cuts every pause", "max_pause": 0.12}}
 # How often a card (logo, screenshot, scene) may land: at most this many a minute (plan.py thin_cards).
 CARDS = {"rarely": {"label": "Rarely", "per_min": 2}, "sometimes": {"label": "Sometimes", "per_min": 4},
-         "often": {"label": "Often", "per_min": 8}}
+         "often": {"label": "Often", "per_min": 16}}   # a card edit's rate: a new card about every 4 s
 # Card looks the page offers (remotion/src/look.tsx LOOKS). The flat poster grounds and glass stay out: plan.py
 # refuses them unless the user's own brand kit names them.
 LOOKS = {"neutral": "Neutral, white cards", "editorial": "Editorial, warm paper", "editorial-dark": "Editorial, dark",

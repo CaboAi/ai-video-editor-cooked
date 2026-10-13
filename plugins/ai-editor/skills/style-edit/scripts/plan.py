@@ -68,6 +68,7 @@ SAFE = {"9:16": (5.6, 13.1, 13.0, 25.0), "16:9": (3, 5, 3, 10)}
 OVERLAY_TOP, OVERLAY_EDGE = SAFE["9:16"][1], SAFE["9:16"][0]
 LOGO_S = 1.2           # a logo stays up this long
 LOGO_BOX_H = 11        # logo tile height, % of the frame
+LOGO_CARD_BOX = (30, 13.1, 40, 17)   # a card edit's logo card on white: centred in the band above the head
 # logo_cluster on vertical (Overlays.tsx reads props.band and props.size): the logos' outer edges span this
 # band of the width, centred, each this % of the width wide. check.py plan FAILs a vertical cluster whose
 # ink is under INK_MIN_W of the width or off centre, the same as check.py render measures it.
@@ -422,7 +423,8 @@ def kind_formats(images, style):
     mix = {}
     for k, v in (graphics(style, "graphics").get("kinds") or {}).items():
         if k in KIND_FORMAT:
-            mix[KIND_FORMAT[k]] = mix.get(KIND_FORMAT[k], 0) + v
+            f = "shot" if pictures_only(style) and KIND_FORMAT[k] == "sticker" else KIND_FORMAT[k]
+            mix[f] = mix.get(f, 0) + v
     free = [i for i, im in enumerate(images) if not im.get("format") and str(im.get("src", "")).startswith("images/capture-")]
     images = [dict(im) for im in images]
     for i, f in zip(free, deal(mix, len(free))):
@@ -459,9 +461,10 @@ def safe_box(box, aspect):
     return [x, y, w, h]
 
 
-def logo_items(visuals, edit_dir, cap_y, aspect):
+def logo_items(visuals, edit_dir, cap_y, aspect, card=False):
     """logo beats -> small logo cards just above the captions. They run in their own lane,
-    so a logo can land while a bigger card is up. capture.mjs fetches the files."""
+    so a logo can land while a bigger card is up. capture.mjs fetches the files. card (a card edit, vertical): the
+    logo is a card of its own on white in the band above the head, in the main lane, held like any card."""
     out = []
     for v in visuals:
         if v.get("kind") != "logo":
@@ -474,6 +477,11 @@ def logo_items(visuals, edit_dir, cap_y, aspect):
             continue
         w = LOGO_BOX_H * (16 / 9 if aspect == "9:16" else 9 / 16)   # a square tile
         item = {k: v[k] for k in ("word", "nth", "entrance") if k in v}
+        if card and aspect == "9:16":
+            item.update({"anim": {"type": "logo", "props": {"src": src, "card": True}}, "box": v.get("box") or list(LOGO_CARD_BOX)})
+            item.update({"hold_s": v["hold_s"]} if v.get("hold_s") else {})
+            out.append(item)
+            continue
         item.update({"anim": {"type": "logo", "props": {"src": src}}, "hold_s": v.get("hold_s", LOGO_S),
                      "box": v.get("box") or [50 - w / 2, cap_y - LOGO_BOX_H - 5, w, LOGO_BOX_H], "lane": "logo"})
         out.append(item)
@@ -546,6 +554,111 @@ def with_presets(style, mine):
     keys still win (they are merged after this)."""
     from ai_editor import presets
     return presets.apply(style, mine)
+
+
+def pictures_only(style):
+    """True when style.json "card_kinds" (a card edit: ["capture", "logo", "photo", "animation"]) leaves out "text":
+    every card is a real screenshot, logo, photo or animation. No sticker of a re-set sentence, and a capture whose
+    text reads small stays a picture (the shot pushes into its mark) instead of being cut to a line of words."""
+    ks = style.get("card_kinds")
+    return bool(ks) and "text" not in ks
+
+
+def text_labels(cards, style):
+    """A pictures-only style draws a sticker whose capture is the page itself as a shot, and drops a capture.mjs
+    sticker (a sentence re-set alone on white, images.json "xh"): a text label, not a screenshot. capture.mjs shoots
+    the page instead once style.json is current."""
+    if not pictures_only(style):
+        return cards
+    out = []
+    for c in cards:
+        if c.get("format") == "sticker" and not c.get("xh"):   # the page itself: drawn whole as the picture
+            c = {**c, "format": "shot", "props": {k: v for k, v in (c.get("props") or {}).items() if k != "crop"}}
+            c["props"] or c.pop("props")
+        if c.get("format") == "sticker":
+            print(f"warning: '{c.get('word')}' {c.get('src')}: a sentence set alone on white is a text card, and this style "
+                  "shows only screenshots, logos, photos and animations. Dropped: give the beat \"format\": \"shot\" "
+                  "and run capture.mjs again", file=sys.stderr)
+            continue
+        out.append(c)
+    return out
+
+
+# A card edit's words besides the captions (visuals.json "title", "list", "stamp" beats; remotion Texts.tsx). % of the frame.
+TITLE_Y, TITLE_SIZE, TITLE_HOLD_S = SAFE["9:16"][1] + 0.5, 3.6, 3.8   # the pill's top just inside the safe zone (y 250+)
+LIST_X, LIST_SIZE = SAFE["9:16"][0] + 1, 1.8
+TEXT_KINDS = ("title", "list", "stamp")
+
+
+def text_items(visuals, words, duration, cards, face=None, cap_y=66.0):
+    """plan.json "texts" from visuals.json: a "title" (text, "\\n" between lines; on its word, else from 0 s, for
+    hold_s), a running numbered "list" (items: [{text, word, nth}], each on its word, all held to the list's word
+    "until" or the end), a "stamp" (a red X over the card up on its word). Every box inside the reels safe zone."""
+    def at(word, nth=None):
+        hits = [w["start"] for w in words if clean(w["text"]).lower() == clean(word or "").lower()]
+        return hits[(nth or 1) - 1] if len(hits) >= (nth or 1) else None
+    out = []
+    for v in visuals:
+        k = v.get("kind")
+        if k == "title" and v.get("text"):
+            t = at(v["word"], v.get("nth")) if v.get("word") else 0.0
+            if t is None:
+                print(f"warning: title '{v['text']}': '{v['word']}' is never said, skipped", file=sys.stderr)
+                continue
+            start = max(0.0, t - CARD_LEAD_S) if t else 0.0
+            out.append({"kind": "title", "text": v["text"], "start": round(start, 3), "end": round(min(duration, start + (v.get("hold_s") or TITLE_HOLD_S)), 3),
+                        "y_pct": TITLE_Y, "size_pct": TITLE_SIZE})
+        elif k == "list":
+            items = [{"text": it["text"], "at": at(it.get("word"), it.get("nth"))} for it in v.get("items") or [] if it.get("text")]
+            items = [{**it, "at": round(max(0.0, it["at"] - CARD_LEAD_S), 3)} for it in items if it["at"] is not None]
+            if not items:
+                continue
+            until = at(v["until"], v.get("until_nth")) if v.get("until") else None
+            start, end = items[0]["at"], min(duration, until if until else duration)
+            # at the left: under the chin, else just above or below the captions; never over the head or the captions
+            hd = face and head_during(face["heads"], face.get("step_s", 0.5), start, end)
+            h = len(items) * LIST_SIZE * 1.3
+            w = (3 + max(len(it["text"]) for it in items)) * 0.55 * LIST_SIZE * 16 / 9   # % of the width, about
+            cap = (cap_y - 3, cap_y + 3)
+            free = lambda y: (SAFE["9:16"][1] <= y and y + h <= 100 - SAFE["9:16"][3] and (y + h <= cap[0] or y >= cap[1])
+                              and not (hd and LIST_X < hd[2] and LIST_X + w > hd[0] and y < hd[3] and y + h > hd[1]))
+            y = next((y for y in ([hd[3] + 1] if hd else [47.0]) + [cap[0] - 0.5 - h, cap[1] + 0.5] if free(y)), None)
+            if y is None:
+                print(f"warning: the list ('{items[0]['text']}', ...) has no room clear of the head and the captions "
+                      "(a close shot), skipped", file=sys.stderr)
+                continue
+            out.append({"kind": "list", "items": items, "start": start, "end": round(end, 3), "x_pct": LIST_X, "y_pct": round(y, 1), "size_pct": LIST_SIZE})
+        elif k == "stamp":
+            t = at(v.get("word"), v.get("nth"))
+            card = t is not None and next((c for c in cards if c.get("lane") != "logo" and c.get("layout") != "scene" and c["start"] <= t < c["end"]), None)
+            if not card:
+                print(f"warning: stamp on '{v.get('word')}': no card is up then, skipped", file=sys.stderr)
+                continue
+            out.append({"kind": "stamp", "start": round(t, 3), "end": card["end"], "box": card["box"]})
+    return out
+
+
+def title_bottom(x):
+    """Where a title's pills end, % of the frame: its lines as Texts.tsx wraps them (74% wide, bold, about 0.55 em a
+    character) at 1.25 em each with the gaps."""
+    per = max(8, int(74 * 1080 / 100 / (0.55 * x["size_pct"] / 100 * 1920)))
+    n = sum(max(1, math.ceil(len(ln) / per)) for ln in x["text"].split("\n"))
+    return x["y_pct"] + n * x["size_pct"] * 1.25 + 1
+
+
+def under_titles(cards, texts):
+    """A card up with a title moves below the title's pills (keeping its bottom edge), as the title sits above the
+    cards in a card edit; one that would lose over 40% of its height starts when the title ends instead."""
+    for x in (x for x in texts if x["kind"] == "title"):
+        tb = title_bottom(x)
+        for c in cards:
+            if c.get("layout") == "scene" or c["end"] <= x["start"] or c["start"] >= x["end"] or c["box"][1] >= tb:
+                continue
+            bx, by, bw, bh = c["box"]
+            if by + bh - tb >= max(MIN_CARD_H, 0.6 * bh):   # still most of its size: shrink it under the title
+                c["box"] = [bx, round(tb, 1), bw, round(by + bh - tb, 1)]
+            elif x["end"] < c["end"] - MIN_CARD_S:
+                c["start"] = x["end"]
 
 
 def card_rate(style):
@@ -742,7 +855,7 @@ def _place(images, words, duration, hold, ent, box, aspect):
         card = {"src": im["src"]} if "src" in im else {"anim": im["anim"]}
         if im.get("lane"):
             card["lane"] = im["lane"]
-        for k in ("highlight", "size", "layout", "transition_in", "transition_out", "focus", "format", "props", "_own_box", "xh", "lines"):
+        for k in ("highlight", "size", "layout", "transition_in", "transition_out", "focus", "format", "props", "_own_box", "xh", "lines", "pics"):
             if im.get(k):
                 card[k] = im[k]
         if im.get("marks"):
@@ -795,9 +908,11 @@ def avoid_heads(cards, face, cap_y, aspect):
             continue
         left, top, right, bottom = hd
         new = None
-        if (c.get("anim") or {}).get("type") == "logo" and h < 20:
+        if (c.get("anim") or {}).get("type") == "logo" and h < 20 and not (c["anim"].get("props") or {}).get("card"):
             if bottom + HEAD_GAP + h <= cap_y - 1:
                 new = [x, bottom + HEAD_GAP, w, h]
+            elif max(bottom + HEAD_GAP, cap_y + 5) + h <= 100 - SAFE[aspect][3]:    # under the captions
+                new = [x, max(bottom + HEAD_GAP, cap_y + 5), w, h]
             elif 100 - r_safe - (right + HEAD_GAP) >= w:
                 new = [right + HEAD_GAP, (top + bottom - h) / 2, w, h]
             elif left - HEAD_GAP - l_safe >= w:
@@ -814,6 +929,26 @@ def avoid_heads(cards, face, cap_y, aspect):
     return out
 
 
+def clear_caption_paths(cards, cap_y, aspect):
+    """A card that slides in (or out) from the top or bottom never crosses the caption band on the way: a card
+    under the captions comes from and leaves to the bottom, one above them the top. The measured move is kept,
+    only its side is turned (a slide down through the captions read as the card covering them)."""
+    W, H = SIZES[aspect]
+    lo, hi = cap_y - 5, cap_y + 5
+    for c in cards:
+        x, y, w, h = c.get("box") or (0, 0, 0, 0)
+        p = (c.get("anim") or {}).get("props") if c.get("anim") else c.get("props")
+        for key in ("enter", "exit"):
+            f = (p or {}).get(key)
+            if not f or f.get("kind") != "slide" or f.get("dir") not in ("top", "bottom"):
+                continue
+            d = (f.get("dist") or 5) * min(W, H) / H     # % of the frame's height
+            top, bot = (y - d, y + h) if f["dir"] == "top" else (y, y + h + d)
+            if top < hi and bot > lo and not (y < hi and y + h > lo):
+                props(c)[key] = {**f, "dir": "bottom" if y >= hi else "top"}
+    return cards
+
+
 def free_regions(hd, cap_y, aspect):
     """The frame around the head, as boxes clear of the app's UI and the captions: above, left, right."""
     l, t, r, b = SAFE[aspect]
@@ -824,6 +959,11 @@ def free_regions(hd, cap_y, aspect):
     out = [[side, top, 100 - 2 * side, htop - HEAD_GAP - top]]
     if aspect == "9:16":
         out += [[OVERLAY_EDGE, htop, left - HEAD_GAP - OVERLAY_EDGE, floor - htop], [right + HEAD_GAP, htop, 100 - r - (right + HEAD_GAP), floor - htop]]
+        # below the chin, over the body: where most talking-head creators put a photo when the face fills the top.
+        # Two bands, never over the captions: chin to the captions, and the captions to the app's bottom UI.
+        # Kept inside the side margins check.py plan holds: the right edge is under the like and comment buttons.
+        side, chin = max(l, r), hbot + HEAD_GAP
+        out += [[side, y0, 100 - 2 * side, y1 - y0] for y0, y1 in ((chin, cap_y - 5), (max(chin, cap_y + 5), 100 - b))]
     else:
         out += [[l, top, left - HEAD_GAP - l, floor - top], [right + HEAD_GAP, top, 100 - r - (right + HEAD_GAP), floor - top]]
     return [[round(v, 1) for v in bx] for bx in out if bx[2] >= 12 and bx[3] >= 9]
@@ -906,12 +1046,31 @@ def capture_scale(c, aspect):
     return min(w * 0.96 / iw, h * 0.92 / ih)
 
 
+PICTURE_SHARE = 0.5   # a capture this much picture (a book cover, a product photo) is shown for the picture
+
+
+def picture_share(c):
+    """The share of a capture's PNG that its pictures cover (capture.mjs "pics", overlaps counted once per row
+    of 10 px), 0-1."""
+    iw, ih = c.get("size") or (0, 0)
+    if not c.get("pics") or not iw or not ih:
+        return 0.0
+    covered = 0
+    for y in range(0, int(ih), 10):
+        spans = sorted((p[0], p[0] + p[2]) for p in c["pics"] if p[1] <= y < p[1] + p[3])
+        end = 0
+        for a, b in spans:
+            covered += max(0, b - max(a, end)) * 10
+            end = max(end, b)
+    return min(1.0, covered / (iw * ih))
+
+
 def capture_xh(c, aspect):
     """The rendered x-height (px on a 1080-wide frame) of a capture card's evidence text, from its DOM line
     boxes; None when it has none. A capture.mjs sticker's own measured "xh" wins."""
     if c.get("format") == "sticker" and c.get("xh") and c.get("size"):
         return sticker_xh(c, aspect) * 1080 / min(SIZES[aspect])
-    if not c.get("size") or c.get("format") == "plain":
+    if not c.get("size") or c.get("format") == "plain" or picture_share(c) >= PICTURE_SHARE:
         return None
     ev = evidence_lines(c)
     if not ev:
@@ -937,14 +1096,14 @@ def tight(ln, lines):
                and 0 < abs(o[1] - ln[1]) < CAPTION_LEADING / LINE_BOX_EM * max(o[3], ln[3]) for o in lines)
 
 
-def readable_captures(cards, aspect):
+def readable_captures(cards, aspect, pictures=False):
     """On vertical a capture whose evidence would render under READ_XH becomes a sticker cropped to that
     evidence: the crop takes the band's shape around the evidence's first lines (as many as still read) at the
     largest size that holds them (at most MAX_UP frame px per picture px), every line whole. The evidence is the
     words the speaker says, marked on the page ("find" / "highlight"): with none marked, or marked words set
     tighter than the captions, the card is dropped (never a sticker of the page's own headline, never lines that
     touch). One that still reads small is left for check.py to FAIL."""
-    if aspect != "9:16":
+    if aspect != "9:16" or pictures:   # pictures_only: a screenshot stays a screenshot
         return cards
     W, H = SIZES[aspect]
     keep = []
@@ -1299,6 +1458,8 @@ LB_SAFE = (60, 250, 940, 1440)
 LB_TITLE_X = 140        # title and word side margins: centred, the right edge inside the safe zone
 LB_TITLE_GAP = 24       # the title's last line ends this far above the band
 LB_TITLE_PX = 58
+LB_TITLE_EM = 0.46      # a regular lowercase title's width per character, in em (measured 0.42 on a render)
+LB_TITLE_MIN_PX = 40    # a title that needs smaller than this to sit on one line wraps at LB_TITLE_PX instead
 LB_WORD_PX = 46
 LB_WORD_Y = 0.18        # the word's centre sits this share of the band's height above its bottom
 LB_CARD = (0.41, 0.25)  # the photo: side and top inset, as shares of the band's height
@@ -1307,13 +1468,19 @@ LB_TITLE_WORDS = 8
 LB_OPEN_MAX_S = 6.0     # the photo leaves at the end of the first sentence, or by this
 
 
+DANGLING = {"and", "or", "but", "so", "the", "a", "an", "to", "of", "if", "with", "for", "that", "because", "like"}
+
+
 def letterbox_title(words):
-    """The first sentence, lowercase, at most LB_TITLE_WORDS words; a question keeps its mark."""
+    """The fallback when Claude wrote no --title: the first sentence or clause, lowercase, at most LB_TITLE_WORDS
+    words, never ending on a joining word ("... horrible mindset and"); a question keeps its mark."""
     out = []
     for w in words:
         out.append(w["text"].strip())
-        if w["text"].rstrip().endswith((".", "?", "!")) or len(out) >= LB_TITLE_WORDS:
+        if w["text"].rstrip().endswith((".", "?", "!", ",")) or len(out) >= LB_TITLE_WORDS:
             break
+    while len(out) > 1 and clean(out[-1]).lower() in DANGLING:
+        out.pop()
     q = out and out[-1].endswith("?")
     return " ".join(clean(x) for x in out if clean(x)).lower() + ("?" if q else "")
 
@@ -1330,6 +1497,8 @@ def letterbox_plan(head, style, words, meta, images, face, lay):
     title = (lay.get("title") or letterbox_title(words)).strip().lower()
     if len(title) > 90:
         print(f"warning: the title is {len(title)} characters; over about 90 it no longer fits above the band", file=sys.stderr)
+    # one line when it fits: the largest size from LB_TITLE_PX down to LB_TITLE_MIN_PX that holds it, else wrap at full size
+    tpx = next((px for px in range(LB_TITLE_PX, LB_TITLE_MIN_PX - 1, -2) if len(title) * px * LB_TITLE_EM <= W - 2 * LB_TITLE_X), LB_TITLE_PX)
     cs = style.get("captions") or {}
     # the creator's highlight when she has one (not her fill colour), else yellow; layout.highlight wins
     hi = lay.get("highlight") or (cs.get("highlight_color") if cs.get("highlight_color") not in (None, cs.get("color", "#FFFFFF")) else LB_HIGHLIGHT)
@@ -1341,7 +1510,7 @@ def letterbox_plan(head, style, words, meta, images, face, lay):
     out = {**head, "width": W, "height": H, "durationInFrames": round(meta["duration"] * head["fps"]),
            "layout": {"mode": "letterbox", "band": [0, pct(by, H), 100, pct(bh, H)], "title": title,
                       "title_box": [pct(LB_TITLE_X, W), pct(LB_SAFE[1], H), pct(W - 2 * LB_TITLE_X, W),
-                                    pct(by - LB_TITLE_GAP - LB_SAFE[1], H)], "title_px": LB_TITLE_PX},
+                                    pct(by - LB_TITLE_GAP - LB_SAFE[1], H)], "title_px": tpx},
            "captions": {"style": cap, "chunks": chunks}, "zooms": [], "cards": []}
     img = next((i for i in images if i.get("src")), None)
     if not img:
@@ -1657,12 +1826,12 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
     seam = lay["seam"]
     split_y = min(seam + SPLIT_CAP_BELOW, 100 - bottom - 4)
     split_now = split_ok and (explicit == "split")
-    images = kind_formats(with_formats(images, visuals), style)
+    images = text_labels(kind_formats(with_formats(images, visuals), style), style)
     probe_cards = place_cards(list(images) + anim_items(visuals, edit_dir, style), words, duration, style, aspect)
     _, wants_split = lay_out(probe_cards, aspect, face, style, split_ok)
     split_now = split_now or wants_split
     logo_y = split_y if split_now else cap["y_pct"]
-    cards = thin_cards(place_cards(list(images) + anim_items(visuals, edit_dir, style) + logo_items(visuals, edit_dir, logo_y, aspect),
+    cards = thin_cards(place_cards(list(images) + anim_items(visuals, edit_dir, style) + logo_items(visuals, edit_dir, logo_y, aspect, pictures_only(style)),
                                    words, duration, style, aspect), duration, style.get("cards"))
     cards, _ = lay_out(cards, aspect, face, style, split_ok)
     gap = card_gap_s(style)
@@ -1693,7 +1862,7 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         cap["y_pct"] = split_y
         # a logo is dropped while a scene or a panel card is up (the frame is already showing the visual)
         rest = split_cards(rest + [{**c, "lane": None} for c in scenes], art)
-        rest = readable_captures([c for c in rest if c.get("_f") != "scene"], aspect)
+        rest = readable_captures([c for c in rest if c.get("_f") != "scene"], aspect, pictures_only(style))
         out = {**head, "layout": {"mode": "split", "ground": lay["ground"], "seam": seam, "art": art,
                                   "speaker": speaker_frame(face, seam), "caption_full_y": full_y}}
     else:
@@ -1709,14 +1878,14 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
                                            for h in face["heads"]]}
         rest = place_overlays(rest, seen, cap["y_pct"], aspect, graphics(style, "layout").get("layout"))
         rest = avoid_heads(rest, seen, cap["y_pct"], aspect)
-        rest = readable_captures(rest, aspect)
+        rest = readable_captures(rest, aspect, pictures_only(style))
         if behind:
             rest = tuck_behind(rest, face, aspect)
         out = dict(head)
-    cards = creator_motion(sorted(rest + scenes, key=lambda c: c["start"]), style, aspect)
+    cards = clear_caption_paths(creator_motion(sorted(rest + scenes, key=lambda c: c["start"]), style, aspect), cap["y_pct"], aspect)
     for c in cards:
         px = c.get("layout") != "scene" and c.get("size") and capture_xh(c, aspect)
-        if px and px < READ_XH and (aspect == "9:16" or c.get("format") == "sticker"):
+        if px and px < READ_XH and (aspect == "9:16" or c.get("format") == "sticker") and not pictures_only(style):
             print(f"warning: '{c['trigger_word']}' capture text renders at {px:.0f} px x-height (under {READ_XH}: "
                   "too small on a phone; check.py plan FAILs it on vertical). Cut it to a shorter sentence, a smaller \"fit\", "
                   "or a \"crop\" round the evidence in visuals.json", file=sys.stderr)
@@ -1730,6 +1899,12 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
             k = z["scale"]
             c["anim"]["props"]["head"] = [round(ox + (hd[0] - ox) * k, 1), round(oy + (hd[1] - oy) * k, 1), round(hd[2] * k, 1), round(hd[3] * k, 1)]
     extra = {"cover": cover} if cover and not split_now else {}
+    if pictures_only(style):
+        extra["card_kinds"] = list(style["card_kinds"])
+    texts = text_items(visuals, words, duration, cards, face, cap["y_pct"])
+    if texts:
+        extra["texts"] = texts
+        under_titles(cards, texts)   # check.py plan: screenshots stay pictures, text labels FAIL
     pans = place_pans((style.get("camera") or {}) if took(style, "pace") else {}, duration)
     if pans and not split_now:
         extra["pans"] = pans
@@ -2170,6 +2345,21 @@ def demo():
     tall = {"src": "images/t.png", "size": [600, 1400], "start": 0.0, "end": 2.0, "trigger_word": "t", "box": [1, 1, 1, 1]}
     lc = {"anim": {"type": "logo_cluster", "props": {}}, "start": 0.0, "end": 2.0, "trigger_word": "l", "box": [1, 1, 1, 1]}
     pw, pt, pl = place_overlays([wide, tall, lc], hd_face, 68, "9:16")
+    # a close face fills the top: the photo goes below the chin, over the body, inside the side margins, never
+    # over the captions (the band above the head is too thin to read)
+    close = {"step_s": 0.5, "heads": [{"t": float(i) / 2, "box": [28, 12, 44, 26]} for i in range(30)]}
+    [lo] = place_overlays([dict(wide)], close, 52.6, "9:16")
+    assert lo["box"][1] >= 52.6 + 5 and lo["box"][0] == SAFE["9:16"][2] and lo["box"][1] + lo["box"][3] <= 100 - SAFE["9:16"][3], lo["box"]
+    # a capture that is mostly picture (a book cover with a small caption) is kept for the picture
+    cover = {"src": "images/c.png", "size": [600, 800], "pics": [[20, 20, 560, 700]], "lines": [[40, 740, 300, 20]], "box": [14, 58, 72, 20]}
+    assert picture_share(cover) > 0.8 and capture_xh(cover, "9:16") is None and readable_captures([cover], "9:16") == [cover]
+    assert 50 <= max(px for px in range(40, 59, 2) if 32 * px * LB_TITLE_EM <= 800) < LB_TITLE_PX   # a 32-character title: one line, near full size
+    # a card under the captions that would slide down through them comes up from the bottom instead
+    sl = {"src": "x.png", "box": [14, 60, 72, 18], "props": {"enter": {"kind": "slide", "dir": "top", "dist": 26}, "exit": {"kind": "slide", "dir": "left", "dist": 20}}}
+    [sl] = clear_caption_paths([sl], 52.6, "9:16")
+    assert sl["props"]["enter"]["dir"] == "bottom" and sl["props"]["exit"]["dir"] == "left", sl
+    lw2 = [{"text": t, "start": 0.3 * i, "end": 0.3 * i + 0.2} for i, t in enumerate("I think you have a horrible mindset and you need".split())]
+    assert letterbox_title(lw2) == "i think you have a horrible mindset", letterbox_title(lw2)
     assert pw["box"][:3] == [13.0, OVERLAY_TOP, 74.0] and pw["box"][1] + pw["box"][3] <= 34 - HEAD_GAP + 1e-6, pw["box"]
     assert pt["box"] == pw["box"], pt["box"]
     assert pl["box"] == [0, 0, 100, 100] and pl["anim"]["props"]["head"] == [32, 34, 28, 23], pl
@@ -2311,6 +2501,29 @@ def demo():
     assert mv(zq, 30, t) == mv(place_zooms(sparse, words, t, []), 30, t)
     assert card_gaps([{"start": 1, "end": 3}, {"start": 2, "end": 4}, {"start": 9, "end": 10}], 12) == [(0.0, 1), (4, 9), (10, 12)]
     assert card_gap_s({}) == GAP_S and card_gap_s({"graphics": {"per_min": 5.0}}) == 24.0
+    # a card edit (card_kinds without "text"): a re-set sentence (capture.mjs "xh") is dropped, a sticker of the page
+    # itself is drawn as a shot, and a small-text screenshot stays a picture instead of being cut to a line of words
+    ce = {"card_kinds": ["capture", "logo", "photo", "animation"]}
+    assert pictures_only(ce) and not pictures_only({}) and not pictures_only({"card_kinds": ["capture", "text"]})
+    tl = text_labels([{"src": "a", "format": "sticker", "xh": 20}, {"src": "b", "format": "sticker", "props": {"crop": [0, 0, 9, 9]}},
+                      {"src": "c"}], ce)
+    assert [(c["src"], c.get("format"), c.get("props")) for c in tl] == [("b", "shot", None), ("c", None, None)], tl
+    assert kind_formats([{"src": "images/capture-1-a.png"}], {**ce, "graphics": {"kinds": {"text card": 100}}})[0]["format"] == "shot"
+    small = {"src": "images/capture-1-a.png", "size": [2000, 1400], "box": [13, 14, 74, 20], "trigger_word": "a", "start": 1, "end": 3,
+             "lines": [[100, 600, 900, 40]], "marks": [{"kind": "highlight", "find": "x", "rect": [100, 600, 900, 40]}]}
+    assert readable_captures([dict(small)], "9:16", True) == [small]
+    assert readable_captures([dict(small)], "9:16")[0]["format"] == "sticker"
+    # the card edit's title pill, running list and X stamp: on their words, inside the safe zone
+    tw = [{"text": x, "start": i * 0.5, "end": i * 0.5 + 0.4} for i, x in enumerate("free credits the account the student page if not".split())]
+    tx = text_items([{"kind": "title", "text": "Free credits"}, {"kind": "list", "items": [{"text": "the account", "word": "account"},
+                     {"text": "the student page", "word": "student"}]}, {"kind": "stamp", "word": "not"}, {"kind": "title", "text": "x", "word": "nope"}],
+                    tw, 5.0, [{"start": 3.0, "end": 4.5, "box": [13, 14, 74, 20]}], None, 66)
+    assert [x["kind"] for x in tx] == ["title", "list", "stamp"], tx
+    assert tx[0]["start"] == 0 and tx[0]["y_pct"] >= SAFE["9:16"][1] and [i["at"] for i in tx[1]["items"]] == [1.4, 2.4], tx
+    cs = [{"start": 0.5, "end": 3, "box": [13, 13.1, 74, 30]}]
+    under_titles(cs, tx)
+    assert cs[0]["box"][1] == round(title_bottom(tx[0]), 1) and cs[0]["box"][1] + cs[0]["box"][3] == 43.1, cs
+    assert tx[1]["end"] == 5.0 and tx[1]["x_pct"] >= SAFE["9:16"][0] and tx[2]["box"] == [13, 14, 74, 20] and tx[2]["start"] == 4.0, tx
     demo_contrast()
     demo_beats()
     print("demo ok")

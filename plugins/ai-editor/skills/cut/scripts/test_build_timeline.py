@@ -215,6 +215,14 @@ def test_keep_ranges_survive_the_pause_trim():
     assert B.carve(cuts, [(0.4, 2.0)]) == [] and B.carve(cuts, [(3.0, 3.2)]) == cuts
 
 
+def test_zero_length_word_inside_a_cut_is_removed():
+    """Scribe labels some quick words with no length ("who" at 49.30-49.30). One inside a cut must not count as
+    kept: it showed in paper-edit.md, words.json and the captions, and verify called it MISSING."""
+    spans = [{"start": 30.0, "end": 37.0}, {"start": 64.0, "end": 74.0}]
+    assert not B.is_kept({"text": "who", "start": 49.3, "end": 49.3, "type": "word"}, spans)
+    assert B.is_kept({"text": "I", "start": 64.5, "end": 64.5, "type": "word"}, spans)
+
+
 if __name__ == "__main__":
     test_derive()
     test_audible_end()
@@ -228,4 +236,5 @@ if __name__ == "__main__":
     test_hidden_repeat_is_listed_and_shown()
     test_splice_never_reaches_a_removed_word()
     test_keep_ranges_survive_the_pause_trim()
+    test_zero_length_word_inside_a_cut_is_removed()
     print("all ok")

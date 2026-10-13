@@ -165,7 +165,7 @@ is, what it costs, the card, then four checked steps.
 
 Run doctor again until it prints `Ready.` Skipped keys show as `--`; that is fine. Then
 `python3 "$U" install-launcher`: the `nextwork-editor` command opens the editor's window from any
-terminal (`uninstall-launcher` takes it off).
+terminal, with a listening Claude (`--window-only`: the window alone; `uninstall-launcher` takes it off).
 
 ## 8. Your style (asked once)
 

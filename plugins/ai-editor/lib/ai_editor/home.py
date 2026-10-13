@@ -1263,7 +1263,7 @@ def cmd_wait(poll=1.0, job=None):
     if listening():   # one waiter at a time, so each job reaches exactly one background task
         print("ALREADY: another `home.py wait` is running; the next job comes out of that one.", flush=True)
         return "ALREADY"
-    update(lambda d: d.update(claude_seen=time.time()))
+    update(lambda d: d.update(claude_seen=time.time()) or d.pop("connect", None))   # a pending "Connect Claude" has connected
     beat.write_text(sid, encoding="utf-8")   # who listens: the page's "busy" and askhook read it
     try:
         while True:
@@ -1783,6 +1783,10 @@ def make_handler(token):
                 return self.send(200, {"path": str(p)})
             if path == "/claude":   # "Open a new Claude for this video": a new terminal that takes this one job
                 return self.new_claude(str(body.get("id") or ""))
+            if path == "/connect":   # "Connect Claude": a new terminal with a listening Claude, one at a time
+                import launcher
+                st, cmd = launcher.connect(read()["root"])
+                return self.send(200, {"status": st, "command": cmd})
             if path == "/cancel":
                 def c(d):
                     j = latest(d, body.get("type") or "teardown")
@@ -2421,6 +2425,17 @@ def demo():
         raise AssertionError("opened a second Claude for a taken job")
     except urllib.error.HTTPError as e:
         assert e.code == 409
+    # "Connect Claude" (nobody listening): one terminal with the listen prompt, none while it is pending or once one listens
+    opened.clear()
+    assert post("/connect", {})["status"] == "opened" and opened == [(str(root.resolve()), launcher.LISTEN)], opened
+    assert post("/connect", {})["status"] == "pending" and len(opened) == 1, "no second terminal while one is pending"
+    assert get("/state")["connect"] > time.time() - 5, "the page knows a connect is pending"
+    (home() / ".listening").touch()
+    assert post("/connect", {})["status"] == "listening" and len(opened) == 1
+    (home() / ".listening").unlink()
+    tj = post("/job", {"type": "teardown", "handle": "listen", "platform": "youtube"})["id"]
+    assert out(cmd_wait, 0.01).startswith("JOB teardown") and "connect" not in read(), "the new Claude's wait ends the pending connect"
+    update(lambda d: next(j for j in d["jobs"] if j["id"] == tj).__setitem__("state", "done"))
     os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-A"   # A's status goes to A's job, never C's
     vs(step="Cutting out the mistakes", done=True)
     j1, j2 = (next(j for j in read()["jobs"] if j["id"] == i) for i in (ja["id"], jb))

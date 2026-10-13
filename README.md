@@ -32,7 +32,11 @@ After setup, this is how you open the editor every time. In a terminal, type:
 nextwork-editor
 ```
 
-Your editor opens in the browser, at the same address every time (bookmark it). The sidebar has
+One command opens everything: your editor in the browser, at the same address every time (bookmark it),
+and Claude Code behind it, listening for what you make there. Run it again when the window is already open
+and it opens the window, plus a new Terminal window with Claude if none is listening. `nextwork-editor
+--window-only` opens just the window. If the window ever says nobody is listening, press **Connect Claude**:
+it opens Claude in a new Terminal window for you. The sidebar has
 **+ New video**, **Home**, **Your videos**, **Styles** and your folders. Drop in your clips or click
 the ones you want, pick a style, press **Make my video** (or **Make it in a new Claude chat**, so
 that video's questions stay in their own chat). The first time, Claude Code asks
@@ -88,7 +92,7 @@ steps, shown as **Getting started** in the sidebar:
 The folder's `.claude/settings.json` turns the editor on. If Claude says the editor is not loaded,
 it offers to install it: say yes, then type `/reload-plugins`.
 
-**Fewer Allow prompts.** A Claude Code the editor opens (`nextwork-editor`, or "Open a new Claude" on
+**Fewer Allow prompts.** A Claude Code the editor opens (`nextwork-editor`, **Connect Claude** or "Open a new Claude" on
 the home page) already allows the editor's own commands and nothing else: its Python and Node scripts,
 `ffmpeg`, `ffprobe` and `npx remotion`. Started Claude Code yourself? Pick "Yes, and don't ask again"
 the first time each is asked, or put the same rules in your library folder's `.claude/settings.local.json`

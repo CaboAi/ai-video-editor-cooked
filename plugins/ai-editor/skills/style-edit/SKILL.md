@@ -46,8 +46,8 @@ Follow every taste rule; the scripts read the settings themselves. When the user
 
 ## 1. Check the inputs
 
-- **No cut.mp4?** Run the cut skill first. Never style a raw take. **`prep-decisions.json`?** The
-  `visual-prep` agent did steps 1-3: `references/plan.md` "Prepared while the cut was reviewed".
+- **No cut.mp4?** Run the cut skill first, never style a raw take. **`prep-decisions.json`?** The
+  `visual-prep` agent did steps 1-3 and the sheet: `references/plan.md` "Prepared while the cut was reviewed".
 - **No style.json?** `python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/profile.py" style edits/<name>`.
   With no creators in the profile (or no profile) it writes the default style: a smooth zoom move
   at least every 5 s, 3-word captions (`references/plan.md` "No creator"). If it stops with
@@ -98,7 +98,7 @@ Pacing: a copied creator's rate wins. route.py prints her cards a minute, kinds 
 and marks that many sentences `want` (named ones first). Give each a card of her kind with a `box` at her
 place, clear of the head: the user's own photo, else a capture of the real thing the line is about (page,
 profile, post), else their own clip as a `video_card`. Never a made-up or stock picture: a `want` with
-nothing real stays empty. Never ask what to show: pick the real capture (their own product's page too); the sheet shows it. No creator: a card only where a line names something real. Never two at once; no
+nothing real stays empty. Never ask what to show: pick the real capture (their own product's too); the sheet shows it. No creator: a card only where a line names something real. Never two at once; no
 stretch without a card over `card_gap_s` (plan.py adds zooms there, `references/plan.md` "Pacing").
 Vertical captures need a `find` to read on a phone.
 
@@ -165,7 +165,7 @@ on Modal' to change"). Not set: ask once, three options in this order with the p
 recommended (only the user knows their time and money), then `profile.py set render='"laptop|modal|github|lambda"'`.
 
 1. **Laptop**: its time, free.
-2. **Modal**: its time and cost ($30 free credit a month). The line says `Not set up yet`: say so.
+2. **Modal**: its time and cost ($30 free credit a month); say `Not set up yet` if so.
 3. **Other: GitHub Actions or AWS Lambda**: both `Other:` lines in the description. On this pick, ask
    a second question with the two. GitHub Actions: free, needs `gh` logged in, the footage goes into
    a **private** repo in their account; ask before creating the repo. Lambda: their own AWS account.

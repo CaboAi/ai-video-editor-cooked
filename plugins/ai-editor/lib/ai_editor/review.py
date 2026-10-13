@@ -881,6 +881,8 @@ def make_handler(folder, token):
                     d.pop("stopped", None)
                     if body["type"] == "approve" and (d["stage"] == "edit" or d.get("final")):   # the finished video
                         d["learn"] = {"state": "reading" if session_notes(d) else "none", "style": style}
+                    elif body["type"] == "approve" and d["stage"] == "cut":
+                        prepared_steps(folder, d)
                     return True
                 if not update(rj, ev):
                     return self.send(409, {"error": "Claude is applying your transcript changes"})
@@ -1249,6 +1251,22 @@ def add_step(d, text, log=None, key=None, done=False):
         act.append({"text": text or EDIT_STEPS.get(key, key), "at": now(), "round": d["round"], "done": False,
                     "log": str(Path(log).resolve()) if log else None, **({"step": key} if key else {})})
     d["activity"] = act[-30:]
+
+
+def prepared_steps(folder, d):
+    """visual-prep made these while the cut was reviewed, on this very cut (prep-decisions.json = decisions.json):
+    the Making the edit card shows them done the moment the cut is approved, not as steps still to come."""
+    try:
+        if (folder / "prep-decisions.json").read_bytes() != (folder / "decisions.json").read_bytes():
+            return []
+    except OSError:
+        return []
+    keys = [k for k, f in (("captions", "captions.json"), ("visuals", "visuals.json"), ("plan", "stills/sheet.png"))
+            if (folder / f).exists()]
+    for k in keys:
+        add_step(d, None, None, k)
+    add_step(d, None, done=True)
+    return keys
 
 
 def making_edit(d):
@@ -1990,6 +2008,14 @@ def demo():
     srv3.shutdown()
     save(sf / "review.json", keep_d)
     assert making_style(sf) == "your style" and making_style(folder) == "@alice's style"
+    with tempfile.TemporaryDirectory() as pd:   # the approve shows what visual-prep already made on this cut
+        pd = Path(pd)
+        for f in ("decisions.json", "prep-decisions.json", "captions.json", "visuals.json"):
+            (pd / f).write_text("[]", encoding="utf-8")
+        pdd = {"round": 1, "activity": []}
+        assert prepared_steps(pd, pdd) == ["captions", "visuals"] and all(x["done"] for x in pdd["activity"]), pdd
+        (pd / "decisions.json").write_text("[1]", encoding="utf-8")   # re-cut since: nothing is claimed
+        assert prepared_steps(pd, {"round": 1, "activity": []}) == []
     from ai_editor import styleskill
     keep_names, styleskill.names = styleskill.names, lambda: {"alice": {"name": "Card edit"}}
     try:   # a named style shows its name, never the folder id ("@own-card-edit's style")

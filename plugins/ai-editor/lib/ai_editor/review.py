@@ -1091,6 +1091,7 @@ def serve(folder, port=0, open_browser=True):
     except OSError:   # the old port is taken now: a new one, same token
         srv = cls(("127.0.0.1", port), make_handler(folder, token))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
+    last.parent.mkdir(parents=True, exist_ok=True)   # a video made elsewhere has no review/ folder yet
     with os.fdopen(os.open(last, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
         f.write(url)   # private: the token in it lets a page in
     if os.name != "nt":

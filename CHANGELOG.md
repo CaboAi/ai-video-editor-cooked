@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.6.7 (2026-10-13)
+
 - Images in your answers. When Claude asks a question in the editor window, attach a picture to your
   answer with the paperclip, or paste or drop one on the question. For example a screenshot of how a title
   should look. Claude opens it before it carries on. Images stay on your computer, next to the edit.

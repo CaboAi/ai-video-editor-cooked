@@ -938,9 +938,17 @@ def make_face(d):
     return True
 
 
+def face_pic(d):
+    """A creator's picture: their account picture (avatar.jpg, fetch.py list saves it) over a frame (face.jpg)."""
+    return next((f for f in (d / "avatar.jpg", d / "face.jpg") if f.is_file()), None) if d else None
+
+
 def face_of(root, h):
-    """The URL of a studied creator's face (make_face), made the first time it is asked for. None without one."""
+    """The URL of a creator's picture: avatar.jpg as soon as the listing saved it, else their face frame (make_face),
+    made the first time it is asked for once they are studied. &a=1 marks an account picture. None without one."""
     d = style_dir(root, "@" + h) if h else None
+    if d and (d / "avatar.jpg").is_file():
+        return f"/style/face?id={quote('@' + h)}&v={int((d / 'avatar.jpg').stat().st_mtime)}&a=1"
     if d is None or not (d / "style.json").is_file():
         return None
     f = d / "face.jpg"
@@ -1311,6 +1319,7 @@ def make_handler(token):
                 if td:
                     td["measured"] = measured(d["root"], td["args"]["handle"])
                     td["listing"] = listing(d["root"], td["args"]["handle"])
+                    td["face"] = face_of(d["root"], td["args"]["handle"])   # the account picture, once the listing saved it
                     try:   # creator-teardown's format check, when it ran: which links it left out
                         td["format"] = json.loads((Path(d["root"]) / "creator-teardowns" / td["args"]["handle"] / "format.json").read_text(encoding="utf-8"))
                     except (OSError, ValueError):
@@ -1335,7 +1344,7 @@ def make_handler(token):
                 for j in read()["jobs"]:   # a creator still being studied: a card the user can already pick
                     h = j["args"].get("handle")
                     if j["type"] == "teardown" and j["state"] in ("queued", "taken") and "@" + str(h) not in [c["id"] for c in cards]:
-                        cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True,
+                        cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True, "face": face_of(root, h),
                                       "line": "Being analysed now. Your cut starts first; the style waits for it."})
                 return self.send(200, {"path": root, "place": place(root), "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
                                        "custom": str(custom.path(False)), "videos": vids, "styles": cards, "folders": folders()})
@@ -1372,7 +1381,7 @@ def make_handler(token):
                 return self.send(200, f.read_bytes(), "image/jpeg", cache="private, max-age=86400") if ok else self.send(404, {})
             if path in ("/style/cover", "/style/face"):
                 d = style_dir(read()["root"], q.get("id", [""])[0])
-                f = d / ("face.jpg" if path.endswith("face") else "cover.jpg") if d else None
+                f = face_pic(d) if path.endswith("face") else d / "cover.jpg" if d else None
                 return self.send(200, f.read_bytes(), "image/jpeg", cache="private, max-age=86400") if f and f.is_file() else self.send(404, {})
             if path in ("/style/tile", "/style/clip"):   # a preset's rendered still, a cut preview clip (presets.py cache)
                 k = q.get("k", [""])[0]
@@ -2535,6 +2544,15 @@ def demo():
                         capture_output=True, check=True).stdout
     assert min(px) > 200, "the face frame is the bright one"
     assert urllib.request.urlopen(base + fc + "&t=" + tok).read()[:2] == b"\xff\xd8"
+    # their account picture (fetch.py list's avatar.jpg) wins over the frame wherever the creator shows; gone, the frame is back
+    subprocess.run(["ffmpeg", "-v", "error", "-n", "-f", "lavfi", "-i", "color=red:size=720x1280", "-frames:v", "1",
+                    str(td / "avatar.jpg")], check=True)
+    fa = next(c for c in get("/library")["styles"] if c["id"] == "@sample.creator")["face"]
+    assert fa.endswith("&a=1") and fa == face_of(root, "sample.creator"), fa
+    assert urllib.request.urlopen(base + fa + "&t=" + tok).read() == (td / "avatar.jpg").read_bytes()
+    (td / "avatar.jpg").unlink()
+    fb = next(c for c in get("/library")["styles"] if c["id"] == "@sample.creator")["face"]
+    assert "&a=1" not in fb and urllib.request.urlopen(base + fb + "&t=" + tok).read() == (td / "face.jpg").read_bytes(), fb
     # a style's own preview image: an image (or a clip's frame) cropped to 720x1280 in the style's folder
     img = tmp / "pick.png"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=red:size=400x300", "-frames:v", "1", str(img)], check=True)

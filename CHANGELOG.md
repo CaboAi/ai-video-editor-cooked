@@ -43,6 +43,11 @@ What changed for every user, newest first.
   the commands, settings folder (`~/.ai-video-editor`) and library folder (`~/Movies/AI Editor`) stay the same.
 
 ## ai-editor 2.4.1 (2026-10-13)
+- A creator shows their own profile picture. When their videos are listed, creator-teardown saves the
+  account picture as `creator-teardowns/<handle>/avatar.jpg`: YouTube's channel avatar from one
+  `yt-dlp -J` call, TikTok's from the profile page. It replaces the frame from their top video on the
+  style cards, Creators you copied, the style page and the copy's progress card (as soon as it is
+  saved). Instagram, private accounts and no network keep the video frame. No new tools or keys.
 
 - Scrolling holds on the home window and the review page. The home window redraws every 1.5 s, and each
   redraw put every inner list (Your videos, My styles, a style's page, Settings) back at the top. Now a

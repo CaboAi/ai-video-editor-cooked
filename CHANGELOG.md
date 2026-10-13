@@ -4,6 +4,9 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Every page in the window ends with space under its last row, so the last card or line never sits on the
+  bottom edge of the window.
+
 - Making the edit is faster and asks less. While you review the cut, the visuals, the plan and the stills
   sheet are made in the background (all free, on your computer), so approving the cut goes straight to the
   sheet. The audience and the names in a video are no longer asked: the first answer is used and the review

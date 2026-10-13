@@ -56,21 +56,17 @@ Only download what the user may edit; a creator's video is for the teardown, not
 link or creator (a bare "edit my video"): ask **Open the home page (Recommended)** / **I'll give
 the path** / **Use the sample take** (cut's "No video yet?"). Edit folder: `IMG_1234.MOV` -> `edits/img-1234`.
 
-## 2. Intake: only what is missing
+## 2. Intake: ask nothing the profile or style answers
 
 ```bash
-python3 "$P" missing --video     # audience, names: asked for every video
-python3 "$P" missing --style     # normally answered at setup; ask here only if setup was skipped
+python3 "$P" missing --style     # answered at setup, or by the style picked in the window
 ```
 
-Prints the question ids with no saved answer. When any id is printed, read `references/intake.md` (the questions, their calls and options, and the
-`set` command for each) and ask only those ids. Save each answer as soon as it comes in.
-
-`audience` and `names` belong to this video (the audience answer also saves `goal`): ask "Same
-audience and names as last time?" on later videos (one question, yes as the first option) instead of
-the full intake. Edits by hand already: taste's "Learn from a past edit".
-The profile lives in `~/.ai-video-editor/profile.json`; `python3 "$P" show` prints it. On "just edit
-it" or "use the defaults", run `python3 "$P" defaults` and go on.
+A `JOB video` (the window picked the style), "just edit it", or no id printed: run `python3 "$P" defaults`
+and ask nothing. It keeps every saved answer and fills the rest with the first option (audience "people
+curious about the topic", goal follow, names found in what they say). Say what it used on the review page:
+`review.py <edit> status "For people curious about the topic, then follow. Tell Claude to change it"`.
+Otherwise read `references/intake.md` and ask the printed ids in one question box. Profile: `python3 "$P" show`.
 
 ## 3. Route
 

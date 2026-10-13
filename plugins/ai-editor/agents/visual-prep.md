@@ -24,8 +24,14 @@ open a browser, never touch `spans.json`, `cut.mp4` or the source video. Never r
 3. **Captions and beats:** `python3 "$C/retakes.py" captions EDIT` (proofread `captions.txt`; fix a word
    with `retakes.py fix`), then `python3 "$S/route.py" beats EDIT` (every pick is null: decide the picks
    yourself).
-4. **Visuals:** write `EDIT/visuals.json` by `shapes.md`: a card only where a sentence names something
-   real, only the speaker's words, every beat with `word` and `nth`.
+4. **Visuals:** write `EDIT/visuals.json` by `shapes.md`, every beat with `word` and `nth`, only the
+   speaker's words. A copied creator's pacing wins: route.py prints her cards a minute and marks that many
+   sentences `want`; give each `want` the real thing the line is about (the named product, page, repo or
+   post; the speaker's own product counts: its public page or repo), else leave it empty. No rate: a card
+   where a sentence names something real, and in any stretch over 10 s with no card (plan.py's card gap),
+   one for the line there that is about something real. On 9:16 a `capture` is a `sticker` with a `find` mark
+   on the line's words, so it reads on a phone. Never a `file://` page from the user's config folders.
+   Decide it all yourself: the caller must not have to ask the user what to show.
 5. **Fetch and face:** `node "$S/capture.mjs" EDIT` (free: local Chrome screenshots, logos, posts), then
    `python3 "$PY" "$S/face.py" EDIT`.
 

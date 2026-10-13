@@ -18,7 +18,9 @@ It does steps 1-3 and `face.py` on the first cut and copies its `decisions.json`
 `prep-decisions.json`. Every visual it writes names a word and which time it is said (`nth`), never a
 second. It plans, renders and uploads nothing, and spends nothing.
 
-Wait for its JSON if it is still running. Cut approved unchanged: go to step 4. Cut changed after notes:
+Wait for its JSON if it is still running. Cut approved unchanged: go to step 4 at once. Do not run
+route.py again, rewrite visuals.json or ask what to show: the stills sheet shows the visuals and takes the
+changes. Fix only what `check.py plan` FAILs. Cut changed after notes:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/cut/scripts/retakes.py" remap edits/<name>

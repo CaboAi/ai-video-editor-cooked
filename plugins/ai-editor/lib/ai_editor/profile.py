@@ -6,8 +6,8 @@
     python3 profile.py set <key.path>=<value> ...  several answers in one call, one line out;
                                                   each value parsed as JSON if it can be
     python3 profile.py set <key.path> <value>     one answer (the older form)
-    python3 profile.py defaults                   "use the defaults": every unanswered style question saved as its
-                                                  default, so `missing --style` stops asking them
+    python3 profile.py defaults                   "use the defaults": every unanswered question saved as its
+                                                  first option (audience and names too), so nothing is asked again
     python3 profile.py style <edits/NAME> [--out F] [--from <style.json>]
                                                   blend the profile's creators into edits/NAME/style.json
                                                   (no creators: the default style, DEFAULT_STYLE). --from: that one
@@ -29,6 +29,8 @@ File: ~/.ai-video-editor/profile.json (AI_EDITOR_HOME overrides). Shape:
    "sound": {"sfx": true, "music": false},
    "behind": true,                                     cards sit behind the speaker (style-edit matte.py)
    "cloud_cleanup": true,                              delete uploaded footage from GitHub / S3 after a cloud render
+   "render": "laptop",                                 where every render goes (laptop | modal | github | lambda), asked once
+   "loudness": "leave",                                the take's own level: leave | normalize, asked once
    "past_edit": true}                                  learned from a raw take and their posted cut (taste learn.py); false: declined
 
 Look order (plan.py): the profile's brand kit > the copied creators' measured style.json > the
@@ -57,7 +59,9 @@ DEFAULTS = {"platform": "tiktok", "aspect": "9:16", "creators": [], "liked_video
             "assets_dir": "", "names": [], "avoid": {"emoji": True, "stock": True, "icons": True, "colors": []},
             "captions": {"on": True, "style": "creator"}, "sound": {"sfx": True, "music": False},
             "behind": False,   # unanswered: off, so no plan needs the cutout step until the user says yes
-            "past_edit": False}
+            "past_edit": False,
+            # the video questions' first options: used without asking, said on the review page, changed by a word
+            "audience": "people curious about the topic", "goal": "follow"}
 ASPECT = {"tiktok": "9:16", "reels": "9:16", "shorts": "9:16", "youtube": "16:9"}
 # Fonts every AI tool reaches for, and the default geometric / neo grotesks that read as AI-made as a
 # heading. Swapped for the preset's face unless the user's brand names them.
@@ -91,11 +95,14 @@ def save(prof):
 
 
 def save_defaults():
-    """Every unanswered style question saved as its default: the answer "use the defaults" (or a style step
-    finished on the recommended options) is an answer, so start never asks it again. Video questions stay."""
+    """Every unanswered question saved as its first option: the answer "use the defaults" (or a style step
+    finished on the recommended options) is an answer, so start never asks it again. The video questions too:
+    audience "people curious about the topic" + goal "follow", names [] (found in what they say). A saved answer
+    is kept, so the next video asks nothing."""
     have = json.loads(path().read_text(encoding="utf-8")) if path().exists() else {}
-    new = [q for q in STYLE_QUESTIONS if q not in have]
-    save({**have, **{q: DEFAULTS[q] for q in new}})
+    new = [q for q in QUESTIONS if q not in have]
+    extra = {"goal": DEFAULTS["goal"]} if "audience" in new and "goal" not in have else {}
+    save({**have, **{q: DEFAULTS[q] for q in new}, **extra})
     return new
 
 
@@ -397,10 +404,13 @@ def demo():
         assert load()["aspect"] == "16:9" and "creators" not in missing() and "audience" in missing()
         # the real-footage test: setup finished on "use the defaults", which saved nothing, so start's
         # `missing --style` printed all 10 style ids and asked them again. Defaults are saved as answers
-        assert save_defaults() == [q for q in STYLE_QUESTIONS if q not in ("platform", "creators")]
-        assert missing(STYLE_QUESTIONS) == [] and missing(VIDEO_QUESTIONS) == ["audience", "names"]
+        assert save_defaults() == [q for q in QUESTIONS if q not in ("platform", "creators")]
+        # the video questions take their first option too, so no video asks them (the owner: "too many questions")
+        assert missing() == [] and load()["audience"] == "people curious about the topic" and load()["goal"] == "follow"
         assert load()["platform"] == "youtube" and load()["creators"] == [{"handle": "a"}], "answers kept"
-        assert save_defaults() == [] and all(q in DEFAULTS for q in STYLE_QUESTIONS)
+        assert save_defaults() == [] and all(q in DEFAULTS for q in QUESTIONS)
+        save({**json.loads(path().read_text(encoding="utf-8")), "audience": "developers", "goal": "comment"})
+        assert save_defaults() == [] and load()["audience"] == "developers" and load()["goal"] == "comment", "kept"
         # no creators (the recommended answer): the default style is written, never an exit
         save({"creators": [], "captions": {"style": "karaoke"}})
         out, st = write_style(d, out=Path(d) / "style.json")
@@ -521,7 +531,7 @@ def main():
         print("\n".join(missing(group)) or "(all answered)")
     elif a == ["defaults"]:
         new = save_defaults()
-        print(f"saved the defaults for {', '.join(new)} -> {path()}" if new else "(all style questions answered)")
+        print(f"saved the defaults for {', '.join(new)} -> {path()}" if new else "(all questions answered)")
         my_style()
     elif len(a) >= 2 and a[0] == "set":
         pairs = [(a[1], a[2])] if len(a) == 3 and "=" not in a[1] else [x.split("=", 1) for x in a[1:]]

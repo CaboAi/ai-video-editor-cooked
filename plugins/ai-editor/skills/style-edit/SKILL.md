@@ -98,7 +98,7 @@ Pacing: a copied creator's rate wins. route.py prints her cards a minute, kinds 
 and marks that many sentences `want` (named ones first). Give each a card of her kind with a `box` at her
 place, clear of the head: the user's own photo, else a capture of the real thing the line is about (page,
 profile, post), else their own clip as a `video_card`. Never a made-up or stock picture: a `want` with
-nothing real stays empty. No creator: a card only where a line names something real. Never two at once; no
+nothing real stays empty. Never ask what to show: pick the real capture (their own product's page too); the sheet shows it. No creator: a card only where a line names something real. Never two at once; no
 stretch without a card over `card_gap_s` (plan.py adds zooms there, `references/plan.md` "Pacing").
 Vertical captures need a `find` to read on a phone.
 
@@ -134,7 +134,7 @@ python3 "$S/edit.py" stills edits/<name>
 ```
 
 The first run installs the renderer (a few minutes, once; say so first). Writes one still per beat and
-`stills/sheet.png`, numbered and labelled with beat, time and card kind (about 1,600 tokens).
+`stills/sheet.png`, numbered and labelled with beat, time and card kind.
 Review the sheet; open a single still only to zoom in on a problem.
 Fix before showing: a box on the face, a zoom cutting the head, the wrong part of a capture, text
 too small for a phone, a default AI look (icon tiles, emoji, neon glass). `stills-critic` can check it.
@@ -160,12 +160,12 @@ python3 "$S/edit.py" estimate edits/<name>
 ```
 
 Prints `Laptop:`, `Modal:` and two `Other:` lines (GitHub Actions, Lambda) with this video's time and
-cost. Ask **one question** for every video, exactly three options in this order, each carrying the
-printed numbers, none marked recommended (the one exception: only the user knows their time and money).
+cost. `render` in the profile: render there, no question; say it in one line with the time ("say 'render
+on Modal' to change"). Not set: ask once, three options in this order with the printed numbers, none
+recommended (only the user knows their time and money), then `profile.py set render='"laptop|modal|github|lambda"'`.
 
 1. **Laptop**: its time, free.
-2. **Modal**: its time and cost (Modal's Starter plan includes $30 of free credit a month). If the
-   line says `Not set up yet`, say so in the description.
+2. **Modal**: its time and cost ($30 free credit a month). The line says `Not set up yet`: say so.
 3. **Other: GitHub Actions or AWS Lambda**: both `Other:` lines in the description. On this pick, ask
    a second question with the two. GitHub Actions: free, needs `gh` logged in, the footage goes into
    a **private** repo in their account; ask before creating the repo. Lambda: their own AWS account.
@@ -195,7 +195,8 @@ FAILs go back to the plan or the cut; at most two fix rounds, then show the rend
 still listed. A caption contrast FAIL: plan again, then render (plan.py reads the check and steps
 those pages up). The full list: `references/plan.md`.
 
-A `loudness ... LUFS` WARN is the take's own level, not a fault in the edit. Ask once in the question box:
+A `loudness ... LUFS` or take's own `true peak` WARN is the take's level, not a fault in the edit. `loudness`
+in the profile: do that, no question. Not set: ask once, then `profile.py set loudness='"leave|normalize"'`:
 
 > Your video plays at <N> LUFS; the apps play speech at about -14, so it will sound <quieter|louder>
 > than the videos around it. Change the volume?
@@ -220,8 +221,8 @@ Only when the user asks to finish it by hand ("open it in Final Cut", "send it t
 python3 "$S/export_nle.py" edits/<name> --to fcpxml|premiere|resolve|capcut|edl|srt|all
 ```
 
-Writes `edits/<name>/export/`. Moving cards render with alpha first (about 0.7 s a card frame; say
-so). Tell the user which file to open and how: `references/render.md` "Export to another editor". 16:9: also offer YouTube chapters (`references/render.md` "YouTube chapters").
+Writes `edits/<name>/export/`. Moving cards render with alpha first (about 0.7 s a card frame; say so).
+Which file to open, YouTube chapters for 16:9: `references/render.md` "Export to another editor".
 
 ## If a script stops
 
@@ -246,5 +247,4 @@ so). Tell the user which file to open and how: `references/render.md` "Export to
 
 - `scripts/`: one script per step above, each with a `demo` self-check.
 - `${CLAUDE_PLUGIN_ROOT}/agents/template-filler.md` (haiku), `stills-critic.md` (sonnet): the helpers.
-- `${CLAUDE_PLUGIN_ROOT}/remotion/`: the renderer, copied to `~/.ai-video-editor/remotion` on
-  every run. `tests/golden.py` at the repo root: golden frames; `--update` after an intended look change.
+- `${CLAUDE_PLUGIN_ROOT}/remotion/`: the renderer, copied to `~/.ai-video-editor/remotion` on every run.

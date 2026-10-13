@@ -50,7 +50,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[2] / "lib"))
-from textnorm import load_words, norm, nwords, pair_by_time  # noqa: E402
+from textnorm import load_words, norm, nwords, pair_by_time, words as tn_words  # noqa: E402
 from ai_editor import profile  # noqa: E402
 
 PHRASE_GAP_S = 0.5        # a silence this long ends a phrase
@@ -478,11 +478,16 @@ def caption_words(heard, cut, names=(), fixes=None):
     key = lambda ws: [(norm(w["text"]), w["start"], w["end"]) for w in ws]
     was = [w["text"] for w in hw]
     _, differ, _, _ = pair_by_time(key(cw), key(hw))
-    got = {}
+    got, heard_of = {}, {}
     for i, js in differ:            # the first heard word carries the cut word; two cut words in one are joined
         got.setdefault(js[0], []).append(strip(cw[i]["text"]))
+        heard_of.setdefault(js[0], set()).update(js)
         for j in js[1:]:
             got.setdefault(j, [])
+    for j0, js in heard_of.items():  # the same words, only written differently ("400%", "four hundred percent"):
+        if tn_words(" ".join(got[j0])) == tn_words(" ".join(hw[j]["text"] for j in sorted(js))):
+            for j in js:                 # keep what was heard: digits read faster on screen
+                got.pop(j, None)
     for j, ws in got.items():
         core = strip(hw[j]["text"])
         new = " ".join(ws)

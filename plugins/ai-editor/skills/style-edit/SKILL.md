@@ -111,7 +111,7 @@ python3 "$VPY" "$S/face.py" edits/<name>
 python3 "$S/plan.py" edits/<name>/style.json edits/<name>/captions.json [--aspect 9:16|16:9] [--layout overlay|split|letterbox]
 ```
 
-Writes `edits/<name>/plan.json`. Read every warning. It ends with the **style check** (`style_check.py`):
+Writes `edits/<name>/plan.json`. Read every warning. Letterbox: write `--title` and the photo (`references/plan.md`). It ends with the **style check** (`style_check.py`):
 each `style:` line is a way the plan differs from the creator. Fix each (style.json, visuals.json,
 images.json) and plan again before the stills; what the user changed is already the target.
 

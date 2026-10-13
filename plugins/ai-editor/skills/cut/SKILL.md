@@ -117,8 +117,12 @@ Rebuild if spans changed: paper is free, renders are not.
 ## 4. Render
 
 ```bash
+python3 "$PY" "$S/mirror.py" <source> edits/<name>
 python3 "$S/render.py" <source> edits/<name>
 ```
+
+`mirror.py` reads the text in a few frames as shot and flipped: a front-camera take saved mirrored (a book or
+shirt reads backwards) gets `"flip": true`, and render.py flips cut.mp4. Say its line when it flips.
 
 4K takes minutes: run it in the background.
 
@@ -177,4 +181,4 @@ the page opens, start the `visual-prep` agent in the background.
 
 ## Self-check
 
-`test_build_timeline.py`, `test_retakes.py`, `test_media.py` (ffmpeg); `demo` on `transcribe.py`, `trend.py`, `splice_check.py`, `script_match.py`.
+`test_build_timeline.py`, `test_retakes.py`, `test_media.py` (ffmpeg); `demo` on `transcribe.py`, `trend.py`, `splice_check.py`, `script_match.py`, `mirror.py`.

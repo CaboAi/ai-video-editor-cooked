@@ -796,6 +796,8 @@ def avoid_heads(cards, face, cap_y, aspect):
         if (c.get("anim") or {}).get("type") == "logo" and h < 20:
             if bottom + HEAD_GAP + h <= cap_y - 1:
                 new = [x, bottom + HEAD_GAP, w, h]
+            elif max(bottom + HEAD_GAP, cap_y + 5) + h <= 100 - SAFE[aspect][3]:    # under the captions
+                new = [x, max(bottom + HEAD_GAP, cap_y + 5), w, h]
             elif 100 - r_safe - (right + HEAD_GAP) >= w:
                 new = [right + HEAD_GAP, (top + bottom - h) / 2, w, h]
             elif left - HEAD_GAP - l_safe >= w:
@@ -821,6 +823,11 @@ def free_regions(hd, cap_y, aspect):
     out = [[4, top, 92, htop - HEAD_GAP - top]]
     if aspect == "9:16":
         out += [[OVERLAY_EDGE, htop, left - HEAD_GAP - OVERLAY_EDGE, floor - htop], [right + HEAD_GAP, htop, 100 - r - (right + HEAD_GAP), floor - htop]]
+        # below the chin, over the body: where most talking-head creators put a photo when the face fills the top.
+        # Two bands, never over the captions: chin to the captions, and the captions to the app's bottom UI.
+        # Kept inside the side margins check.py plan holds: the right edge is under the like and comment buttons.
+        side, chin = max(l, r), hbot + HEAD_GAP
+        out += [[side, y0, 100 - 2 * side, y1 - y0] for y0, y1 in ((chin, cap_y - 5), (max(chin, cap_y + 5), 100 - b))]
     else:
         out += [[l, top, left - HEAD_GAP - l, floor - top], [right + HEAD_GAP, top, 100 - r - (right + HEAD_GAP), floor - top]]
     return [[round(v, 1) for v in bx] for bx in out if bx[2] >= 12 and bx[3] >= 9]
@@ -1296,13 +1303,19 @@ LB_TITLE_WORDS = 8
 LB_OPEN_MAX_S = 6.0     # the photo leaves at the end of the first sentence, or by this
 
 
+DANGLING = {"and", "or", "but", "so", "the", "a", "an", "to", "of", "if", "with", "for", "that", "because", "like"}
+
+
 def letterbox_title(words):
-    """The first sentence, lowercase, at most LB_TITLE_WORDS words; a question keeps its mark."""
+    """The fallback when Claude wrote no --title: the first sentence or clause, lowercase, at most LB_TITLE_WORDS
+    words, never ending on a joining word ("... horrible mindset and"); a question keeps its mark."""
     out = []
     for w in words:
         out.append(w["text"].strip())
-        if w["text"].rstrip().endswith((".", "?", "!")) or len(out) >= LB_TITLE_WORDS:
+        if w["text"].rstrip().endswith((".", "?", "!", ",")) or len(out) >= LB_TITLE_WORDS:
             break
+    while len(out) > 1 and clean(out[-1]).lower() in DANGLING:
+        out.pop()
     q = out and out[-1].endswith("?")
     return " ".join(clean(x) for x in out if clean(x)).lower() + ("?" if q else "")
 
@@ -2148,6 +2161,13 @@ def demo():
     tall = {"src": "images/t.png", "size": [600, 1400], "start": 0.0, "end": 2.0, "trigger_word": "t", "box": [1, 1, 1, 1]}
     lc = {"anim": {"type": "logo_cluster", "props": {}}, "start": 0.0, "end": 2.0, "trigger_word": "l", "box": [1, 1, 1, 1]}
     pw, pt, pl = place_overlays([wide, tall, lc], hd_face, 68, "9:16")
+    # a close face fills the top: the photo goes below the chin, over the body, inside the side margins, never
+    # over the captions (the band above the head is too thin to read)
+    close = {"step_s": 0.5, "heads": [{"t": float(i) / 2, "box": [28, 12, 44, 26]} for i in range(30)]}
+    [lo] = place_overlays([dict(wide)], close, 52.6, "9:16")
+    assert lo["box"][1] >= 52.6 + 5 and lo["box"][0] == SAFE["9:16"][2] and lo["box"][1] + lo["box"][3] <= 100 - SAFE["9:16"][3], lo["box"]
+    lw2 = [{"text": t, "start": 0.3 * i, "end": 0.3 * i + 0.2} for i, t in enumerate("I think you have a horrible mindset and you need".split())]
+    assert letterbox_title(lw2) == "i think you have a horrible mindset", letterbox_title(lw2)
     assert pw["box"][1] == 10 and pw["box"][1] + pw["box"][3] <= 34 - HEAD_GAP + 1e-6, pw["box"]
     assert pt["box"] == pw["box"], pt["box"]
     assert pl["box"] == [0, 0, 100, 100] and pl["anim"]["props"]["head"] == [32, 34, 28, 23], pl

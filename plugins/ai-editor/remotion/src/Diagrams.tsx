@@ -70,7 +70,7 @@ export const Diagram: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
   for (; f >= 0.45; f -= 0.05) {
     const rowH = (h - 2 * P - (rows - 1) * rowGap) / rows;
     // a portrait box is a phone's whole frame: the cards may grow past the overlay size to fill it
-    const S = Math.min(rowH * (rows > 1 ? 0.94 : 1), (k ? h * 0.6 : rowH) * f, (stack ? 340 : 240) * s * f);
+    const S = Math.min(rowH * (rows > 1 ? 0.94 : 1), (k ? h * 0.6 : rowH) * f, (stack ? 340 : 300) * s * f);   // subjects 200+ px (references/motion-design.md)
     nFs = Math.max(LAB, Math.min(46 * s, S * 0.23));
     logoN = S * 0.46;
     const nw = chain.map((x) => Math.max(S * 0.92, tw(labelMax(x.label), nFs) + 40 * s));
@@ -152,7 +152,7 @@ export const Diagram: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
     chain.forEach((x, i) => {
       const at = i === 0 || x.at === undefined || k ? L(x.at === undefined ? chainAt[i] : x, -0.15) : L(x, -0.22);
       tl.fromTo(el(`.dg-n-${i}`), { autoAlpha: 0, scale: i ? 0.6 : 0.4, rotate: i ? 0 : -60 },
-        { autoAlpha: 1, scale: 1, rotate: 0, duration: 0.55 * m.k, ease: "back.out(1.7)" }, at);
+        { autoAlpha: 1, scale: 1, rotate: 0, duration: 0.55 * m.k, ease: "power3.out" }, at);
       const lab = el(`.dg-nl-${i}`);
       if (lab) tl.fromTo(lab, { autoAlpha: 0, y: 12 * s }, { autoAlpha: 1, y: 0, duration: 0.35, ease: "power3.out" }, typeof at === "number" ? at + 0.18 : `${at}+=0.18`);
       if (x.off_at !== undefined) tl.to(el(`.dg-n-${i}`), { opacity: 0.45, duration: 0.3, ease: "sine.inOut" }, L(x.off_at));
@@ -170,7 +170,7 @@ export const Diagram: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
       const chip = el(`.dg-chip-${c}`);
       if (x.at === undefined) return;
       tl.fromTo(chip, x.heavy ? { autoAlpha: 0, scale: 1.35, y: -24 * s } : { autoAlpha: 0, scale: 0.6, x: -30 * s },
-        { autoAlpha: 1, scale: 1, y: 0, x: 0, duration: x.heavy ? 0.3 : 0.4, ease: x.heavy ? "power4.out" : "back.out(1.7)" }, L(x, x.heavy ? -0.04 : -0.08));
+        { autoAlpha: 1, scale: 1, y: 0, x: 0, duration: x.heavy ? 0.3 : 0.4, ease: x.heavy ? "power4.out" : "power3.out" }, L(x, x.heavy ? -0.04 : -0.08));
     });
     landings.forEach((l, li) => {
       const depart = l.at - l.travel;
@@ -215,7 +215,7 @@ export const Diagram: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
     branches.forEach((x, j) => (x.lines ?? []).forEach((ln, i) => {
       if (i === 0 || ln.at === undefined) return;
       tl.to(el(`.dg-name-b-${j}-${i}`), { color: nameHot, duration: 0.12, ease: "none" }, L(ln));
-      tl.fromTo(el(`.dg-name-b-${j}-${i}`), { scale: 1.18 }, { scale: 1, duration: 0.4, ease: "back.out(2.2)", immediateRender: false }, L(ln));
+      tl.fromTo(el(`.dg-name-b-${j}-${i}`), { scale: 1.18 }, { scale: 1, duration: 0.4, ease: "power3.out", immediateRender: false }, L(ln));
     }));
     if (p.tag?.text) tl.fromTo(el(".dg-tag"), { scale: 0, rotate: -8 }, { scale: 1, rotate: 0, duration: 0.5, ease: m.pop }, L(p.tag, 0));
     if (p.exit) fitOut(tl, el(".dg-all"), dur, p.exit, U);   // the creator's measured exit

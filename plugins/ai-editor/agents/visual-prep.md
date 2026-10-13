@@ -25,18 +25,20 @@ local, so they are made now and made again if the cut changes.
 3. **Captions and beats**, one Bash call: `python3 "$C/retakes.py" captions EDIT && python3 "$S/route.py" beats EDIT`.
    Proofread `captions.txt`; a wrong word is `retakes.py fix` (it fixes captions.json in place, no re-run). Every
    pick is null: decide the picks yourself.
-4. **Visuals:** write `EDIT/visuals.json` by `shapes.md`, every beat with `word` and `nth`, only the
+4. **Visuals:** read `<ROOT>/skills/style-edit/references/motion-design.md` (the default look and motion), then
+   write `EDIT/visuals.json` by `shapes.md`, every beat with `word` and `nth`, only the
    speaker's words. A copied creator's pacing wins: route.py prints her cards a minute and marks that many
    sentences `want`; give each `want` the real thing the line is about (the named product, page, repo or
    post; the speaker's own product counts: its public page or repo), else leave it empty. No rate: a card
    where a sentence names something real, and in any stretch over 10 s with no card (plan.py's card gap),
    one for the line there that is about something real. On 9:16 a `capture` is a `sticker` with a `find` mark
    on the line's words, so it reads on a phone, except in a card edit (style.json `card_kinds` without `text`):
-   there every card is a real picture, a `capture` with `"format": "shot"` and a `find` mark on the named thing
-   (capture.mjs frames the page round it to fill the band), a `logo`, the user's photo, or an animation from
-   real parts (`flow`, `chat`, `terminal`, `toasts`, `side_by_side`, `video_card`) for a line that explains
-   something with no page to show. Never a sticker. A line that names nothing real gets no card. Also a
-   `title` (the hook's promise in 2 short lines of their words, from 0 s) and one on the CTA word, a `list`
+   there most cards are animations built from the words (`likes`, `progress`, `notes`, `terminal`, `chat`,
+   `toasts`, `curve`, `side_by_side` with `arrow`, `flow`; motion-design.md "What a beat becomes"), a `capture`
+   only where the real page is the point and once per page (`"format": "shot"` with a `find` mark, or
+   `browser` to scroll to it), the user's own screenshots cropped to about 2:1, a big `logo`. Never a sticker.
+   A line with nothing to show gets no card. Also a
+   `title` (the hook's promise in 2 short lines of their words, emoji allowed, from 0 s), a `cta` on the ask word, a `list`
    when they count steps, a `stamp` when they say a card's thing does not apply (visuals.md "Card edit").
    Never a `file://` page from the user's config folders.
    Decide it all yourself: the caller must not have to ask the user what to show.

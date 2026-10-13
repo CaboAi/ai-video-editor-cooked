@@ -4,6 +4,18 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Card edit: cards move. Most beats are now animations built from what is said: a like counter ticking with
+  comments stacking (`likes`), a progress bar filling (`progress`), an easing curve drawing (`curve`), notes
+  appearing line by line (`notes`), a before and after with an arrow (`side_by_side` `arrow`). Cards pop in,
+  push or drift while up, and leave before the next one lands. They fill the band above the head and tuck
+  behind the hair. A page is captured once, never cropped five ways.
+- Card edit: a plain white title card opens the video on the chest (emoji kept), and a black "comment"
+  pill (`cta`) lands on the ask.
+- Captions never sit on the face: a caption line inside the head moves to the chin line, inside the reels
+  safe zone. The Card edit's captions are plain white, no box, no shadow.
+- A new default motion reference (`style-edit/references/motion-design.md`) for every style: built animations
+  over static captures, big cards, real logos in brand colours, no blur, bounce or 3D tilt on entrances.
+
 ## ai-editor 2.6.4 (2026-10-13)
 
 - Pick a style: the cards are wide enough for their names ("My style" no longer wraps one letter per line)

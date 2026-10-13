@@ -2,7 +2,7 @@
 // (JSON props, real assets only) that draws its own neutral chrome: a white card or the real app's
 // surface, a soft realistic shadow, depth. Text on any card is a label of a few words at most; the
 // picture carries the beat. Every format runs one word-labelled GSAP timeline (motion.ts wordTl): it
-// drops in blurred just before its word, punches on each hit word, rides a slow push and leaves upward
+// drops in just before its word, punches on each hit word, rides a slow push and leaves upward
 // on a faster .in ease (cardLife). Shared primitives: cursor + click ripple, zoom into a region (Capture's `zoom`).
 import React from "react";
 import { Img, OffthreadVideo, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
@@ -70,7 +70,7 @@ const Source: React.FC<{ p: Record<string, any>; s: number; font: string }> = ({
 /** The source row follows the card in: the logo spins up, the name slides, the rule draws (follow-through). */
 const sourceIn = (tl: gsap.core.Timeline, q: (s: string) => Element[], at: number) => {
   const logo = q(".cv-src-logo")[0], name = q(".cv-src-name")[0], rule = q(".cv-rule")[0];
-  if (logo) tl.fromTo(logo, { scale: 0, rotate: -90 }, { scale: 1, rotate: 0, duration: 0.45, ease: "back.out(2)" }, at + 0.2);
+  if (logo) tl.fromTo(logo, { scale: 0, rotate: -90 }, { scale: 1, rotate: 0, duration: 0.45, ease: "power3.out" }, at + 0.2);
   if (name) tl.fromTo(name, { autoAlpha: 0, x: -16 }, { autoAlpha: 1, x: 0, duration: 0.35, ease: "power3.out" }, at + 0.26);
   if (rule) tl.fromTo(rule, { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: "power2.inOut" }, at + 0.32);
 };
@@ -250,9 +250,10 @@ const Terminal: React.FC<TP> = ({ p, w, h, m, dur }) => {
   const u = Math.min(w, h) / 100, t = useT();
   const lines: { text: string; kind?: string; at?: number }[] = (p.lines ?? []).slice(0, 8);
   const bar = Math.max(26, h * 0.1);
-  const cw = Math.min(w * 0.96, h * 1.9), ch = h * 0.94;
+  // as wide as the band (references/motion-design.md: cards fill the band, never a small window in its middle)
+  const cw = w * 0.96, ch = h * 0.94;
   const longest = Math.max(...lines.map((l) => l.text.length + 2), 10);
-  const fs0 = Math.max(18, Math.min((ch - bar) / (lines.length * 1.6 + 1), (cw * 0.9) / (longest * 0.66)));
+  const fs0 = Math.max(18, Math.min((ch - bar) / (lines.length * 1.6 + 1), (cw * 0.9) / (longest * 0.66), h * 0.16));
   const fs = fs0;
   const tH = Math.min(ch, bar + lines.length * fs * 1.55 + fs * 1.6);
   let clock = 0.5;
@@ -307,7 +308,7 @@ const Toasts: React.FC<TP> = ({ p, w, h, m, fonts, dur }) => {
     const { tl, L } = wordTl(timeline, p, landAt(p, m), m);
     camera(tl, q, root, m, dur, u, p.ambient);
     items.forEach((x, i) => {
-      // each drops in from above just before its word, blurred; the older ones are pushed down a slot on it
+      // each drops in from above just before its word; the older ones are pushed down a slot on it
       const pos = x.at === undefined ? at(x, i) : L(x, -0.3 * m.k);
       if (p.enter) fitIn(tl, q(`.to-${i}`)[0], x.at === undefined ? at(x, i) : L(x), p.enter, U);   // the creator's measured entrance
       else dropIn(tl, q(`.to-${i}`)[0], pos, m, th * 0.9);
@@ -367,15 +368,15 @@ const LogoCluster: React.FC<TP> = ({ p, w, h, m, dur }) => {
     const { tl, L } = wordTl(timeline, p, landAt(p, m), m);
     q(".lc-logo").forEach((el, i) => {
       const a = logos[i].at ?? 0.15 + i * 0.16;
-      // drops in blurred just before its word, lands with a spring, punches on the word, bobs, leaves upward
+      // drops in just before its word, lands softly, punches on the word, bobs, leaves upward
       if (p.enter) fitIn(tl, el, L(logos[i]), p.enter, U);   // the creator's measured entrance
-      else tl.fromTo(el, { scale: 0.6, y: -U * 4, rotate: spots[i][2] - 12, autoAlpha: 0, filter: "blur(8px)" },
-        { scale: 1, y: 0, rotate: spots[i][2], autoAlpha: 1, filter: "blur(0px)", duration: 0.5 * m.k, ease: "back.out(1.7)" }, L(logos[i], -0.25 * m.k));
+      else tl.fromTo(el, { scale: 0.6, y: -U * 4, rotate: spots[i][2] - 12, autoAlpha: 0 },
+        { scale: 1, y: 0, rotate: spots[i][2], autoAlpha: 1, duration: 0.5 * m.k, ease: "power3.out" }, L(logos[i], -0.25 * m.k));
       punch(tl, q(`.lc-hit-${i}`)[0], L(logos[i]), 1.08);
       if (dur > 1.5) tl.fromTo(q(`.lc-bob-${i}`)[0], { y: 0 }, { y: -u * 1.4, duration: 1.1 + (i % 3) * 0.2, ease: "sine.inOut", yoyo: true,
         repeat: Math.max(0, Math.floor((dur - a - 0.6) / 1.2)) }, a + 0.5);
       if (p.exit) fitOut(tl, el, dur, p.exit, U);
-      else if (dur > m.out * 3) tl.to(el, { y: -U * 4, autoAlpha: 0, filter: "blur(6px)", duration: Math.max(0.24, m.out * 0.7), ease: m.exit }, dur - m.out + i * 0.03);
+      else if (dur > m.out * 3) tl.to(el, { y: -U * 4, autoAlpha: 0, duration: Math.max(0.24, m.out * 0.7), ease: m.exit }, dur - m.out + i * 0.03);
     });
   }, [JSON.stringify(logos), w, h, dur, m.name, JSON.stringify([p.enter, p.exit, p.ambient, p.word_at])]);
   return (
@@ -396,7 +397,7 @@ const LogoCluster: React.FC<TP> = ({ p, w, h, m, dur }) => {
 // toward each other. props: a: {src, size, crop?, label?, marks?}, b: {...}
 const SideBySide: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
   const u = Math.min(w, h) / 100;
-  const gap = w * 0.04, colW = (w - gap) / 2;
+  const gap = w * (p.arrow ? 0.13 : 0.04), colW = (w - gap) / 2;
   const sides = [p.a ?? {}, p.b ?? {}];
   // each card at its own ratio, the pair centred as one group (a wide and a tall shot stay balanced)
   // a side may crop its capture to the evidence: crop [x, y, w, h] in image px
@@ -416,9 +417,20 @@ const SideBySide: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
       if (p.exit) fitOut(tl, el, dur, p.exit, U);
       else exitUp(tl, el, m, dur, U * 4.6);
     });
+    // arrow: before -> after, drawn from a to b once b has landed
+    const ar = q(".sb-arrow")[0];
+    if (ar) {
+      tl.fromTo(ar, { autoAlpha: 0, scaleX: 0 }, { autoAlpha: 1, scaleX: 1, duration: 0.45, ease: "power3.out", transformOrigin: "0% 50%" }, L("in", 0.3));
+      if (p.exit) fitOut(tl, ar, dur, p.exit, U);
+      else exitUp(tl, ar, m, dur, U * 4.6);
+    }
   }, [JSON.stringify(sides.map((x) => x.src)), w, h, dur, m.name, JSON.stringify([p.enter, p.exit, p.ambient, p.word_at])]);
   return (
     <div ref={ref} style={{ ...fill, display: "flex", alignItems: "center", justifyContent: "center", gap }}>
+      {p.arrow ? <svg className="sb-arrow" viewBox="0 0 100 40" width={gap * 0.84} height={gap * 0.34} style={{ position: "absolute", left: w / 2 - gap * 0.42,
+        top: h / 2 - gap * 0.17, zIndex: 2, opacity: 0, overflow: "visible", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.35))" }}>
+        <path d="M4 20 H84 M66 6 L88 20 L66 34" fill="none" stroke="#141414" strokeWidth={9} strokeLinecap="round" strokeLinejoin="round" />
+      </svg> : null}
       {sides.map((x, i) => {
         const [cw, ch] = fits[i];
         return (
@@ -470,7 +482,199 @@ const VideoCard: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
   );
 };
 
+
+// =====================================================================================================
+// The moving cards of a card edit (references/motion-design.md): each is built from what the speaker says and
+// keeps moving while it is up, so the band above the head never holds a still picture.
+const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
+type Said = { at?: number; word?: string };
+/** Each item's time: its word (plan.py "at"), else staggered from `first` every `step` s. */
+const stagger = <T extends Said>(xs: T[], first: number, step: number) => xs.map((x, i) => (typeof x.at === "number" ? x.at : first + i * step));
+/** A white app window: traffic lights and a title, the real app's surface. */
+const Win: React.FC<{ w: number; h: number; u: number; title?: string; dark?: boolean; font: string; children: React.ReactNode }> = ({ w, h, u, title, dark, font, children }) => {
+  const bar = Math.max(30, h * 0.11);
+  return (
+    <div style={{ width: w, height: h, borderRadius: u * 2.2, background: dark ? "#111214" : "#FFFFFF", boxShadow: depth(u), overflow: "hidden", position: "relative" }}>
+      <div style={{ height: bar, display: "flex", alignItems: "center", gap: bar * 0.22, padding: `0 ${bar * 0.42}px`, background: dark ? "#1B1C20" : "#F4F4F6",
+        borderBottom: dark ? "1px solid rgba(255,255,255,0.06)" : "1px solid #E7E7EA" }}>
+        {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => <div key={c} style={{ width: bar * 0.3, height: bar * 0.3, borderRadius: "50%", background: c }} />)}
+        <div style={{ flex: 1, textAlign: "center", color: dark ? "#8B8E97" : "#7A7D85", fontFamily: font, fontWeight: 600, fontSize: bar * 0.42, marginRight: bar * 1.2 }}>{title ?? ""}</div>
+      </div>
+      <div style={{ position: "absolute", left: 0, right: 0, top: bar, bottom: 0 }}>{children}</div>
+    </div>
+  );
+};
+
+// likes: the app's real logo with a red heart badge whose count ticks up on each word, and comments stacking in
+// beside it as dark pills. props: src (the app logo: {"logo": "instagram"}), counts: [{n, word?}],
+// comments?: [{user, text, src?, word?}] (at most 4). Numbers only as the speaker said them or the user gave them.
+const Likes: React.FC<TP> = ({ p, w, h, m, fonts, dur }) => {
+  const u = Math.min(w, h) / 100, t = useT();
+  const { U, s } = useFrame();
+  const counts: ({ n: number } & Said)[] = (p.counts ?? []).slice(0, 6);
+  const comments: ({ user: string; text: string; src?: string } & Said)[] = (p.comments ?? []).slice(0, 4);
+  const ct = stagger(counts, 0.35, Math.max(0.45, (dur - 0.9) / Math.max(1, counts.length)));
+  const mt = stagger(comments, 0.55, Math.max(0.35, (dur - 1.0) / Math.max(1, comments.length)));
+  // the number now: eased from the last count to the one landing
+  let n = counts[0]?.n ?? 0;
+  counts.forEach((c, i) => { if (i && t >= ct[i]) n = counts[i - 1].n + (c.n - counts[i - 1].n) * prog(t, ct[i], 0.5, "power2.out"); });
+  const L = Math.min(h * 0.78, w * 0.32);
+  const pillH = Math.min(h / 3.6, 88 * s), cw = Math.min(w - L * 1.2 - u * 6, pillH * 8);
+  const ref = useTl((timeline, q, root) => {
+    const { tl } = cardLife(timeline, q, root, p, m, dur, u, U);
+    tl.fromTo(q(".lk-badge")[0], { scale: 0.2, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.45, ease: "power3.out" }, 0.25);
+    ct.slice(1).forEach((a) => punch(tl, q(".lk-badge")[0], a, 1.18));
+    comments.forEach((_, i) => {
+      tl.fromTo(q(`.lk-c-${i}`)[0], { autoAlpha: 0, x: u * 6, scale: 0.92 }, { autoAlpha: 1, x: 0, scale: 1, duration: 0.4, ease: "power3.out" }, mt[i]);
+      for (let j = 0; j < i; j++) tl.to(q(`.lk-c-${j}`)[0], { y: (i - j) * pillH * 1.18, duration: 0.4, ease: "power3.out" }, mt[i]);
+    });
+    tl.fromTo(q(".lk-heart")[0], { scale: 1 }, { scale: 1.12, duration: 0.5, ease: "sine.inOut", yoyo: true, repeat: Math.max(0, Math.floor(dur / 0.5) - 1) }, 0.6);
+  }, [JSON.stringify([counts, comments]), w, h, dur, m.name, JSON.stringify([p.enter, p.exit, p.ambient, p.word_at])]);
+  return (
+    <div ref={ref} style={center}>
+      <div className="cv-in" style={{ opacity: 0 }}><div className="cv-hit" style={{ display: "flex", alignItems: "center", gap: u * 5 }}>
+        <div style={{ position: "relative", width: L, height: L, flexShrink: 0, marginRight: L * 0.15 }}>
+          {p.src ? <Img src={src_(p.src)!} style={{ width: "100%", height: "100%", objectFit: "contain", filter: `drop-shadow(0 ${u}px ${u * 2}px rgba(0,0,0,0.3))` }} /> : null}
+          <div className="lk-badge" style={{ position: "absolute", right: -L * 0.36, top: 0, display: "flex", alignItems: "center", gap: L * 0.05,
+            padding: `${L * 0.05}px ${L * 0.11}px`, borderRadius: L, background: "#FF3040", color: "#fff", fontFamily: fonts.body, fontWeight: 800,
+            fontSize: Math.max(30 * s, L * 0.2), boxShadow: depth(u * 0.5), whiteSpace: "nowrap", transformOrigin: "20% 80%", fontVariantNumeric: "tabular-nums" }}>
+            <svg className="lk-heart" viewBox="0 0 24 24" width={L * 0.2} height={L * 0.2}><path fill="#fff" d="M12 21s-7.5-4.6-10-9.3C.4 8.4 2.3 4.5 6 4.5c2.2 0 3.6 1.2 4.4 2.4h3.2c.8-1.2 2.2-2.4 4.4-2.4 3.7 0 5.6 3.9 4 7.2C19.5 16.4 12 21 12 21z" /></svg>
+            {fmt(n)}
+          </div>
+        </div>
+        {comments.length ? <div style={{ position: "relative", width: cw, height: Math.min(h * 0.9, comments.length * pillH * 1.18) }}>
+          {comments.map((c, i) => (
+            <div key={i} className={`lk-c-${i}`} style={{ position: "absolute", left: 0, top: 0, height: pillH, width: cw, display: "flex", alignItems: "center",
+              gap: pillH * 0.22, padding: `0 ${pillH * 0.3}px`, borderRadius: pillH * 0.3, background: "rgba(22,22,24,0.92)", boxSizing: "border-box", opacity: 0,
+              fontFamily: fonts.body, fontSize: pillH * 0.4, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", boxShadow: depth(u * 0.5) }}>
+              {c.src ? <Img src={src_(c.src)!} style={{ width: pillH * 0.62, height: pillH * 0.62, borderRadius: "50%", objectFit: "cover" }} />
+                : <div style={{ width: pillH * 0.62, height: pillH * 0.62, borderRadius: "50%", background: "linear-gradient(135deg,#FEDA75,#D62976 55%,#4F5BD5)", flexShrink: 0 }} />}
+              <b style={{ fontWeight: 700 }}>{c.user}</b><span style={{ opacity: 0.85, overflow: "hidden", textOverflow: "ellipsis" }}>{c.text}</span>
+            </div>
+          ))}
+        </div> : null}
+      </div></div>
+    </div>
+  );
+};
+
+// progress: an app window where a bar fills while the work runs: the label, the frames (the user's own pictures,
+// optional) lighting up as the bar passes them, the percent counting. props: label ("Rendering"), title?,
+// thumbs?: [src] (at most 6), to? (100), word? (when it starts filling)
+const Progress: React.FC<TP> = ({ p, w, h, m, fonts, dur }) => {
+  const u = Math.min(w, h) / 100, t = useT();
+  const { U, s } = useFrame();
+  const thumbs: string[] = (p.thumbs ?? []).slice(0, 6);
+  const cw = Math.min(w * 0.98, h * 2.3), ch = Math.min(h * 0.96, cw / 1.9);
+  const start = typeof p.at === "number" ? p.at : 0.35, run = Math.max(0.8, dur - start - 0.45);
+  const k = prog(t, start, run, "power1.inOut") * (Number(p.to ?? 100) / 100);
+  const fs = Math.max(30 * s, ch * 0.09);
+  const ref = useTl((timeline, q, root) => {
+    cardLife(timeline, q, root, p, m, dur, u, U, [start + run]);
+    q(".pg-th").forEach((el, i) => timeline.fromTo(el, { autoAlpha: 0, y: u * 3 }, { autoAlpha: 1, y: 0, duration: 0.35, ease: "power3.out" }, 0.2 + i * 0.07));
+  }, [JSON.stringify(thumbs), w, h, dur, m.name, JSON.stringify([p.enter, p.exit, p.ambient, p.word_at])]);
+  const tw = thumbs.length ? Math.min((cw * 0.88) / thumbs.length - u, ch * 0.42 * 0.7) : 0;
+  return (
+    <div ref={ref} style={center}>
+      <div className="cv-in" style={{ opacity: 0 }}><div className="cv-hit">
+        <Win w={cw} h={ch} u={u} title={p.title} font={fonts.body}>
+          <div style={{ padding: `${ch * 0.07}px ${cw * 0.06}px`, display: "flex", flexDirection: "column", gap: ch * 0.06, height: "100%", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", fontFamily: fonts.body, fontWeight: 700, fontSize: fs, color: "#141414" }}>
+              <span>{p.label ?? ""}</span><span style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>{Math.round(k * 100)}%</span>
+            </div>
+            <div style={{ height: ch * 0.07, borderRadius: ch, background: "#ECECEF", overflow: "hidden", flexShrink: 0 }}>
+              <div style={{ width: `${k * 100}%`, height: "100%", background: "#141414", borderRadius: ch }} />
+            </div>
+            {thumbs.length ? <div style={{ display: "flex", gap: u, justifyContent: "center" }}>
+              {thumbs.map((src, i) => <div key={i} className="pg-th" style={{ width: tw, height: tw / 0.7, borderRadius: u, overflow: "hidden", opacity: 0,
+                filter: `grayscale(${k * thumbs.length > i + 0.5 ? 0 : 1})`, boxShadow: depth(u * 0.3) }}>
+                <Img src={src_(src)!} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>)}
+            </div> : null}
+          </div>
+        </Win>
+      </div></div>
+    </div>
+  );
+};
+
+// curve: an easing curve draws itself on a white board while a dot rides it and the picture beside it moves on the
+// same curve (motion design shown, not told). props: label?, src? (a still of the user's video), bezier? [x1, y1, x2, y2]
+const Curve: React.FC<TP> = ({ p, w, h, m, fonts, dur }) => {
+  const u = Math.min(w, h) / 100, t = useT();
+  const { U, s } = useFrame();
+  const [x1, y1, x2, y2] = p.bezier ?? [0.65, 0, 0.35, 1];
+  const cw = Math.min(w * 0.98, h * 2.1), ch = Math.min(h * 0.96, cw / 1.8);
+  const gw = ch * 0.72, pad = ch * 0.12;
+  const bz = (k: number, a: number, b: number) => 3 * a * k * (1 - k) ** 2 + 3 * b * k * k * (1 - k) + k ** 3;
+  const k = prog(t, 0.15, Math.min(1.2, Math.max(0.5, dur - 0.35)), "sine.inOut");
+  const len = gw * 2;
+  const ref = useTl((timeline, q, root) => { cardLife(timeline, q, root, p, m, dur, u, U); },
+    [w, h, dur, m.name, JSON.stringify([p.enter, p.exit, p.ambient, p.word_at])]);
+  const d = `M0 ${gw} C ${x1 * gw} ${gw - y1 * gw}, ${x2 * gw} ${gw - y2 * gw}, ${gw} 0`;
+  const px = bz(k, x1, x2) * gw, py = gw - bz(k, y1, y2) * gw;
+  const iw = p.src ? ch * 0.5 : 0;
+  return (
+    <div ref={ref} style={center}>
+      <div className="cv-in" style={{ opacity: 0 }}><div className="cv-hit">
+        <Win w={cw} h={ch} u={u} title={p.label} font={fonts.body}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-evenly", height: "100%" }}>
+            {p.src ? <div style={{ width: iw, height: iw * 1.5, borderRadius: u * 1.4, overflow: "hidden", boxShadow: depth(u * 0.5),
+              transform: `translateY(${(0.5 - bz(k, y1, y2)) * ch * 0.18}px) scale(${0.9 + 0.1 * bz(k, y1, y2)})` }}>
+              <Img src={src_(p.src)!} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div> : null}
+            <svg width={gw + pad * 2} height={gw + pad * 2} viewBox={`${-pad} ${-pad} ${gw + pad * 2} ${gw + pad * 2}`} style={{ overflow: "visible" }}>
+              <path d={`M0 0 V${gw} H${gw}`} fill="none" stroke="#D9D9DE" strokeWidth={Math.max(2, 3 * s)} />
+              <path d={d} fill="none" stroke="#141414" strokeWidth={Math.max(4, 7 * s)} strokeLinecap="round" strokeDasharray={len} strokeDashoffset={len * (1 - k)} />
+              <circle cx={px} cy={py} r={Math.max(8, 14 * s)} fill="#FF3B30" />
+            </svg>
+          </div>
+        </Win>
+      </div></div>
+    </div>
+  );
+};
+
+// notes: a dark notes card where each line appears on its word, its fix ("Fixed in round 2: ...") ticking in under
+// it in green. props: title?, lines: [{text, sub?, time?, src?, word?}] (at most 4), the speaker's or user's words.
+const Notes: React.FC<TP> = ({ p, w, h, m, fonts, dur }) => {
+  const u = Math.min(w, h) / 100;
+  const { U, s } = useFrame();
+  const lines: ({ text: string; sub?: string; time?: string; src?: string } & Said)[] = (p.lines ?? []).slice(0, 4);
+  const lt = stagger(lines, 0.35, Math.max(0.5, (dur - 0.9) / Math.max(1, lines.length)));
+  const cw = Math.min(w * 0.98, h * 2.6);
+  const longest = Math.max(12, ...lines.map((l) => l.text.length));
+  const fs = Math.max(34 * s, Math.min((h * 0.8) / (Math.max(2, lines.length) * 2.1), (cw * 0.86) / (longest * 0.54)));
+  const row = fs * 2.1, ch = Math.min(h * 0.96, row * Math.max(2, lines.length) + h * 0.16);
+  const ref = useTl((timeline, q, root) => {
+    const { tl } = cardLife(timeline, q, root, p, m, dur, u, U, lt.slice(1));
+    lines.forEach((l, i) => {
+      tl.fromTo(q(`.nt-${i}`)[0], { autoAlpha: 0, y: u * 3 }, { autoAlpha: 1, y: 0, duration: 0.35, ease: "power3.out" }, lt[i]);
+      if (l.sub) tl.fromTo(q(`.nt-s-${i}`)[0], { autoAlpha: 0, x: -u * 2 }, { autoAlpha: 1, x: 0, duration: 0.3, ease: "power2.out" }, lt[i] + 0.35);
+    });
+  }, [JSON.stringify(lines), w, h, dur, m.name, JSON.stringify([p.enter, p.exit, p.ambient, p.word_at])]);
+  return (
+    <div ref={ref} style={center}>
+      <div className="cv-in" style={{ opacity: 0 }}><div className="cv-hit">
+        <div style={{ width: cw, height: ch, borderRadius: u * 2.2, background: "#111214", boxShadow: depth(u), padding: `${ch * 0.06}px ${cw * 0.05}px`,
+          boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "center", gap: row * 0.14, fontFamily: fonts.body }}>
+          {lines.map((l, i) => (
+            <div key={i} className={`nt-${i}`} style={{ opacity: 0, display: "flex", gap: fs * 0.6, alignItems: "flex-start" }}>
+              {l.src ? <Img src={src_(l.src)!} style={{ width: fs * 1.6, height: fs * 1.6, borderRadius: fs * 0.3, objectFit: "cover", flexShrink: 0 }} /> : null}
+              <div style={{ minWidth: 0 }}>
+                {l.time ? <div style={{ color: "#8B8E97", fontSize: fs * 0.62, fontWeight: 600 }}>{l.time}</div> : null}
+                <div style={{ color: "#F4F4F5", fontSize: fs, fontWeight: 700, lineHeight: 1.2 }}>{l.text}</div>
+                {l.sub ? <div className={`nt-s-${i}`} style={{ display: "flex", alignItems: "center", gap: fs * 0.3, color: "#3DDC84", fontSize: fs * 0.7, fontWeight: 600, marginTop: fs * 0.2 }}>
+                  <svg viewBox="0 0 24 24" width={fs * 0.7} height={fs * 0.7}><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="#3DDC84" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  {l.sub}</div> : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div></div>
+    </div>
+  );
+};
+
 export const OVERLAYS: Record<string, React.FC<TP>> = {
   shot: Shot, browser: Browser, sticker: Sticker, chat: Chat, terminal: Terminal, toasts: Toasts, logo_cluster: LogoCluster,
-  side_by_side: SideBySide, video_card: VideoCard,
+  side_by_side: SideBySide, video_card: VideoCard, likes: Likes, progress: Progress, curve: Curve, notes: Notes,
 };

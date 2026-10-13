@@ -1087,7 +1087,10 @@ def run(edit, plan, video, plan_path, style=None, cuts=(), brand=None):
     meas["icons"] = {"stock": icons_all, "real": real_all}
     for where, obj in (("visuals.json", (edit / "visuals.json")), ("captions.json", (edit / "captions.json"))):
         if obj.exists():
-            em = emoji_in(json.loads(obj.read_text(encoding="utf-8")))
+            doc = json.loads(obj.read_text(encoding="utf-8"))
+            if isinstance(doc, list):   # the title card keeps the user's emoji on purpose (motion-design.md "Look")
+                doc = [x for x in doc if not (isinstance(x, dict) and x.get("kind") == "title")]
+            em = emoji_in(doc)
             if em:
                 out.append(F("WARN", None, f"emoji in {where}: {' '.join(em)}", "words or a real image, not emoji"))
 

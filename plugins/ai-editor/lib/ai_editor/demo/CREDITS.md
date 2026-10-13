@@ -11,6 +11,3 @@ commercial use included, no attribution required. Credited here anyway.
 | `person-1.jpg` | Maiye Jeremiah (@seyce) | https://unsplash.com/photos/11efYUexOYM |
 | `person-2.jpg` | Brooke Cagle (@brookecagle) | https://unsplash.com/photos/nNj_e121IbI |
 | `person-3.jpg` | Joseph Gonzalez (@miracletwentyone) | https://unsplash.com/photos/iFgRcqHznqg |
-
-The sample Card edit style's cover (`presets/styles/sample-card-edit/cover.jpg`) is a still the editor rendered from
-`person-2.jpg` with that style, the card being the plugin's own report page (`docs/screens/after-teardown.jpg`).

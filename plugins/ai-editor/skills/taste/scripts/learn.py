@@ -48,6 +48,7 @@ PAUSE_S = 0.3        # a raw silence this long is a pause the cut had to decide 
 MIN_SILENCE_S = 0.03  # shortest silence silencedetect reports
 TIGHTENED = 0.7      # a posted gap under this share of the raw one was tightened
 MIN_PAUSES, MIN_RETAKES, MIN_FILLERS = 5, 2, 3   # fewer than this: too little to learn from
+MIN_LINES, MIN_LINE_WORDS = 2, 4   # whole clean sentences cut (not a retake): 2 make a habit
 SOFT = {"like", "you know", "i mean"}
 
 
@@ -167,7 +168,9 @@ def measure(raw, pub, sil_raw=None, sil_pub=None):
     m["false_cuts"] = {"words": len(ours_idx & kept),
                        "where": [{"kind": c["kind"], "at": round(c["at"], 2), "text": c["text"][:80]} for c in false]}
     missed = runs(set(range(len(raw))) - kept - ours_idx)
-    m["missed"] = {"words": sum(b - a + 1 for a, b in missed),
+    ends = lambda i: i < 0 or raw[i]["text"].rstrip().endswith((".", "?", "!"))
+    whole = [(a, b) for a, b in missed if b - a + 1 >= MIN_LINE_WORDS and ends(a - 1) and ends(b)]
+    m["missed"] = {"words": sum(b - a + 1 for a, b in missed), "lines": len(whole),
                    "longest": [{"at": round(raw[a]["start"], 2), "text": say(raw, a, b)[:80]}
                                for a, b in sorted(missed, key=lambda r: r[0] - r[1])[:5]]}
     return m
@@ -191,6 +194,9 @@ def settings(m):
     elif n >= MIN_RETAKES and rt["both"] > rt["last"] and rt["both"] > rt["first"]:
         out.append(("cut", f"A line said twice keeps both takes unless one breaks off (you kept both "
                            f"{rt['both']} of {n} times)", None, None))
+    if m["missed"].get("lines", 0) >= MIN_LINES:
+        out.append(("cut", f"Cut whole clean lines that do not move the point, as in your own edit ({m['missed']['lines']} "
+                           "sentences cut that were no retake): run the editorial pass (redundant spans) on every cut", None, None))
     h, s = m["fillers"]["hard"], m["fillers"]["soft"]
     if h["count"] >= MIN_FILLERS and h["kept"] * 3 >= h["count"] * 2:
         out.append(("cut", f"Keep the ums and uhs (you kept {h['kept']} of {h['count']})", "cut.keep_fillers", True))
@@ -286,6 +292,9 @@ def demo():
     fc = {x["kind"] for x in m["false_cuts"]["where"]}
     assert m["false_cuts"]["words"] >= 2 and {"filler", "retake"} <= fc, m["false_cuts"]
     assert m["missed"]["words"] == 7 and m["missed"]["longest"][0]["text"] == "the model reads the whole file. then", m["missed"]
+    assert m["missed"]["lines"] == 0 and not any("clean lines" in r for _, r, _, _ in settings(m))   # a part line is no habit
+    two = {**m, "missed": {**m["missed"], "lines": 2}}
+    assert any("clean lines" in r for _, r, _, _ in settings(two))
     # numbers spelled differently by two transcriptions still line up
     assert align(take("it costs fifteen hundred dollars"), take("it costs 1,500 dollars")).keys() == {0, 1, 2, 3, 4}
     rules = settings(m)

@@ -90,7 +90,7 @@ With a `script.md`: `python3 "$S/script_match.py" edits/<name>`, read `script-ma
 Last take wins, except alternate hooks. Never type a timestamp or span a
 pause.
 
-Only if the user wants it shorter, also read `references/editorial-rules.md` and add `redundant`
+Only if the user wants it shorter (or their taste says to run the editorial pass), also read `references/editorial-rules.md` and add `redundant`
 cuts (content calls).
 
 A misheard name is one command, never a JSON rewrite: `python3 "$S/retakes.py" fix edits/<name>

@@ -1314,6 +1314,7 @@ LB_SAFE = (60, 250, 940, 1440)
 LB_TITLE_X = 140        # title and word side margins: centred, the right edge inside the safe zone
 LB_TITLE_GAP = 24       # the title's last line ends this far above the band
 LB_TITLE_PX = 58
+LB_TITLE_EM = 0.46      # a regular lowercase title's width per character, in em (measured 0.42 on a render)
 LB_TITLE_MIN_PX = 40    # a title that needs smaller than this to sit on one line wraps at LB_TITLE_PX instead
 LB_WORD_PX = 46
 LB_WORD_Y = 0.18        # the word's centre sits this share of the band's height above its bottom
@@ -1353,7 +1354,7 @@ def letterbox_plan(head, style, words, meta, images, face, lay):
     if len(title) > 90:
         print(f"warning: the title is {len(title)} characters; over about 90 it no longer fits above the band", file=sys.stderr)
     # one line when it fits: the largest size from LB_TITLE_PX down to LB_TITLE_MIN_PX that holds it, else wrap at full size
-    tpx = next((px for px in range(LB_TITLE_PX, LB_TITLE_MIN_PX - 1, -2) if _tw(title, px, 400) <= W - 2 * LB_TITLE_X), LB_TITLE_PX)
+    tpx = next((px for px in range(LB_TITLE_PX, LB_TITLE_MIN_PX - 1, -2) if len(title) * px * LB_TITLE_EM <= W - 2 * LB_TITLE_X), LB_TITLE_PX)
     cs = style.get("captions") or {}
     # the creator's highlight when she has one (not her fill colour), else yellow; layout.highlight wins
     hi = lay.get("highlight") or (cs.get("highlight_color") if cs.get("highlight_color") not in (None, cs.get("color", "#FFFFFF")) else LB_HIGHLIGHT)
@@ -2191,7 +2192,7 @@ def demo():
     # a capture that is mostly picture (a book cover with a small caption) is kept for the picture
     cover = {"src": "images/c.png", "size": [600, 800], "pics": [[20, 20, 560, 700]], "lines": [[40, 740, 300, 20]], "box": [14, 58, 72, 20]}
     assert picture_share(cover) > 0.8 and capture_xh(cover, "9:16") is None and readable_captures([cover], "9:16") == [cover]
-    assert _tw("your friends don't owe you likes", LB_TITLE_PX, 400) > 800 and LB_TITLE_MIN_PX < 46   # shrinks to one line
+    assert 50 <= max(px for px in range(40, 59, 2) if 32 * px * LB_TITLE_EM <= 800) < LB_TITLE_PX   # a 32-character title: one line, near full size
     lw2 = [{"text": t, "start": 0.3 * i, "end": 0.3 * i + 0.2} for i, t in enumerate("I think you have a horrible mindset and you need".split())]
     assert letterbox_title(lw2) == "i think you have a horrible mindset", letterbox_title(lw2)
     assert pw["box"][1] == 10 and pw["box"][1] + pw["box"][3] <= 34 - HEAD_GAP + 1e-6, pw["box"]

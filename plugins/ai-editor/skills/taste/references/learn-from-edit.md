@@ -36,6 +36,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/run.py" "${CLAUDE_SKILL_DIR}/script
 | fillers | "um"/"uh" kept or cut; "like", "you know", "i mean" kept or cut | `cut.keep_fillers=true` when they kept two thirds or more of the ums (`retakes.py propose` reads it and leaves fillers out of the candidates; build_timeline does not); a word rule for the soft ones |
 | FALSE CUTS | words their cut kept that our default cut removes | shown, with the time and the words |
 | missed | words their cut removed that our default cut keeps | shown, the five longest runs |
+| whole lines cut | complete clean sentences (4+ words, no retake) their cut removed | a word rule to run the cut's editorial pass (`redundant` spans) on every cut, from 2 such lines |
 
 Pauses are measured from the audio of both files, never from word gaps: Whisper stretches word
 ends over the pause, so most gaps read 0 s. Silence is found the way `build_timeline.py` finds it (a

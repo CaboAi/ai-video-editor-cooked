@@ -1,6 +1,6 @@
 ---
 name: style-edit
-description: Turns an approved cut into the finished video in a creator's measured style. Takes cut.mp4 from the cut skill plus a style.json (from start or creator-teardown), plans captions and zooms to match the creator, adds visuals timed to the spoken word (the user's own images, real screenshots, posts and logos of what is named, the line marked on the real page; no type cards, stock icons or emoji), shows one stills sheet for approval, then renders 9:16 or 16:9 with Remotion on the laptop, Modal, GitHub Actions or the user's AWS Lambda, and can export the edit to Final Cut, Premiere, Resolve or CapCut. Use when a cut already exists and the user says "style it", "now add the style", "add captions and zooms", "add my images to the video", "render the edit", "change the captions", "export to Final Cut" or "send it to Premiere". Not for a raw take or a first request to edit a video like a creator (that is start), not for cutting mistakes out (cut), and not for measuring a creator (creator-teardown).
+description: Turns an approved cut into the finished video in a creator's measured style. Takes cut.mp4 from the cut skill plus a style.json (from start or creator-teardown), plans captions and zooms to match the creator, adds visuals timed to the spoken word (the user's own images, real screenshots, posts and logos of what is named, the line marked on the real page; no type cards, stock icons or emoji), shows the stills on the review page for approval, then renders 9:16 or 16:9 with Remotion on the laptop, Modal, GitHub Actions or the user's AWS Lambda, and can export the edit to Final Cut, Premiere, Resolve or CapCut. Use when a cut already exists and the user says "style it", "now add the style", "add captions and zooms", "add my images to the video", "render the edit", "change the captions", "export to Final Cut" or "send it to Premiere". Not for a raw take or a first request to edit a video like a creator (that is start), not for cutting mistakes out (cut), and not for measuring a creator (creator-teardown).
 license: MIT
 compatibility: Python 3.9+, ffmpeg, Node 20+ and the Remotion renderer the setup skill installs; internet for captures. Optional Modal, gh or AWS account for cloud renders. Runs from the full ai-editor plugin folder (uses its lib/ and remotion/).
 ---
@@ -15,7 +15,7 @@ Every question goes in the question box: the AskUserQuestion tool (2-4 options, 
 
 An approved cut and a creator's style in (a `skill=` job runs that skill: start step 3).
 The finished video out: captions, zooms, real captures and motion scenes timed to the words, in the
-creator's look and the user's brand. The user approves the stills (step 5) and picks the render (step 6).
+creator's look and the user's brand. The user approves the stills on the review page (step 5) and picks the render (step 6).
 
 Paths are relative to the library (PRINCIPLES.md). Run the scripts with `python3` on Mac
 and Linux, `py` on Windows. `S="${CLAUDE_SKILL_DIR}/scripts"`,
@@ -127,31 +127,27 @@ python3 "$S/check.py" plan edits/<name> [--plan plan.json] [--style edits/<name>
 
 Fix every FAIL and plan again. What it FAILs: `references/plan.md`.
 
-## 5. Stills sheet, then wait
+## 5. Stills on the review page, then wait
 
 ```bash
 python3 "$S/edit.py" stills edits/<name>
 ```
 
-The first run installs the renderer (a few minutes, once; say so first). Writes one still per beat and
-`stills/sheet.png`, numbered and labelled with beat, time and card kind.
-Review the sheet; open a single still only to zoom in on a problem.
-Fix before showing: a box on the face, a zoom cutting the head, the wrong part of a capture, text
-too small for a phone, a default AI look (icon tiles, emoji, neon glass). `stills-critic` can check it.
-
-Show the user the sheet and ask in the question box: **Approve (Recommended)** / **Change something**
-/ **Open the live preview** (drag, trim and swap cards in a local page). **Do not render until they
-approve.** Notes go into the taste skill, visuals.json or images.json, then plan and stills again.
-
-On **Open the live preview**:
+The first run installs the renderer (a few minutes, once; say so first). Writes one still per beat,
+`stills/sheet.png` (labelled with beat, time and card kind) and `stills/stills.mp4` (each still over the
+cut's sound). Review the sheet; open a single still only to zoom in. Fix before showing: a box on the
+face, a zoom cutting the head, the wrong part of a capture, text too small for a phone, a default AI
+look. `stills-critic` can check it. Then show them on the cut's review page, never in the terminal first:
 
 ```bash
-python3 "$S/preview.py" edits/<name> [--plan plan.json]
+python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/review.py" edits/<name> round --stage edit --stills \
+   --video edits/<name>/stills/stills.mp4 --plan edits/<name>/plan.json
 ```
 
-It waits until they press **Render** in the page (`references/render.md` "The live preview"). Then
-read `preview-done.json`, save corrections that are a preference with the taste skill, apply the
-overrides with `python3 "$S/preview.py" apply edits/<name> [--plan plan.json]`, and go to step 6.
+Then review.py's `wait` in the background and say in one line that the stills are
+on the page. **Do not render until `wait` prints `APPROVE`.** A `SEND`: fix the notes (taste skill,
+visuals.json, images.json), plan, stills, `round --stills` again. Moving cards by hand only when the user
+asks: `references/render.md` "The live preview".
 
 ## 6. Where to render
 

@@ -126,7 +126,7 @@ To update by hand, say **update the editor**, or type:
 
 ```
 /plugin marketplace update nextwork
-/plugin install ai-editor@nextwork
+/plugin update ai-editor@nextwork
 /reload-plugins
 ```
 

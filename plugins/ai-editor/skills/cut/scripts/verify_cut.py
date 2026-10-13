@@ -30,6 +30,7 @@ Writes <edit_dir>/cut.transcript.json (reused while it is newer than cut.mp4). E
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -88,6 +89,9 @@ def main():
     ap.add_argument("--engine", default="auto")
     a = ap.parse_args()
     d = Path(a.edit_dir)
+    sys.path.insert(0, str(HERE.parents[2] / "lib"))
+    from ai_editor import progress   # the home page's video job, when there is one
+    progress.step("Checking the cut", job="video", key=d)
 
     spans = json.loads((d / "decisions.json").read_text(encoding="utf-8"))
     raw = [w for w in load_fitted(d) if w.get("type") == "word"]
@@ -98,7 +102,7 @@ def main():
     ft = d / "cut.transcript.json"
     fresh = ft.exists() and ft.stat().st_mtime > (d / "cut.mp4").stat().st_mtime
     r = subprocess.CompletedProcess([], 0) if fresh else subprocess.run([sys.executable, str(HERE / "transcribe.py"), str(d / "cut.mp4"), str(ft),
-                        "--engine", a.engine])
+                        "--engine", a.engine], env={**os.environ, "AI_EDITOR_NO_PROGRESS": "1"})   # not the take's steps again
     if r.returncode:
         sys.exit(1)
     act = timed_words(load_words(ft))

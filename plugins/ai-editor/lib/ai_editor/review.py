@@ -12,6 +12,9 @@ product video). Notes save with the edit, never in the plugin:
     python3 review.py <folder> start --raw --video raw.mov --stage cut   round 0: the raw clip, open while the cut runs.
                                      No Approve or Stop; notes queue for round 1, which the next `start` or
                                      `round` opens (each raw time moved onto the cut by decisions.json)
+    python3 review.py <folder> round --stage edit --stills --video stills.mp4 --plan plan.json
+                                     the stills before the render (edit.py storyboard): one frame per beat over the
+                                     cut's sound, notes and Approve on the same page; that approve means render it
     python3 review.py <folder> serve [--no-open]   serve the page and open it (run in the background)
     python3 review.py <folder> wait                block until the user presses send or approve (run in the background)
     python3 review.py <folder> status "rendering" [--log render.log] [--done]   what Claude is doing, live on the page
@@ -399,6 +402,39 @@ def home_jobs():
     return sum(1 for j in jobs if isinstance(j, dict) and j.get("type") == "video" and j.get("state") in ("queued", "taken"))
 
 
+# The cut's steps, in order, as the scripts report them onto the home window's video job (progress.step, by text):
+# join.py, transcribe.py (at its start, then "Finding" once the words are in), build_timeline.py, render.py,
+# verify_cut.py. The page shows all of them while round 0 plays: done, the one now, the rest waiting.
+CUT_STEPS = [("join", "Joining your clips"), ("words", "Writing down every word"), ("find", "Finding retakes and pauses"),
+             ("cut", "Cutting out the mistakes"), ("render", "Rendering the cut"), ("check", "Checking the cut"),
+             ("ready", "Ready to watch")]
+CUT_ALIASES = {"Joined your clips in order": "join", "Wrote down every word you said": "words"}   # older scripts' words
+
+
+def cut_steps(folder, d):
+    """Round 0's checklist from the home window's job for this edit: [{text, state: done|now|todo}], or None when no
+    job made this edit (Claude Code alone). Also the job's state and its own Claude ("claude": opened, command)."""
+    f = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home" / "state.json"
+    try:
+        jobs = json.loads(f.read_text(encoding="utf-8")).get("jobs") or []
+        j = next((j for j in reversed(jobs) if j.get("type") == "video" and (j.get("args") or {}).get("edit")
+                  and Path(j["args"]["edit"]).resolve() == folder.resolve()), None)
+    except (OSError, ValueError, AttributeError, TypeError):
+        return None
+    if not j:
+        return None
+    keys = [k for k, _ in CUT_STEPS if k != "join" or (j.get("args") or {}).get("takes")]
+    by_text = {t: k for k, t in CUT_STEPS} | CUT_ALIASES
+    seen = [by_text[s["text"]] for s in j.get("steps") or [] if s.get("text") in by_text]
+    landed = any(r.get("stage") == "cut" and r.get("round", 0) >= 1 for r in d.get("rounds") or [])
+    at = len(keys) if landed else max([keys.index(k) for k in seen if k in keys] or [-1])
+    rows = [{"text": t, "state": "done" if i < at or landed else "now" if i == at else "todo"}
+            for i, t in enumerate(dict(CUT_STEPS)[k] for k in keys)]
+    if at < 0 and j.get("state") == "taken":   # Claude has it, no script has reported yet: the first step is under way
+        rows[0]["state"] = "now"
+    return {"steps": rows, "state": j.get("state"), "claude": j.get("claude"), "error": j.get("error")}
+
+
 def listening(folder):
     try:
         return time.time() - (folder / "review" / ".listening").stat().st_mtime < BEAT_S
@@ -435,7 +471,7 @@ def log_round(d):
     """Every round's video is kept, so the page has a tab per round."""
     rs = [r for r in d.setdefault("rounds", []) if (r["stage"], r["round"]) != (d["stage"], d["round"])]
     old = next((r for r in d["rounds"] if (r["stage"], r["round"]) == (d["stage"], d["round"])), {})
-    d["rounds"] = rs + [{**{k: d.get(k) for k in ("stage", "round", "video", "note", "label", "alts", "data")},
+    d["rounds"] = rs + [{**{k: d.get(k) for k in ("stage", "round", "video", "note", "label", "alts", "data", "stills")},
                          "at": old.get("at") or now()}]
 
 
@@ -668,8 +704,8 @@ def fmt(t):
     return f"{int(t // 60)}:{t % 60:04.1f}"
 
 
-def stage_name(s):
-    return {"cut": "the cut", "edit": "the edit"}.get(s, s)
+def stage_name(s, stills=False):
+    return "the stills" if stills else {"cut": "the cut", "edit": "the edit"}.get(s, s)
 
 
 # ---------------------------------------------------------------- server
@@ -755,6 +791,8 @@ def make_handler(folder, token):
                 d["home"] = home_url()   # the Home button: back to the editor's window, or how to start it
                 d["jobs"] = home_jobs() if d["home"] else 0   # the rail's Making ring
                 d["intro"] = intro(folder, d)
+                if d.get("raw"):   # the cut is being made: every step it takes, from the home window's job
+                    d["cut_steps"] = cut_steps(folder, d)
                 for x in d.get("activity", [])[-1:]:
                     if x.get("log") and not x.get("done"):
                         x["pct"] = log_pct(x["log"])
@@ -879,10 +917,10 @@ def make_handler(folder, token):
                     if d.get("sent") and d["events"] and d["events"][-1]["type"] == "edits":
                         return False   # Claude is applying transcript changes: Stop first
                     d["events"].append({"type": body["type"], "stage": d["stage"], "round": d["round"],
-                                        "at": now(), "handled": False})
+                                        "at": now(), "handled": False, **({"stills": True} if d.get("stills") else {})})
                     d["sent"] = True
                     d.pop("stopped", None)
-                    if body["type"] == "approve" and (d["stage"] == "edit" or d.get("final")):   # the finished video
+                    if body["type"] == "approve" and (d["stage"] == "edit" and not d.get("stills") or d.get("final")):   # the finished video
                         d["learn"] = {"state": "reading" if session_notes(d) else "none", "style": style}
                     elif body["type"] == "approve" and d["stage"] == "cut":
                         prepared_steps(folder, d)
@@ -1135,11 +1173,14 @@ def cmd_start(a, folder):
     d.update(folder=str(folder), stage=a.stage, round=0 if raw else d.get("round", 0) + 1 if d.get("stage") == a.stage else 1,
              video=str(Path(a.video).resolve()), note=a.note or "", sent=False, alts=[],
              transcript=str(Path(a.transcript).resolve()) if a.transcript else None,
-             plan=str(Path(a.plan).resolve()) if a.plan else None, vertical=probe(a.video), label=a.name)
+             plan=str(Path(a.plan).resolve()) if a.plan else None, vertical=probe(a.video), label=a.name,
+             stills=bool(getattr(a, "stills", False)))
     d.pop("stopped", None)
     d.pop("raw", None)
+    again = raw and d.get("raw")   # round 0 again (the page opened it; Claude swaps in joined.mp4): one send event
     if raw:   # with Claude from the start: notes queue for the cut, as after a send
         d.update(raw=True, sent=True)
+    if raw and not again:
         d["events"].append({"type": "send", "stage": d["stage"], "round": 0, "at": now(), "handled": True, "raw": True})
     # the raw clip is a source, never rewritten: played where it is, not copied (it can be gigabytes)
     d["video"] = d["video"] if raw else keep(folder, a.video, d["stage"], d["round"])
@@ -1154,7 +1195,7 @@ def cmd_start(a, folder):
         library.record(folder)
     except (OSError, ValueError, ImportError):
         pass
-    print(f"{rj}: {stage_name(d['stage'])}, round {d['round']}")
+    print(f"{rj}: {stage_name(d['stage'], d.get('stills'))}, round {d['round']}")
 
 
 def cmd_round(a, folder):
@@ -1178,6 +1219,7 @@ def cmd_round(a, folder):
         if a.plan:
             d["plan"] = str(Path(a.plan).resolve())
         d["note"], d["sent"], d["alts"] = a.note or "", False, []   # versions belong to a round: add them again
+        d["stills"] = bool(getattr(a, "stills", False))   # the stills (edit.py storyboard) before the render
         d["label"] = a.name or d.get("label")
         old = data_of(folder, d.get("data"))
         raw = d.pop("raw", False)
@@ -1212,7 +1254,7 @@ def cmd_round(a, folder):
     seen(folder)
     still = [str(c["id"]) for c in d["comments"]
              if c["status"] == "open" and c["stage"] == d["stage"] and c["round"] < d["round"]]
-    print(f"{stage_name(d['stage'])}, round {d['round']}" + (f"; still open: {', '.join(still)}" if still else ""))
+    print(f"{stage_name(d['stage'], d.get('stills'))}, round {d['round']}" + (f"; still open: {', '.join(still)}" if still else ""))
     unlearned = [str(c["id"]) for c in d["comments"] if "taste" not in c and (c["stage"], c["round"]) != (d["stage"], d["round"])]
     if unlearned:
         print(f"notes not learned yet: {', '.join(unlearned)}. Run `learn` (see `wait`'s last line)")
@@ -1278,6 +1320,7 @@ def making_edit(d):
     e = d["events"][-1] if d.get("events") else {}
     return bool(d.get("sent") and not d.get("stopped") and not d.get("final") and
                 ((e.get("type") == "approve" and e.get("stage") == "cut" and d.get("stage") == "cut")
+                 or (e.get("type") == "approve" and e.get("stills") and d.get("stills"))   # the stills approved: rendering
                  or (e.get("type") == "send" and d.get("stage") == "edit")))
 
 
@@ -1378,7 +1421,7 @@ def cmd_wait(folder, poll=1.0):
     for x in ev:   # an Apply then a send: the edits still have to be built
         if x["type"] == "edits":
             print(edits_text(folder, x))
-    print(f"{'SEND' if e['type'] == 'edits' else e['type'].upper()}: {d['name']} {stage_name(e['stage'])}, round {e['round']}, "
+    print(f"{'SEND' if e['type'] == 'edits' else e['type'].upper()}: {d['name']} {stage_name(e['stage'], e.get('stills'))}, round {e['round']}, "
           f"{len(cs)} note{'' if len(cs) == 1 else 's'}. video {r['video']}")
     for x in r.get("alts") or []:
         print(f"  also {x['name']}: {x['video']}")
@@ -1795,6 +1838,17 @@ def demo():
     hsf.write_text(json.dumps({"jobs": [{"type": "video", "state": "taken"}, {"type": "video", "state": "queued"},
                                         {"type": "video", "state": "done"}, {"type": "teardown", "state": "taken"}]}), encoding="utf-8")
     assert json.loads(get("/state").read())["jobs"] == 2, "the rail's Making ring counts the home window's videos being made"
+    # round 0's checklist: every step of the cut from the job for this edit, by the scripts' own words
+    j = {"type": "video", "state": "taken", "args": {"edit": str(folder)}, "steps": [{"text": "Writing down every word"},
+                                                                                   {"text": "Finding retakes and pauses"}]}
+    hsf.write_text(json.dumps({"jobs": [j]}), encoding="utf-8")
+    cs = cut_steps(folder, {"rounds": []})
+    assert [x["state"] for x in cs["steps"]] == ["done", "now", "todo", "todo", "todo", "todo"] and cs["steps"][0]["text"] == "Writing down every word", cs
+    assert all(x["state"] == "done" for x in cut_steps(folder, {"rounds": [{"stage": "cut", "round": 1}]})["steps"])
+    j.update(steps=[], state="queued", claude={"opened": True})
+    hsf.write_text(json.dumps({"jobs": [j]}), encoding="utf-8")
+    cs = cut_steps(folder, {})
+    assert {x["state"] for x in cs["steps"]} == {"todo"} and cs["claude"]["opened"] and cut_steps(tmp, {}) is None, cs
     hsf.write_text(keep_hs, encoding="utf-8") if keep_hs is not None else hsf.unlink()
     hs.shutdown()
     hs.server_close()
@@ -2320,6 +2374,7 @@ def main():
     s.add_argument("--name", help="what to call this video when the round has others (default main)")
     s.add_argument("--note")
     s.add_argument("--raw", action="store_true", help="round 0: the raw clip, shown while the cut is made")
+    s.add_argument("--stills", action="store_true", help="the stills before the render (edit.py storyboard): approve renders")
     s = sp.add_parser("serve")
     s.add_argument("--port", type=int, default=0)
     s.add_argument("--no-open", action="store_true", help="do not open the browser (tests, headless checks)")
@@ -2328,6 +2383,7 @@ def main():
     s = sp.add_parser("round")
     s.add_argument("--video", required=True)
     s.add_argument("--stage", choices=["cut", "edit"])
+    s.add_argument("--stills", action="store_true", help="the stills before the render (edit.py storyboard): approve renders")
     s.add_argument("--transcript")
     s.add_argument("--plan")
     s.add_argument("--note")

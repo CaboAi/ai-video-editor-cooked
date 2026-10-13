@@ -263,7 +263,7 @@ def main():
     ap.add_argument("--script", help="the user's script: its names and jargon bias the transcription")
     ap.add_argument("--keyterm", action="append", default=[], help="one name or term to bias towards (repeatable)")
     a = ap.parse_args()
-    progress.step("Wrote down every word you said", job="video", key=Path(a.out).parent)   # the home page's video job, if any
+    progress.step("Writing down every word", job="video", key=Path(a.out).parent)   # the home page's video job, if any
     global EDIT
     EDIT = Path(a.out).parent   # edits/<name>: a first-use model download shows on its review page
 
@@ -294,6 +294,7 @@ def main():
     out.write_text(json.dumps(words, indent=1), encoding="utf-8")
     n = sum(1 for w in words if w["type"] == "word")
     print(f"{n} words -> {out}")
+    progress.step("Finding retakes and pauses", job="video", key=out.parent)   # the words are in: Claude decides the cuts next
 
 
 if __name__ == "__main__":

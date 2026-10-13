@@ -10,6 +10,40 @@ What changed for every user, newest first.
   frame-counted once instead of three times. Reader cuts on takes over 5 minutes go straight in, highlighted,
   and the judge checks them, instead of a second wave of agents. The judge stops after 2 rounds, and the
   mechanical steps (build, render, verify, cut page) run as one command.
+## ai-editor 2.6.5 (2026-10-13)
+
+- Two videos at once. Make a video while Claude is making another, and a second Claude opens in its own
+  Terminal window for it straight away, so both are made at the same time. The card says so. Before, the
+  second video waited behind a button most people never saw.
+
+- The stills open in the editor. After you approve the cut, the stills come back on the same page as the
+  cut: one frame for each card, captions and zooms, over your sound, with notes and "Approve and render".
+  Before, they were shown in the terminal and offered a raw plan page first. That page (the live preview) is
+  now only for moving cards by hand when you ask for it.
+
+- Make my video opens the editor straight away, on your clip, with every step of the cut beside it: done
+  steps ticked, the one now with a spinner, the rest waiting, from what the scripts really report. The
+  in-between "Making your video" screen is gone. The editor then carries on into the stills and the edit.
+
+- A plan with no cards in a style that uses cards now stops at the plan check, with what to fix, instead of
+  reaching you as an edit with nothing on screen.
+
+## ai-editor 2.6.4 (2026-10-13)
+
+- Pick a style: the cards are wide enough for their names ("My style" no longer wraps one letter per line)
+  and their facts. The window no longer shows fixed time and cost estimates that real runs don't match.
+
+## ai-editor 2.6.3 (2026-10-13)
+
+- `nextwork-editor` always runs the newest installed version. It was fixed to the version it was installed
+  from, so after `/plugin update` it kept opening the old editor. The window also repoints an older
+  `nextwork-editor` the first time it starts.
+
+- The trust question: the steps now name the right option ("Yes, I trust this folder") and say to press
+  the down arrow first, because Enter alone picks "No, exit".
+
+- Faster after you approve the cut: the background prep checks and fixes its own stills sheet, so Claude
+  looks once and asks. Card stills are taken 0.7 s before a card ends, not during its exit.
 
 ## ai-editor 2.6.2 (2026-10-13)
 

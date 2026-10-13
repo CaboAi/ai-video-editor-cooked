@@ -1,6 +1,6 @@
 ---
 name: taste
-description: Remembers how the user likes their videos edited, so they never give the same correction twice. Saves every correction or preference about an edit (the cut, captions, visuals, sound, layout) into ~/.ai-video-editor/taste.md as a plain rule, and into taste.json when it maps to a setting the scripts read (pause length, fillers, caption size, words per caption, zooms, sound, layout), deduplicated, scoped to every video or just this one, and counted each time it is applied so `report` shows what it learned; one that would help everyone goes to the maintainers. Every other cooked. skill reads both before it starts. Use whenever the user reacts to an edit ("too slow", "captions are too small", "fewer zooms", "I hate the whoosh", "that's perfect, keep it like that"), and when they ask "what do you know about my taste", "show my settings", "forget that rule" or "are you learning". Also learns how they cut from a raw take and their posted version ("I already edit by hand", "learn from my edit").
+description: Remembers how the user likes their videos edited, so they never give the same correction twice. Saves every correction or preference about an edit (the cut, captions, visuals, sound, layout) into ~/.ai-video-editor/taste.md as a plain rule, and into taste.json when it maps to a setting the scripts read (pause length, fillers, caption size, words per caption, zooms, sound, layout), deduplicated, scoped to every video or just this one, and counted when applied; one that would help everyone goes to the maintainers. Every other cooked. skill reads both before it starts. Use whenever the user reacts to an edit ("too slow", "captions are too small", "fewer zooms", "I hate the whoosh", "that's perfect, keep it like that"), and when they ask "what do you know about my taste", "show my settings", "forget that rule" or "are you learning". Also learns how they cut from a raw take and their posted version ("I already edit by hand", "learn from my edit"). Not for a finished video's notes as a batch (skill-improver).
 license: MIT
 compatibility: Python 3.9+, standard library only. Runs from the full ai-editor plugin folder (uses its lib/).
 ---
@@ -102,7 +102,7 @@ python3 "$S/taste.py" report
 Each rule with times applied, in how many edits, corrections, and the last edit where it
 was said again after it was applied. Rules from review-page notes (`review.py learn`) say so.
 On the final approve the review page offers the session's notes as rules to tick, saved into the
-edit's style (`review.py learn --propose` / `--done`; style-edit's `references/review.md`).
+edit's style (the skill-improver skill: `review.py learn --propose` / `--done`).
 Show it on "what have you learned", "are you learning", or after a regression.
 
 ## Before any edit

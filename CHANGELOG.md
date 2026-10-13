@@ -4,6 +4,18 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Two new skills. `logo-pack` gets the official, brand-colour logo of every company, app and tool named in a
+  video, trims it, makes a transparent 512 px PNG beside the SVG, checks each one and shows them on one sheet;
+  the edit picks them up and shows logos named together side by side. `skill-improver` turns a finished
+  video's notes into one-line rules (with the reason and date) in the style or skill that made it, after you
+  say yes; it runs the review page's "Teach your style from this video", and for a style that runs your own
+  skill it writes into that skill's "Learned rules" with a short log.
+
+- `skill-maker` helps you make your own editing skill: a few questions, one run without a skill, three test
+  scenarios, a SKILL.md checked against the skill-authoring rules, a test in a fresh agent, then rounds of
+  fixes with you. The skill plugs into the editor (your edit's files, the review page, the safe zone) and can
+  run as a style (My styles > New style > Use your own skill).
+
 - Skill styles. A style can point at a Claude Code skill (`"skill": "<name>"` in its style.json, or New style >
   Use your own skill). Its card says "Runs /<name>", its page shows the skill's description and the skills it
   calls instead of the caption, zoom, cut, card and sound controls, and making a video cuts it as usual, then

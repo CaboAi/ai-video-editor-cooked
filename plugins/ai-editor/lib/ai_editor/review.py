@@ -27,8 +27,10 @@ product video). Notes save with the edit, never in the plugin:
                                      this-style: the creator style the edit used (<folder>/style.json "source", or
                                      --style <style.json>): its overrides and its edit-like-<slug> skill
     python3 review.py <folder> learn --propose '<json>'   the final approve's LEARN block: candidate rules
-                                     [{"rule", "section", "set"?}] onto the page's "Teach <style>" panel
-    python3 review.py <folder> learn --done ["summary"]   save the rules the user ticked (styleskill.learn) and
+                                     [{"rule", "section", "set"?, "why"?, "replace"?}] onto the page's "Teach <style>"
+                                     panel (the skill-improver skill writes them)
+    python3 review.py <folder> learn --done ["summary"]   save the rules the user ticked (styleskill.learn; a skill
+                                     style's rules go into its SKILL.md, skillrules.py) and
                                      show "Saved to <style>. Next video uses it."
     python3 review.py demo                         self-check on a generated 6 s clip
 
@@ -1446,7 +1448,21 @@ def learn_prompt(folder, d):
              f"  python3 {Path(__file__).resolve()} {folder} learn --propose "
              f"'[{{\"rule\": \"...\", \"section\": \"cut|captions|visuals|sound|layout\", \"set\": \"captions.size_pct=4.5\"}}]'",
              "  (or a path to a .json file holding that list). \"set\" only when a taste setting maps (the taste "
-             "skill's table). Then run `wait` again: it returns with the rules the user ticked."]
+             "skill's table). Then run `wait` again: it returns with the rules the user ticked. The skill-improver "
+             "skill has the steps (one-offs stay with the video, sharpen an old rule rather than add a twin)."]
+    try:
+        from ai_editor import skillrules
+        tg = skillrules.target(folder)
+    except Exception:
+        tg = {"kind": "settings"}
+    if tg["kind"] == "skill":
+        lines.append(f"This style runs the {tg['skill']} skill: rules go into "
+                     + (f"{tg['path']} under \"## Learned rules\". Give each a \"why\" (the reason, one line); "
+                        "to sharpen or overrule one already there, add \"replace\": \"<its rule>\". Rules there now:"
+                        if tg["path"] else "its SKILL.md, which is not in your skill folders: say so and propose [].")
+                     )
+        if tg["path"]:
+            lines += ["  " + ln for ln in skillrules.learned(Path(tg["path"]).read_text(encoding="utf-8"))] or ["  (none yet)"]
     for c in sorted(session_notes(d), key=lambda c: (c["stage"] != "cut", c["round"], c["t"])):
         saved = f" [saved as rule {c['taste']}]" if isinstance(c.get("taste"), int) else ""
         lines.append(f"#{c['id']} {stage_name(c['stage'])} r{c['round']}: {c['text']}"
@@ -1490,7 +1506,8 @@ def learn_propose(folder, raw):
         st = r.get("set") or None
         if st is not None and (not isinstance(st, str) or "=" not in st):
             sys.exit(f"\"set\" is key.path=value: {r}")
-        out.append({"rule": str(r["rule"]).strip().rstrip("."), "section": sec, "set": st})
+        out.append({"rule": str(r["rule"]).strip().rstrip("."), "section": sec, "set": st,
+                    **{k: str(r[k]).strip() for k in ("why", "replace") if r.get(k)}})
 
     def f(d):
         if not d.get("learn"):
@@ -1507,7 +1524,16 @@ def learn_done(folder, summary):
     if lr.get("state") != "chosen":
         sys.exit("nothing ticked to save: run `wait` for the user's pick first")
     sp = edit_style(folder)
-    for r in (lr["rules"][i] for i in lr["chosen"]):
+    from ai_editor import skillrules
+    tg = skillrules.target(folder)
+    if tg["kind"] == "skill":   # a skill style: its skill made the edit, so the rules go into its SKILL.md
+        if not tg["path"]:
+            sys.exit(f"the {tg['skill']} skill is not in your skill folders; nothing saved")
+        for r in (lr["rules"][i] for i in lr["chosen"]):
+            status, line = skillrules.add(tg["path"], r["rule"], r.get("why") or f"from the notes on {folder.name}",
+                                          r.get("replace"), edit=str(folder))
+            print(f"{status}: {line} ({tg['path']})")
+    for r in (lr["rules"][i] for i in lr["chosen"] if tg["kind"] == "settings"):
         setting, _, raw = (r.get("set") or "").partition("=")
         status, x = styleskill.learn(sp, r["section"], r["rule"], setting or None, taste.parse(raw) if setting else None,
                                      edit=folder, source="review")
@@ -1944,6 +1970,21 @@ def demo():
         raise AssertionError("a second pick")
     except urllib.error.HTTPError as e:
         assert e.code == 409
+    # a skill style ("skill" in its style.json): the ticked rules go into that skill's own SKILL.md (skillrules.py)
+    sk_md = tmp / "skills" / "alice-edit" / "SKILL.md"
+    sk_md.parent.mkdir(parents=True)
+    sk_md.write_text("---\nname: alice-edit\ndescription: x\n---\n\n# Alice edit\n", encoding="utf-8")
+    sp.write_text('{"handle": "alice", "skill": "alice-edit"}', encoding="utf-8")
+    update(folder / "review.json", lambda d: d["learn"].update(state="reading"))
+    with contextlib.redirect_stdout(io.StringIO()):
+        learn(propose=json.dumps([{"rule": "Logos beside the head", "section": "visuals", "why": "one covered the chin"}]))
+    assert "alice-edit skill" in learn_prompt(folder, load(folder / "review.json")), learn_prompt(folder, load(folder / "review.json"))
+    update(folder / "review.json", lambda d: d["learn"].update(state="chosen", chosen=[0]))
+    with contextlib.redirect_stdout(io.StringIO()):
+        learn(done="")
+    t = sk_md.read_text(encoding="utf-8")
+    assert "## Learned rules\n\n- Logos beside the head. Why: one covered the chin. (" in t and "## Log" in t, t
+    assert "Logos beside" not in (tmp / "skills" / "edit-like-alice" / "SKILL.md").read_text(encoding="utf-8")
     if old_skills is None:
         os.environ.pop("AI_EDITOR_SKILLS", None)
     else:

@@ -515,6 +515,8 @@ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g
 // sharpest icon (an SVG icon, else the 180 px apple-touch-icon or a large PNG its page links), and only
 // then Google's favicon service (often a 16-32 px icon blown up to 256). Written to
 // images/logo-<brand>.<ext>, the path plan.py expects. A logo the user already put there is kept.
+// A beat's "url" (the brand's own SVG or press-kit file, found by logo-pack) is tried before all of them.
+// `got`, when given, collects {file, from} per brand slug (logo-pack's logos.json).
 
 // The page's own icons, best first: [url]. Only ones sharper than the favicon service: SVG, apple-touch, >= 180 px.
 const rankIcons = (html, base) => {
@@ -538,18 +540,20 @@ async function siteIcons(domain) {
 }
 const logoPath = (brand, ext) => `images/logo-${slug(brand)}.${ext}`;
 
-async function fetchLogos(edit, beats) {
+async function fetchLogos(edit, beats, got = {}) {
   // one fetch per brand, all brands at once
   const seen = new Set();
   beats = beats.filter((b) => !seen.has(slug(b.brand || b.word)) && seen.add(slug(b.brand || b.word)));
   return (await pool(beats, 8, async (b) => {
     const brand = b.brand || b.word;
-    if (["svg", "png"].some((e) => fs.existsSync(path.join(edit, logoPath(brand, e))))) return 0;
+    const have = ["svg", "png"].find((e) => fs.existsSync(path.join(edit, logoPath(brand, e))));
+    if (have) { got[slug(brand)] ??= { file: logoPath(brand, have), from: null }; return 0; }
     const si = slug(brand).replace(/-/g, "");
     // cdn.simpleicons.org serves the brand colour but refuses some networks (cloud machines, some
     // offices); the same icon set on jsDelivr always answers, in black.
     const tries = [[`https://cdn.simpleicons.org/${si}`, "svg"],
       [`https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${si}.svg`, "svg"]];
+    if (b.url) tries.unshift([b.url, null]);
     if (b.domain) {
       for (const u of (await siteIcons(b.domain)).slice(0, 3)) tries.push([u, null]);
       tries.push([`https://www.google.com/s2/favicons?domain=${b.domain}&sz=256`, "png"]);
@@ -560,11 +564,12 @@ async function fetchLogos(edit, beats) {
       if (!r || !r.ok) continue;
       if (!ext) {    // the site's own icon: SVG or PNG only (plan.py reads those two)
         const ct = r.headers.get("content-type") || "";
-        ext = /svg/.test(ct) ? "svg" : /png/.test(ct) ? "png" : null;
+        ext = /svg/.test(ct) || /\.svg(\?|$)/i.test(url) ? "svg" : /png/.test(ct) || /\.png(\?|$)/i.test(url) ? "png" : null;
         if (!ext) continue;
       }
       fs.writeFileSync(path.join(edit, logoPath(brand, ext)), Buffer.from(await r.arrayBuffer()));
       console.log(`${logoPath(brand, ext)}  <- ${url}`);
+      got[slug(brand)] = { file: logoPath(brand, ext), from: url };
       ok = true;
       break;
     }
@@ -763,5 +768,5 @@ async function main() {
 }
 
 // Imported by product-video/scripts/crawl.mjs for the browser, banner and text-finding helpers.
-export { pool, TABS, launch, findBinary, SHELLS, DISMISS, FIND, lines, TEXT, STICKER, snapClip, noSandbox, sandboxFlags, rankIcons };
+export { pool, TABS, launch, findBinary, SHELLS, DISMISS, FIND, lines, TEXT, STICKER, snapClip, noSandbox, sandboxFlags, rankIcons, fetchLogos, logoPath, slug };
 if (path.basename(process.argv[1] || "") === "capture.mjs") await main();

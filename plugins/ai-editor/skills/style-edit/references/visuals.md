@@ -224,6 +224,8 @@ python3 "$S/source.py" credits edits/<name>                          # credits.t
 Every time a brand or product is named in passing: `{"kind": "logo", "word": "Claude", "nth": 1,
 "brand": "claude"}`, plus `"domain": "example.com"` for brands Simple Icons lacks. It runs in its
 own lane above the captions for 1.2 s and is dropped while a scene or the split panel is up.
+When the logo-pack skill ran (`edits/<name>/logos.json`), its files are already checked in `images/`:
+route.py lists each sentence's `logos` (the `brand` to use), and each `together` group is one `logo_cluster`.
 
 ### Overlay formats (anim)
 

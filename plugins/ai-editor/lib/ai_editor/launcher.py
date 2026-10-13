@@ -12,8 +12,10 @@ it off. Inside Claude Code the same thing is `/ai-editor:start`.
 When the home page is already served (a Claude Code session has it open), its address opens again in
 the browser and nothing else starts. Otherwise Claude Code starts in the library folder (library.py)
 with one first prompt, PROMPT, and opens the page there, so Claude is listening behind it. The user's
-permission settings apply as always: nothing is bypassed.
+permission settings apply as always: nothing is bypassed. The session gets one extra settings layer
+(--settings, allow_rules): the editor's own commands run without an Allow prompt, nothing else.
 """
+import json
 import os
 import platform
 import shlex
@@ -31,6 +33,14 @@ PLUGIN = Path(__file__).resolve().parents[2]          # plugins/ai-editor
 PROMPT = "/ai-editor:start open the home page"
 
 
+def allow_rules(plugin=PLUGIN):
+    """The narrowest Allow rules for what the skills run: the plugin's own scripts (python3 / py / node, the path
+    quoted or not), ffmpeg, ffprobe and the Remotion CLI. Never Bash on its own, never another folder."""
+    root = Path(plugin).as_posix()
+    own = [f"Bash({exe} {q}{root}/*)" for exe in ("python3", "py", "node") for q in ("", '"')]
+    return own + ["Bash(ffmpeg *)", "Bash(ffprobe *)", "Bash(npx remotion *)"]
+
+
 def plan(os_name=None, plugin=PLUGIN, claude=None, prompt=PROMPT):
     """The Claude Code command. A plugin installed through /plugin lives under ~/.claude/plugins and loads
     by itself; a checkout of this repo loads for this session with --plugin-dir (its plugins/ folder, so
@@ -40,7 +50,7 @@ def plan(os_name=None, plugin=PLUGIN, claude=None, prompt=PROMPT):
     cmd = [claude]
     if "/.claude/plugins/" not in Path(plugin).as_posix() + "/":
         cmd += ["--plugin-dir", str(Path(plugin).parent)]
-    return cmd + [prompt]
+    return cmd + ["--settings", json.dumps({"permissions": {"allow": allow_rules(plugin)}}), prompt]
 
 
 def show(cmd, os_name):
@@ -130,8 +140,12 @@ def demo():
     os.environ["AI_EDITOR_LIBRARY"] = str(tmp / "My Videos")
     for os_name in ("Darwin", "Linux", "Windows"):
         cmd = plan(os_name, plugin=Path("/repo/plugins/ai-editor"), claude="claude")
-        assert cmd == ["claude", "--plugin-dir", str(Path("/repo/plugins")), PROMPT], cmd
+        assert cmd[:3] == ["claude", "--plugin-dir", str(Path("/repo/plugins"))] and cmd[-1] == PROMPT, cmd
         assert not any("dangerously" in c or "bypass" in c.lower() for c in cmd), "never bypass permissions"
+        rules = json.loads(cmd[cmd.index("--settings") + 1])["permissions"]["allow"]
+        assert "Bash(python3 /repo/plugins/ai-editor/*)" in rules and "Bash(ffmpeg *)" in rules, rules
+        assert all(r.startswith("Bash(") and r != "Bash(*)" and len(r) > 12 for r in rules), "never broad Bash"
+        assert set(json.loads(cmd[cmd.index("--settings") + 1])) == {"permissions"}, "only Allow rules"
         cached = plan(os_name, plugin=Path.home() / ".claude/plugins/cache/nextwork/ai-editor/2.3.0", claude="claude")
         assert "--plugin-dir" not in cached, cached
         o = io.StringIO()

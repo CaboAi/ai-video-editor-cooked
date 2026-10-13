@@ -88,6 +88,16 @@ steps, shown as **Getting started** in the sidebar:
 The folder's `.claude/settings.json` turns the editor on. If Claude says the editor is not loaded,
 it offers to install it: say yes, then type `/reload-plugins`.
 
+**Fewer Allow prompts.** A Claude Code the editor opens (`nextwork-editor`, or "Open a new Claude" on
+the home page) already allows the editor's own commands and nothing else: its Python and Node scripts,
+`ffmpeg`, `ffprobe` and `npx remotion`. Started Claude Code yourself? Pick "Yes, and don't ask again"
+the first time each is asked, or put the same rules in your library folder's `.claude/settings.local.json`
+(replace `<plugin>` with the plugin folder, the path in the first command Claude runs):
+
+```json
+{"permissions": {"allow": ["Bash(python3 <plugin>/*)", "Bash(node <plugin>/*)", "Bash(ffmpeg *)", "Bash(ffprobe *)", "Bash(npx remotion *)"]}}
+```
+
 ### Way 2: install the plugin, then use any folder
 
 Inside Claude Code, type these two lines (same on every computer):

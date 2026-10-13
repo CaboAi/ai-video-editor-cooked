@@ -101,6 +101,17 @@ def test_real_renders():
                 r = subprocess.run([sys.executable, HERE / "render.py", src, ed, *hw],
                                    capture_output=True, text=True, env=env)
                 assert r.returncode == 0, (name, frames, r.stdout[-400:], r.stderr[-400:])
+                if not run:   # a changed cut re-encodes only its new spans, and still lands frame-exact
+                    frames2 = frames[:-2] + [[frames[-2][0], frames[-1][1]]]   # the last cut given back
+                    (ed / "report.json").write_text(json.dumps({"fps": fps, "frames": frames2}), encoding="utf-8")
+                    r = subprocess.run([sys.executable, HERE / "render.py", src, ed, "--no-hw", "--segments-only"],
+                                       capture_output=True, text=True)
+                    assert r.returncode == 0 and "segments ready" in r.stdout, r.stdout[-400:]
+                    r = subprocess.run([sys.executable, HERE / "render.py", src, ed, "--no-hw"],
+                                       capture_output=True, text=True)
+                    assert f"{len(frames2)} of {len(frames2)} spans already encoded" in r.stdout, r.stdout[-400:]
+                    assert R.count_frames(ed / "cut.mp4") == sum(e - s for s, e in frames2)
+                    assert len(list((ed / ".segments").glob("*/*.mp4"))) == len(frames2)   # old spans pruned
                 if run:   # one span past the last frame fails, and the segments are still cleaned up
                     (ed / "report.json").write_text(json.dumps({"fps": fps, "frames": [[0, total + 5]]}),
                                                     encoding="utf-8")

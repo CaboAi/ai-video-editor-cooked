@@ -16,28 +16,32 @@ two takes. Readers catch those. Run them before the judge:
 python3 "$R" chunks edits/<name>        # one reader prompt per ~180 s, 30 s overlap
 ```
 
-Launch one `cut-reader` agent (`ai-editor:cut-reader`) per printed prompt, **all in one message**.
-Give each `PROMPT` and `OUT` exactly as printed. A chunk that is all cut gets no prompt: `chunks`
-says which it skipped, and the prompt numbers have gaps. Then:
+Launch one `cut-reader` agent (`ai-editor:cut-reader`) per printed prompt, **all in one message**
+(the same message as step 3's background `render.py --segments-only`). Give each `PROMPT` and `OUT`
+exactly as printed. A chunk that is all cut gets no prompt: `chunks` says which it skipped, and the
+prompt numbers have gaps. When every reader is back, one Bash call:
 
 ```bash
-python3 "$R" verify edits/<name>        # one verifier prompt per proposed cut
+python3 "$R" merge edits/<name> && python3 "${CLAUDE_SKILL_DIR}/scripts/build_timeline.py" <source> edits/<name>
 ```
 
-`verify` names any `reader-N.json` that is missing: that chunk was not read. Launch its reader
-again first. Launch one `cut-reader` per verifier prompt, again all in one message. Each argues to
-keep its line.
-Then `python3 "$R" merge edits/<name>`: confirmed cuts go into `spans.json` (confidence medium).
-`FIX BY HAND` lines (a stitch, a word lost inside a cut) need a restore: narrow or delete that span
-yourself. Under 5 minutes, skip this section: the judge alone covers a short take.
+`merge` adds each proposed cut to `spans.json` as confidence low (highlighted on the cut page) and
+prints what it skipped. The judge, next, is the second opinion: its B3 check restores a cut whose line
+plays nowhere else. `FIX BY HAND` lines (a stitch, a word lost inside a cut) need a restore: narrow
+or delete that span yourself. Under 5 minutes, skip this section: the judge alone covers a short take.
+
+`python3 "$R" verify edits/<name>` (one verifier `cut-reader` per proposed cut, arguing to keep it)
+before `merge` is optional: a second wave of agents, worth it only when the user asked for a careful
+cut.
 
 ## 2. The judge loop (every take)
 
 Launch the `cut-judge` agent (`ai-editor:cut-judge`) with `EDIT=edits/<name>`, `ROOT` (the plugin
 folder, absolute) and `SCRIPT` if the user gave one. It runs `prompt`, grades, writes `judge.json`,
-runs `apply`, and repeats until `apply` exits 0, at most 3 rounds. It returns a short JSON.
+runs `apply`, and repeats until `apply` exits 0, at most 2 rounds. It returns a short JSON. Wait for
+it; do not grade the paper edit yourself meanwhile.
 
-- `spans_changed: true`: build again (step 3), then go on.
+- `spans_changed: true`: the step 4-5 chain starts with the build, so just run it.
 - `left` holds blockers no fix could apply, and suggestions (W6 adds, W5 spot-checks). Weigh each
   yourself. Fix a real one in `spans.json` by its quote; never re-cut what the judge restored.
 - In an agent without subagents, do the agent's steps yourself.

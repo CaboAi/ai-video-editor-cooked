@@ -46,8 +46,8 @@ uninstall-launcher` removes it.
 folders, the video being made right now with its progress, and **Settings**. The panel button folds the
 sidebar into a row of icons. To make a video: drop in your clip (or click one you added before), pick a
 style, press **Make my video**. **Make it in a new Claude chat** keeps that video's questions in their
-own chat. The first time, Claude Code asks "Do you trust the files in this folder?": pick
-**Yes, proceed** (it is your videos folder).
+own chat. The first time, Claude Code asks whether you trust this folder: press the down arrow to pick
+**Yes, I trust this folder**, then Enter (Enter alone picks **No, exit**). It is your videos folder.
 
 Your videos are saved in one folder, wherever you start: `~/Movies/AI Editor` on a Mac,
 `~/Videos/AI Editor` on Windows and Linux. Change it in Settings (or set `AI_EDITOR_LIBRARY`).

@@ -39,6 +39,50 @@ LISTEN = "/ai-editor:start listen for jobs"   # serve --no-open + wait: takes th
 CONNECT_S = 60   # how long a connect counts as pending: the page shows "Opening Claude..." and no second terminal opens
 
 
+MARK = "installed by ai-editor setup.py install-launcher"
+# picks the newest version folder next to this one at run time: /plugin update adds a folder and keeps the old ones
+NEWEST = ("import glob,re,sys;d=sys.argv[1];v=lambda p:[int(x) for x in re.findall(r'\\d+',p[len(d):].split('/')[1])[:3]];"
+          "print(max(glob.glob(glob.escape(d)+'/*/lib/ai_editor/launcher.py'),key=v,default=''))")
+
+
+def launcher_text(os_name=None, launcher=PLUGIN / "lib" / "ai_editor" / "launcher.py", py=sys.executable):
+    """The nextwork-editor file. A /plugin install lives in .../ai-editor/<version>/: the sh script runs the newest
+    version there, so an update never leaves the command on old code. Windows keeps the path home.py refreshes."""
+    os_name = os_name or platform.system()
+    if os_name == "Windows":
+        return (f"@echo off\r\nrem nextwork-editor: opens cooked. {MARK}; remove with setup.py uninstall-launcher\r\n"
+                f'set "L={launcher}"\r\nset "PY={py}"\r\nif not exist "%PY%" set "PY=py"\r\n'
+                'if not exist "%L%" (echo cooked. moved, maybe an update. In Claude Code, say: set up the editor. & exit /b 1)\r\n'
+                '"%PY%" "%L%" %*\r\n')
+    launcher = Path(launcher)
+    versions = launcher.parents[3] if "/.claude/plugins/" in launcher.as_posix() else None
+    newest = (f"N=$(\"$PY\" -c \"{NEWEST}\" {shlex.quote(versions.as_posix())} 2>/dev/null)\n"
+              '[ -n "$N" ] && L="$N"\n') if versions else ""
+    return (f"#!/bin/sh\n# nextwork-editor: opens cooked. {MARK}; remove with setup.py uninstall-launcher\n"
+            f"L={shlex.quote(str(launcher))}\nPY={shlex.quote(str(py))}\n[ -x \"$PY\" ] || PY=python3\n" + newest +
+            'if [ ! -f "$L" ]; then echo "cooked. moved, maybe an update. In Claude Code, say: set up the editor."; exit 1; fi\n'
+            'exec "$PY" "$L" "$@"\n')
+
+
+def refresh():
+    """Rewrite an installed nextwork-editor that points at another copy of the plugin (run by the newest home.py
+    serve). Only files this plugin wrote (MARK); never installs one."""
+    home_dir = Path.home()
+    names = ["nextwork-editor.cmd"] if platform.system() == "Windows" else ["nextwork-editor"]
+    dirs = [Path(p) for p in os.environ.get("PATH", "").split(os.pathsep) if p] + [home_dir / ".local" / "bin"]
+    for d in dict.fromkeys(dirs):
+        for n in names:
+            f = d / n
+            try:
+                old = f.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            want = launcher_text()
+            if MARK in old and old != want:
+                with open(f, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(want)
+
+
 def allow_rules(plugin=PLUGIN):
     """The narrowest Allow rules for what the skills run: the plugin's own scripts (python3 / py / node, the path
     quoted or not), ffmpeg, ffprobe and the Remotion CLI. Never Bash on its own, never another folder."""
@@ -169,7 +213,8 @@ def main(argv=None):
         print("Claude Code is not installed yet. Install it from https://claude.com/claude-code, then run this again.")
         return 1
     print(f"Opening your editor...\n  Your videos: {lib}\n  Claude Code is starting. The window opens in a moment.\n"
-          "  If Claude Code asks \"Do you trust the files in this folder?\", pick \"Yes, proceed\": it is your videos folder.",
+          "  If Claude Code asks whether you trust this folder, press the down arrow to pick \"Yes, I trust this folder\",\n"
+          "  then Enter (Enter alone picks \"No, exit\"). It is your videos folder.",
           flush=True)
     os.chdir(lib)
     if os_name == "Windows":
@@ -268,6 +313,16 @@ def demo():
             assert main(["--window-only", "--dry-run"]) == 0
         assert o.getvalue().strip().endswith("home.py serve") and "--settings" not in o.getvalue(), o.getvalue()
         print("connect  ok: start prompt, narrow Allow rules, one at a time, --window-only")
+        if os.name != "nt":   # nextwork-editor runs the newest version folder, not the one it was installed from
+            b = Path(tmp) / ".claude/plugins/cache/nextwork/ai-editor"
+            for v in ("2.4.0", "2.10.0", "2.9.9-3efeb61"):
+                (b / v / "lib/ai_editor").mkdir(parents=True)
+                (b / v / "lib/ai_editor/launcher.py").write_text(f"print('ran {v}')", encoding="utf-8")
+            f = Path(tmp) / "ne"
+            f.write_text(launcher_text("Linux", b / "2.4.0/lib/ai_editor/launcher.py"), encoding="utf-8")
+            out = subprocess.run(["sh", str(f)], capture_output=True, text=True).stdout.strip()
+            assert out == "ran 2.10.0", out
+            print("newest   ok: nextwork-editor runs the newest installed version")
     finally:
         open_claude, (home.running, webbrowser.open) = real_open, real
     shutil.rmtree(tmp, ignore_errors=True)

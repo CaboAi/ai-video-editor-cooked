@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ai editor</title>
-<link rel="icon" href="data:,">
+<title>cooked.</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23121211'/%3E%3Cg transform='translate%2810 10%29 scale%28.6875%29' fill='%23F2F0EA' color='%23F2F0EA'%3E%3Cpath d='M6 36H46C46 46 40 52 32 52H20C12 52 6 46 6 36Z'/%3E%3Cpath d='M45 36H58A3 3 0 0 1 58 42H45Z'/%3E%3Cpath d='M16 29C13 25 19 22 16 17M26 29C23 25 29 22 26 17M36 29C33 25 39 22 36 17' fill='none' stroke='currentColor' stroke-width='5' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <style>
 :root{--bg:#FAFAF9;--panel:#FFFFFF;--ink:#0C0A09;--t2:#57534E;--t3:#78716C;--t4:#A8A29E;--line:#E7E5E4;--soft:#F5F5F4;--ring:#D6D3D1;
   --onink:#FFFFFF;--ok:#15803D;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color-scheme:light}
@@ -21,7 +21,8 @@ a{color:var(--ink);text-decoration:underline 1px;text-underline-offset:3px}
 .app{display:flex;flex-direction:column;min-height:100vh}
 header{display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 28px;flex-shrink:0;gap:16px}
 .brandrow{display:flex;align-items:center;gap:18px;width:260px;flex-shrink:0}
-.brand{display:flex;align-items:baseline;gap:10px;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.brand .mark{width:28px;height:28px;border-radius:8px;background:var(--ink);color:var(--onink);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .brand b{font-size:17px;line-height:22px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
 .brand span{font-size:14px;color:var(--t3)}
 .steps{display:flex;gap:6px;padding:4px;background:var(--soft);border-radius:12px}
@@ -555,7 +556,7 @@ body.rh main.hmain{padding:28px 40px 32px}
 <body>
 <div class="app">
 <header>
-  <div class="brandrow"><button class="brand" data-home onclick="goHome()" title="Home"><b>ai editor</b></button><button class="homelink" id="homebtn" data-home onclick="goHome()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.3 2.7a1 1 0 0 1 1.4 0l9 8.4a1 1 0 0 1-.7 1.7H19V20a1 1 0 0 1-1 1h-4v-6h-4v6H6a1 1 0 0 1-1-1v-7.2H3a1 1 0 0 1-.7-1.7z"/></svg>Home</button></div>
+  <div class="brandrow"><button class="brand" data-home onclick="goHome()" title="Home"><span class="mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 64 64" fill="currentColor"><path d="M6 36H46C46 46 40 52 32 52H20C12 52 6 46 6 36Z"/><path d="M45 36H58A3 3 0 0 1 58 42H45Z"/><path d="M16 29C13 25 19 22 16 17M26 29C23 25 29 22 26 17M36 29C33 25 39 22 36 17" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg></span><b>cooked.</b></button><button class="homelink" id="homebtn" data-home onclick="goHome()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.3 2.7a1 1 0 0 1 1.4 0l9 8.4a1 1 0 0 1-.7 1.7H19V20a1 1 0 0 1-1 1h-4v-6h-4v6H6a1 1 0 0 1-1-1v-7.2H3a1 1 0 0 1-.7-1.7z"/></svg>Home</button></div>
   <nav class="steps" id="steps"></nav>
   <div class="live" id="live"></div>
   <div class="bars" id="bars"></div>
@@ -1265,7 +1266,7 @@ function jobBlock(j){
   const a=j.args,name=(a.edit||'').split(/[\\/]/).pop(),plan=planFor(j),R2=j.result||{};
   const steps=j.steps.map(s=>`<div class="row ${s.done?'':'cur'}"><div class="check" style="color:var(--t3);margin-top:3px">${s.done?CHECK:'<div class="spin"></div>'}</div><div class="grow"><div class="t">${esc(s.text)}</div>${!s.done&&(s.detail||s.progress!=null)?`<div class="row" style="margin-top:12px;gap:16px"><div class="prog" style="width:240px"><div style="width:${Math.round((s.progress||0)*100)}%"></div></div><span class="muted" style="color:var(--t2);font-size:14px">${s.progress!=null?Math.round(s.progress*100)+'%':''}${s.detail?(s.progress!=null?' · ':'')+esc(s.detail):''}</span></div>`:''}</div><span class="s" ${s.done?'':`data-since="${s.t}"`}>${s.done?secs(s.secs):secs(Math.max(0,Math.round(Date.now()/1000-s.t)))}</span></div>`).join('')
     +plan.slice(j.steps.length).map(([t,s])=>`<div class="row later"><div class="check" style="margin-top:5px"><div class="ring"></div></div><div><div class="t">${esc(t)}</div>${s?`<div class="muted" style="margin-top:4px;font-size:14px">${esc(s)}</div>`:''}</div></div>`).join('');
-  const nc=newClaude(j),age=Date.now()/1000-jobStart(j),wait=nc?'':j.state==='queued'?(age<20?'':S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal, or say "open the AI editor home page" in Claude Code.`):j.state==='failed'?j.error:j.state==='cancelled'?'Cancelled.':'';
+  const nc=newClaude(j),age=Date.now()/1000-jobStart(j),wait=nc?'':j.state==='queued'?(age<20?'':S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal, or say "open the cooked. home page" in Claude Code.`):j.state==='failed'?j.error:j.state==='cancelled'?'Cancelled.':'';
   return `<div style="display:flex;flex-direction:column;gap:28px">
     <div class="row" style="gap:28px;align-items:flex-end;flex-wrap:wrap"><div class="row" style="gap:2px">${(a.paths||[a.path]).slice(0,4).map((p,i,arr)=>{const c=clipOf(p);return `<div><div class="jthumb ${arr.length>1?'n':''}" style="width:${arr.length>1?96:130}px;height:${arr.length>1?170:230}px;background:#45403C url('${esc(c.thumb||'/thumb?p='+encodeURIComponent(p))}') center/cover;border-radius:${i===0?'14px 0 0 14px':i===arr.length-1?'0 14px 14px 0':'0'}${arr.length===1?';border-radius:14px':''}"></div><div class="muted" style="margin-top:8px">${i+1}${c.duration?' · '+fmtT(c.duration):''}</div></div>`}).join('')}</div>
       <div style="padding-bottom:28px"><div style="font-size:17px;font-weight:600">${esc(name)}${(a.paths||[a.path]).every(p=>clipOf(p).duration)?' · '+fmtT((a.paths||[a.path]).reduce((t,p)=>t+clipOf(p).duration,0)):''}</div><div class="sub" style="margin-top:4px">${a.takes?'One video':'Video'} · ${esc(styleName(a.as))} · ${a.aspect==='9:16'?'Tall':'Wide'} ${a.aspect}</div></div></div>
@@ -1465,7 +1466,7 @@ function stUpdate(){
   return `<div class="panel"><div class="st-hd"><span class="h">Updates</span><span class="st-state${u.latest&&!u.newer?' ok':''}">${u.latest&&!u.newer?TICK:''}${line}</span></div>
     <div class="st-body"><div class="st-vers"><div class="kv"><span>Installed</span><b>${esc(u.installed||'?')}</b></div><div class="kv"><span>Latest</span><b>${esc(u.latest||'?')}</b></div></div>
     ${u.newer&&(u.notes||[]).length?`<div><div class="muted">What changed</div>${u.notes.map(n=>`<div class="dash">${esc(n)}</div>`).join('')}</div>`:''}
-    <div class="st-acts">${u.newer?`<button class="btn dark sm" ${busy?'disabled':''} onclick="queue({type:'update'})">${busy?'Updating...':'Update'}</button>`:`<button class="btn quiet sm" ${u.checking?'disabled':''} onclick="stCheckUpd()">Check now</button>`}<a href="https://github.com/nextwork-projects/ai-video-editor/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Full changelog</a></div>
+    <div class="st-acts">${u.newer?`<button class="btn dark sm" ${busy?'disabled':''} onclick="queue({type:'update'})">${busy?'Updating...':'Update'}</button>`:`<button class="btn quiet sm" ${u.checking?'disabled':''} onclick="stCheckUpd()">Check now</button>`}<a href="https://github.com/nextwork-projects/ai-video-editor-cooked/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Full changelog</a></div>
     ${st?`<div class="msg ${j.state==='failed'?'bad':''}">${esc(st)}</div>`:''}</div></div>`;
 }
 async function stCheckUpd(){await post('/update/check',{});await load();render();setTimeout(async()=>{await load();render()},2500)}

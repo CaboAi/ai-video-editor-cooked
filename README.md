@@ -34,9 +34,13 @@ key). Pick one of three ways to get the editor. After that, open it from a termi
 nextwork-editor
 ```
 
-The editor opens in your browser, at the same address every time (bookmark it). Inside Claude Code,
-`/ai-editor:start` or **edit my video** does the same. Setup adds the command;
-`python3 plugins/ai-editor/skills/setup/scripts/setup.py uninstall-launcher` removes it.
+One command opens everything: your editor in the browser, at the same address every time (bookmark it),
+and Claude Code behind it, listening for what you make there. Run it again when the window is already open
+and it opens the window, plus a new Terminal window with Claude if none is listening. `nextwork-editor
+--window-only` opens just the window. If the window ever says nobody is listening, press **Connect Claude**:
+it opens Claude in a new Terminal window for you. Inside Claude Code, `/ai-editor:start` or **edit my video**
+does the same. Setup adds the command; `python3 plugins/ai-editor/skills/setup/scripts/setup.py
+uninstall-launcher` removes it.
 
 **The window.** A sidebar on the left has **+ New video**, **Home**, **Your videos**, **Styles**, your
 folders, the video being made right now with its progress, and **Settings**. The panel button folds the
@@ -82,7 +86,7 @@ it asks you to log in.
 The folder's `.claude/settings.json` turns the editor on. If Claude says the editor is not loaded,
 it offers to install it: say yes, then type `/reload-plugins`.
 
-**Fewer Allow prompts.** A Claude Code the editor opens (`nextwork-editor`, or "Open a new Claude" on
+**Fewer Allow prompts.** A Claude Code the editor opens (`nextwork-editor`, **Connect Claude** or "Open a new Claude" on
 the home page) already allows the editor's own commands and nothing else: its Python and Node scripts,
 `ffmpeg`, `ffprobe` and `npx remotion`. Started Claude Code yourself? Pick "Yes, and don't ask again"
 the first time each is asked, or put the same rules in your library folder's `.claude/settings.local.json`

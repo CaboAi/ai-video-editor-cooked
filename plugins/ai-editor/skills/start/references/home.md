@@ -7,8 +7,15 @@ The page only queues jobs. Claude does every job with the usual skills and repor
 never decides anything itself.
 
 The `nextwork-editor` command (`setup.py install-launcher`) starts Claude Code in the library with the
-prompt "/ai-editor:start open the home page", or reopens the page when it is already served. Inside
-Claude Code, `/ai-editor:start` and "open the home page" do the same.
+prompt "/ai-editor:start open the home page". When the page is already served it reopens it, and when no
+Claude is listening it also opens a new Terminal window with a listening Claude (`--window-only` skips
+that). Inside Claude Code, `/ai-editor:start` and "open the home page" do the same.
+
+**Connect Claude.** When nobody listens, the page shows one button, Connect Claude. It opens a new
+Terminal window in the library running Claude Code with the prompt `/ai-editor:start listen for jobs` and
+only the editor's own commands allowed (`launcher.connect`, one at a time: a second press within a minute
+opens nothing). On that prompt run `python3 "$H" serve --no-open` and `python3 "$H" wait` (both in the
+background) and carry on as below. Do not say the page is open: it already is.
 
 `H="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/home.py"`. `python3` on Mac and Linux, `py` on Windows.
 

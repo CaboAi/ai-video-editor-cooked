@@ -265,6 +265,7 @@ body.dragging #dropov{display:flex}
 .vrow .st{width:170px;flex-shrink:0;display:flex;align-items:center;gap:8px;font-size:14px}
 .vrow .act{width:152px;flex-shrink:0;display:flex;justify-content:flex-end}
 .btn.sm{height:38px;padding:0 18px;font-size:14px}
+.cnx{display:inline-flex;align-items:center;flex-wrap:wrap;gap:8px 12px;white-space:normal}.cnx .codebox{flex:1 1 100%;gap:12px}.cnx .codebox span{min-width:0;overflow-wrap:anywhere}
 .ini{width:36px;height:36px;border-radius:18px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--t2);flex-shrink:0}
 .kv{display:flex;flex-direction:column;gap:4px}.kv span{font-size:13px;line-height:16px;color:var(--t3)}.kv b{font-weight:500;font-size:15px}
 .nclaude{display:flex;flex-direction:column;align-items:flex-start;gap:10px;font-size:14px;line-height:20px;color:var(--t2)}
@@ -958,9 +959,9 @@ function busyJob(){return S.jobs.filter(j=>j.state==='taken').pop()||S.jobs.filt
 // a spinner, the newest step (Claude's or a script's own), and a clock since anything last arrived
 function liveStrip(){
   const j=busyJob();if(!j)return '';
-  if(j.state==='queued')return S.listening?`<span class="lstrip"><span class="spin"></span><span class="ltxt">Claude is picking this up</span></span>`:`<span class="ltxt">Waiting for Claude. Type ${CMD} in Terminal.</span>`;
+  if(j.state==='queued')return S.listening?`<span class="lstrip"><span class="spin"></span><span class="ltxt">Claude is picking this up</span></span>`:connectHTML('Waiting for Claude.');
   const s=j.steps.at(-1),last=Math.max(j.u||0,s?s.t||0:0,S.claude_seen||0)||jobStart(j),age=Math.max(0,Math.round(Date.now()/1000-last));
-  if(!S.listening&&age>60)return `<span class="ltxt">Claude is not listening. Type ${CMD} in Terminal.</span>`;
+  if(!S.listening&&age>60)return connectHTML('Claude is not listening.');
   const txt=age>60?`Still working: ${s?s.text:'getting started'}. First runs take longer.`:s?s.text+(s.detail&&!s.done?' · '+s.detail:''):'Claude is on it';
   return `<span class="lstrip" title="${esc(txt)}"><span class="spin"></span><span class="ltxt">${esc(txt)}</span><span class="lclk" data-since="${last}">${secs(age)}</span></span>`;
 }
@@ -1497,7 +1498,7 @@ function studyCard(c){
   const rows=steps.map(s=>`<div class="sr ${s.done?'':'cur'}">${s.done?`<span class="okc">${ic('check',14,2.4)}</span>`:SPIN}<span>${esc(s.text)}${!s.done&&s.detail?' · '+esc(s.detail):''}</span></div>`).join('')
     +PLAN.slice(steps.length,steps.length+Math.max(0,6-steps.length)).map(p=>`<div class="sr later"><i></i><span>${esc(p)}</span></div>`).join('');
   const t=j?jobStart(j):Date.now()/1000,f=j?jobFrac(j):0;
-  return `<div class="cs" id="sc-${esc(c.id)}"><div class="steps">${rows||`<div class="sr cur">${SPIN}<span>${j&&j.state==='queued'&&!S.listening?`Waiting for Claude. Type ${CMD} in Terminal.`:'Starting'}</span></div>`}</div>
+  return `<div class="cs" id="sc-${esc(c.id)}"><div class="steps">${rows||`<div class="sr cur">${SPIN}<span>${j&&j.state==='queued'&&!S.listening?connectHTML('Waiting for Claude.'):'Starting'}</span></div>`}</div>
     <div class="who">${avaHTML(c.face)}<div style="min-width:0"><div class="nm">${esc(handleOf(c).startsWith('links-')?'New format':c.name)}</div><div class="t2">${esc(crSub({...c,studying:0}))}</div></div></div>
     <div><div class="t1" style="font-weight:600">Analysing ${n?n+' videos':'the videos'} · <span data-since="${t}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-t)))}</span></div><div class="t2" style="white-space:normal;margin-top:4px">About 3 min. It keeps going if you leave.</div></div>
     <div class="bar"><i style="width:${Math.round((f||0)*100)}%"></i></div></div>`;
@@ -1672,7 +1673,7 @@ function vStyle(){
       <div class="ph"><button class="back" style="text-decoration:none" onclick="rgo('new')">${ic('back',14,2)}New video · step 2 of 2</button><h1>Pick a style</h1></div>
       <div class="clipsum"><span class="th" style="background-image:url('${esc(c0.thumb||'')}')"></span><div style="min-width:0"><div class="t1" style="font-weight:600">${n>1?`${n} clips, ${nv.join?'joined':'separate'}`:esc(c0.name)}</div><div class="t2">${n} clip${n>1?'s':''}${total()?' · '+fmtT(Math.round(total())):''} · ${nv.aspect==='9:16'?'Tall':'Wide'} ${nv.aspect}</div></div><button class="ul" onclick="rgo('new')">Change</button></div></div>
     <div class="sec2"><div class="sh"><b>Styles</b><button class="b2 s" onclick="openCreate()">${ic('plus',14,2.2)}New style</button></div>${gridRows([...cards].sort((a,b)=>(isDefault(b)-isDefault(a))||(!!b.studying-!!a.studying)||(!!b.own-!!a.own)||((b.made||0)-(a.made||0))).map(c=>pickCard(c,idx(c))),per)}</div>
-    <div class="pfoot"><div style="min-width:0"><div class="t1" style="font-weight:600">${esc(cur?cur.name:styleName(nv.style))}</div><div class="t2" style="white-space:normal">First the cut (about 1 min). Captions, zooms and sound start after you approve it.</div></div>
+    <div class="pfoot"><div style="min-width:0"><div class="t1" style="font-weight:600">${esc(cur?cur.name:styleName(nv.style))}</div><div class="t2" style="white-space:normal">First the cut (about 1 min). Captions, zooms and sound start after you approve it.</div>${S.listening?'':`<div class="t2" style="white-space:normal;margin-top:10px">${connectHTML('Claude is not listening.')}</div>`}</div>
       <span class="row" style="gap:12px">${S.new_claude?`<button class="b2" title="The questions for this video stay in their own Claude chat" onclick="makeVideo(true)">Make it in a new Claude chat</button>`:''}<button class="b1" id="make" onclick="makeVideo()">Make my video</button></span></div></div>`;
 }
 async function makeVideo(fresh){
@@ -1720,7 +1721,7 @@ function vStylePage(){
   const P=ui.spage;if(!P)return `<div class="pgc"><div class="none">Loading the style...</div></div>`;
   if(P.kind==='skill')return vSkillPage(P);
   const Z=P.presets,C=Z.captions,job=P.job,jr=job&&job.result||{},card=styleById(P.id)||P;
-  const jobLine=!job?'':job.state==='queued'?(S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal.`):job.state==='taken'?`Claude: ${esc((job.steps.at(-1)||{}).text||'working on it')}`:job.state==='done'?`Changed: ${esc((jr.changed||[]).join('; ')||'nothing')}`:job.state==='failed'?esc(job.error):'';
+  const jobLine=!job?'':job.state==='queued'?(S.listening?'Claude is picking this up.':connectHTML('Waiting for Claude.')):job.state==='taken'?`Claude: ${esc((job.steps.at(-1)||{}).text||'working on it')}`:job.state==='done'?`Changed: ${esc((jr.changed||[]).join('; ')||'nothing')}`:job.state==='failed'?esc(job.error):'';
   const size=+((C.tiles.find(x=>x.id===C.sel)||{}).block||{}).size_pct||C.size,h=P.own?'':handleOf({...P,own:false});
   const editing=ui.edit&&ui.edit.kind==='name'&&ui.edit.id===P.id,n=card.changes||0;
   const meta=P.own?`<div class="row" style="gap:12px;flex-wrap:wrap">${P.base?`<span class="schip">${avaHTML(P.face,20)}Started from @${esc(P.base)}</span>`:''}<span class="chg">${[n?`${n} change${n>1?'s':''} from your feedback`:'No changes yet',card.changed&&n?'last '+madeAgo(card.changed):'',card.learned_from?`Learned from ${card.learned_from} video${card.learned_from>1?'s':''}`:''].filter(Boolean).join(' · ')}</span></div>`
@@ -1761,26 +1762,37 @@ function planFor(j){
     ['You check the cut','The editor opens on your clip and each version lands there. Leave notes or approve.'],
     ['Captions, zooms and sound in '+st,studying?`Waits for the copy of ${a.as}'s style to finish, then starts after you approve the cut.`:'Starts after you approve the cut.']];
 }
-// a queued video no Claude is taking (none listening, or the window's Claude is making another): a new Claude for it
+// a queued video the listening Claude cannot take yet (it is making another): a new Claude for it
 function newClaude(j){
-  if(!j||j.type!=='video'||j.state!=='queued'||!(S.busy&&S.busy.id!==j.id||!S.listening))return '';
+  if(!j||j.type!=='video'||j.state!=='queued'||!(S.listening&&S.busy&&S.busy.id!==j.id))return '';
   if(ui.nc[j.id]&&ui.nc[j.id].opened&&!(j.reserved&&Date.now()/1000-j.reserved<180))delete ui.nc[j.id];   // RESERVE_S passed and no Claude took it: offer again
   const r=ui.nc[j.id]||{},stop='event.stopPropagation()';
   if(r.opened)return `<div class="nclaude" onclick="${stop}">A new Claude is starting in Terminal. It picks up this video.</div>`;
   if(r.command)return `<div class="nclaude" onclick="${stop}">Run this in a new Terminal window:<div class="codebox"><span>${esc(r.command)}</span><button class="hlink" onclick="copyText(${esc(JSON.stringify(r.command))},this)">Copy</button></div></div>`;
   return `<div class="nclaude" onclick="${stop}">${S.busy&&S.busy.id!==j.id?`<span>Claude is busy with ${esc(S.busy.name)}.</span>`:''}${r.msg?`<span>${esc(r.msg)}</span>`:''}<button class="btn sm" onclick="openClaude(${esc(JSON.stringify(j.id))})">Open a new Claude for this video</button></div>`;
 }
+// nobody listening: "Connect Claude" opens a new Terminal with a listening Claude (launcher.connect, one at a time);
+// where no terminal can open (S.new_claude false), the old instruction
+function connectHTML(lead,old){
+  const c=ui.connect||{},t=S.connect?Date.now()/1000-S.connect:null,l=lead?esc(lead)+' ':'',stop='event.stopPropagation();';
+  if(c.command)return `<span class="cnx">${l}Run this in a new Terminal window:<span class="codebox"><span>${esc(c.command)}</span><button class="hlink" onclick="${stop}copyText(${esc(JSON.stringify(c.command))},this)">Copy</button></span></span>`;
+  if(t!=null&&t<60)return `<span class="cnx">${SPIN}Opening Claude in a new Terminal window...</span>`;
+  if(!S.new_claude)return `<span class="cnx">${l}${old||`Type ${CMD} in Terminal.`}</span>`;
+  if(t!=null)return `<span class="cnx">Claude didn't connect. Check the Terminal window it opened.<button class="btn sm" onclick="${stop}connectClaude()">Try again</button></span>`;
+  return `<span class="cnx">${l}<button class="btn dark sm" onclick="${stop}connectClaude()">Connect Claude</button></span>`;
+}
+async function connectClaude(){if(ui.connecting)return;ui.connecting=1;try{const r=await post('/connect',{});ui.connect=r.status==='manual'?r:null}finally{ui.connecting=0}await load()}
 async function openClaude(id){const r=await post('/claude',{id});ui.nc[id]=r._ok?r:{msg:r.msg||'That did not work.'};await load()}
 function jobBlock(j){
   const a=j.args,name=(a.edit||'').split(/[\\/]/).pop(),plan=planFor(j),R2=j.result||{};
   const steps=j.steps.map(s=>`<div class="row ${s.done?'':'cur'}"><div class="check" style="color:var(--t3);margin-top:3px">${s.done?CHECK:'<div class="spin"></div>'}</div><div class="grow"><div class="t">${esc(s.text)}</div>${!s.done&&(s.detail||s.progress!=null)?`<div class="row" style="margin-top:12px;gap:16px"><div class="prog" style="width:240px"><div style="width:${Math.round((s.progress||0)*100)}%"></div></div><span class="muted" style="color:var(--t2);font-size:14px">${s.progress!=null?Math.round(s.progress*100)+'%':''}${s.detail?(s.progress!=null?' · ':'')+esc(s.detail):''}</span></div>`:''}</div><span class="s" ${s.done?'':`data-since="${s.t}"`}>${s.done?secs(s.secs):secs(Math.max(0,Math.round(Date.now()/1000-s.t)))}</span></div>`).join('')
     +plan.slice(j.steps.length).map(([t,s])=>`<div class="row later"><div class="check" style="margin-top:5px"><div class="ring"></div></div><div><div class="t">${esc(t)}</div>${s?`<div class="muted" style="margin-top:4px;font-size:14px">${esc(s)}</div>`:''}</div></div>`).join('');
-  const nc=newClaude(j),age=Date.now()/1000-jobStart(j),wait=nc?'':j.state==='queued'?(age<20?'':S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal, or say "open the cooked. home page" in Claude Code.`):j.state==='failed'?j.error:j.state==='cancelled'?'Cancelled.':'';
+  const nc=newClaude(j),age=Date.now()/1000-jobStart(j),cx=!nc&&j.state==='queued'&&!S.listening,wait=nc||cx?'':j.state==='queued'?(age<20?'':'Claude is picking this up.'):j.state==='failed'?j.error:j.state==='cancelled'?'Cancelled.':'';
   return `<div style="display:flex;flex-direction:column;gap:28px">
     <div class="row" style="gap:28px;align-items:flex-end;flex-wrap:wrap"><div class="row" style="gap:2px">${(a.paths||[a.path]).slice(0,4).map((p,i,arr)=>{const c=clipOf(p);return `<div><div class="jthumb ${arr.length>1?'n':''}" style="width:${arr.length>1?96:130}px;height:${arr.length>1?170:230}px;background:#45403C url('${esc(c.thumb||'/thumb?p='+encodeURIComponent(p))}') center/cover;border-radius:${i===0?'14px 0 0 14px':i===arr.length-1?'0 14px 14px 0':'0'}${arr.length===1?';border-radius:14px':''}"></div><div class="muted" style="margin-top:8px">${i+1}${c.duration?' · '+fmtT(c.duration):''}</div></div>`}).join('')}</div>
       <div style="padding-bottom:28px"><div style="font-size:17px;font-weight:600">${esc(name)}${(a.paths||[a.path]).every(p=>clipOf(p).duration)?' · '+fmtT((a.paths||[a.path]).reduce((t,p)=>t+clipOf(p).duration,0)):''}</div><div class="sub" style="margin-top:4px">${a.takes?'One video':'Video'} · ${esc(styleName(a.as))} · ${a.aspect==='9:16'?'Tall':'Wide'} ${a.aspect}</div></div></div>
-    ${wait?`<div class="msg ${j.state==='failed'?'bad':''}" style="font-size:14px">${j.state==='failed'?CROSS:''}<span>${esc(wait)}</span></div>`:''}${nc}
-    ${nc?((ui.nc[j.id]||{}).opened?'':`<div class="muted" style="font-size:14px">Waiting for a Claude to pick this up.</div>`):!R2.review_url&&(j.state==='queued'||j.state==='taken')?`<div class="starting" style="margin-top:0;max-width:560px"><div class="spin big"></div><div><b>Opening the editor...</b><span><span data-since="${jobStart(j)}">${secs(Math.max(0,Math.round(age)))}</span> · it opens on your clip while Claude cuts it</span></div></div>`:''}
+    ${wait?`<div class="msg ${j.state==='failed'?'bad':''}" style="font-size:14px">${j.state==='failed'?CROSS:''}<span>${esc(wait)}</span></div>`:''}${cx?`<div class="msg" style="font-size:14px">${connectHTML('Waiting for Claude.',`Type ${CMD} in Terminal, or say "open the cooked. home page" in Claude Code.`)}</div>`:''}${nc}
+    ${nc?((ui.nc[j.id]||{}).opened?'':`<div class="muted" style="font-size:14px">Waiting for a Claude to pick this up.</div>`):!R2.review_url&&(j.state==='taken'||j.state==='queued'&&S.listening)?`<div class="starting" style="margin-top:0;max-width:560px"><div class="spin big"></div><div><b>Opening the editor...</b><span><span data-since="${jobStart(j)}">${secs(Math.max(0,Math.round(age)))}</span> · it opens on your clip while Claude cuts it</span></div></div>`:''}
     <div class="steps2">${steps}</div>
     ${R2.review_url?`<a class="btn dark" style="align-self:flex-start;height:52px;text-decoration:none;padding:0 28px" href="${esc(R2.review_url)}">Open the review page</a>`:''}
   </div>`;
@@ -1887,7 +1899,7 @@ function obSetup(sj){
   const now=sj.state==='failed'?'Setup stopped':sj.state==='queued'?(S.listening?'Claude is picking this up':'Waiting for Claude'):s?s.text:'Starting';
   return `<div class="pgc obw"><div class="ph"><h1>Getting your computer ready</h1><p>Installing the free tools the editor runs on. About 1.5 GB, once.</p></div>
     <div class="obc"><div class="obnow"><div class="row" style="justify-content:space-between"><span class="cap">Now</span><b>${sj.state==='taken'?pct+'%':''}</b></div><div class="big">${esc(now)}</div><div class="trk ${sj.state==='queued'?'indet':''}" style="height:6px;border-radius:3px"><i style="width:${pct}%;height:6px"></i></div>
-      ${sj.state==='failed'?`<div class="msg bad">${CROSS}<span>${esc(sj.error||'Something did not install.')}</span></div><button class="b2" style="align-self:flex-start" onclick="queue({type:'setup'})">Try again</button>`:sj.state==='queued'&&!S.listening?`<div class="t2" style="white-space:normal">Type ${CMD} in Terminal, or say "set up the editor" in Claude Code.</div>`:''}</div>
+      ${sj.state==='failed'?`<div class="msg bad">${CROSS}<span>${esc(sj.error||'Something did not install.')}</span></div><button class="b2" style="align-self:flex-start" onclick="queue({type:'setup'})">Try again</button>`:sj.state==='queued'&&!S.listening?`<div class="t2" style="white-space:normal">${connectHTML('',`Type ${CMD} in Terminal, or say "set up the editor" in Claude Code.`)}</div>`:''}</div>
       <div class="obrs">${obRows(SETUP_PLAN,sj.steps)}</div></div>
     <div class="obnext"><div><span class="cap">Next, while this runs</span><b>Two optional keys</b><p>They make your edits better. ElevenLabs hears every um and retake, so the cut is cleaner. Gemini reads the fonts and colours when it analyses a format.</p><p>Both are free and optional. Skip them and Claude does those jobs instead.</p></div><button class="b1" onclick="ui.ob='keys';render()">Add keys now</button></div></div>`;
 }
@@ -1929,7 +1941,7 @@ function obAnalysing(td){
   return `<div class="pgc obw"><div class="row" style="gap:20px">${faces.length?`<span class="obav">${faces.slice(0,3).map(f=>avaHTML(f,48)).join('')}</span>`:''}<div class="ph"><h1>Analysing your format</h1><p>${n?`${n} video${n>1?'s':''}${hs.length>1?` from ${hs.length} creators`:''}. `:''}About 3 min. You can leave this page.</p></div></div>
     <div class="obc"><div class="obnow"><div class="row" style="justify-content:space-between"><span class="cap">Now</span><b data-since="${t}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-t)))}</b></div><div class="big">${esc(s?s.text:td.state==='queued'?(S.listening?'Claude is picking this up':'Waiting for Claude'):'Starting')}</div><div class="trk" style="height:6px;border-radius:3px"><i style="width:${Math.round((jobFrac(td)||0)*100)}%;height:6px"></i></div>
       ${vs.length?`<div class="obth">${vs.map((v,i)=>`<span style="${v.thumbnail?`background-image:url('${esc(v.thumbnail)}')`:''}" class="${i<k?'got':i===k?'now':''}">${i<k?OKDOT:''}</span>`).join('')}</div>`:''}
-      ${td.state==='queued'&&!S.listening?`<div class="t2" style="white-space:normal">Type ${CMD} in Terminal, or say "edit my video" in Claude Code.</div>`:''}</div>
+      ${td.state==='queued'&&!S.listening?`<div class="t2" style="white-space:normal">${connectHTML('',`Type ${CMD} in Terminal, or say "edit my video" in Claude Code.`)}</div>`:''}</div>
       <div class="obrs">${obRows(PLAN,td.steps)}</div></div>
     <div class="obnext"><div><span class="cap">Next</span><b>Make your first video</b><p>Drop a clip now if you like. It starts when the style is ready.</p></div><button class="b1" onclick="ui.ob='drop';render()">Drop a clip now</button></div></div>`;
 }
@@ -2044,8 +2056,8 @@ function jobInfo(){
   const n=j.type==='video'?nv2:act.filter(x=>x.type===j.type).length,s=j.steps.at(-1);
   const last=Math.max(j.u||0,s?s.t||0:0,S.claude_seen||0)||jobStart(j),age=Math.max(0,Math.round(Date.now()/1000-last));
   const what=j.type==='video'&&j.args.edit?' in '+j.args.edit.split(/[\\/]/).pop():j.type==='teardown'&&j.args.handle?' · @'+j.args.handle:'';
-  const text=j.state==='queued'?(S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal.`)
-    :!S.listening&&age>60?`Claude is not listening. Type ${CMD} in Terminal.`:(s?s.text:'Getting started')+what;
+  const how=S.new_claude?'':` Type ${CMD} in Terminal.`,text=j.state==='queued'?(S.listening?'Claude is picking this up.':'Waiting for Claude.'+how)
+    :!S.listening&&age>60?'Claude is not listening.'+how:(s?s.text:'Getting started')+what;
   const name=JOBNAME[j.type]||'Working',go=j.type==='video'?"ui.fold.videos=null;rgo('videos')":j.type==='teardown'||j.type==='skill'?(inApp()?"rgo('mystyle')":'go(2)'):j.type==='setup'?'ui.onboard=true;go(0)':j.type==='update'?"rgo('settings')":'';
   return {label:j.type==='video'||j.type==='teardown'?`${name} ${n}`:name,short:j.type==='video'||j.type==='teardown'?name:'Working',n:j.type==='video'||j.type==='teardown'?n:'',text,frac:j.state==='queued'?0:jobFrac(j),since:s&&!s.done?s.t:jobStart(j),go};
 }
@@ -2205,14 +2217,14 @@ async function stCheck(id){ui.keys[id]={busy:1};render();await post('/key/check'
 async function stRemove(id){const r=await post('/key/remove',{name:id});ui.strm=null;ui.keys[id]=r._ok?{}:{bad:1,edit:1,msg:r.msg||'Not removed.'};await load();render()}
 function stUpdate(){
   const u=S.update||{},j=latest('update'),busy=j&&(j.state==='queued'||j.state==='taken'),ok=u.latest&&!u.newer;
-  const st=!j?'':j.state==='queued'?(S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal.`):j.state==='taken'?`Claude: ${(j.steps.at(-1)||{}).text||'updating'}`:j.state==='done'?'Updated. Type /reload-plugins in Claude Code.':j.state==='failed'?j.error:'';
+  const wq=j&&j.state==='queued'&&!S.listening,st=!j?'':j.state==='queued'?(S.listening?'Claude is picking this up.':''):j.state==='taken'?`Claude: ${(j.steps.at(-1)||{}).text||'updating'}`:j.state==='done'?'Updated. Type /reload-plugins in Claude Code.':j.state==='failed'?j.error:'';
   const line=u.checking?'Checking...':u.newer?'A new version is out':u.latest?'Up to date':u.checked?'Could not reach GitHub':'';
   return `<div class="scd"><div class="hd"><b>Updates</b><span class="ss ${ok?'ok':''}">${ok?OKTICK:''}${line}</span></div>
     <div class="kvs"><div><span>Installed</span><b>${esc(u.installed||'?')}</b></div><div><span>Latest</span><b>${esc(u.latest||'?')}</b></div></div>
     <div class="t2" style="white-space:normal">Turn on auto-updates: type <b>/plugin</b>, open Marketplaces, pick nextwork, choose Enable auto-update.</div>
     ${u.newer&&(u.notes||[]).length?`<div><div class="t2">What changed</div>${u.notes.map(n=>`<div class="dash">${esc(n)}</div>`).join('')}</div>`:''}
     <div class="lks">${u.newer?`<button class="b1 s" ${busy?'disabled':''} onclick="queue({type:'update'})">${busy?'Updating...':'Update'}</button>`:`<button class="b2 s" ${u.checking?'disabled':''} onclick="stCheckUpd()">Check now</button>`}<a href="https://github.com/nextwork-projects/ai-video-editor-cooked/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Full changelog</a></div>
-    ${st?`<div class="msg ${j.state==='failed'?'bad':''}">${esc(st)}</div>`:''}</div>`;
+    ${wq?`<div class="msg">${connectHTML('Waiting for Claude.')}</div>`:st?`<div class="msg ${j.state==='failed'?'bad':''}">${esc(st)}</div>`:''}</div>`;
 }
 async function stCheckUpd(){await post('/update/check',{});await load();render();setTimeout(async()=>{await load();render()},2500)}
 function stFolder(){
@@ -2348,7 +2360,7 @@ function render(){
 setInterval(tickClocks,1000);
 addEventListener('resize',()=>render());
 async function load(){
-  try{const r=await fetch('/state');if(!r.ok)throw 0;S=await r.json();if(Date.now()-themeAt>3000)applyTheme(S.theme)}catch(e){const lv=$('#live');lv.className='live';lv.style.width='auto';lv.style.maxWidth='520px';lv.style.whiteSpace='normal';lv.textContent='The editor stopped. Run nextwork-editor to start it again.';return}
+  try{const r=await fetch('/state');if(!r.ok)throw 0;S=await r.json();if(S.listening)ui.connect=null;if(Date.now()-themeAt>3000)applyTheme(S.theme)}catch(e){const lv=$('#live');lv.className='live';lv.style.width='auto';lv.style.maxWidth='520px';lv.style.whiteSpace='normal';lv.textContent='The editor stopped. Run nextwork-editor to start it again.';return}
   // live reload: a new page version (home.html, ask.js or the Python changed) reloads this tab, keeping the view
   if(S.page){if(PV&&S.page!==PV&&canReload()){keepView();location.reload();return}PV=PV||S.page}
   const lk=S.lookup||{};

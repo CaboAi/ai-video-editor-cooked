@@ -165,7 +165,7 @@ is, what it costs, the card, then four checked steps.
 
 Run doctor again until it prints `Ready.` Skipped keys show as `--`; that is fine. Then
 `python3 "$U" install-launcher`: the `nextwork-editor` command opens the editor's window from any
-terminal (`uninstall-launcher` takes it off).
+terminal, with a listening Claude (`--window-only`: the window alone; `uninstall-launcher` takes it off).
 
 Then say this line once: "Turn on auto-updates: type /plugin, open Marketplaces, pick nextwork,
 choose Enable auto-update." Never write to their `~/.claude` files for them.

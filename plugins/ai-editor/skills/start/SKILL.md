@@ -52,7 +52,7 @@ Only download what the user may edit; a creator's video is for the teardown, not
 
 ## 1. The video
 
-"Open the home page" (`nextwork-editor`, `/ai-editor:start`) or "take job <id>": `references/home.md`. No video,
+"Open the home page" (`nextwork-editor`, `/ai-editor:start`), "listen for jobs" or "take job <id>": `references/home.md`. No video,
 link or creator (a bare "edit my video"): ask **Open the home page (Recommended)** / **I'll give
 the path** / **Use the sample take** (cut's "No video yet?"). Edit folder: `IMG_1234.MOV` -> `edits/img-1234`.
 

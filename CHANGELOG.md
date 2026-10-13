@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.6.0 (2026-10-13)
+
 - Two new skills. `logo-pack` gets the official, brand-colour logo of every company, app and tool named in a
   video, trims it, makes a transparent 512 px PNG beside the SVG, checks each one and shows them on one sheet;
   the edit picks them up and shows logos named together side by side. `skill-improver` turns a finished

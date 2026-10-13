@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.4.1 (2026-10-13)
+
 - Scrolling holds on the home window and the review page. The home window redraws every 1.5 s, and each
   redraw put every inner list (Your videos, My styles, a style's page, Settings) back at the top. Now a
   redraw with nothing new leaves the page alone, and one with something new keeps every list where it

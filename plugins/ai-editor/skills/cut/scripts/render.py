@@ -87,7 +87,8 @@ def main():
     ap.add_argument("--flip", action="store_true", help="flip left to right (a mirrored take, on the user's yes)")
     ap.add_argument("--segments-only", action="store_true", help="fill the segment cache, write no cut.mp4")
     a = ap.parse_args()
-    progress.step("Rendering the cut", job="video", key=a.edit_dir)
+    if not a.segments_only:   # the background encode runs while the judge reads: the checklist is not there yet
+        progress.step("Rendering the cut", job="video", key=a.edit_dir)
 
     d = Path(a.edit_dir)
     rep = json.loads((d / "report.json").read_text(encoding="utf-8"))

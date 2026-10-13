@@ -11,7 +11,7 @@ Paths: `${CLAUDE_SKILL_DIR}` means the folder containing this SKILL.md, and `${C
 
 Read `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` first: the rules every video follows (where, asking, looking real, motion, story, privacy, cost).
 
-Every question goes in the question box: the AskUserQuestion tool (2-4 options, recommended first). Only in an agent without it, ask numbered questions in text.
+Every question goes in the question box: the AskUserQuestion tool (2-4 options, recommended first). Only in an agent without it, ask numbered questions in text. `Attached images: <paths>` in an answer: Read each first.
 
 An approved cut and a creator's style in (a `skill=` job runs that skill: start step 3).
 The finished video out: captions, zooms, real captures and motion scenes timed to the words, in the

@@ -46,6 +46,7 @@ to it, `wait` never takes a job reserved for a new Claude ("Open a new Claude fo
 question (askhook.py) reaches this page only from a session holding one of its jobs or listening for one.
 """
 import argparse
+import base64
 import glob
 import hmac
 import http.client
@@ -359,6 +360,14 @@ def asks_for(sid):
     if not lis and not any(j.get("owner") for j in taken):
         return job_name(taken[0]) if taken else ""
     return None
+
+
+def asks_dir(sid):
+    """Where an answer's images are saved: the asking session's edit folder (<edit>/asks) once it exists, else
+    $AI_EDITOR_HOME/asks."""
+    j = next((j for j in reversed(read()["jobs"]) if sid and j["state"] == "taken" and j.get("owner") == sid), None)
+    e = Path((j or {}).get("args", {}).get("edit") or "")
+    return e / "asks" if str(e) != "." and e.is_dir() else home().parent / "asks"
 
 
 def listening():
@@ -1616,7 +1625,8 @@ def make_handler(token):
                 with live.busy():   # no live-reload restart under an upload
                     return self.upload() if path == "/upload" else self.cover()
             try:
-                body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 1 << 20)) or b"{}")
+                cap = askhook.MAX_BODY if path == "/ask/answer" else 1 << 20   # an answer can carry images
+                body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), cap)) or b"{}")
             except ValueError:
                 return self.send(400, {"error": "not json"})
             if askhook.route(self, "POST", path, {}, body):
@@ -2148,7 +2158,7 @@ def serve(root=None, port=None, open_browser=True):
         update(lambda d: d.__setitem__("port", srv.server_address[1]))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
     (home() / ".server").write_text(url, encoding="utf-8")
-    askhook.register(srv, url, "home", asks_for)
+    askhook.register(srv, url, "home", asks_for, asks_dir)
     threading.Thread(target=run_doctor, daemon=True).start()
     try:   # an update adds a new plugin folder: point nextwork-editor at this one
         import launcher
@@ -2443,6 +2453,14 @@ def demo():
     (home() / ".listening").unlink()
     post("/ask", {"id": "qa", "questions": qs, "session": "sess-A"})
     assert get("/ask?v=1")["ask"]["about"] == "team-250k-general"
+    # an image on the answer (over the 1 MB cap of other POSTs): saved beside A's edit, its path in the answer
+    edir = root / "edits" / "team-250k-general"
+    assert srv.asks["qa"]["dir"] == str((edir / "asks") if edir.is_dir() else home().parent / "asks")
+    big = "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\n" + bytes(2 << 20)).decode()
+    post("/ask/answer", {"id": "qa", "answers": ["like this"], "images": [[big]]})
+    shot = Path(srv.asks["qa"]["dir"]) / "ask-qa-q1-img1.png"
+    assert get("/ask?id=qa")["result"] == {"answers": [f"like this\nAttached images: {shot} (Read each one to see it)"]}
+    assert shot.stat().st_size == (2 << 20) + 8
     post("/ask/clear", {"id": "qa"})
     os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"   # a second terminal: never writes to A's job
     assert vs(step="B was here", done=True).startswith("no video job")

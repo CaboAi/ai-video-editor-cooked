@@ -94,7 +94,6 @@ HTML = Path(__file__).with_name("review.html")
 LOCK = threading.RLock()   # re-entrant: /edits holds it across apply_edits and update
 BEAT_S = 6          # `wait` touches review/.listening at least this often; older = nobody listening
 IMAGE_TYPES = ("png", "jpeg", "gif", "webp")
-MAX_IMAGE = 15 << 20
 
 
 def load(path):
@@ -950,7 +949,7 @@ def make_handler(folder, token):
             cid = max([c["id"] for c in d["comments"]] + [0]) + 1
             frame = f"r{d['stage']}{d['round']}-c{cid}.jpg"
             grab(src["video"], t, folder / "review" / frame)
-            images = save_images(folder, imgs, f"r{d['stage']}{d['round']}-c{cid}")
+            images = askhook.save_images(folder / "review", imgs, f"r{d['stage']}{d['round']}-c{cid}")
             c = {"id": cid, "round": d["round"] + queued, "stage": d["stage"], "t": round(t, 2), "alt": alt,
                  "t_end": round(te, 2) if te is not None else None, "text": text,
                  "words": words_at(src.get("transcript"), t, te if te is not None else t),
@@ -1008,7 +1007,7 @@ def make_handler(folder, token):
             if "alt" in body:
                 new["alt"] = body["alt"] or None
             if "images" in body:
-                new["images"] = save_images(folder, body["images"] or [], f"r{c['stage']}{c['round']}-c{c['id']}",
+                new["images"] = askhook.save_images(folder / "review", body["images"] or [], f"r{c['stage']}{c['round']}-c{c['id']}",
                                             keep=c.get("images") or [])
             if not new["text"] and not new["images"]:
                 return self.send(400, {"error": "empty"})
@@ -1039,34 +1038,6 @@ def make_handler(folder, token):
                 return self.send(409, {"error": "this round is with Claude"})
             return self.send(200, new)
     return H
-
-
-def save_images(folder, imgs, prefix, keep=()):
-    """A note's pictures: names it already has (kept) and pasted or dropped data urls (saved). Only these types,
-    under 15 MB each, at most 6."""
-    out = []
-    for im in imgs:
-        if len(out) == 6 or not isinstance(im, str):
-            continue
-        if im in keep:
-            out.append(im)
-            continue
-        m = re.match(r"data:image/(png|jpeg|gif|webp);base64,(.+)", im, re.S)
-        if not m:
-            continue
-        try:
-            raw = base64.b64decode(m[2])
-        except ValueError:
-            continue
-        if len(raw) > MAX_IMAGE:
-            continue
-        k = 1
-        while any((folder / "review" / f"{prefix}-img{k}.{x}").exists() for x in ("jpg", "png", "gif", "webp")):
-            k += 1
-        name = f"{prefix}-img{k}.{'jpg' if m[1] == 'jpeg' else m[1]}"
-        (folder / "review" / name).write_bytes(raw)
-        out.append(name)
-    return out
 
 
 def running(folder):
@@ -1139,7 +1110,7 @@ def serve(folder, port=0, open_browser=True):
         f.write(url)   # private: the token in it lets a page in
     if os.name != "nt":
         os.chmod(last, 0o600)
-    askhook.register(srv, url, "review", asker(folder, askhook.session()))
+    askhook.register(srv, url, "review", asker(folder, askhook.session()), lambda sid: folder / "review")
     if open_browser:
         show(url, folder)
     return srv, url

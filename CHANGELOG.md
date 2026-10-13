@@ -4,6 +4,14 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Every video card has one layout, tall or wide: the picture on top (a tall video shows whole over a blurred
+  copy of itself), then the name, the details, the status and the button at full width along the bottom. The
+  buttons in a row line up. Done tiles and folders use the same picture area.
+- See all on Home opens Your videos or Styles instead of growing Home.
+- New folder sits next to New style on Styles and at the top of Your videos.
+- Archive a style from its ⋯ menu to take it off Styles, Home and Pick a style without deleting anything. An
+  Archived tab brings it back. Deleting a style moves it and its skill to the Trash.
+
 - Every page in the window ends with space under its last row, so the last card or line never sits on the
   bottom edge of the window.
 

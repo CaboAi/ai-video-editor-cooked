@@ -49,6 +49,8 @@ import shutil
 import statistics
 import subprocess
 import sys
+import urllib.error
+import urllib.parse
 import urllib.request
 from http.client import HTTPException
 from pathlib import Path
@@ -341,15 +343,22 @@ def cmd_list(args):
     else:
         url = PROFILE_URL[args.platform].format(h=handle)
         print(f"pulling {args.limit} from {url} ...", file=sys.stderr)
-        r = run(ytdlp() + ["--flat-playlist", "--dump-json", "--no-warnings",
-                 "--playlist-end", str(args.limit), url])
+        r = None
+        if args.platform != "instagram":
+            r = run(ytdlp() + ["--flat-playlist", "--dump-json", "--no-warnings",
+                     "--playlist-end", str(args.limit), url])
 
-    if not r.stdout.strip():
+    vids, first = [], None
+    if r is None:   # an Instagram profile: yt-dlp's instagram:user is broken, the logged-in web API is not
+        try:
+            vids = ig_videos(handle, args.limit)
+        except IgError as e:
+            sys.exit(str(e))
+    elif not r.stdout.strip():
         hint = list_hint(args.platform, r.stderr)
         sys.exit(f"yt-dlp returned nothing.\n{r.stderr.strip()[:800]}{hint}")
 
-    vids, first = [], None
-    for line in r.stdout.splitlines():
+    for line in (r.stdout if r else "").splitlines():
         line = line.strip()
         if not line.startswith("{"):
             continue
@@ -397,6 +406,148 @@ def cmd_list(args):
     prof = (first or {}).get("uploader_url") or (first or {}).get("channel_url") if args.urls else url
     if save_avatar(outdir, prof):
         print(f"-> {outdir / 'avatar.jpg'}")
+
+
+IG_APP_ID = "936619743392459"   # instagram.com's own web app id: its API answers only with it
+IG_BROWSERS = ("chrome", "safari", "firefox", "edge", "brave")
+IG_LOGIN = ("To list an Instagram profile, log in to instagram.com in Chrome, then paste it again. "
+            "Or paste links to 3-6 reels.")
+IG_WAIT = "Instagram asked to wait a few minutes. Paste reel links, or try again soon."
+# Run under yt-dlp's Python: the browser's instagram.com login cookies, read locally by yt-dlp's cookie loader,
+# as one JSON line on stdout for ig_cookies. Its logger is silenced; nothing else is printed or saved.
+IG_COOKIE_CODE = r"""
+import json, sys
+from yt_dlp.cookies import YDLLogger, extract_cookies_from_browser
+class Quiet(YDLLogger):
+    def debug(self, *a, **k): pass
+    info = warning = error = debug
+    def progress_bar(self): return None
+for b in sys.argv[1:]:
+    try:
+        jar = extract_cookies_from_browser(b, logger=Quiet())
+    except Exception:
+        continue
+    c = {k.name: k.value for k in jar if k.name in ("sessionid", "csrftoken", "ds_user_id")
+         and (k.domain.lstrip(".") == "instagram.com" or k.domain.endswith(".instagram.com"))}
+    if c.get("sessionid"):
+        print(json.dumps(c))
+        break
+"""
+
+
+class IgError(Exception):
+    """A plain sentence the window shows as is."""
+
+
+def ytdlp_python():
+    """A Python that imports yt_dlp: the tool venv's, this one, or the one in the shebang of the yt-dlp on PATH."""
+    cands, exe = [str(VENV_PY), sys.executable], shutil.which("yt-dlp")
+    try:
+        first = open(exe, "rb").readline().decode("utf-8", "replace") if exe else ""
+    except OSError:
+        first = ""
+    if first.startswith("#!") and first[2:].split():
+        cands.append(first[2:].split()[0])
+    return next((c for c in cands if Path(c).is_file() and run([c, "-c", "import yt_dlp"]).returncode == 0), None)
+
+
+def ig_cookies():
+    """This computer's instagram.com login (sessionid, csrftoken, ds_user_id) from Chrome, Safari, Firefox, Edge
+    or Brave, else None. Kept in memory only: never printed, logged or written, and sent only to instagram.com."""
+    py = ytdlp_python()
+    if not py:
+        return None
+    try:
+        c = json.loads(run([py, "-c", IG_COOKIE_CODE, *IG_BROWSERS], timeout=120).stdout or "null")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    return c if isinstance(c, dict) and c.get("sessionid") else None
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):
+        return None   # a redirect would carry the login elsewhere: stop it (a 302 reads as logged out)
+
+
+def ig_get(url, cookies):
+    """GET one instagram.com API address with the login. -> (status, parsed JSON or None)."""
+    if not url.startswith("https://www.instagram.com/api/"):
+        raise ValueError("instagram.com only")
+    h = {**UA, "Accept": "application/json", "X-IG-App-ID": IG_APP_ID, "Referer": "https://www.instagram.com/",
+         "X-CSRFToken": cookies.get("csrftoken") or "", "Cookie": "; ".join(f"{k}={v}" for k, v in cookies.items())}
+    op = urllib.request.build_opener(urllib.request.HTTPSHandler(context=_net.context()), _NoRedirect)
+    try:
+        with op.open(urllib.request.Request(url, headers=h), timeout=20) as r:
+            st, body = r.status, r.read(8_000_000)
+    except urllib.error.HTTPError as e:
+        return e.code, None
+    try:
+        return st, json.loads(body or b"null")
+    except ValueError:
+        return st, None
+
+
+def ig_video(n):
+    """One post from web_profile_info (a GraphQL node) or the feed (an item) -> a KEEP row, None when not a video."""
+    if "shortcode" in n:
+        if not n.get("is_video"):
+            return None
+        cap = ((((n.get("edge_media_to_caption") or {}).get("edges") or [{}])[0]).get("node") or {}).get("text") or ""
+        sc, views, likes = n["shortcode"], n.get("video_view_count"), (n.get("edge_liked_by") or n.get("edge_media_preview_like") or {}).get("count")
+        comments, ts, thumb = (n.get("edge_media_to_comment") or {}).get("count"), n.get("taken_at_timestamp"), n.get("display_url") or n.get("thumbnail_src")
+    else:
+        if n.get("media_type") != 2 or not n.get("code"):
+            return None
+        cap = (n.get("caption") or {}).get("text") or ""
+        sc, views, likes = n["code"], n.get("play_count") or n.get("ig_play_count") or n.get("view_count"), n.get("like_count")
+        comments, ts = n.get("comment_count"), n.get("taken_at")
+        thumb = next((c.get("url") for c in (n.get("image_versions2") or {}).get("candidates") or []), None)
+    return {"id": sc, "title": cap.split("\n")[0][:100], "description": cap, "duration": n.get("video_duration"),
+            "view_count": views, "like_count": likes, "comment_count": comments, "repost_count": None, "save_count": None,
+            "timestamp": ts, "webpage_url": f"https://www.instagram.com/reel/{sc}/", "thumbnail": thumb}
+
+
+def ig_check(status, data):
+    if status == 429:
+        raise IgError(IG_WAIT)
+    if status in (301, 302, 303, 307, 308, 401, 403) or isinstance(data, dict) and data.get("require_login"):
+        raise IgError(IG_LOGIN)
+
+
+def ig_videos(handle, limit, cookies=None, get=ig_get):
+    """A profile's newest reels, newest first, through the browser's own instagram.com login: web_profile_info for
+    the account and its first 12 posts, then the feed endpoint for more (best effort: a refused page keeps what came)."""
+    cookies = ig_cookies() if cookies is None else cookies
+    if not cookies or not cookies.get("sessionid"):
+        raise IgError(IG_LOGIN)
+    api = "https://www.instagram.com/api/v1/"
+    st, d = get(f"{api}users/web_profile_info/?username={urllib.parse.quote(handle)}", cookies)
+    ig_check(st, d)
+    user = ((d or {}).get("data") or {}).get("user") if isinstance(d, dict) else None
+    if not user:
+        raise IgError(f"No Instagram account called @{handle}. Check the spelling.")
+    tl = user.get("edge_owner_to_timeline_media") or {}
+    if user.get("is_private") and not tl.get("edges"):
+        raise IgError(f"@{handle} is private. Paste links to 3-6 of their reels.")
+    seen, vids = set(), []
+
+    def add(rows):
+        for v in filter(None, map(ig_video, rows)):
+            if v["id"] not in seen:
+                seen.add(v["id"])
+                vids.append(v)
+    add(e.get("node") or {} for e in tl.get("edges") or [])
+    more, max_id, pages = (tl.get("page_info") or {}).get("has_next_page") and user.get("id"), None, 0
+    while more and len(vids) < limit and pages < 8:   # ponytail: 8 pages of 12 posts, a reels-only listing if this is short
+        st, f = get(f"{api}feed/user/{urllib.parse.quote(str(user['id']))}/?count=12"
+                    + (f"&max_id={urllib.parse.quote(str(max_id))}" if max_id else ""), cookies)
+        if st != 200 or not isinstance(f, dict):
+            break
+        add(f.get("items") or [])
+        more, max_id, pages = f.get("more_available") and f.get("next_max_id"), f.get("next_max_id"), pages + 1
+    if not vids:
+        raise IgError(f"No reels in @{handle}'s newest posts. Paste links to 3-6 reels.")
+    return sorted(vids, key=lambda v: v.get("timestamp") or 0, reverse=True)[:limit]
 
 
 def avatar_url(info=None, page=""):
@@ -632,6 +783,46 @@ def demo():
 
     import parallel
     parallel.demo()
+    # An Instagram profile, off a recorded web API answer (no network): reels only, newest first, the feed's
+    # repeat dropped; no login, a 401 and a 429 each give their plain sentence
+    node = lambda sc, vid, views, ts: {"shortcode": sc, "is_video": vid, "video_view_count": views, "video_duration": 30.5,
+                                       "taken_at_timestamp": ts, "display_url": f"https://cdn.example/{sc}.jpg",
+                                       "edge_liked_by": {"count": 10}, "edge_media_to_caption": {"edges": [{"node": {"text": "hook\nmore"}}]}}
+    rec = {"web_profile_info": (200, {"data": {"user": {"id": "42", "is_private": False, "edge_owner_to_timeline_media": {
+               "page_info": {"has_next_page": True, "end_cursor": "c1"},
+               "edges": [{"node": node("R3", True, 900, 300)}, {"node": node("P2", False, None, 200)}, {"node": node("R1", True, 50, 100)}]}}}}),
+           "feed/user/42/": (200, {"more_available": False, "next_max_id": None, "items": [
+               {"code": "R1", "media_type": 2, "play_count": 50, "taken_at": 100},
+               {"code": "R0", "media_type": 2, "play_count": 7000, "taken_at": 50, "video_duration": 12.0,
+                "image_versions2": {"candidates": [{"url": "https://cdn.example/R0.jpg"}]}},
+               {"code": "C9", "media_type": 8, "taken_at": 40}]})}
+    asked = []
+
+    def fake(url, cookies, answers=rec):
+        assert url.startswith("https://www.instagram.com/api/v1/") and cookies["sessionid"] == "fake-session", url
+        asked.append(url)
+        return next(v for k, v in answers.items() if k in url)
+    got = ig_videos("sample.creator", 40, {"sessionid": "fake-session", "csrftoken": "t"}, fake)
+    assert [v["id"] for v in got] == ["R3", "R1", "R0"], got
+    assert got[0]["view_count"] == 900 and got[0]["title"] == "hook" and got[0]["webpage_url"] == "https://www.instagram.com/reel/R3/"
+    assert got[2]["thumbnail"] == "https://cdn.example/R0.jpg" and set(got[0]) >= set(KEEP) | {"thumbnail"}
+    assert "username=sample.creator" in asked[0] and len(asked) == 2, asked
+    for answers, cookies, want in (({}, {}, IG_LOGIN),
+                                   ({"web_profile_info": (401, {"require_login": True})}, None, IG_LOGIN),
+                                   ({"web_profile_info": (302, None)}, None, IG_LOGIN),
+                                   ({"web_profile_info": (429, None)}, None, IG_WAIT)):
+        try:
+            ig_videos("sample.creator", 40, cookies if cookies is not None else {"sessionid": "fake-session"},
+                      lambda u, c, a=answers: fake(u, c, a))
+            raise AssertionError("no error")
+        except IgError as e:
+            assert str(e) == want, (e, want)
+    assert "\u2014" not in IG_LOGIN + IG_WAIT
+    try:
+        ig_get("https://example.com/api/", {"sessionid": "x"})
+        raise AssertionError("cookies sent off instagram.com")
+    except ValueError:
+        pass
     # An empty listing names its cause: a private account is not "update yt-dlp"
     assert "private" in list_hint("tiktok", "ERROR: [tiktok:user] x: This user's account is private.")
     assert "No account" in list_hint("tiktok", "ERROR: [tiktok:user] zz: Unable to extract secondary user ID.")

@@ -61,10 +61,9 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/fetch.py" list <name> --urls picks.txt   # 
 ```
 Prints a ranked table (views, x median) and writes `videos.json`; `*` marks 3x the median.
 
-**Instagram:** profiles are login-walled, single reel links are not. Ask the user to paste
-the reel links (10 or more, their best and some average ones), write them one per line to
-`picks.txt`, and run `list <name> --urls picks.txt`. Instagram hides views from yt-dlp, so
-the ranking and the control group use likes; say so in the teardown.
+**Instagram:** `list <handle> --platform instagram` reads the newest reels with views through the
+user's instagram.com login in their browser (sent only to instagram.com). No login: it exits 1 with
+one sentence; say it, or put 6+ reel links in `picks.txt` for `--urls` (ranked by likes; say so).
 
 ### Step 2: Download and transcribe the winners and a control group
 
@@ -220,7 +219,7 @@ from the visual pass; it does not render.
 |---|---|
 | doctor `Not ready: ...` | follow `references/setup.md` for each line it lists |
 | `yt-dlp returned nothing` / `parsed 0 videos` | read the hint it prints: update yt-dlp (doctor shows how), or ask for single video links and use `--urls` |
-| Instagram profile fails | ask for 10+ reel links (Step 1 "Instagram") |
+| Instagram profile fails | say its sentence: log in to instagram.com in Chrome, or 6+ reel links (Step 1 "Instagram") |
 | `... Fix the key, then rerun` (transcribe) | the ElevenLabs key is wrong: the user re-saves it with `setkey` in their own terminal, or drop it and use Whisper |
 | `gemini.py` exits 2 (no key) | Step 3b "No Gemini key" |
 | `Gemini rejected the key` / `none of ... is available to this key` | the user makes a new key at the link it prints; meanwhile the haiku fallback |

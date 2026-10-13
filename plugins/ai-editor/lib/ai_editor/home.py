@@ -2132,6 +2132,11 @@ def serve(root=None, port=None, open_browser=True):
     (home() / ".server").write_text(url, encoding="utf-8")
     askhook.register(srv, url, "home", asks_for)
     threading.Thread(target=run_doctor, daemon=True).start()
+    try:   # an update adds a new plugin folder: point nextwork-editor at this one
+        import launcher
+        launcher.refresh()
+    except Exception:
+        pass
     if open_browser:
         webbrowser.open(url)
     return srv, url

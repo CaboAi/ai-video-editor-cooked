@@ -944,20 +944,8 @@ def step_matte(force=False):
 
 
 LAUNCHER = PLUGIN / "lib" / "ai_editor" / "launcher.py"
-MARK = "installed by ai-editor setup.py install-launcher"
 RC_LINE = 'export PATH="$HOME/.local/bin:$PATH"  # added by ai-editor setup.py install-launcher'
-
-
-def launcher_text(os_name=OS, launcher=LAUNCHER, py=sys.executable):
-    if os_name == "Windows":
-        return (f"@echo off\r\nrem nextwork-editor: opens cooked. {MARK}; remove with setup.py uninstall-launcher\r\n"
-                f'set "L={launcher}"\r\nset "PY={py}"\r\nif not exist "%PY%" set "PY=py"\r\n'
-                'if not exist "%L%" (echo cooked. moved, maybe an update. In Claude Code, say: set up the editor. & exit /b 1)\r\n'
-                '"%PY%" "%L%" %*\r\n')
-    return (f"#!/bin/sh\n# nextwork-editor: opens cooked. {MARK}; remove with setup.py uninstall-launcher\n"
-            f"L='{launcher}'\nPY='{py}'\n[ -x \"$PY\" ] || PY=python3\n"
-            'if [ ! -f "$L" ]; then echo "cooked. moved, maybe an update. In Claude Code, say: set up the editor."; exit 1; fi\n'
-            'exec "$PY" "$L" "$@"\n')
+from ai_editor.launcher import MARK, launcher_text  # noqa: E402  (home.py refreshes the installed file with it too)
 
 
 def bin_dirs(os_name=OS, path_env=None, home=None):

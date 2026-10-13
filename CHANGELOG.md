@@ -4,6 +4,13 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- `nextwork-editor` always runs the newest installed version. It was fixed to the version it was installed
+  from, so after `/plugin update` it kept opening the old editor. The window also repoints an older
+  `nextwork-editor` the first time it starts.
+
+- The trust question: the steps now name the right option ("Yes, I trust this folder") and say to press
+  the down arrow first, because Enter alone picks "No, exit".
+
 ## ai-editor 2.6.2 (2026-10-13)
 
 - Connect Claude. When no Claude is listening, the window shows one button, **Connect Claude**, instead of

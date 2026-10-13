@@ -220,7 +220,8 @@ The user pressed Start setup on the first-run Home. Run `setup.py install-all --
 ### `JOB update`
 
 The user pressed Update in Settings (the page saw a newer version on GitHub main than this plugin.json).
-The update skill handles it when it is installed. Without it: for a marketplace install run
+The update skill handles it when it is installed (for a marketplace install, `update.py market` runs the
+two commands below). Without it: for a marketplace install run
 `claude plugin marketplace update nextwork` then `claude plugin update ai-editor@nextwork` from the shell,
 each reported with `status update --step "..."`; if the `claude plugin` commands are missing, tell the user
 to type `/plugin marketplace update nextwork` and `/plugin update ai-editor@nextwork`. Then

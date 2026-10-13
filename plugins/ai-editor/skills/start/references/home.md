@@ -188,7 +188,7 @@ Continue: style-edit with `<edit>/style.json` as usual. Stop: `status video --fa
 the <skill> skill. Open Claude Code where that skill is loaded and make the video again."`.
 
 Notes on a skill style's video become rules in that skill's own SKILL.md (`## Learned rules`), never in a
-settings file: the final approve's Teach panel does it (`review.py learn --done`), and so does a
+settings file: the final approve's Teach panel does it (`review.py learn --done`), as do `learn --scope this-style` and a
 `style-change` job on a skill style, through the skill-improver skill.
 
 ### `JOB style-change <my-style|@handle> [style=<style.json>] text=<the user's words>`

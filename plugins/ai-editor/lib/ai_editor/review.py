@@ -25,7 +25,8 @@ product video). Notes save with the edit, never in the plugin:
                                      the round's preference notes into the user's taste (taste.py add); --none if
                                      none. Each note records it: "taste": rule id | video-only | suggested | one-off.
                                      this-style: the creator style the edit used (<folder>/style.json "source", or
-                                     --style <style.json>): its overrides and its edit-like-<slug> skill
+                                     --style <style.json>): its overrides and its edit-like-<slug> skill; a skill
+                                     style's rules go into that skill's SKILL.md "## Learned rules" (skillrules.py)
     python3 review.py <folder> learn --propose '<json>'   the final approve's LEARN block: candidate rules
                                      [{"rule", "section", "set"?, "why"?, "replace"?}] onto the page's "Teach <style>"
                                      panel (the skill-improver skill writes them)
@@ -1593,6 +1594,14 @@ def cmd_learn(a, folder):
             sys.exit("--scope this-style: " + ("this edit used no creator style" if not src else "this edit blends several creators")
                      + "; pass --style creator-teardowns/<handle>/style.json, or use --scope style")
         sp = src[0]
+    skill_md = None   # a skill style ("skill" in its style.json): rules go into that skill's own SKILL.md
+    if sp is not None:
+        from ai_editor import skillrules
+        sk = (json.loads(Path(sp).read_text(encoding="utf-8") or "{}") or {}).get("skill")
+        if sk:
+            skill_md = skillrules.find_skill(sk)
+            if not skill_md:
+                sys.exit(f"the {sk} skill is not in your skill folders; nothing saved")
 
     def f(d):
         stage, rnd = learned_round(d)
@@ -1605,6 +1614,12 @@ def cmd_learn(a, folder):
                 section, rule, *kv = rules[c["id"]]
                 setting, _, raw = kv[0].partition("=") if kv else (None, "", "")
                 value = taste.parse(raw) if setting else None
+                if skill_md:
+                    status, line = skillrules.add(skill_md, rule, f"review note: {c['text']}", edit=str(folder))
+                    c.update(rule=rule, taste="skill")
+                    out.append(f"#{c['id']} -> {status}: {line} ({skill_md})"
+                               + (f"; {setting} not saved (a skill style has no settings)" if setting else ""))
+                    continue
                 scope = f"video:{d['name']}" if a.scope == "video" else styleskill.scope(sp)
                 status, r = taste.add(section, rule, setting, value, scope, folder, source="review", style=sp)
                 c.update(rule=rule, taste={"style": r["id"], "this-style": r["id"], "video": "video-only"}.get(a.scope, "suggested"))
@@ -1984,6 +1999,14 @@ def demo():
         learn(done="")
     t = sk_md.read_text(encoding="utf-8")
     assert "## Learned rules\n\n- Logos beside the head. Why: one covered the chin. (" in t and "## Log" in t, t
+    # the per-round learn at this-style on a skill style: the same SKILL.md, never the settings or edit-like skill
+    with contextlib.redirect_stdout(io.StringIO()):
+        learn(scope="this-style", rule=[[str(c2["id"]), "captions", "Captions two lines at most", "captions.size_pct=5"]])
+    t = sk_md.read_text(encoding="utf-8")
+    assert "- Captions two lines at most. Why: review note: " in t and t.count("\n- ") >= 3, t
+    assert next(c for c in load(folder / "review.json")["comments"] if c["id"] == c2["id"])["taste"] == "skill"
+    assert not any(r["rule"] == "Captions two lines at most" for r in taste.load_rules())
+    assert json.loads((sp.parent / "style.overrides.json").read_text(encoding="utf-8"))["captions"]["size_pct"] == 4
     assert "Logos beside" not in (tmp / "skills" / "edit-like-alice" / "SKILL.md").read_text(encoding="utf-8")
     if old_skills is None:
         os.environ.pop("AI_EDITOR_SKILLS", None)

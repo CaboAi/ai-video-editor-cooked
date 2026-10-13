@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Render the cut with plain ffmpeg: every kept span trimmed and joined.
 
-    python3 render.py <source> <edit_dir> [--crf 18] [--no-hw] [--flip | --no-flip]
+    python3 render.py <source> <edit_dir> [--crf 18] [--no-hw] [--flip]
 
 Reads <edit_dir>/decisions.json and report.json, writes <edit_dir>/cut.mp4 at the
-source resolution (rotation applied), H.264 + AAC. Flipped left to right when mirror.py found the take
-mirrored (<edit_dir>/mirror.json), so text in the shot reads the right way.
+source resolution (rotation applied), H.264 + AAC. --flip flips it left to right (a mirrored front-camera
+take the user asked to flip, mirror.py).
 
 How it stays exact on a big 4K source:
   - Each kept span is encoded on its own (video only), in parallel. One
@@ -78,8 +78,7 @@ def main():
     ap.add_argument("edit_dir")
     ap.add_argument("--crf", type=int, default=18)
     ap.add_argument("--no-hw", action="store_true", help="skip hardware decode on a Mac")
-    ap.add_argument("--flip", action=argparse.BooleanOptionalAction, default=None,
-                    help="flip left to right (default: what mirror.json says)")
+    ap.add_argument("--flip", action="store_true", help="flip left to right (a mirrored take, on the user's yes)")
     a = ap.parse_args()
     progress.step("Cutting out the mistakes", job="video", key=a.edit_dir)
 
@@ -87,13 +86,8 @@ def main():
     rep = json.loads((d / "report.json").read_text(encoding="utf-8"))
     fps, frames = rep["fps"], rep["frames"]
     src, out = a.source, d / "cut.mp4"
-    if a.flip is None:
-        try:
-            a.flip = bool(json.loads((d / "mirror.json").read_text(encoding="utf-8")).get("flip"))
-        except (OSError, ValueError):
-            a.flip = False
     if a.flip:
-        print("flipping left to right: the take is mirrored (mirror.json; --no-flip keeps it as shot)", flush=True)
+        print("flipping left to right (--flip)", flush=True)
     hw = sys.platform == "darwin" and not a.no_hw
     vstart, fstart = starts(src)
     off = vstart - fstart     # where frame 0 plays on the audio's timeline

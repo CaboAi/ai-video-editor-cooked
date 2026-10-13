@@ -740,7 +740,7 @@ def _place(images, words, duration, hold, ent, box, aspect):
         card = {"src": im["src"]} if "src" in im else {"anim": im["anim"]}
         if im.get("lane"):
             card["lane"] = im["lane"]
-        for k in ("highlight", "size", "layout", "transition_in", "transition_out", "focus", "format", "props", "_own_box", "xh", "lines"):
+        for k in ("highlight", "size", "layout", "transition_in", "transition_out", "focus", "format", "props", "_own_box", "xh", "lines", "pics"):
             if im.get(k):
                 card[k] = im[k]
         if im.get("marks"):
@@ -901,12 +901,31 @@ def capture_scale(c, aspect):
     return min(w * 0.96 / iw, h * 0.92 / ih)
 
 
+PICTURE_SHARE = 0.5   # a capture this much picture (a book cover, a product photo) is shown for the picture
+
+
+def picture_share(c):
+    """The share of a capture's PNG that its pictures cover (capture.mjs "pics", overlaps counted once per row
+    of 10 px), 0-1."""
+    iw, ih = c.get("size") or (0, 0)
+    if not c.get("pics") or not iw or not ih:
+        return 0.0
+    covered = 0
+    for y in range(0, int(ih), 10):
+        spans = sorted((p[0], p[0] + p[2]) for p in c["pics"] if p[1] <= y < p[1] + p[3])
+        end = 0
+        for a, b in spans:
+            covered += max(0, b - max(a, end)) * 10
+            end = max(end, b)
+    return min(1.0, covered / (iw * ih))
+
+
 def capture_xh(c, aspect):
     """The rendered x-height (px on a 1080-wide frame) of a capture card's evidence text, from its DOM line
     boxes; None when it has none. A capture.mjs sticker's own measured "xh" wins."""
     if c.get("format") == "sticker" and c.get("xh") and c.get("size"):
         return sticker_xh(c, aspect) * 1080 / min(SIZES[aspect])
-    if not c.get("size") or c.get("format") == "plain":
+    if not c.get("size") or c.get("format") == "plain" or picture_share(c) >= PICTURE_SHARE:
         return None
     ev = evidence_lines(c)
     if not ev:
@@ -1295,6 +1314,7 @@ LB_SAFE = (60, 250, 940, 1440)
 LB_TITLE_X = 140        # title and word side margins: centred, the right edge inside the safe zone
 LB_TITLE_GAP = 24       # the title's last line ends this far above the band
 LB_TITLE_PX = 58
+LB_TITLE_MIN_PX = 40    # a title that needs smaller than this to sit on one line wraps at LB_TITLE_PX instead
 LB_WORD_PX = 46
 LB_WORD_Y = 0.18        # the word's centre sits this share of the band's height above its bottom
 LB_CARD = (0.41, 0.25)  # the photo: side and top inset, as shares of the band's height
@@ -1332,6 +1352,8 @@ def letterbox_plan(head, style, words, meta, images, face, lay):
     title = (lay.get("title") or letterbox_title(words)).strip().lower()
     if len(title) > 90:
         print(f"warning: the title is {len(title)} characters; over about 90 it no longer fits above the band", file=sys.stderr)
+    # one line when it fits: the largest size from LB_TITLE_PX down to LB_TITLE_MIN_PX that holds it, else wrap at full size
+    tpx = next((px for px in range(LB_TITLE_PX, LB_TITLE_MIN_PX - 1, -2) if _tw(title, px, 400) <= W - 2 * LB_TITLE_X), LB_TITLE_PX)
     cs = style.get("captions") or {}
     # the creator's highlight when she has one (not her fill colour), else yellow; layout.highlight wins
     hi = lay.get("highlight") or (cs.get("highlight_color") if cs.get("highlight_color") not in (None, cs.get("color", "#FFFFFF")) else LB_HIGHLIGHT)
@@ -1343,7 +1365,7 @@ def letterbox_plan(head, style, words, meta, images, face, lay):
     out = {**head, "width": W, "height": H, "durationInFrames": round(meta["duration"] * head["fps"]),
            "layout": {"mode": "letterbox", "band": [0, pct(by, H), 100, pct(bh, H)], "title": title,
                       "title_box": [pct(LB_TITLE_X, W), pct(LB_SAFE[1], H), pct(W - 2 * LB_TITLE_X, W),
-                                    pct(by - LB_TITLE_GAP - LB_SAFE[1], H)], "title_px": LB_TITLE_PX},
+                                    pct(by - LB_TITLE_GAP - LB_SAFE[1], H)], "title_px": tpx},
            "captions": {"style": cap, "chunks": chunks}, "zooms": [], "cards": []}
     img = next((i for i in images if i.get("src")), None)
     if not img:
@@ -2166,6 +2188,10 @@ def demo():
     close = {"step_s": 0.5, "heads": [{"t": float(i) / 2, "box": [28, 12, 44, 26]} for i in range(30)]}
     [lo] = place_overlays([dict(wide)], close, 52.6, "9:16")
     assert lo["box"][1] >= 52.6 + 5 and lo["box"][0] == SAFE["9:16"][2] and lo["box"][1] + lo["box"][3] <= 100 - SAFE["9:16"][3], lo["box"]
+    # a capture that is mostly picture (a book cover with a small caption) is kept for the picture
+    cover = {"src": "images/c.png", "size": [600, 800], "pics": [[20, 20, 560, 700]], "lines": [[40, 740, 300, 20]], "box": [14, 58, 72, 20]}
+    assert picture_share(cover) > 0.8 and capture_xh(cover, "9:16") is None and readable_captures([cover], "9:16") == [cover]
+    assert _tw("your friends don't owe you likes", LB_TITLE_PX, 400) > 800 and LB_TITLE_MIN_PX < 46   # shrinks to one line
     lw2 = [{"text": t, "start": 0.3 * i, "end": 0.3 * i + 0.2} for i, t in enumerate("I think you have a horrible mindset and you need".split())]
     assert letterbox_title(lw2) == "i think you have a horrible mindset", letterbox_title(lw2)
     assert pw["box"][1] == 10 and pw["box"][1] + pw["box"][3] <= 34 - HEAD_GAP + 1e-6, pw["box"]

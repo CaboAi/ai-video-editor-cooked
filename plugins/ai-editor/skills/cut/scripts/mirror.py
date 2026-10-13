@@ -3,11 +3,12 @@
 sign in the shot reads backwards. Text is the tell: OCR a few frames as they are and flipped, and when the
 flipped frames read far better, the take is mirrored.
 
-    python3 run.py mirror.py <source> <edit_dir>      writes <edit_dir>/mirror.json {"flip": true|false, ...}
+    python3 run.py mirror.py <source> <edit_dir>      writes <edit_dir>/mirror.json {"mirrored": true|false, ...}
     python3 run.py mirror.py demo                     self-check
 
-render.py reads mirror.json and flips cut.mp4 when "flip" is true (its --flip / --no-flip override it).
-No text in the shot, or no OCR engine (Apple Vision via ocrmac on a Mac, else RapidOCR): "flip" is false.
+Many creators post their front-camera takes mirrored, as they saw themselves, so this never flips on its own:
+the cut skill asks, and render.py --flip flips cut.mp4 on a yes.
+No text in the shot, or no OCR engine (Apple Vision via ocrmac on a Mac, else RapidOCR): "mirrored" is false.
 Exit codes: 0 ok, 1 error, 2 usage
 """
 import json
@@ -58,7 +59,7 @@ def check(src):
     from PIL import Image, ImageOps
     read = reader()
     if read is None:
-        return {"flip": False, "why": "no OCR engine"}
+        return {"mirrored": False, "why": "no OCR engine"}
     dur = duration(src)
     plain = flipped = 0.0
     with tempfile.TemporaryDirectory() as tmp:
@@ -70,7 +71,7 @@ def check(src):
             im = Image.open(f).convert("RGB")
             plain += score(read(im))
             flipped += score(read(ImageOps.mirror(im)))
-    return {"flip": decide(plain, flipped), "plain": round(plain, 1), "flipped": round(flipped, 1)}
+    return {"mirrored": decide(plain, flipped), "plain": round(plain, 1), "flipped": round(flipped, 1)}
 
 
 def demo():
@@ -109,8 +110,8 @@ def main(argv):
     d.mkdir(parents=True, exist_ok=True)
     got = check(src)
     (d / "mirror.json").write_text(json.dumps(got), encoding="utf-8")
-    print("mirrored: text in the shot reads backwards, so cut.mp4 will be flipped (render.py --no-flip keeps it)"
-          if got["flip"] else f"not mirrored ({got.get('why') or 'text reads as shot, or no text'})")
+    print("mirrored: text in the shot reads backwards (a front-camera take). Ask before flipping (render.py --flip)"
+          if got["mirrored"] else f"not mirrored ({got.get('why') or 'text reads as shot, or no text'})")
     print(d / "mirror.json")
     return 0
 

@@ -121,8 +121,9 @@ python3 "$PY" "$S/mirror.py" <source> edits/<name>
 python3 "$S/render.py" <source> edits/<name>
 ```
 
-`mirror.py` reads the text in a few frames as shot and flipped: a front-camera take saved mirrored (a book or
-shirt reads backwards) gets `"flip": true`, and render.py flips cut.mp4. Say its line when it flips.
+`mirror.py` reads the text in a few frames as shot and flipped. It says `mirrored` when a book, shirt or sign
+reads backwards (a front-camera take): ask once, **Keep it as shot (Recommended)** (most creators post it that
+way) / **Flip it so the text reads**, and on a flip add `--flip` to render.py.
 
 4K takes minutes: run it in the background.
 

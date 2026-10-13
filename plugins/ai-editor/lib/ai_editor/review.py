@@ -118,7 +118,7 @@ class FileLock:
             try:
                 os.close(os.open(self.p, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
                 return self
-            except FileExistsError:
+            except (FileExistsError, PermissionError):   # Windows: a lock being deleted refuses a new open
                 try:   # a writer that died holding it: older than 10 s is stale
                     if time.time() - self.p.stat().st_mtime > 10:
                         self.p.unlink(missing_ok=True)

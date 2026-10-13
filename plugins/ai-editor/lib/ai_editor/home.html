@@ -56,7 +56,7 @@ header{display:flex;align-items:center;justify-content:space-between;height:64px
 .frow .was{color:var(--t4);font-size:12px;margin-left:6px}
 .frow .chg{color:var(--ink);font-weight:600}
 .live.on::before{content:"";width:8px;height:8px;border-radius:4px;background:var(--ink);flex-shrink:0}
-main{flex:1;display:flex;gap:20px;padding:12px 20px 20px;min-height:0}
+main{flex:1;display:flex;gap:24px;padding:12px 28px 20px;min-height:0}
 .col{display:flex;flex-direction:column;flex-shrink:0}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:20px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .grow{flex:1 1 0;min-width:0}
@@ -229,13 +229,13 @@ body.dragging #dropov{display:flex}
 .steps2 .cur .t{color:var(--ink);font-weight:600}
 .steps2 .later .t{color:var(--t3)}
 .steps2 .s{margin-left:auto;color:var(--t4);font-size:14px}
-.vrow{display:flex;align-items:center;gap:20px;padding:14px 0;border-top:1px solid var(--line)}
-.vrow .th{width:50px;height:88px;border-radius:6px;background:#45403C center/cover;flex-shrink:0}
+.vrow{display:flex;align-items:center;gap:16px;padding:12px 0;border-top:1px solid var(--line)}
+.vrow .th{width:48px;height:88px;border-radius:6px;background:#45403C center/cover;flex-shrink:0}
 .vrow .st{width:170px;flex-shrink:0;display:flex;align-items:center;gap:8px;font-size:14px}
-.vrow .act{width:150px;flex-shrink:0;display:flex;justify-content:center}
+.vrow .act{width:152px;flex-shrink:0;display:flex;justify-content:flex-end}
 .btn.sm{height:38px;padding:0 18px;font-size:14px}
 .ini{width:36px;height:36px;border-radius:18px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--t2);flex-shrink:0}
-.kv{display:flex;flex-direction:column;gap:2px}.kv span{font-size:13px;color:var(--t3)}.kv b{font-weight:500;font-size:15px}
+.kv{display:flex;flex-direction:column;gap:4px}.kv span{font-size:13px;line-height:16px;color:var(--t3)}.kv b{font-weight:500;font-size:15px}
 .nclaude{display:flex;flex-direction:column;align-items:flex-start;gap:10px;font-size:14px;line-height:20px;color:var(--t2)}
 .nclaude .codebox{align-self:stretch;gap:12px}.nclaude .codebox span{min-width:0;overflow-wrap:anywhere}
 .codebox{display:flex;justify-content:space-between;align-items:center;background:var(--soft);border-radius:10px;padding:10px 14px;font:14px var(--mono)}
@@ -335,7 +335,7 @@ body.dragging #dropov{display:flex}
 .dtile .tick{position:absolute;top:8px;right:8px}
 .tagq{background:var(--soft);border-radius:8px;padding:4px 10px;font-size:12px;line-height:16px;color:var(--t2);white-space:nowrap;flex-shrink:0}
 .recrow{flex-wrap:wrap}
-.crow{display:flex;align-items:center;gap:14px;margin-top:14px;width:100%;border:0;background:none;padding:0;text-align:left}
+.crow{display:flex;align-items:center;gap:16px;margin-top:16px;width:100%;border:0;background:none;padding:0;text-align:left}
 .crow:hover .cn{text-decoration:underline}
 .confirm{border:1.5px solid var(--ink);border-radius:14px;padding:14px 16px;background:var(--panel);display:flex;flex-direction:column;gap:10px}
 @media (max-width:1100px){.rv-side{width:400px!important}.sp-side{width:100%!important}.spwrap{flex-wrap:wrap}}
@@ -404,7 +404,7 @@ body.dragging #dropov{display:flex}
 }
 @media (min-width:761px) and (max-height:800px){
   header{height:56px}
-  main{padding:8px 20px 14px}
+  main{padding:8px 28px 14px}
   h1{font-size:34px;line-height:38px}
   .krow{padding:14px 24px}
   .sec{padding:14px 24px}.sec:first-child{padding-top:16px}
@@ -414,6 +414,74 @@ body.dragging #dropov{display:flex}
 @media (min-width:761px) and (max-height:720px){
   .lede{margin-top:8px}
   .mrow{padding:10px 20px}
+}
+/* returning user: one header (brand, text tabs, live status right) and Home as shelves (Paper "A. Shelves").
+   Home never scrolls from 1280x720 to 1920x1080: it shows fewer clips and styles instead (homeFit) */
+body.rh header{justify-content:flex-start;height:60px;padding:0 40px;border-bottom:1px solid var(--line)}
+body.rh .brandrow{width:auto;gap:28px}body.rh .brand b{font-size:16px;line-height:20px}
+body.rh #homebtn{display:none}
+body.rh .live{margin-left:auto;gap:20px}
+body.rh main{padding-left:40px;padding-right:40px}
+.ttabs{display:flex;gap:22px}
+.ttabs button{border:0;background:none;padding:0;color:var(--t3);font-size:14px;line-height:18px;white-space:nowrap}
+.ttabs button:hover{color:var(--ink)}.ttabs button.on{color:var(--ink);font-weight:500}
+.mk{display:inline-flex;align-items:center;gap:8px;color:var(--t2)}.mk i{width:6px;height:6px;border-radius:3px;background:var(--ink)}
+body.rh main.hmain{padding:28px 40px 32px}
+.hm{--tile:color-mix(in srgb,var(--ink) 4%,var(--bg));--t25:color-mix(in srgb,var(--t2) 45%,var(--t3));flex:1;min-width:0;display:flex;flex-direction:column;gap:34px;overflow:hidden}
+.hm>*{flex-shrink:0}
+.hm button{text-align:left;color:inherit}
+.hm .nm1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.hm-top{display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+.hm-top h1{font-size:30px;line-height:36px;font-weight:600;letter-spacing:-.02em}
+.hm-top p{margin:6px 0 0;font-size:15px;line-height:18px;color:var(--t25)}
+.hm-new{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border:0;border-radius:8px;background:var(--ink);color:var(--onink)!important;font-size:14px;line-height:18px;font-weight:600;white-space:nowrap;flex-shrink:0}
+.hm-strip{display:flex;gap:12px;height:92px}
+.hm-drop{width:300px;flex-shrink:0;display:flex;align-items:center;gap:14px;padding:0 20px;border:1px dashed var(--ring);border-radius:10px;cursor:pointer;color:var(--t2)}
+.hm-drop:hover{border-color:var(--t3)}
+.hm-clips{flex:1;min-width:0;display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:12px}
+.hm-tile{min-width:0;display:flex;align-items:center;gap:12px;padding:0 14px;border:0;border-radius:10px;background:var(--tile);cursor:pointer}
+.hm-tile:hover,.hm-card:hover,.hm-card:focus-visible{background:color-mix(in srgb,var(--ink) 7%,var(--bg))}
+.hm-tile .th{width:38px;height:64px;border-radius:5px;flex-shrink:0;background:#45403C center/cover}
+.hm-t1{font-size:14px;line-height:18px;font-weight:500;color:var(--ink)}.hm-t2{font-size:13px;line-height:16px;color:var(--t3)}
+.hm-tx{display:flex;flex-direction:column;gap:3px;min-width:0}
+.hm-sec{display:flex;flex-direction:column;gap:14px;min-width:0}
+.hm-hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.hm-hd b{font-size:17px;line-height:22px;font-weight:600}
+.hm-hd button{border:0;background:none;padding:0;font-size:14px;line-height:18px;color:var(--t25);white-space:nowrap}.hm-hd button:hover{color:var(--ink)}
+.hm-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;height:clamp(248px,calc(100dvh - 612px),340px)}
+.hm-card{min-width:0;display:flex;gap:16px;padding:12px;border-radius:12px;background:var(--tile);cursor:pointer;overflow:hidden}
+.hm-card .th{position:relative;overflow:hidden;height:100%;aspect-ratio:9/16;flex-shrink:0;border-radius:8px;background:#45403C center/cover}
+.hm-card .tx{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:12px;padding:6px 0}
+.hm-card .nmv{font-size:16px;line-height:20px;font-weight:500;color:var(--ink)}
+.hm-st{display:flex;align-items:center;gap:8px;font-size:14px;line-height:18px;color:var(--t25)}
+.hm-st.on{color:var(--ink)}.hm-st .dot,.hm-st .ring{flex-shrink:0}.hm-st .ring{border-color:var(--t3)}
+.hm-lib{display:flex;gap:48px}
+.hm-lib>.hm-sec:first-child{flex:1.55 1 0}.hm-lib>.hm-sec:last-child{flex:1 1 0}
+.hm-styles{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:12px}
+.hm-style{min-width:0;display:flex;flex-direction:column;gap:10px;border:0;background:none;padding:0;cursor:pointer}
+.hm-style .pic{height:72px;width:100%;border-radius:10px;background:#45403C center/cover}
+.hm-style:hover .pic{opacity:.88}
+.hm-style span{font-size:13px;line-height:16px;color:var(--t2)}
+.hm-crs{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hm-cr{display:flex;align-items:center;gap:12px;height:44px;min-width:0;border:0;background:none;padding:0;cursor:pointer;font-size:14px;line-height:18px;color:var(--ink)}
+.hm-cr:hover span{text-decoration:underline}
+.hm-cr .ini{background-size:cover;background-position:center}
+.hm-none{display:flex;align-items:center;font-size:14px;line-height:18px;color:var(--t3)}
+.hm-none{grid-column:1/-1}.hm-cards:has(.hm-none){height:auto}
+@media (min-width:761px) and (max-height:800px){
+  body.rh header{height:56px}
+  body.rh main.hmain{padding:24px 40px}
+  .hm{gap:24px}.hm-top h1{font-size:26px;line-height:32px}
+  .hm-strip{height:76px}.hm-tile .th{width:30px;height:52px}
+  .hm-cards{height:clamp(196px,calc(100dvh - 524px),248px)}
+  .hm-style .pic{height:60px}
+}
+@media (max-width:1399px){.hm-drop{width:260px}.hm-lib{gap:40px}}
+@media (max-width:760px){
+  body.rh header{height:auto;padding:14px 16px 10px;flex-wrap:wrap}.ttabs{order:3;width:100%}
+  body.rh main,body.rh main.hmain{padding:16px}
+  .hm{overflow:visible}.hm-strip,.hm-lib{flex-wrap:wrap;height:auto}.hm-cards{grid-template-columns:1fr;height:auto}.hm-clips{grid-template-columns:1fr}.hm-drop{width:100%;height:76px}.hm-tile{height:76px}
+  .hm-card{height:196px}
 }
 /* Settings (st-): two columns that scroll on their own, so the window never scrolls */
 .st-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;flex:1;min-width:0;align-self:stretch}
@@ -874,15 +942,13 @@ async function loadLib(){try{const r=await fetch('/library');if(r.ok){L=await r.
 async function loadRecent(){try{const r=await fetch('/recent');if(r.ok){R=await r.json();for(const v of R.videos)nv.clips[v.path]=v;render()}}catch(e){}}
 
 function rheader(){
-  const flow=['new','style','making'].includes(rv);
-  $('#homebtn').classList.toggle('on',rv==='home');
-  $('#steps').className='tabs';
-  $('#steps').innerHTML=[['New video',flow?rv:'new'],['Your videos','videos'],['My styles',rv==='stylepage'?'stylepage':'mystyle']].map(([n,v])=>`<button class="${rv===v?'on':''}" ${v==='home'?'data-home':''} onclick="rgo('${v}')">${n}</button>`).join('');
+  $('#steps').className='ttabs';
+  $('#steps').innerHTML=[['Home','home'],['Your videos','videos'],['My styles',rv==='stylepage'?'stylepage':'mystyle']].map(([n,v])=>`<button class="${rv===v?'on':''}" ${v==='home'?'data-home':''} onclick="rgo('${v}')">${n}</button>`).join('');
   $('#bars').innerHTML='';
   const strip=liveStrip(),bj=busyJob();
   $('#live').className='live';$('#live').style.width='auto';$('#live').style.minWidth='260px';$('#live').style.maxWidth='560px';
   const making=(L?L.videos:[]).filter(v=>v.status==='making'||v.status==='cutting').length;
-  $('#live').innerHTML=`${strip?(bj.type==='video'?strip.replace('class="lstrip"','class="lstrip lgo" role="button" tabindex="0" onclick="rgo(\'videos\')"'):strip):making?`<button class="hlink row" style="gap:8px;color:var(--ink)" onclick="rgo('videos')"><span class="dot"></span>Making ${making} video${making>1?'s':''}</button>`:''}<button class="hlink" style="color:${rv==='settings'?'var(--ink)':'var(--t3)'}" onclick="rgo('settings')" ${S.update&&S.update.newer?'title="A new version is out"':''}>Settings${S.update&&S.update.newer?'<span class="sdot"></span>':''}</button>${themeBtn()}`;
+  $('#live').innerHTML=`${strip?(bj.type==='video'?strip.replace('class="lstrip"','class="lstrip lgo" role="button" tabindex="0" onclick="rgo(\'videos\')"'):strip):making?`<button class="hlink mk" onclick="rgo('videos')" title="Making ${making} video${making>1?'s':''}"><i></i>Making ${making}</button>`:''}<button class="hlink" style="color:${rv==='settings'?'var(--ink)':'var(--t3)'}" onclick="rgo('settings')" ${S.update&&S.update.newer?'title="A new version is out"':''}>Settings${S.update&&S.update.newer?'<span class="sdot"></span>':''}</button>${themeBtn()}`;
 }
 
 // ---- step 1: pick the clips
@@ -1175,7 +1241,7 @@ function vMaking(){
   if(!js.length)return `<div class="col grow"><div class="empty">Nothing is being made. <a href="#" onclick="rgo('new');return false">Make a video</a></div></div>`;
   const mine=new Set(js.map(j=>j.args.edit));
   const others=(L?L.videos:[]).filter(v=>!mine.has(v.dir)).slice(0,3);
-  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:34px"><div><h1>Making your video${js.length>1?'s':''}</h1><p class="lede" style="margin-top:10px">The editor opens as soon as Claude starts.</p></div>${js.map(jobBlock).join('<div style="border-top:1px solid var(--line)"></div>')}</div>
+  return `<div class="col grow" style="min-width:0;gap:34px"><div><h1>Making your video${js.length>1?'s':''}</h1><p class="lede" style="margin-top:10px">The editor opens as soon as Claude starts.</p></div>${js.map(jobBlock).join('<div style="border-top:1px solid var(--line)"></div>')}</div>
   <div class="panel rv-side" style="width:420px;flex-shrink:0">
     <div class="sec"><div class="h" style="font-size:16px">Make another while you wait</div><button class="btn" style="height:44px;border-color:var(--ring)" onclick="rgo('new')">+ Make another</button></div>
     <div class="sec"><div class="h" style="font-size:16px">Also on your list</div>${others.length?others.map(v=>`<div class="row" style="gap:14px"><div style="width:36px;height:64px;border-radius:6px;flex-shrink:0;background:#45403C ${v.thumb?`url('${esc(v.thumb)}') center/cover`:''}"></div><div class="grow" style="min-width:0"><div style="font-size:15px">${esc(v.name)}</div><div class="muted" style="margin-top:2px;font-size:14px">${STATUS[v.status]} · ${ago(v.updated)}</div></div>${v.review?`<a href="/review?dir=${encodeURIComponent(v.dir)}">Watch</a>`:''}</div>`).join(''):'<div class="muted">Nothing else yet.</div>'}</div>
@@ -1199,30 +1265,41 @@ function mkOver(v,short){
   return `<div class="mkover"><span class="spin"></span>${short?'':`<span style="min-width:0">${esc(s?s.text:j&&j.state==='queued'?'Starting':'Being made')}${t?` · <span data-since="${t}">${secs(Math.max(0,Math.round(Date.now()/1000-t)))}</span>`:''}</span>`}</div>`;
 }
 const openBtn=v=>v.status==='done'?'':`<button class="btn sm" onclick="event.stopPropagation();openVideo(${esc(JSON.stringify(v.dir))})">Open the editor</button>`;
-function vRow(v){
-  const st=v.status==='done'?`${TICK} Done`:v.status==='ready'?'<div class="dot"></div> Ready to review':'<div class="ring"></div> '+STATUS[v.status];
-  const act=v.status!=='done'?openBtn(v):v.media?`<a href="${esc(v.media)}" download onclick="event.stopPropagation()" style="text-decoration:none;font-size:15px">Download</a>`:'';
-  return `<div class="vrow vopen" ${goAttrs(v)}><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${mkOver(v,true)}</div><div class="grow" style="min-width:0"><div style="font-size:16px">${esc(v.name)}</div><div class="sub" style="margin-top:4px">${v.kind==='edits'?'':esc(v.kind)+' · '}${v.round?`round ${v.round} · `:''}${ago(v.updated)}</div>${newClaude(vJob(v))?`<div style="margin-top:10px">${newClaude(vJob(v))}</div>`:''}</div><div class="st">${st}</div><div class="act">${act}</div></div>`;
-}
 const EXROW=`<div class="vrow ex"><div class="th" style="background-image:url('/demo/person-2.jpg')"></div><div class="grow" style="min-width:0"><div style="font-size:16px">my-first-video</div><div class="sub" style="margin-top:4px">Example. Your videos show here.</div></div><div class="st"><span class="tagq">Example</span></div></div>`;
-function styleSide(){
-  const st=L?L.styles:[],me=st[0],pic=me&&picOf(me,0);
-  return `<div class="col rv-side" style="width:500px;gap:24px">${me?`<div class="panel"><div class="between" style="padding:22px 28px 0"><span class="h" style="font-size:17px">${esc(me.name)}</span><a href="#" onclick="openStyle('mine');return false">Change</a></div>
-    <div class="row" style="gap:28px;padding:18px 28px 22px;align-items:flex-start"><div class="pic" style="position:relative;width:138px;height:246px;flex-shrink:0;border-radius:14px;overflow:hidden;background:#45403C url('${esc(pic.url)}') center/cover">${pic.demo?'<span class="extag">Example photo</span>':''}</div><div style="display:flex;flex-direction:column;gap:16px">${me.facts.map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div></div></div>`:''}
-    <div class="panel" style="padding:22px 28px"><div class="between"><span class="h" style="font-size:17px">Creators you copied</span><span class="muted">${st.length-1}</span></div>
-    ${st.length>1?'':`<div class="crow ex"><div class="ini">EX</div><div class="grow" style="min-width:0"><div style="font-size:15px;font-weight:500">@example.creator</div><div class="muted" style="font-size:14px;margin-top:2px">Example. The creators you copy show here.</div></div><span class="tagq">Example</span></div>`}
-    ${st.slice(1).map(c=>`<button class="crow" ${c.studying?'disabled':''} onclick="openStyle(${esc(JSON.stringify(c.id))})"><div class="ini">${esc(c.id.slice(1,3).toUpperCase())}</div><div class="grow" style="min-width:0"><div class="cn" style="font-size:15px;font-weight:500">${esc(c.name)}</div><div class="muted" style="font-size:14px;margin-top:2px">${c.studying?'being copied now':[c.videos?`${c.videos} video${c.videos>1?'s':''}`:'',c.facts[0]?c.facts[0].join(' '):''].filter(Boolean).join(' · ')}</div></div>${me&&me.base&&'@'+me.base===c.id?'<span class="tagq">In my style</span>':''}</button>`).join('')}
-    <button class="hlink" style="margin-top:18px;font-size:14px;color:var(--ink)" onclick="rgo('mystyle')">+ Copy a creator</button></div></div>`;
+// how many clips and styles fit across (Paper "A. Shelves": 4 clips and 5 styles at 1512 wide, 3 and 4 at 1280)
+function homeFit(){
+  const W=innerWidth-80,narrow=innerWidth<1400,cols=(W-(narrow?40:48))*1.55/2.55;
+  return {clips:Math.max(1,Math.floor((W-(narrow?260:300)+12)/252)),styles:Math.max(1,Math.floor((cols+12)/152))};
+}
+addEventListener('resize',()=>{if(rv==='home')render()});
+function hmStatus(v){
+  if(v.status==='ready')return '<div class="hm-st on"><span class="dot"></span>Ready to review</div>';
+  if(v.status==='done')return `<div class="hm-st on">${TICK}Done</div>`;
+  return `<div class="hm-st"><span class="ring"></span>${v.status==='making'&&v.round?'Claude has your notes':'Being made'}</div>`;
+}
+function hmCard(v){
+  const nc=newClaude(vJob(v));
+  return `<div class="hm-card" ${goAttrs(v)}><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${mkOver(v,true)}</div><div class="tx">
+    <div style="display:flex;flex-direction:column;gap:5px;min-width:0"><div class="nmv nm1">${esc(v.name)}</div><div class="hm-t2 nm1">${[v.stage==='edit'?'Full edit':v.stage==='cut'?'Cut':'',v.round?`round ${v.round}`:'',ago(v.updated)].filter(Boolean).join(' · ')}</div></div>
+    ${nc||hmStatus(v)}</div></div>`;
 }
 function vHome(){
   const vids=L.videos,ready=vids.filter(v=>v.status==='ready').length,making=vids.filter(v=>v.status==='making'||v.status==='cutting').length;
-  const rec=(R?R.videos:[]).slice(0,4);
-  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:28px"><div><h1>Welcome back</h1>${ready||making?`<p class="lede" style="margin-top:10px">${[ready?`${ready} ready for you to watch.`:'',making?`${making} still being made.`:''].filter(Boolean).join(' ')}</p>`:''}</div>
-    <div class="panel" style="padding:24px 28px;gap:22px"><div class="between" style="align-items:flex-start;flex-wrap:wrap"><div><div style="font-size:22px;font-weight:600">New video</div></div><button class="btn dark" style="height:52px;padding:0 40px;font-size:16px" onclick="rgo('new')">+ New video</button></div>
-      <div class="row recrow" style="gap:12px;align-items:flex-end"><div class="droptile" id="droptile" style="width:150px;height:150px" onclick="rgo('new')">${UP}<div style="font-weight:500;font-size:13px">Drop files here</div><div class="muted" style="font-size:12px">or choose files</div></div>${rec.map(v=>`<button class="clip" style="width:84px" onclick="nv.sel=[${esc(JSON.stringify(v.path))}];rgo('new')"><div class="pic" style="width:84px;height:150px;background-image:url('${esc(v.thumb)}')"></div></button>`).join('')}${rec[0]?`<div class="reclabel" style="padding-left:12px;min-width:140px"><div style="font-size:15px">${esc(rec[0].name)}</div><div class="muted" style="margin-top:4px;font-size:14px">${esc(rec[0].where)} · ${ago(rec[0].mtime)}</div></div>`
-        :[0,1,2].map(i=>`<div class="clip ex" style="width:84px"><div class="pic" style="width:84px;height:150px;background-image:url('${DEMO(i)}')"></div></div>`).join('')+`<div class="reclabel muted" style="padding-left:12px;min-width:140px;font-size:14px;line-height:20px">Example clips. Your newest clips show here.</div>`}</div></div>
-    <div><div class="between" style="padding-bottom:12px"><span class="h" style="font-size:17px">Your videos</span>${vids.length>3?`<a href="#" onclick="rgo('videos');return false">See all ${vids.length}</a>`:''}</div>${vids.slice(0,3).map(vRow).join('')||EXROW}</div>
-  </div>${styleSide()}`;
+  const fit=homeFit(),rec=(R?R.videos:[]).slice(0,fit.clips),st=L.styles||[],cr=st.filter(c=>c.id!=='mine');
+  const hd=(t,n,go)=>`<div class="hm-hd"><b>${t}</b>${n?`<button onclick="rgo('${go}')">${go==='videos'?'See all':'All'} ${n}</button>`:''}</div>`;
+  const P=v=>esc(JSON.stringify(v));
+  return `<div class="hm">
+  <div class="hm-top"><div style="min-width:0"><h1>Home</h1>${ready||making?`<p>${[ready?`${ready} ready for you to watch.`:'',making?`${making} with Claude.`:''].filter(Boolean).join(' ')}</p>`:''}</div>
+    <button class="hm-new" onclick="rgo('new')"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4"/></svg>New video</button></div>
+  <div class="hm-strip"><label class="hm-drop" id="droptile"><svg width="20" height="20" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><div class="hm-tx"><div class="hm-t1">Drop a video here</div><div class="hm-t2">or choose a file</div></div><input type="file" multiple accept="video/*,.mov,.mkv,.mp4" class="hide" onchange="const f=[...this.files];this.value='';rgo('new');chooseFiles(f)"></label>
+    <div class="hm-clips" style="--n:${fit.clips}">${rec.map(v=>`<button class="hm-tile" title="${esc(v.name)}" onclick="nv.sel=[${P(v.path)}];rgo('new')"><div class="th" style="background-image:url('${esc(v.thumb)}')"></div><div class="hm-tx"><div class="hm-t1 nm1">${esc(v.name)}</div><div class="hm-t2 nm1">${esc(v.where)} · ${ago(v.mtime)}</div></div></button>`).join('')
+      ||'<div class="hm-none">Your newest clips show here.</div>'}</div></div>
+  <div class="hm-sec">${hd('Your videos',vids.length,'videos')}<div class="hm-cards">${vids.slice(0,3).map(hmCard).join('')||'<div class="hm-none">No videos yet. Drop a clip above to start one.</div>'}</div></div>
+  <div class="hm-lib">
+    <div class="hm-sec">${hd('My styles',st.length,'mystyle')}<div class="hm-styles" style="--n:${fit.styles}">${st.slice(0,fit.styles).map((c,i)=>`<button class="hm-style" ${c.studying?'disabled':''} onclick="openStyle(${P(c.id)})"><div class="pic" style="background-image:url('${esc(picOf(c,i).url)}')"></div><span class="nm1">${esc(c.name)}</span></button>`).join('')||'<div class="hm-none">No styles yet.</div>'}</div></div>
+    <div class="hm-sec">${hd('Creators you copied',cr.length,'mystyle')}<div class="hm-crs">${cr.slice(0,4).map(c=>`<button class="hm-cr" ${c.studying?'disabled':''} onclick="openStyle(${P(c.id)})"><div class="ini" style="${c.face?`background-image:url('${esc(c.face)}')`:''}">${c.face?'':esc(c.id.slice(1,3).toUpperCase())}</div><span class="nm1">${esc(c.id)}</span></button>`).join('')
+      ||'<div class="hm-none">No creators yet. Copy one from My styles.</div>'}</div></div>
+  </div></div>`;
 }
 const NOWLINE={ready:v=>v.stage==='edit'?'The edit is ready. Leave notes or approve it.':'The cut is ready. Leave notes or approve it.',
   making:v=>vJob(v)&&!v.round?'Claude is making the cut. Your clip is in the editor meanwhile.':v.stage==='cut'&&v.round?'Claude is making the edit from your cut.':'Claude is working on your notes.',cutting:v=>(vJob(v)||{}).state==='queued'?'Starts as soon as Claude picks it up.':'Cutting out the mistakes.'};
@@ -1243,14 +1320,14 @@ const rmLink=v=>`<button class="hlink" style="font-size:13px" onclick="event.sto
 function vVideos(){
   const now=L.videos.filter(v=>v.status!=='done'),done=L.videos.filter(v=>v.status==='done');
   const lede=[now.filter(v=>v.status==='ready').length?`${now.filter(v=>v.status==='ready').length} ready for you to watch.`:'',now.filter(v=>v.status!=='ready').length?`${now.filter(v=>v.status!=='ready').length} still being made.`:'',done.length?`${done.length} done.`:''].filter(Boolean).join(' ');
-  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:26px"><div class="between" style="align-items:flex-end;flex-wrap:wrap;gap:12px"><div><h1>Your videos</h1>${lede?`<p class="lede" style="margin-top:10px">${lede}</p>`:''}</div><div class="row"><button class="btn quiet" onclick="post('/reveal',{})">Show in ${/Mac/.test(navigator.platform)?'Finder':'Explorer'}</button><button class="btn dark" onclick="rgo('new')">+ New video</button></div></div>
+  return `<div class="col grow" style="min-width:0;gap:26px"><div class="between" style="align-items:flex-end;flex-wrap:wrap;gap:12px"><div><h1>Your videos</h1>${lede?`<p class="lede" style="margin-top:10px">${lede}</p>`:''}</div><div class="row"><button class="btn quiet" onclick="post('/reveal',{})">Show in ${/Mac/.test(navigator.platform)?'Finder':'Explorer'}</button><button class="btn dark" onclick="rgo('new')">+ New video</button></div></div>
     ${editTrashRow()}
     ${now.length?`<div><div class="h" style="margin-bottom:12px">Now</div><div class="nowg">${now.map(nowCard).join('')}</div></div>`:''}
     ${done.length?`<div><div class="between" style="margin-bottom:12px"><span class="h">Done</span><span class="muted">newest first</span></div><div class="doneg">${done.map(v=>`<div class="dtile"><a href="${v.review?'/review?dir='+encodeURIComponent(v.dir):esc(v.media||'#')}" style="text-decoration:none"><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${TICK}</div></a><div style="font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.name)}</div><div class="between"><span class="muted">${ago(v.updated)}</span><span class="row" style="gap:10px">${v.media?`<a class="muted" style="color:var(--ink)" href="${esc(v.media)}" download>Download</a>`:''}${rmLink(v)}</span></div></div>`).join('')}</div></div>`:''}
     ${L.videos.length?'':`<div>${EXROW}</div>`}</div>`;
 }
 function vMyStyle(){
-  return `<div class="col grow" style="min-width:0;padding:12px 14px 0;gap:24px"><div><h1>My styles</h1></div>
+  return `<div class="col grow" style="min-width:0;gap:24px"><div><h1>My styles</h1></div>
     ${styleGroups(false)}</div>`;
 }
 // ---- Settings: keys (each with its own status), updates, the videos folder, the theme, this computer
@@ -1401,9 +1478,7 @@ function rrender(){
   rheader();
   if(rv==='settings'&&!ui.disk)loadDisk();
   const h=rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='making'?vMaking():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='settings'?vSettings():vHome();
-  const side=$('#main .rv-side'),sideY=side?side.scrollTop:0;   // the side panel keeps its scroll through a re-render
-  $('#main').innerHTML=h;$('#main').classList.toggle('spwrap',rv==='stylepage');
-  if(sideY&&$('#main .rv-side'))$('#main .rv-side').scrollTop=sideY;
+  paint($('#main'),h,rv+'|'+ui.sp);$('#main').classList.toggle('spwrap',rv==='stylepage');$('#main').classList.toggle('hmain',rv==='home');
   if(rv==='mystyle'||rv==='style')flashBuilt();
   const o=$('#order');if(o)o.querySelectorAll('[draggable]').forEach(el=>{
     el.ondragstart=e=>{e.dataTransfer.setData('text/plain',el.dataset.i)};el.ondragover=e=>e.preventDefault();
@@ -1423,9 +1498,19 @@ window.addEventListener('keydown',e=>{if(e.key==='Escape')dragOff()});
 window.addEventListener('drop',()=>{dragN=0;document.body.classList.remove('dragging')},true);
 
 // ---------------------------------------------------------------- render loop
+// The poll redraws every 1.5 s. Same HTML: the DOM is left alone. New HTML on the same view: every inner
+// scroller (a column, panel or list) gets its scroll back, found again by its place in the tree.
+function paint(el,h,view){
+  if(el._h===h&&el._v===view)return;
+  const keep=[];
+  if(el._v===view)(function walk(e,path){if(e.scrollTop||e.scrollLeft)keep.push([path,e.scrollTop,e.scrollLeft]);[...e.children].forEach((c,i)=>walk(c,[...path,i]))})(el,[]);
+  el.innerHTML=h;el._h=h;el._v=view;
+  for(const [path,t,l] of keep){const e=path.reduce((x,i)=>x&&x.children[i],el);if(e){e.scrollTop=t;e.scrollLeft=l}}
+}
 function render(){
   if(!S)return;
   const keep=document.activeElement&&document.activeElement.id,pos=keep&&document.activeElement.selectionStart,end=keep&&document.activeElement.selectionEnd,val=keep&&document.activeElement.value;
+  document.body.classList.toggle('rh',returning()&&!ui.onboard);
   if(returning()&&!ui.onboard){
     if(!rv)rv=S.jobs.some(j=>j.type==='video'&&(j.state==='queued'||j.state==='taken'))&&!L.videos.some(v=>v.status!=='cutting')?(nv.making=S.jobs.filter(j=>j.type==='video'&&(j.state==='queued'||j.state==='taken')).map(j=>j.id),'making'):L.videos.length?'home':'new';
     rrender();
@@ -1437,7 +1522,7 @@ function render(){
   if(v===0)html=h1();else if(v===1)html=h2();
   else if(v===2){const td=latest('teardown');html=!td?`<div class="col grow"><div class="empty">Pick a creator first.</div></div>`:td.state==='done'?h4(td):h3(td)}
   else if(v===3)html=h5();else html=h6();
-  $('#main').innerHTML=html;
+  paint($('#main'),html,'v'+v);
   if(keep){const e=document.getElementById(keep);if(e&&'value' in e){if(e.type!=='file')e.value=val;e.focus();try{e.setSelectionRange(pos,end??pos)}catch(x){}}}
   const d=$('#drop');if(d){d.ondragover=e=>{e.preventDefault();d.classList.add('over')};d.ondragleave=()=>d.classList.remove('over');d.ondrop=e=>{e.preventDefault();d.classList.remove('over');const f=e.dataTransfer.files[0];if(f)upload(f)}}
   }

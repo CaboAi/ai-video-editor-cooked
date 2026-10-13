@@ -767,9 +767,11 @@ function renderList(){
   const queued=isCur()?S.comments.filter(c=>c.queued&&c.stage===S.stage&&onAlt(c)).sort((a,b)=>a.t-b.t):[];
   if(queued.length)h+=`<p class="sub">${S.raw?'For the cut':'For the next round'}</p>`+queued.map(noteHtml).join('');
   if(isCur()&&!p&&mine.length)h+=`<span class="unsent">${plural(mine.length,'note')}, not sent yet</span>`;
-  const keepScroll=$('list').scrollTop,hadFocus=document.activeElement&&document.activeElement.classList.contains('edta');
-  $('list').innerHTML=h;$('list').scrollTop=isCur()&&p&&!editing?$('list').scrollHeight:keepScroll;
-  const lp=$('list').querySelector('.learn');if(lp&&!keepScroll)lp.scrollIntoView({block:'end'});
+  const l=$('list'),keepScroll=l.scrollTop,atEnd=l.scrollHeight-keepScroll-l.clientHeight<40,hadFocus=document.activeElement&&document.activeElement.classList.contains('edta');
+  const hadLearn=!!l.querySelector('.learn'),newP=p!==renderList.p;renderList.p=p;
+  // with Claude: open at the work panel at the bottom, then stay where the user scrolled (status lines re-render this)
+  l.innerHTML=h;l.scrollTop=isCur()&&p&&!editing&&(atEnd||newP)?l.scrollHeight:keepScroll;
+  const lp=l.querySelector('.learn');if(lp&&!hadLearn)lp.scrollIntoView({block:'end'});
   const ea=$('list').querySelector('.edta');
   if(ea){ea.oninput=()=>editing.text=ea.value;ea.onkeydown=ev=>{if(ev.key==='Enter'&&!ev.shiftKey){ev.preventDefault();saveEdit()}if(ev.key==='Escape'){ev.preventDefault();editing=null;renderList()}};
     ea.onpaste=ev=>{const fs=[...(ev.clipboardData?.files||[])];if(fs.length){ev.preventDefault();editFiles(fs)}};
@@ -940,10 +942,14 @@ function tickTx(){
   const el=k>=0&&document.querySelector(`#txlines [data-k="${k}"]`);
   if(el&&!txSel&&!txDown&&Date.now()-txHand>3000){   // keep the word said now in view, about a third down
     const box=$('txlines'),r=el.getBoundingClientRect(),b=box.getBoundingClientRect();
-    if(r.top<b.top+24||r.bottom>b.bottom-48){box.scrollTo({top:box.scrollTop+r.top-b.top-box.clientHeight*.3,behavior:'smooth'})}}
+    if(r.top<b.top+24||r.bottom>b.bottom-48){txAuto=Date.now();box.scrollTo({top:box.scrollTop+r.top-b.top-box.clientHeight*.3,behavior:'smooth'})}}
 }
+let txAuto=0;   // when the follow last scrolled: its own smooth scroll is not a hand scroll
 ['wheel','touchmove'].forEach(n=>$('txlines').addEventListener(n,()=>txHand=Date.now(),{passive:true}));
 $('txlines').addEventListener('pointerdown',e=>{if(e.target===$('txlines'))txHand=Date.now()});   // the scrollbar
+// the scroll keys, and any scroll the follow did not make (a scrollbar drag held past 3 s, middle-click), also count
+document.addEventListener('keydown',e=>{if(/^(Page(Up|Down)|Arrow(Up|Down)|Home|End)$/.test(e.key)&&!/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))txHand=Date.now()});
+$('txlines').addEventListener('scroll',()=>{if(Date.now()-txAuto>1000)txHand=Date.now()},{passive:true});
 (function follow(){if(!v.paused)tickTx();requestAnimationFrame(follow)})();
 const txChanged=()=>{txVer++;KEEP=keepRanges();render()};
 function seekWord(k){const w=W[k];if(!w||w.nt)return;

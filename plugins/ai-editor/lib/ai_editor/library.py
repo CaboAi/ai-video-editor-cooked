@@ -259,8 +259,9 @@ def trash_cmd(p, os_name=None):
     """Move to the Trash / Recycle Bin, never a permanent delete. The path is always its own argv item."""
     os_name = os_name or platform.system()
     if os_name == "Darwin":
-        return ["osascript", "-e", "on run argv", "-e", 'tell application "Finder" to delete POSIX file (item 1 of argv)',
-                "-e", "end run", str(p)]
+        # the POSIX file is made outside Finder's tell block: inside it Finder fails with -1728 "Can't get POSIX file"
+        return ["osascript", "-e", "on run argv", "-e", "set f to POSIX file (item 1 of argv) as alias",
+                "-e", 'tell application "Finder" to delete f', "-e", "end run", str(p)]
     if os_name == "Windows":
         fn = "DeleteDirectory" if Path(p).is_dir() else "DeleteFile"
         return ["powershell", "-NoProfile", "-Command", "param($p) Add-Type -AssemblyName Microsoft.VisualBasic; "

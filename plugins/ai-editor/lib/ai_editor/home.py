@@ -777,6 +777,7 @@ def style_page(root, sid):
             "copies": copies, "rules": rules, "style_path": str(sp) if sp else None, "presets": preset_state(root, sid, st, base, changed),
             "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid), "face": face_of(root, base),
             "own": sid == "mine" or bool(st.get("own")), "videos": st.get("videos"),
+            "references": references(sp.parent) if sp and not st.get("own") else {"videos": [], "profile": None},
             "made": next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None) if sp else None,
             "delete_note": f"My style started from @{base}. It goes back to the default style." if sp and base and style_of(root, "mine")[2] == base else None,
             **naming(sid, sp, base)}
@@ -913,6 +914,39 @@ def cover_of(root, sid):
     return f"/style/cover?id={quote(sid)}&v={int(f.stat().st_mtime)}" if f and f.is_file() else None
 
 
+def references(d):
+    """What a style was analysed from: references.json ({"videos": [{url, title}]}) when there is one, else the
+    videos.json entries that have a transcript (the ones actually measured). http(s) links only."""
+    ok = lambda u: isinstance(u, str) and re.match(r"https?://", u)
+    try:
+        r = json.loads((d / "references.json").read_text(encoding="utf-8"))
+        vids = [{"url": v["url"], "title": v.get("title") or "", "thumbnail": v.get("thumbnail") if ok(v.get("thumbnail")) else None}
+                for v in r.get("videos") or [] if ok(v.get("url"))]
+        return {"videos": vids, "profile": r.get("profile") if ok(r.get("profile")) else None}
+    except (OSError, ValueError, AttributeError, KeyError, TypeError):
+        pass
+    try:
+        vj = json.loads((d / "videos.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"videos": [], "profile": None}
+    have = {f.name.split(".")[0] for f in (d / "transcripts").glob("*.txt")} if (d / "transcripts").is_dir() else set()
+    vids = [{"url": v.get("webpage_url"), "title": v.get("title") or "", "thumbnail": v.get("thumbnail") if ok(v.get("thumbnail")) else None}
+            for v in vj.get("videos") or [] if ok(v.get("webpage_url")) and str(v.get("id")) in have]
+    h, plat = vj.get("handle") or d.name, vj.get("platform")
+    prof = None if h.startswith("links-") or plat not in ("tiktok", "youtube") else \
+        (f"https://www.tiktok.com/@{h}" if plat == "tiktok" else f"https://www.youtube.com/@{h}")
+    return {"videos": vids, "profile": prof}
+
+
+def write_references(d):
+    """At the end of an analysis: references.json from what was measured, so the style keeps its sources."""
+    if (d / "references.json").exists() or not (d / "videos.json").is_file():
+        return
+    r = references(d)
+    if r["videos"]:
+        (d / "references.json").write_text(json.dumps(r, indent=2), encoding="utf-8")
+
+
 def make_face(d):
     """creator-teardowns/<h>/face.jpg, once: the brightest of 1, 2 and 4 s into their top downloaded video
     (videos.json order), else the first cell of a contact sheet (visual.py's 3 x 3). False when neither is there."""
@@ -928,7 +962,8 @@ def make_face(d):
             px = subprocess.run(["ffmpeg", "-v", "error", "-ss", str(t), "-i", str(mp4), "-frames:v", "1", "-vf",
                                  "scale=16:16,format=gray", "-f", "rawvideo", "-"], capture_output=True, timeout=30).stdout
             return sum(px) / len(px) if px else 0
-        src, pre = ["-ss", str(max((1, 2, 4), key=light)), "-i", str(mp4)], fit
+        dur = library.meta(mp4).get("duration") or 0   # the middle third shows the style (captions, cards), not an intro
+        src, pre = ["-ss", str(max([round(dur * f, 2) for f in (0.35, 0.5, 0.65)] if dur > 6 else [1, 2, 4], key=light)), "-i", str(mp4)], fit
     elif sheet:
         src, pre = ["-i", str(sheet)], "crop=iw/3:ih/3:0:0," + fit
     else:
@@ -1129,8 +1164,10 @@ def getting_started(d):
     setup = any(j["type"] == "setup" and j["state"] == "done" for j in d["jobs"]) or bool(rows) and all(r.get("ok") for r in rows)
     style = bool(d.get("style_skipped")) or any(j["type"] == "teardown" and j["state"] == "done" for j in d["jobs"]) \
         or any(not h.startswith(("own-", "sample-")) for h, _ in library.styles(d["root"]))
-    video = any(e["status"] in ("ready", "done") for e in library.entries())
-    return {"setup": setup, "style": style, "video": video}
+    es = library.entries()
+    video = any(e["status"] in ("ready", "done") for e in es)
+    # a user with a made video set up long ago (before the doctor rows were checked): never back to step 1
+    return {"setup": setup or video, "style": style or video, "video": video}
 
 
 def busy_with(d, sid):
@@ -1282,6 +1319,11 @@ def cmd_status(a):
         if a.result:
             r = json.loads(Path(a.result[1:]).read_text(encoding="utf-8") if a.result.startswith("@") else a.result)
             j["result"].update(r)
+        if a.done and j["type"] == "teardown" and j["args"].get("handle"):
+            try:
+                write_references(Path(d["root"]) / "creator-teardowns" / j["args"]["handle"])
+            except OSError:
+                pass
         if a.done or a.failed:
             for s in j["steps"]:
                 if not s.get("done"):
@@ -2445,6 +2487,20 @@ def demo():
     assert ft["args"]["handle"].startswith("links-") and ft["args"]["platform"] == "tiktok" and ft["args"]["take"] == ["captions", "pace"], ft
     assert Path(ft["args"]["urls"]).read_text(encoding="utf-8").split() == fl
     update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["id"] != ft["id"]]))   # not Claude's to take here
+    # Analysed from: references.json first, else the measured videos (a transcript each); http(s) only
+    rd = tmp / "refs"
+    (rd / "transcripts").mkdir(parents=True)
+    (rd / "videos.json").write_text(json.dumps({"handle": "refs", "platform": "tiktok", "videos": [
+        {"id": "1", "webpage_url": "https://www.tiktok.com/@refs/video/1", "title": "one"},
+        {"id": "2", "webpage_url": "https://www.tiktok.com/@refs/video/2", "title": "not measured"},
+        {"id": "3", "webpage_url": "javascript:alert(1)", "title": "bad"}]}))
+    (rd / "transcripts" / "1.txt").write_text("x")
+    (rd / "transcripts" / "3.txt").write_text("x")
+    assert references(rd) == {"videos": [{"url": "https://www.tiktok.com/@refs/video/1", "title": "one", "thumbnail": None}],
+                              "profile": "https://www.tiktok.com/@refs"}, references(rd)
+    write_references(rd)
+    (rd / "transcripts" / "1.txt").unlink()
+    assert references(rd)["videos"][0]["title"] == "one"   # kept in references.json once the analysis ended
     # Build it yourself: a second own style, listed as own, can be the default, and goes when deleted
     oid = post("/style/new", {"name": "Clean talking head"})["id"]
     own = next(c for c in get("/library")["styles"] if c["id"] == oid)

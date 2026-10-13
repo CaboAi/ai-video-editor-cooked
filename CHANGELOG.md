@@ -4,6 +4,12 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Style cards show their picture tall (4:5), centred on the face, and a wide frame whole over a blurred copy
+  of itself. New face frames come from the middle of the video, where its captions and cards are on screen.
+  A style's page lists what it was analysed from (each video opens in a new tab, and the creator's profile);
+  new analyses keep that list in references.json. Menus open above everything, so a tile next to them never
+  covers them, and cards no longer rebuild under the pointer while a video is being made.
+
 - A first run happens inside the window: Home shows three steps (Set up, Analyse a format, Make your first
   video) with one Start setup, then setup's real steps and sizes, the two optional keys with the ElevenLabs
   key settings beside them, Analyse a format with link rows, the analysis's real steps, the format ready to

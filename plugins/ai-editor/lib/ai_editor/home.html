@@ -714,7 +714,9 @@ body.rail .sb-theme{margin-top:2px}
 .cgrid{display:grid;grid-template-columns:repeat(var(--per,3),minmax(0,1fr));gap:24px}.cgrids{display:flex;flex-direction:column;gap:24px}
 .cgrid.own{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
 .cs{position:relative;display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:12px;background:var(--card);min-width:0;cursor:pointer;text-align:left;border:0;color:var(--ink)}
-.cs .pic{position:relative;height:140px;border-radius:8px;background:#44403C 50% 30%/cover;flex-shrink:0}
+.cs .pic{position:relative;aspect-ratio:4/5;border-radius:8px;background:#44403C;flex-shrink:0;overflow:hidden}
+.cs .pic>i{position:absolute;inset:-24px;background:center/cover;filter:blur(20px) brightness(.8);display:none}.cs .pic.wd>i{display:block}
+.cs .pic>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 32%}.cs .pic.wd>img{object-fit:contain;object-position:50% 50%}
 .cs:hover .pic{filter:brightness(.97)}.cs.dragsrc{opacity:.45}
 .cs .who{display:flex;align-items:center;gap:10px;min-width:0}
 .cs .nm,.cs .ttl{font-size:15px;line-height:18px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -722,7 +724,7 @@ body.rail .sb-theme{margin-top:2px}
 .fl{display:flex;flex-direction:column;gap:6px}
 .fr2{display:flex;align-items:center;gap:10px;font-size:13px;line-height:16px;min-width:0}.fr2 svg{flex-shrink:0}
 .fr2 .k{width:64px;flex-shrink:0;color:var(--t2)}.fr2 .v{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.cs.big{flex-direction:row;gap:20px}.cs.big .pic{width:150px;height:266px;background-position:50%}
+.cs.big{flex-direction:row;gap:20px}.cs.big .pic{width:150px;height:266px;aspect-ratio:auto;background:#44403C 50%/cover}
 .cs.big .info{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px;padding-top:4px}
 .cs.big .ttl{font-size:20px;line-height:24px;display:flex;align-items:center;gap:10px}
 .sub2{font-size:14px;line-height:20px;color:var(--t2);margin-top:4px}
@@ -810,6 +812,9 @@ body.rail .sb-theme{margin-top:2px}
 .srow2{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;line-height:16px;color:var(--t2)}
 .lrow2{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--line);font-size:15px;line-height:20px}
 .ssec>.shd+.lrow2{border-top:0}
+.refs{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px}
+.ref{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;background:var(--card);color:var(--ink);text-decoration:none;min-width:0}.ref:hover{background:var(--act)}
+.rth{width:30px;height:52px;border-radius:5px;background:var(--panel) center/cover;display:grid;place-items:center;flex-shrink:0}.ref .logo{width:auto;height:auto}
 .sfoot{flex-direction:row;align-items:center;gap:8px;font-size:13px;line-height:16px;flex-wrap:wrap}
 @media (max-width:1180px){.ssec.two{flex-direction:column;gap:22px}.cgrid.own{grid-template-columns:1fr}}
 @media (max-width:900px){.spg{flex-direction:column}.spl{position:static}.ctiles{flex-wrap:wrap}.ct{flex-basis:30%}}
@@ -1472,8 +1477,9 @@ function fact3(c){
 const factList=c=>`<div class="fl">${fact3(c).map(([i,k,v])=>`<div class="fr2">${ic(i)}<span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join('')||'<div class="fr2"><span class="v" style="color:var(--t3);font-weight:400">The default style</span></div>'}</div>`;
 const handleOf=c=>c.id.startsWith('@')&&!c.own?c.id.slice(1):'';
 const avaHTML=(url,px=32)=>`<span class="ava" style="width:${px}px;height:${px}px;border-radius:${px/2}px;${url?`background-image:url('${esc(url)}')`:''}">${url?'':SIL}</span>`;
+const framePic=u=>`<i style="background-image:url('${esc(u)}')"></i><img src="${esc(u)}" alt="" loading="lazy" onload="if(this.naturalWidth>this.naturalHeight)this.parentElement.classList.add('wd')">`;
 const dname=c=>/^@links-/.test(c.name||'')?'New format':c.name;
-const origin=c=>c.sample?'Sample':c.id==='mine'?'Learned from your edits':c.own?'Built by you':c.studying?'Being analysed now':handleOf(c).startsWith('links-')?'From several creators':`From @${handleOf(c)}`;
+const origin=c=>c.sample?'Sample':c.id==='mine'?'Learned from your edits':c.own?'Built by you':c.studying?'Being analysed now':(handleOf(c).startsWith('links-')?'From several creators':`From @${handleOf(c)}`)+(c.videos?` · ${c.videos} videos`:'');
 const isDefault=c=>(L&&L.default_style||'mine')===c.id;
 const ownSub=c=>c.id==='mine'?(c.learned_from?`Learned from ${c.learned_from} video${c.learned_from>1?'s':''}`:c.base?`Started from @${c.base}`:'The default style'):`Built yourself${c.made?' · '+ago(c.made):''}`;
 const crSub=c=>c.studying?'Being analysed now':handleOf(c).startsWith('links-')?'From several creators':`From @${handleOf(c)}`;
@@ -1493,7 +1499,7 @@ function crCard(c,i){
   if(c.studying)return studyCard(c);
   const pic=picOf(c,i);
   return `<div class="cs" id="sc-${esc(c.id)}" role="button" tabindex="0" onclick="openStyle(${J(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)this.click()" ${dragAttrs('styles',c.id,c.name,pic.url)}>
-    <div class="pic" style="background-image:url('${esc(pic.url)}')">${sMenu(c)}</div>
+    <div class="pic">${framePic(pic.url)}${sMenu(c)}</div>
     <div class="who">${c.own||c.sample?`<span class="ict">${ic('styles',16)}</span>`:avaHTML(c.face)}<div style="min-width:0;flex:1"><div class="nm">${esc(dname(c))}</div><div class="t2">${esc(origin(c))}</div></div>${isDefault(c)?'<span class="tagc dflt">Default</span>':''}</div>
     ${factList(c)}</div>`;
 }
@@ -1688,6 +1694,8 @@ function vStylePage(){
         <div><div class="shd"><span class="row" style="gap:10px">${ic('sound')}<b>Sound</b></span>${Z.sound.tag==='you changed this'?spTag(Z.sound.tag,'sound'):''}</div>
           <div class="srow2"><span style="color:var(--ink)">Sound effects</span>${spSwitch(Z.sound.sfx,'sfx','Sound effects')}</div>
           <div class="srow2"><span style="color:var(--ink)">Background music</span>${spSwitch(Z.sound.music,'music','Background music')}</div></div></div>
+      ${P.references&&P.references.videos.length?`<div class="ssec"><div class="shd"><b>Analysed from</b>${P.references.profile?`<a href="${esc(P.references.profile)}" target="_blank" rel="noopener" style="font-size:13px">Their profile</a>`:''}</div>
+        <div class="refs">${P.references.videos.map(v=>{const pl=platOf(v.url),h=linkHandle(v.url);return `<a class="ref" href="${esc(v.url)}" target="_blank" rel="noopener"><span class="rth" style="${v.thumbnail?`background-image:url('${esc(v.thumbnail)}')`:''}">${v.thumbnail?'':pl?logo(pl,16):LINKG}</span><span style="min-width:0;flex:1"><span class="t1" style="display:block">${esc(v.title||shortLink(v.url))}</span><span class="t2" style="display:flex;gap:6px;align-items:center">${pl?logo(pl,12):''}${h?'@'+esc(h):esc(shortLink(v.url))}</span></span></a>`}).join('')}</div></div>`:''}
       <div class="ssec two"><div><div class="shd"><b>Its skill</b></div><div class="row" style="gap:10px;flex-wrap:wrap"><span style="font:500 14px var(--mono)">/${esc(P.skill.name)}</span><button class="b2 s" onclick="post('/style/reveal',{id:ui.sp}).then(loadStyle)">Open the skill file</button></div><div class="t2" style="white-space:normal;margin-top:8px">Say "/${esc(P.skill.name)}" in Claude Code to edit a video in this style.</div></div>
         <div><div class="shd"><b>Tell it what to change</b></div><div class="fld"><div class="in2"><input id="tell" placeholder="captions a bit bigger, fewer zooms" aria-label="What to change" onkeydown="if(event.key==='Enter')tellChange()"></div><button class="b1" onclick="tellChange()">Send</button></div>${jobLine?`<div class="t2" style="white-space:normal;color:var(--ink);margin-top:8px">${jobLine}</div>`:''}</div></div>
       <div class="ssec sfoot"><span class="okc">${ic('check',16,2.4)}</span><span>Saved as you go. Your next videos use this style.</span><span class="t2">Videos already made stay as they are.</span></div></div></div>`;

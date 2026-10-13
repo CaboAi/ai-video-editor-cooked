@@ -13,16 +13,16 @@ Read `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` first: the rules every video follows 
 
 Every question goes in the question box: the AskUserQuestion tool (2-4 options, recommended first). Only in an agent without it, ask numbered questions in text.
 
-An approved cut and a creator's style in. The finished video out: captions, zooms, real captures and
-motion scenes timed to the words, in that creator's look and the user's brand. The user approves
-the stills sheet (step 5) and picks where to render (step 6).
+An approved cut and a creator's style in (a `skill=` job runs that skill: start step 3).
+The finished video out: captions, zooms, real captures and motion scenes timed to the words, in the
+creator's look and the user's brand. The user approves the stills (step 5) and picks the render (step 6).
 
 Paths are relative to the library (PRINCIPLES.md). Run the scripts with `python3` on Mac
 and Linux, `py` on Windows. `S="${CLAUDE_SKILL_DIR}/scripts"`,
 `VPY="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/run.py"`; `python3 "$VPY"` is the venv Python.
 
 ```
-edits/<name>/cut.mp4 + cut.transcript.json + words.json       (the cut skill)
+edits/<name>/cut.mp4 + cut.transcript.json + words.json       (cut)
 edits/<name>/style.json                                       (start: the profile's creators blended)
   or creator-teardowns/<handle>/style.json                    (one creator, from creator-teardown)
 ~/.ai-video-editor/profile.json                               (start: brand kit, names, assets, avoid, sound)
@@ -32,7 +32,7 @@ captions.json -> beats.json -> visuals.json -> images/ + images.json -> plan.jso
 References, read only when a step says: `references/visuals.md` (each format in detail),
 `references/plan.md` (plan.py, cutout, sound, music, checks), `references/motion.md` (templates,
 transitions, marks), `references/render.md` (targets, live preview, export), `references/review.md`
-(the review page), `references/ai-tells.md` (the banned AI looks). `references/contracts.md` (every file's shape) is for people: never read it.
+(the review page), `references/ai-tells.md` (the banned AI looks). `references/contracts.md` is for people: never read it.
 
 ## 0. Read the taste and profile
 

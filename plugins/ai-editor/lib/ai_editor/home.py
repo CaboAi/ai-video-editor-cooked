@@ -596,6 +596,60 @@ def naming(sid, sp, base):
     return {"named": bool(ss.names().get(ss.key(sp), {}).get("name")), "suggest": suggest_name(sid, base)}
 
 
+def skill_of(st):
+    """The skill a skill style names (style.json "skill"), when it is a usable skill name, else None."""
+    v = st.get("skill") if isinstance(st, dict) else None
+    return v if isinstance(v, str) and re.fullmatch(r"[a-z0-9][a-z0-9:_-]{0,63}", v) else None
+
+
+def skill_dirs(root):
+    """Where Claude Code loads skills from, as far as the page can see (read only): $AI_EDITOR_SKILLS, the library's and
+    the working folder's .claude/skills, ~/.claude/skills, then the plugins' own skills."""
+    env = [Path(x) for x in os.environ.get("AI_EDITOR_SKILLS", "").split(os.pathsep) if x]
+    return env + [Path(root) / ".claude" / "skills", Path.cwd() / ".claude" / "skills", Path.home() / ".claude" / "skills",
+                  *sorted(Path(__file__).resolve().parents[3].glob("*/skills"))]
+
+
+def find_skill(root, name, calls=False):
+    """A skill style's skill: found, the first sentence of its description and, with calls, the other skills its
+    SKILL.md names (hyphenated or in backticks, and only names of skills that exist here)."""
+    dirs = skill_dirs(root)
+    name = name.split(":")[-1]   # a plugin skill (plugin:skill) lives in <plugin>/skills/<skill>
+    md = next((d / name / "SKILL.md" for d in dirs if (d / name / "SKILL.md").is_file()), None)
+    if not md:
+        return {"found": False, "description": "", "calls": [], "path": None}
+    text = md.read_text(encoding="utf-8", errors="replace")
+    head, body = (text.split("---", 2)[1:] + [""])[:2] if text.startswith("---") else ("", text)
+    m = re.search(r"^description:[ \t]*(.*(?:\n[ \t]+.*)*)", head, re.M)
+    desc = re.sub(r"^[>|][-+]?\s*", "", " ".join((m.group(1) if m else "").split())).strip("'\"")
+    out = {"found": True, "description": re.split(r"(?<=[.!?])\s", desc, maxsplit=1)[0][:240], "calls": [], "path": str(md)}
+    if calls:
+        known = {q.parent.name for d in dirs for q in d.glob("*/SKILL.md")} - {name}
+        said = re.findall(r"`/?([a-z0-9][a-z0-9-]*)`|\b([a-z0-9]+(?:-[a-z0-9]+)+)\b", body)
+        out["calls"] = [x for x in dict.fromkeys(a or b for a, b in said) if x in known][:8]
+    return out
+
+
+def editing_skills(root):
+    """The skills a style can run ("Use your own skill"): every skill folder the page can see outside this plugin whose
+    name or description is about editing video. [{"name", "description"}], first found wins."""
+    plugins = Path(__file__).resolve().parents[3]
+    _, ss = _taste()
+    ours = {ss.MINE} | {v.get("skill") for v in ss.names().values()}   # the editor's own thin style skills
+    out = {}
+    for d in skill_dirs(root):
+        if d.resolve().parent.parent == plugins.resolve():   # the editor's own skills are not styles
+            continue
+        for md in sorted(d.glob("*/SKILL.md")):
+            n = md.parent.name
+            if n not in out and n not in ours and not n.startswith("edit-like-") and skill_of({"skill": n}):
+                f = find_skill(root, n)
+                # ponytail: keyword match on name + first sentence; a skill can opt in by naming "video" or "edit"
+                if re.search(r"\b(edits?|editing|editor|videos?|reels?|footage|clips?)\b", n.replace("-", " ") + " " + f["description"], re.I):
+                    out[n] = {"name": n, "description": f["description"]}
+    return list(out.values())
+
+
 def style_cards(root):
     """My style first (the profile's first copied creator, else the default style, with the user's
     corrections), then every creator studied in the library (with that style's corrections), then the
@@ -622,11 +676,15 @@ def style_cards(root):
         # when it was made (a creator: their listing, the first thing a copy writes) and last changed (feedback rules)
         made = next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None) if sp else None
         changed = taste.rules_path().stat().st_mtime if n and taste.rules_path().exists() else None
-        out.append({"id": sid, "name": ss.display(sp), "facts": facts(st), "look": look(st), "base": base,
+        sk = skill_of(st) if sp else None   # a skill style: making a video runs that skill, no settings of ours
+        out.append({"id": sid, "name": ss.display(sp), "facts": [] if sk else facts(st), "look": look(st), "base": base,
                     "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "learned_from": vids, "made": made, "changed": changed, "cover": cover_of(root, sid), "face": face_of(root, base),
                     "own": sid == "mine" or bool(st.get("own")),
                     "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False,
-                    "sample": bool(st.get("sample")), **naming(sid, sp, base)})
+                    "sample": bool(st.get("sample")), **naming(sid, sp, base), "kind": "skill" if sk else "settings"})
+        if sk:
+            f = find_skill(root, sk)
+            out[-1].update(skill=sk, found=f["found"], description=f["description"])
     return out
 
 
@@ -763,6 +821,14 @@ def style_page(root, sid):
               "said": len(r["corrections"]), "last": (r["corrections"][-1]["at"][:10] if r["corrections"] else None),
               "applied": r.get("applied", 0), "regressions": len(r.get("regressions") or [])}
              for r in (taste.load_rules() if taste.rules_path().exists() else []) if r["scope"] == sc]
+    sk = skill_of(st) if sp else None
+    if sk:   # a skill style: its skill does the edit, so the page shows the skill and no controls
+        return {"id": sid, "kind": "skill", "name": ss.display(sp), "base": base, "rules": rules, "style_path": str(sp),
+                "skill": {"name": sk, **find_skill(root, sk, calls=True)}, "cover": cover_of(root, sid), "face": face_of(root, base),
+                "own": bool(st.get("own")), "videos": st.get("videos"), "sample": bool(st.get("sample")),
+                "references": references(sp.parent) if not st.get("own") else {"videos": [], "profile": None},
+                "made": next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None),
+                "job": None, **naming(sid, sp, base)}
     md = ss.skills_dir() / ss.name(sp) / "SKILL.md"
     prof = _profile()
     vals = {k: dig(st, k) for k in CONTROLS}
@@ -1018,7 +1084,7 @@ def save_cover(root, sid, src):
     return True
 
 
-def new_own_style(root, name):
+def new_own_style(root, name, skill=None):
     """A style the user builds themselves ("Build it yourself"): stored like a studied creator's, in
     creator-teardowns/own-<slug>/style.json (the default style, own: true), named, with its skill written.
     Returns its id ("@own-<slug>")."""
@@ -1032,7 +1098,7 @@ def new_own_style(root, name):
     d = Path(root) / "creator-teardowns" / h
     d.mkdir(parents=True)
     p = d / "style.json"
-    p.write_text(json.dumps({**DEFAULT_STYLE, "handle": h, "own": True}, indent=2), encoding="utf-8")
+    p.write_text(json.dumps({**DEFAULT_STYLE, "handle": h, "own": True, **({"skill": skill} if skill else {})}, indent=2), encoding="utf-8")
     try:
         ss.rename(p, name)
     except ValueError:
@@ -1150,7 +1216,7 @@ def job_line(j, root):
     if j["type"] == "video":
         src = f"takes={a['takes']}" if a.get("takes") else a["path"]
         return f"JOB video {src} as={a['as']} aspect={a['aspect']}" + (f" edit={a['edit']}" if a.get("edit") else "") + \
-            (f" script={a['script']}" if a.get("script") else "") + f" root={root}"
+            (f" script={a['script']}" if a.get("script") else "") + (f" skill={a['skill']}" if a.get("skill") else "") + f" root={root}"
     if j["type"] == "style-change":
         return f"JOB style-change {'my-style' if a['style'] == 'mine' else a['style']}" + \
             (f" style={a['path']}" if a.get("path") else "") + f" text={a['text']}"
@@ -1441,6 +1507,8 @@ def make_handler(token):
                 return self.send(200, {"path": root, "place": place(root), "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
                                        "custom": str(custom.path(False)), "videos": vids, "styles": cards, "folders": folders(),
                                        "default_style": read().get("default_style") if any(c["id"] == read().get("default_style") for c in cards) else "mine"})
+            if path == "/skills":   # New style, "Use your own skill"
+                return self.send(200, {"skills": editing_skills(read()["root"])})
             if path == "/recent":
                 st = read()
                 rs = recent_list(st)
@@ -1652,7 +1720,10 @@ def make_handler(token):
                     return self.send(400, {"ok": False, "error": str(e)})
             if path == "/style/new":   # Build it yourself: a new own style, then its page
                 try:
-                    return self.send(200, {"ok": True, "id": new_own_style(read()["root"], body.get("name"))})
+                    sk = body.get("skill")   # "Use your own skill": a skill style
+                    if sk is not None and not skill_of({"skill": sk}):
+                        raise ValueError("That is not a skill name.")
+                    return self.send(200, {"ok": True, "id": new_own_style(read()["root"], body.get("name"), sk)})
                 except ValueError as e:
                     return self.send(400, {"error": str(e)})
             if path == "/style/default":   # Make default: the style New video starts on
@@ -1809,6 +1880,7 @@ def make_handler(token):
             if bad:
                 return self.send(400, bad)
             want, td = str(b.get("as") or "creator"), latest(d, "teardown")
+            skill = None
             if want.startswith("@"):
                 h = re.sub(r"[^a-z0-9._-]", "", want[1:].lower())
                 studying = any(j["type"] == "teardown" and j["args"].get("handle") == h and j["state"] in ("queued", "taken")
@@ -1816,6 +1888,10 @@ def make_handler(token):
                 if not studying and not (Path(d["root"]) / "creator-teardowns" / h / "style.json").exists():
                     return self.send(400, {"ok": False, "msg": f"@{h}'s style has not been copied yet."})
                 style = "@" + h
+                try:   # a skill style: the edit stage is that skill (start skill, JOB video skill=)
+                    skill = skill_of(json.loads((Path(d["root"]) / "creator-teardowns" / h / "style.json").read_text(encoding="utf-8")))
+                except (OSError, ValueError):
+                    pass
             elif want in ("mine", "defaults"):
                 style = want
             else:   # the first-run page: its creator once the study is done
@@ -1832,7 +1908,8 @@ def make_handler(token):
             update(remember)
             for g in groups:
                 edit = new_edit(Path(d["root"]), g[0]["name"])
-                args = {"path": g[0]["path"], "paths": [p["path"] for p in g], "as": style, "aspect": aspect, "edit": str(edit)}
+                args = {"path": g[0]["path"], "paths": [p["path"] for p in g], "as": style, "aspect": aspect, "edit": str(edit),
+                        **({"skill": skill} if skill else {})}
                 if len(g) > 1:
                     t = edit / "takes.txt"
                     t.write_text("\n".join(p["path"] for p in g) + "\n", encoding="utf-8")
@@ -2510,6 +2587,43 @@ def demo():
     assert post("/style/set", {"id": oid, "key": "zoom.preset", "value": "none"})["presets"]["zoom"]["sel"] == "none"
     assert post("/style/delete", {"id": oid})["ok"] and get("/library")["default_style"] == "mine"
     assert oid not in [c["id"] for c in get("/library")["styles"]]
+    # a skill style: style.json names a skill, the card and page show the skill and no controls, the job carries it
+    kd, sks = root / "creator-teardowns" / "own-skilled", root / ".claude" / "skills"
+    kd.mkdir()
+    (kd / "style.json").write_text(json.dumps({"handle": "own-skilled", "own": True, "skill": "my-edit-style",
+                                               "zoom": {"kind": "punch", "per_min": 6}}), encoding="utf-8")
+    for n_, md_ in (("my-edit-style", "---\nname: my-edit-style\ndescription: >\n  Cuts a reel in my look. Then more.\n---\n"
+                                      "Runs `my-captions` on the cut, then `nope-skill`.\n"), ("my-captions", "---\nname: my-captions\n---\n")):
+        (sks / n_).mkdir(parents=True)
+        (sks / n_ / "SKILL.md").write_text(md_, encoding="utf-8")
+    kc = next(c for c in get("/library")["styles"] if c["id"] == "@own-skilled")
+    assert kc["kind"] == "skill" and kc["skill"] == "my-edit-style" and kc["found"] and kc["facts"] == [] \
+        and kc["description"] == "Cuts a reel in my look.", kc
+    assert next(c for c in get("/library")["styles"] if c["id"] == "mine")["kind"] == "settings"
+    kp = get("/style?id=@own-skilled")
+    assert kp["kind"] == "skill" and not {"presets", "values", "changed"} & set(kp) and kp["skill"]["calls"] == ["my-captions"], kp
+    kj = post("/job", {"type": "video", "path": str(vid), "as": "@own-skilled", "aspect": "9:16"})["id"]
+    kj = next(j for j in read()["jobs"] if j["id"] == kj)
+    assert kj["args"]["skill"] == "my-edit-style" and " skill=my-edit-style root=" in job_line(kj, root), kj
+    update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["id"] != kj["id"]]))   # not Claude's to take here
+    shutil.rmtree(kj["args"]["edit"])
+    (kd / "style.json").write_text(json.dumps({"own": True, "skill": "gone-skill"}), encoding="utf-8")
+    kc = next(c for c in get("/library")["styles"] if c["id"] == "@own-skilled")
+    assert kc["kind"] == "skill" and kc["found"] is False and kc["description"] == "", kc
+    (kd / "style.json").write_text(json.dumps({"own": True, "skill": "my-edit-style"}), encoding="utf-8")
+    assert post("/style/delete", {"id": "@own-skilled"})["ok"] and (sks / "my-edit-style" / "SKILL.md").is_file()   # never its skill
+    shutil.rmtree(kd, ignore_errors=True)
+    ks = {x["name"]: x["description"] for x in get("/skills")["skills"]}
+    assert ks.get("my-edit-style") == "Cuts a reel in my look." and "my-captions" not in ks and "start" not in ks and "my-style" not in ks, ks   # no edit words; the editor's own
+    nid = post("/style/new", {"name": "Reel edit", "skill": "my-edit-style"})["id"]
+    nc = next(c for c in get("/library")["styles"] if c["id"] == nid)
+    assert nc["kind"] == "skill" and nc["own"] and nc["found"] and nc["name"] == "Reel edit", nc
+    try:
+        post("/style/new", {"name": "Bad", "skill": "../x"})
+        raise AssertionError("a bad skill name made a style")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    assert post("/style/delete", {"id": nid})["ok"] and (sks / "my-edit-style" / "SKILL.md").is_file()
     post("/scanhome", {"on": False})   # picked files stay listed without the opt-in
     assert {r["name"] for r in get("/recent")["videos"]} == {"a.mov", "b.mov", "c.mp4", "drop.mp4", "take.mp4"}
 

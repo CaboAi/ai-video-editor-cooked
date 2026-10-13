@@ -10,6 +10,14 @@ What changed for every user, newest first.
   (about one every 4 s) and tuck behind your head. New: a title pill at the top on the hook and the call to
   action, a running numbered list, and a red X over a card that does not apply. The style page's card Look
   dropdown is gone (the look belongs to the style), and Often now means 16 cards a minute.
+- Skill styles. A style can point at a Claude Code skill (`"skill": "<name>"` in its style.json, or New style >
+  Use your own skill). Its card says "Runs /<name>", its page shows the skill's description and the skills it
+  calls instead of the caption, zoom, cut, card and sound controls, and making a video cuts it as usual, then
+  runs that skill on the approved cut and puts its render on the review page. When the session doesn't have
+  the skill, the window says so and offers the generic edit with the style's numbers.
+
+## ai-editor 2.5.0, creator-teardown 2.7.0 (2026-10-13)
+
 - Making the edit is faster and asks less. While you review the cut, the visuals, the plan and the stills
   sheet are made in the background (all free, on your computer), so approving the cut goes straight to the
   sheet. The audience and the names in a video are no longer asked: the first answer is used and the review

@@ -24,6 +24,8 @@ What changed for every user, newest first.
   removed from the list too. Create a new style is a "+ New style" button on the Copied from creators row that
   opens the two choices in a window over the page (Esc, the X or a click outside closes it).
 
+## ai-editor 2.4.1 (2026-10-13)
+
 - Scrolling holds on the home window and the review page. The home window redraws every 1.5 s, and each
   redraw put every inner list (Your videos, My styles, a style's page, Settings) back at the top. Now a
   redraw with nothing new leaves the page alone, and one with something new keeps every list where it

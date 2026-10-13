@@ -24,9 +24,8 @@ thing captured (`capture`, `post`, `app`, `youtube`, `github`), UI rebuilt from 
 
 Every beat: `word` (as captions.json spells it), `nth`, `hold_s` so the card is still up on its last
 word (omit it for the creator's measured hold), a `word` on each part that lands on its own word.
-Pacing (SKILL.md step 3): a card on each beats.json `want` (a copied creator's rate), never two at
-once, none in the first second unless it is the hook's subject. A capture on the hook (the first
-3 s) needs a mark with `find`: the page's words for what is said, never the page's own headline.
+A card on each beats.json `want`, never two at once, none in the first second unless it is the
+hook's subject. A capture on the hook (first 3 s) needs a `find` mark on what is said, not the headline.
 
 | pick | beat |
 |---|---|
@@ -55,6 +54,7 @@ something the capture does not already show.
 style.json `card_kinds` without `"text"`: pictures only. A `capture:shot` of the thing named, a `find`
 mark on it (capture.mjs frames the page round it), a logo, their photo, or an animation from real
 parts (`flow`, `chat`, `terminal`) where nothing can be shown. No sticker. Nothing real: no card.
+Plus `title`, `list`, `stamp` beats (`visuals.md` "Card edit").
 
 ## Rules (plan.py enforces them and warns)
 

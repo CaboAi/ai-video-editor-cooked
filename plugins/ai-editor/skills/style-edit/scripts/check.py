@@ -376,7 +376,8 @@ def unsaid_numbers(plan):
         a = c.get("anim") or {}
         if a.get("type") in REAL_ANIMS:
             continue
-        for n in sorted({n for _, t in strings(a.get("props") or {}) for n in nums(t)} - said):
+        shown = {k: v for k, v in (a.get("props") or {}).items() if k not in ("enter", "exit", "ambient")}   # motion, not text ("power1.in")
+        for n in sorted({n for _, t in strings(shown) for n in nums(t)} - said):
             out.append((c, n))
     return out
 
@@ -861,6 +862,10 @@ def demo():
     assert lv(withfind, "x-height") == ["FAIL"] and lv(pics, "x-height") == ["WARN"], (lv(withfind, "x-height"), lv(pics, "x-height"))
     label = {**pics, "cards": [{**pics["cards"][0], "format": "sticker", "xh": 30}]}
     assert lv(label, "text card") == ["FAIL"], check_plan(label, face)
+    # a card's motion props (its measured ease "power1.in") are not a number on screen
+    lg = {**pics, "captions": {"chunks": [{"text": "youtube"}]}, "cards": [{"anim": {"type": "logo", "props": {"src": "images/l.svg",
+          "exit": {"kind": "fade", "ease": "power1.in"}}}, "trigger_word": "youtube", "start": 1, "end": 2, "box": [40, 15, 20, 11]}]}
+    assert not unsaid_numbers(lg), unsaid_numbers(lg)
     print("demo ok")
 
 

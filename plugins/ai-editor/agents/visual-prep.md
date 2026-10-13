@@ -35,8 +35,10 @@ local, so they are made now and made again if the cut changes.
    there every card is a real picture, a `capture` with `"format": "shot"` and a `find` mark on the named thing
    (capture.mjs frames the page round it to fill the band), a `logo`, the user's photo, or an animation from
    real parts (`flow`, `chat`, `terminal`, `toasts`, `side_by_side`, `video_card`) for a line that explains
-   something with no page to show. Never a sticker. A line that names nothing real gets no card.
-   Never a `file://` or `127.0.0.1` page: it is gone when the video plays.
+   something with no page to show. Never a sticker. A line that names nothing real gets no card. Also a
+   `title` (the hook's promise in 2 short lines of their words, from 0 s) and one on the CTA word, a `list`
+   when they count steps, a `stamp` when they say a card's thing does not apply (visuals.md "Card edit").
+   Never a `file://` page from the user's config folders.
    Decide it all yourself: the caller must not have to ask the user what to show.
 5. **Fetch and face:** `node "$S/capture.mjs" EDIT` (free: local Chrome screenshots, logos, posts), then
    `python3 "$PY" "$S/face.py" EDIT`.

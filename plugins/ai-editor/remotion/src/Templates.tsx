@@ -110,7 +110,7 @@ const Tile: React.FC<{ src?: string; s: number; look: Look; letter?: string; cls
 // =====================================================================================================
 // logo_sting: the real logo lands (scale 1.15 -> 1, expo.out), then a light sweep crosses the logo inside its
 // own silhouette (logo-sting). Name rises under it. No ring: it popped in on one frame and grew then vanished.
-// props: src (the real logo file), label?
+// props: src (the real logo file), label?, card? (on a white card, a card edit's logo)
 const LogoSting: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
   const u = u_(w, h);
   const small = h < 400;
@@ -127,10 +127,13 @@ const LogoSting: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
   }, [p.src, lab, dur, m.name, JSON.stringify([p.enter, p.exit, p.ambient, p.word_at])]);
   const mask = p.src ? { WebkitMaskImage: `url(${src_(p.src)})`, maskImage: `url(${src_(p.src)})`, WebkitMaskSize: "contain", maskSize: "contain",
     WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat", WebkitMaskPosition: "center", maskPosition: "center" } as React.CSSProperties : {};
+  // card (a card edit): the logo on its own white card, as wide as the box allows, no border, no shadow
+  const cw = p.card ? Math.min(w * 0.98, h * 0.98 * 1.6) : L, ch = p.card ? cw / 1.6 : L, lg = p.card ? ch * 0.62 : L * 0.8;
   return (
     <div ref={ref} style={center}>
-      <div style={{ position: "relative", width: L, height: L, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div className="ls-logo" style={{ position: "relative", width: L * 0.8, height: L * 0.8 }}>
+      <div style={{ position: "relative", width: cw, height: ch, display: "flex", alignItems: "center", justifyContent: "center",
+        ...(p.card ? { background: "#FFFFFF", borderRadius: ch * 0.08 } : {}) }}>
+        <div className="ls-logo" style={{ position: "relative", width: lg, height: lg }}>
           {p.src ? <Img src={src_(p.src)!} style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : null}
           <div style={{ ...fill, ...mask, overflow: "hidden" }}>
             <div className="ls-sweep" style={{ position: "absolute", top: "-20%", bottom: "-20%", left: "30%", width: "40%",

@@ -313,6 +313,12 @@ A zoom may carry `ease` (the creator's fitted `zoom.ease`, pushes only) and `ori
 `hook`): `{"first_graphic_s", "control_first_graphic_s"}`; check.py plan WARNs when the first card lands over
 0.5 s after `first_graphic_s`.
 
+`card_kinds` (optional, a card edit: style.json `card_kinds` without `"text"`): the kinds allowed; check.py plan
+FAILs a sentence set alone on white and only WARNs a screenshot whose text reads small. `texts` (optional, from
+visuals.json `title` / `list` / `stamp` beats): `[{"kind": "title", "text", "start", "end", "y_pct", "size_pct"} |
+{"kind": "list", "items": [{"text", "at"}], "start", "end", "x_pct", "y_pct", "size_pct"} | {"kind": "stamp",
+"start", "end", "box"}]`, drawn by Texts.tsx over the cards and under the captions (visuals.md "Card edit").
+
 `music` (optional): `{"src": ".sfx/music.wav"}`, the bed `sfx.py music` wrote (levelled and ducked under the
 speech, played at volume 1). plan.py adds it when the file exists and the profile does not say `sound.music: false`.
 

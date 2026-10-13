@@ -107,7 +107,7 @@ A style.json `"card_kinds"` that leaves out `"text"` (the sample Card edit: `["c
 user's photo, or an animation built from real parts. In that style:
 
 - capture.mjs shoots a `sticker` beat as a `shot`, at a 640 px viewport (the page's narrow layout, as a phone
-  shows it), and with a `find` mark and no `clip` frames a band-shaped window (1.86:1) round the mark, so the
+  shows it), and with a `find` mark and no `clip` frames a band-shaped window (1.5:1, at most 1.2 times the mark wide) round the mark, so the
   named thing fills the band above the head.
 - plan.py drops a re-set sentence (a capture.mjs sticker, `xh` in images.json), draws a sticker of the page as
   a shot, and keeps a screenshot whose small text would read under 28 px as a picture (its push-in carries the
@@ -116,6 +116,19 @@ user's photo, or an animation built from real parts. In that style:
 - `"behind": true` tucks the card behind the speaker's hair (matte.py), and `graphics.per_min` sets the rate.
 
 A line that names nothing real gets a logo of a brand it names, an animation of the idea, or no card.
+
+A logo in a card edit is a card of its own on white in the band (plan.py `logo_items(card=True)`), not the small
+tile above the captions. Three word overlays go with the cards (plan.json `texts`, remotion `Texts.tsx`), each
+inside the reels safe zone:
+
+| beat | draws |
+|---|---|
+| `{"kind": "title", "text": "line one\nline two"}` (no `word`: from 0 s; with `word`, `nth`: on that word, e.g. the CTA) | each line its own off-white pill, bold near-black type, centred at the top of the safe zone (y 13.6%, not the dead zone above it), `hold_s` (3.8). A card up with it moves below the pills, or starts when the title ends |
+| `{"kind": "list", "items": [{"text", "word", "nth"}], "until"?: word}` | a running numbered list at the left, each line on its word, held to `until` (else the end); under the chin, else just above or below the captions, never over the head; skipped in a shot too close for it |
+| `{"kind": "stamp", "word", "nth"}` | a red circled X drawn over the card up on that word ("that one doesn't count") |
+
+Title and list words are the speaker's (a title may be the video's promise in a few of their words); emoji are
+stripped like everywhere else.
 
 ## From the teardown
 

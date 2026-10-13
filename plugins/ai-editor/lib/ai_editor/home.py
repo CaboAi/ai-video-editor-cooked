@@ -1325,12 +1325,18 @@ def make_handler(token):
                              if e["video"] or e["dir"] in raw else None,
                              media=e["video"] and "/media?p=" + quote(e["video"]), job=(raw.get(e["dir"]) or {}).get("id"))
                         for e in library.entries() if e["dir"] not in set(read().get("hidden_edits") or [])]   # Remove from this list
+                with ThreadPoolExecutor(8) as ex:   # its length and shape (cached ffprobe): "Done. 2:14 long", a wide or tall frame
+                    ms = list(ex.map(lambda v: library.meta(v["video"]) if v["video"] else {}, vids))
+                for v, m in zip(vids, ms):
+                    a = (raw.get(v["dir"]) or {}).get("args", {}).get("aspect")
+                    v["duration"] = m.get("duration") if v["status"] in ("ready", "done") else None
+                    v["wide"] = a == "16:9" if a and v["status"] == "cutting" or not m.get("h") else m["w"] > m["h"]   # the raw take is not the shape it is cut to
                 cards = style_cards(root)
                 for j in read()["jobs"]:   # a creator still being studied: a card the user can already pick
                     h = j["args"].get("handle")
                     if j["type"] == "teardown" and j["state"] in ("queued", "taken") and "@" + str(h) not in [c["id"] for c in cards]:
                         cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True,
-                                      "line": "Being copied now. Your cut starts first; the style waits for the copy."})
+                                      "line": "Being analysed now. Your cut starts first; the style waits for it."})
                 return self.send(200, {"path": root, "place": place(root), "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
                                        "custom": str(custom.path(False)), "videos": vids, "styles": cards, "folders": folders()})
             if path == "/recent":

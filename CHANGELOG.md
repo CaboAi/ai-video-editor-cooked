@@ -4,6 +4,16 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- The home window has a sidebar instead of the top header: cooked. and its pan, + New video, Home, Your videos
+  and My styles with counts, your video folders (drag a video onto one to move it, with Undo), the job being
+  made right now with its real progress, Settings and the light/dark switch. The panel button folds it into a
+  rail of icons with labels (remembered in this browser); under 1100 px wide it is always the rail. Video cards
+  show their state on a bar along the bottom: green and full with "Done. 2:14 long" and Open the editor, or
+  black and part-filled with the current step and See progress. Finished videos are tiles in one row height,
+  wide for 16:9 videos and tall for 9:16. Home, Your videos and Done show one row; See all opens the rest in
+  place. Settings has its keys, updates, videos folder and theme in two columns. Done green is now #16A34A
+  (#4ADE80 in dark).
+
 - Done is green in the home window, the same green as the review page: the ticks on finished steps and
   videos, "Saved. The key works.", the done step numbers and the Ready to watch / Ready to review dot.
   The current step, buttons and text stay black.

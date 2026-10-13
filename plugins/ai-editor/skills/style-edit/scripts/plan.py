@@ -840,15 +840,24 @@ def content_aspect(c):
     return ASPECT.get(a.get("type"), 1.6)
 
 
+def sticker_area(c, aspect):
+    """(w, h) frame px a sticker's picture may fill, as Overlays.tsx Sticker draws it: 98% of the box less its
+    white edge each side, and less the source row when the card has a label or logo (sourceRow)."""
+    W, H = SIZES[aspect]
+    s = min(W, H) / 1080
+    w, h = c["box"][2] / 100 * W, c["box"][3] / 100 * H
+    p = c.get("props") or {}
+    head = bool(p.get("label") or p.get("logo_src"))
+    e = 22 * s if head else max(12 * s, min(w, h) / 100 * 1.6)
+    return w * 0.98 - 2 * e, h * 0.98 - 2 * e - (60 * s if head else 0)
+
+
 def sticker_xh(c, aspect):
     """The rendered x-height (px) of a sticker's text, from capture.mjs's "xh" (PNG px) and the fit
-    Overlays.tsx Sticker uses: the crop inside 90% x 86% of the box, less a white edge each side."""
-    p = c.get("props") or {}
-    iw, ih = (p.get("crop") or [0, 0, *c["size"]])[2:]
-    W, H = SIZES[aspect]
-    w, h = c["box"][2] / 100 * W, c["box"][3] / 100 * H
-    e = max(8, min(w, h) / 100 * 1.6)
-    return c["xh"] * min((w * 0.9 - 2 * e) / iw, (h * 0.86 - 2 * e) / ih)
+    Overlays.tsx Sticker uses: its crop (sticker_crop) in sticker_area."""
+    aw, ah = sticker_area(c, aspect)
+    iw, ih = sticker_crop(c)[2:]
+    return c["xh"] * min(aw / iw, ah / ih)
 
 
 XH_PER_LINE = 0.42     # a DOM line box is about 1.2 em tall and a Latin x-height about 0.5 em
@@ -886,9 +895,9 @@ def capture_scale(c, aspect):
     iw, ih = c["size"]
     f = c.get("format") or "shot"
     if f == "sticker":
-        e = max(8, min(w, h) / 100 * 1.6)
+        aw, ah = sticker_area(c, aspect)
         cw, ch = sticker_crop(c)[2:]
-        return min((w * 0.9 - 2 * e) / cw, (h * 0.86 - 2 * e) / ch)
+        return min(aw / cw, ah / ch)
     if f == "browser":
         bar = max(28, h * 0.09)
         bw, vh = min(w * 0.96, (h * 0.94 - bar) * 1.7), h * 0.94 - bar
@@ -954,9 +963,7 @@ def readable_captures(cards, aspect):
                   "give the capture beat \"format\": \"sticker\" and a mark whose \"find\" is a phrase said there, re-run capture.mjs and plan.py",
                   file=sys.stderr)
             continue
-        w, h = c["box"][2] / 100 * W, c["box"][3] / 100 * H
-        e = max(8, min(w, h) / 100 * 1.6)
-        aw, ah = w * 0.9 - 2 * e, h * 0.86 - 2 * e
+        aw, ah = sticker_area(c, aspect)   # the crop becomes a sticker: drawn in that area
         unit = 1080 / min(W, H)
 
         def fit(group):
@@ -2166,8 +2173,12 @@ def demo():
     lg2 = place_cards([{"word": "Claude", "anim": {"type": "logo"}, "lane": "logo", "hold_s": LOGO_S}], lw, 5, {}, "9:16")
     assert lg2[0]["end"] == lw[3]["start"], lg2
     # a sticker's rendered x-height: 26.5 PNG px, a 777 x 315 PNG in a 92% x 21.6% box on 1080 x 1920
+    # (Overlays.tsx Sticker: the padding trimmed to 727 x 265, fitted in 98% of the box less a 12 px edge)
     st = {"format": "sticker", "size": [777, 315], "xh": 26.5, "box": [4, 10, 92, 21.6]}
-    assert 28 < sticker_xh(st, "9:16") < 29.5, sticker_xh(st, "9:16")
+    assert 34.4 < sticker_xh(st, "9:16") < 34.8, sticker_xh(st, "9:16")
+    assert abs(capture_scale(st, "9:16") * 26.5 - sticker_xh(st, "9:16")) < 1e-6   # one model for both
+    lab = {**st, "props": {"label": "example.com"}}   # a source row takes height and a wider edge
+    assert sticker_area(lab, "9:16")[1] < sticker_area(st, "9:16")[1] - 60, sticker_area(lab, "9:16")
     # capture beat format and props reach the card by capture index; a browser gets the beat's url
     wf = with_formats([{"src": "images/capture-2-docs.png", "word": "x"}], [{"kind": "capture", "url": "https://a.b"},
         {"kind": "capture", "url": "https://c.d", "format": "browser", "props": {"label": "docs"}}])

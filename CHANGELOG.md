@@ -9,7 +9,9 @@ What changed for every user, newest first.
   the like and share rail or the caption block. The band above the head is now 74% of the width (it was
   92%) and starts at 13.1% down (it was 10%). Captions are at most 74% wide. `check.py plan` fails any card
   outside the zone, cards behind the speaker included, and captions that are too wide. Wide videos are
-  unchanged.
+  unchanged. The x-height check on a sticker now measures it the way the renderer draws it (98% of its
+  box, capture padding trimmed), not the older smaller fit, so a readable sticker in the narrower band is
+  no longer refused.
 
 - A sample style ships with the editor: Card edit. It shows in My styles and on Pick a style for every user
   under Sample styles, with no creator to copy first. Real image cards land 0.1 s before the word that names

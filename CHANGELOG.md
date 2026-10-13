@@ -21,6 +21,16 @@ What changed for every user, newest first.
   on its style page like any other, and it cannot be deleted. A style.json can now ask for cards behind the
   speaker itself (`"behind": true`). Fixed: a creator's measured entrance longer than the card's lead (about
   0.17 s) hid the card for its whole life in the render.
+- The review page is laid out as the approved editor design. A collapsed rail on the left (the cooked. pan
+  tile, New, Home, Videos, Styles, a Making ring with the number of videos the home window is making,
+  Settings, the theme switch) links to the home window's views; with no home window running those items are
+  hidden. The top bar has "Your videos / name", the two stages (a finished stage ticks green) and Claude's
+  status. The player, transcript card, transport and timeline sit under one stage line; a wide video plays
+  across the top with its transcript under it. The notes panel is a plain 320 px column: notes with Edit and
+  Delete under the words, "Sent" once sent, fixed notes in green with Claude's reply, Claude's steps with
+  green ticks and a spinner, and Send and Approve stacked at the foot. While Claude works no button is
+  black: Stop is outlined. The last approve turns into a green "Approved". Done green is #16A34A
+  (#4ADE80 dark), with #15803D for small green text.
 - A creator shows their own profile picture. When their videos are listed, creator-teardown saves the
   account picture as `creator-teardowns/<handle>/avatar.jpg`: YouTube's channel avatar from one
   `yt-dlp -J` call, TikTok's from the profile page. It replaces the frame from their top video on the

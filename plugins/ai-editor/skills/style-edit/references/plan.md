@@ -14,12 +14,17 @@ Moved out of SKILL.md step 4. Read the section the step points at.
 ## Prepared while the cut was reviewed
 
 Called by start for a whole edit, the cut skill starts the `visual-prep` agent as the cut page opens.
-It does steps 1-3, `face.py`, the plan, `check.py plan` and the stills sheet on the first cut, and copies
-its `decisions.json` to `prep-decisions.json`. Every visual it writes names a word and which time it is
-said (`nth`), never a second. It renders no video, uploads nothing and spends nothing.
+It does steps 1-3, `face.py`, the plan, `check.py plan` and the stills sheet on the first cut, reviews the
+sheet against the `stills-critic` list and fixes what fails, and copies its `decisions.json` to
+`prep-decisions.json`. Every visual it writes names a word and which time it is said (`nth`), never a
+second. It renders no video, uploads nothing and spends nothing.
 
-Wait for its JSON if it is still running. Cut approved unchanged and `stills/sheet.png` there: go straight
-to step 5 (look at the sheet, ask Approve). No sheet (it skipped step 6 for the cutout or music): step 4.
+Wait for its JSON if it is still running. Cut approved unchanged (`cmp decisions.json prep-decisions.json`)
+and `stills/sheet.png` there: go straight to step 5. With `"reviewed": "pass"` the sheet is already checked:
+look at it once and ask Approve. No second `stills-critic`, no re-plan and no reading plan.py, capture.mjs or
+the renderer's source unless you see a problem on the sheet; then fix only that (visuals.json or images.json,
+plan and stills again in one Bash call). `"reviewed": "fail"`: fix its `still_failing` the same way first.
+No sheet (it stopped before the plan for the cutout or music): step 4.
 Never run route.py again, rewrite visuals.json or ask what to show: the sheet shows the visuals and takes
 the changes. Cut changed after notes:
 

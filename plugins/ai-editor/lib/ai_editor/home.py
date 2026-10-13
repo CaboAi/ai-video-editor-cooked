@@ -2494,8 +2494,8 @@ def demo():
         {"id": "1", "webpage_url": "https://www.tiktok.com/@refs/video/1", "title": "one"},
         {"id": "2", "webpage_url": "https://www.tiktok.com/@refs/video/2", "title": "not measured"},
         {"id": "3", "webpage_url": "javascript:alert(1)", "title": "bad"}]}))
-    (rd / "transcripts" / "1.txt").write_text("x")
-    (rd / "transcripts" / "3.txt").write_text("x")
+    (rd / "transcripts" / "1.txt").write_text("x", encoding="utf-8")
+    (rd / "transcripts" / "3.txt").write_text("x", encoding="utf-8")
     assert references(rd) == {"videos": [{"url": "https://www.tiktok.com/@refs/video/1", "title": "one", "thumbnail": None}],
                               "profile": "https://www.tiktok.com/@refs"}, references(rd)
     write_references(rd)

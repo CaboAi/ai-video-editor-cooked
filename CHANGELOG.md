@@ -9,10 +9,12 @@ What changed for every user, newest first.
   redraw with nothing new leaves the page alone, and one with something new keeps every list where it
   was. On the review page, after Send, each status line from Claude no longer pulls the notes list to
   the bottom, and the transcript's follow-along now also waits 3 s after Page Up/Down, the arrow keys,
-  Home/End or a long scrollbar drag, not only after the wheel. The returning Home view lines up: both
-  columns share one top line and the header's left and right edges, recent clips have their name under
-  their own thumbnail, the Your videos rows and their buttons end on the divider's edges, and cards use
-  one 24 px padding and gap.
+  Home/End or a long scrollbar drag, not only after the wheel. The returning Home view is rebuilt as
+  shelves: a header with the brand, text tabs (Home, Your videos, My styles) and the live status,
+  Settings and theme on the right; then a drop box and the newest clips in one strip, 3 video cards (the
+  whole card opens the editor), My styles as image tiles and Creators you copied as a 2-column grid.
+  Nothing on Home scrolls from 1280x720 to 1920x1080: it shows fewer clips and styles when the window is
+  narrower.
 
 - My style gets a name right away. When it is picked on Pick a style, or its page opens, before the user
   has named it, the name is a field already focused with a suggestion selected ("Like @<creator>" when

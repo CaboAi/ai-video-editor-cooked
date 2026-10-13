@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""nextwork-editor: open the Cooked Editor window, with Claude Code behind it. Stdlib only.
+"""nextwork-editor: open the cooked. window, with Claude Code behind it. Stdlib only.
 
     nextwork-editor                 open the window (the same address every time)
     nextwork-editor --dry-run [--os Darwin|Linux|Windows]   print what it would run, and where

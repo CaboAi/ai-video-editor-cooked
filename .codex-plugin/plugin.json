@@ -9,7 +9,7 @@
   "keywords": ["video", "video-editing", "captions", "jump-cut", "remotion", "creator", "tiktok", "youtube-shorts"],
   "skills": ["./plugins/ai-editor/skills/", "./plugins/creator-teardown/skills/"],
   "interface": {
-    "displayName": "Cooked Editor",
+    "displayName": "cooked.",
     "shortDescription": "Cut and edit your talking-head video in a creator's measured style",
     "developerName": "NextWork",
     "category": "Media",

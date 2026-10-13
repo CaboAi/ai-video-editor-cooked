@@ -1,4 +1,6 @@
-# Cooked Editor
+<img src="docs/logo.svg" width="64" height="64" alt="">
+
+# cooked.
 
 Edit your own talking-head video in the style of a creator you like. Open the folder in Claude Code
 and say **edit my video**, or paste a link.

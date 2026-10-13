@@ -1,7 +1,7 @@
 {
   "$schema": "https://cursor.com/schemas/cursor-plugin/plugin.json",
   "name": "ai-video-editor",
-  "displayName": "Cooked Editor",
+  "displayName": "cooked.",
   "description": "Measure how a short-form creator edits, then cut and edit your own talking-head video in that style: retakes and pauses out, captions, zooms and cards rendered with Remotion.",
   "version": "2.2.0",
   "author": { "name": "NextWork", "url": "https://nextwork.ai" },

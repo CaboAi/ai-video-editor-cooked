@@ -1,4 +1,4 @@
-# Cooked Editor
+# cooked.
 
 Most people who open this folder want to edit a video. When the user asks for an edit, drops a
 video, pastes a link, names a creator, or asks how to start:

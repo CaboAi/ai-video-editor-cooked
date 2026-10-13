@@ -59,7 +59,7 @@ DEFAULT_BOX = {"9:16": [10, 15, 74, 20], "16:9": [54, 10, 40, 48]}
 # Where the app's own UI sits, in percent: left, top, right, bottom. Vertical: the
 # TikTok/Reels/Shorts top bar, the like/comment/share rail on the right and the
 # caption/username block at the bottom. Wide: YouTube's progress bar.
-SAFE = {"9:16": (6, 14, 14, 22), "16:9": (3, 5, 3, 10)}
+SAFE = {"9:16": (6, 14, 14, 25), "16:9": (3, 5, 3, 10)}
 # Vertical overlays (free_regions) may go further than SAFE: up to 10% from the top (the top bar holds only
 # small text), 3% from the sides, and over the right rail while they end above RAIL_TOP (the like/share
 # rail starts lower down). check.py plan allows the same.
@@ -812,6 +812,26 @@ def avoid_heads(cards, face, cap_y, aspect):
         c["box"] = [round(v, 1) for v in new]
         out.append(c)
     return out
+
+
+def clear_caption_paths(cards, cap_y, aspect):
+    """A card that slides in (or out) from the top or bottom never crosses the caption band on the way: a card
+    under the captions comes from and leaves to the bottom, one above them the top. The measured move is kept,
+    only its side is turned (a slide down through the captions read as the card covering them)."""
+    W, H = SIZES[aspect]
+    lo, hi = cap_y - 5, cap_y + 5
+    for c in cards:
+        x, y, w, h = c.get("box") or (0, 0, 0, 0)
+        p = (c.get("anim") or {}).get("props") if c.get("anim") else c.get("props")
+        for key in ("enter", "exit"):
+            f = (p or {}).get(key)
+            if not f or f.get("kind") != "slide" or f.get("dir") not in ("top", "bottom"):
+                continue
+            d = (f.get("dist") or 5) * min(W, H) / H     # % of the frame's height
+            top, bot = (y - d, y + h) if f["dir"] == "top" else (y, y + h + d)
+            if top < hi and bot > lo and not (y < hi and y + h > lo):
+                props(c)[key] = {**f, "dir": "bottom" if y >= hi else "top"}
+    return cards
 
 
 def free_regions(hd, cap_y, aspect):
@@ -1734,7 +1754,7 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         if behind:
             rest = tuck_behind(rest, face, aspect)
         out = dict(head)
-    cards = creator_motion(sorted(rest + scenes, key=lambda c: c["start"]), style, aspect)
+    cards = clear_caption_paths(creator_motion(sorted(rest + scenes, key=lambda c: c["start"]), style, aspect), cap["y_pct"], aspect)
     for c in cards:
         px = c.get("layout") != "scene" and c.get("size") and capture_xh(c, aspect)
         if px and px < READ_XH and (aspect == "9:16" or c.get("format") == "sticker"):
@@ -2032,7 +2052,7 @@ def demo():
               "captions": {"style": {"y_pct": 68}, "chunks": []}}
         assert any("covers the head" in x["what"] for x in check_plan(pl, right)) == fails, (f, lg)
     assert safe_box([6, 3, 88, 27], "9:16") == [14.0, 14, 72, 22], safe_box([6, 3, 88, 27], "9:16")
-    assert safe_box([50, 90, 20, 10], "9:16")[1] == 68
+    assert safe_box([50, 90, 20, 10], "9:16")[1] == 65
     words = []
     t = 0.0
     for i, text in enumerate("so this is how I edit. every video gets zooms and captions now. try notion today."
@@ -2193,6 +2213,10 @@ def demo():
     cover = {"src": "images/c.png", "size": [600, 800], "pics": [[20, 20, 560, 700]], "lines": [[40, 740, 300, 20]], "box": [14, 58, 72, 20]}
     assert picture_share(cover) > 0.8 and capture_xh(cover, "9:16") is None and readable_captures([cover], "9:16") == [cover]
     assert 50 <= max(px for px in range(40, 59, 2) if 32 * px * LB_TITLE_EM <= 800) < LB_TITLE_PX   # a 32-character title: one line, near full size
+    # a card under the captions that would slide down through them comes up from the bottom instead
+    sl = {"src": "x.png", "box": [14, 60, 72, 18], "props": {"enter": {"kind": "slide", "dir": "top", "dist": 26}, "exit": {"kind": "slide", "dir": "left", "dist": 20}}}
+    [sl] = clear_caption_paths([sl], 52.6, "9:16")
+    assert sl["props"]["enter"]["dir"] == "bottom" and sl["props"]["exit"]["dir"] == "left", sl
     lw2 = [{"text": t, "start": 0.3 * i, "end": 0.3 * i + 0.2} for i, t in enumerate("I think you have a horrible mindset and you need".split())]
     assert letterbox_title(lw2) == "i think you have a horrible mindset", letterbox_title(lw2)
     assert pw["box"][1] == 10 and pw["box"][1] + pw["box"][3] <= 34 - HEAD_GAP + 1e-6, pw["box"]

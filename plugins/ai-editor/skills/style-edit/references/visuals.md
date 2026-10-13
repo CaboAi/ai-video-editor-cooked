@@ -267,7 +267,7 @@ The pick-to-beat table and its rules: `shapes.md`.
 ## Safe areas
 
 On vertical, `plan.py` keeps every box card and the captions out of the right 14% (the like and
-share rail) and the bottom 22% (the username and description); overlays may use the top bar's
+share rail) and the bottom 25% (under y 1440 of 1920: the username and description); overlays may use the top bar's
 margin from 10% down (it holds only small text). Overlays never cover the head. A scene's content sits in the renderer's scene
 box, clear of the same areas. In split, a panel card fills the top panel between the top 14% and
 the seam.

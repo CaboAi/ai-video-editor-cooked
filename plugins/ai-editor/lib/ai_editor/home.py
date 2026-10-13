@@ -1847,9 +1847,8 @@ def make_handler(token):
                 return self.send(200, {"kind": it["kind"], "note": "Paste a creator's handle or profile link, like "
                                                                    "@name or tiktok.com/@name."})
             handle, plat = re.sub(r"[^a-z0-9._-]", "", it["handle"].lower()), it.get("platform") or platform or "tiktok"
-            out = {"kind": "creator", "handle": handle, "platform": plat, "note": it.get("note") if plat == "instagram" else None,
-                   "ask_platform": not it.get("platform")}
-            if plat in ("tiktok", "youtube"):
+            out = {"kind": "creator", "handle": handle, "platform": plat, "note": None, "ask_platform": not it.get("platform")}
+            if plat in ("tiktok", "youtube", "instagram"):
                 d = read()
                 if (d.get("lookup") or {}).get("handle") != handle or (d.get("lookup") or {}).get("platform") != plat \
                         or d["lookup"].get("status") == "failed":
@@ -1868,7 +1867,7 @@ def make_handler(token):
                     handle = link_set([links.classify(u) for u in urls])["handle"] or "links-" + time.strftime("%m%d%H%M")
                 if not handle:
                     return self.send(400, {"error": "no creator"})
-                args = {"handle": handle, "platform": b.get("platform") if b.get("platform") in ("tiktok", "youtube") else "tiktok",
+                args = {"handle": handle, "platform": b.get("platform") if b.get("platform") in ("tiktok", "youtube", "instagram") else "tiktok",
                         "take": take}
                 if urls:
                     f = Path(d["root"]) / "creator-teardowns" / handle / "picks.txt"
@@ -2335,8 +2334,9 @@ def demo():
     assert one["urls"] and one["handle"] == "some.one" and one["platform"] == "tiktok" and "6 or more" in one["note"], one
     mix = post("/lookup", {"text": "https://youtu.be/abcDEF12345 https://www.youtube.com/shorts/xyzXYZ12345"})
     assert len(mix["urls"]) == 2 and mix["platform"] == "youtube" and mix["handle"] is None, mix
+    n = len(calls)
     ig = post("/lookup", {"text": "https://www.instagram.com/someone/"})
-    assert ig["platform"] == "instagram" and "reel" in ig["note"], ig
+    assert ig["platform"] == "instagram" and ig["handle"] == "someone" and len(calls) == n + 1, ig   # listed like TikTok
     post("/lookup", {"text": "@sample.creator"})
     lk = get("/state")["lookup"]["listing"]
     assert [v["role"] for v in lk["videos"]] == ["Top 1", "Top 2", "Top 3", "Top 4", "Top 5", "Top 6, spare", "Top 7, spare",

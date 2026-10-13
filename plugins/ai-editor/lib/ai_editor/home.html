@@ -1096,14 +1096,13 @@ function h2(){
   const note=L&&L.note&&!L.urls?`<div class="muted" style="margin-top:10px;color:var(--ink)">${esc(L.note)}</div>`:'';
   let right;
   if(!L||L.kind!=='creator')right=`<div class="empty">The videos you paste show here.</div>`;
-  else if(L.platform==='instagram'&&!L.urls)right=`<div class="empty">Instagram hides profiles behind a login. Paste links to their reels instead, separated by spaces.</div>`;
   else if(L.urls)right=`<div class="empty"><div class="h" style="font-size:17px">${L.handle?'@'+esc(L.handle):'Your links'}</div></div>`;
   else if(listing&&listing.videos.length)right=tilesHTML(listing);
-  else if(lk.status==='failed'&&lk.handle===L.handle)right=`<div class="empty">Could not read @${esc(L.handle)} on ${PLAT[L.platform]}: ${esc(lk.msg)}. Check the handle, or start anyway and Claude tries again.</div>`;
+  else if(lk.status==='failed'&&lk.handle===L.handle)right=`<div class="empty">${L.platform==='instagram'?esc(lk.msg):`Could not read @${esc(L.handle)} on ${PLAT[L.platform]}: ${esc(lk.msg)}. Check the handle, or start anyway and Claude tries again.`}</div>`;
   else if(lk.status==='nofetch')right=`<div class="empty">The creator-teardown plugin is not installed, so the videos cannot be listed here. Claude installs it when you start.</div>`;
   else right=`<div class="empty">Reading @${esc(L.handle)}'s videos on ${PLAT[L.platform]||''}...</div>`;
   const head=L&&L.kind==='creator'&&!L.urls?`<div class="between" style="padding:24px 24px 20px;align-items:center"><div class="row" style="gap:14px"><div style="width:44px;height:44px;border-radius:22px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--t2)">${esc((L.handle||'').slice(0,2).toUpperCase())}</div><div><div class="h" style="font-size:17px">@${esc(L.handle)}</div><div class="muted" style="margin-top:3px">${PLAT[L.platform]||''}${listing?` · ${listing.count} recent videos · median ${fmtN(listing.median)} ${listing.ranked_by||'views'}`:''}</div></div></div></div>`:'<div style="height:20px"></div>';
-  const can=L&&L.kind==='creator'&&(L.platform!=='instagram'||L.urls);
+  const can=L&&L.kind==='creator'&&(L.platform!=='instagram'||L.urls||!!listing);   /* an Instagram profile only once it listed */
   return `<div class="col" style="width:520px;padding:28px 28px 0 14px;gap:0">
     <h1>Pick videos in a format you like</h1><p class="lede">6 videos edited the same way works best. They can be from one creator or several.</p>
     <div style="margin-top:32px">${linkBox('paste',true)}</div>${lbCount('paste')?`<div class="lcount" style="margin-top:10px">${lbCount('paste')}</div>`:''}${ask}${note}
@@ -1631,8 +1630,8 @@ async function createSkillStyle(){
 function pickModal(){
   const pk=ui.study.pick,lk=S.lookup||{},mine=pk.handle&&lk.handle===pk.handle,vs=mine&&lk.listing?lk.listing.videos||[]:[];
   const sel=pk.sel||(pk.sel=new Set()),n=sel.size;
-  const body=!pk.handle?`<label class="lin">${ic('plus',16,2)}<input id="pf-in" placeholder="Paste a TikTok or YouTube profile" onkeydown="if(event.key==='Enter')pickLookup(this.value)" onpaste="setTimeout(()=>pickLookup(this.value),0)" autocomplete="off" spellcheck="false"></label>${pk.msg?`<div class="msg bad">${CROSS}<span>${esc(pk.msg)}</span></div>`:''}`
-    :mine&&lk.status==='failed'?`<div class="msg bad">${CROSS}<span>Could not read @${esc(pk.handle)}: ${esc(lk.msg||'try again')}</span></div>`
+  const fail=mine&&lk.status==='failed'?(pk.platform==='instagram'&&lk.msg?lk.msg:`Could not read @${pk.handle}: ${lk.msg||'try again'}`):'',m=pk.msg||fail;
+  const body=!pk.handle||fail?`<label class="lin">${ic('plus',16,2)}<input id="pf-in" placeholder="Paste a TikTok, YouTube or Instagram profile" onkeydown="if(event.key==='Enter')pickLookup(this.value)" onpaste="setTimeout(()=>pickLookup(this.value),0)" autocomplete="off" spellcheck="false"></label>${m?`<div class="msg bad">${CROSS}<span>${esc(m)}</span></div>`:''}`
     :vs.length?`<div class="pgrid">${vs.map(v=>{const on=sel.has(v.webpage_url);return `<button class="pv ${on?'on':''}" style="${v.thumbnail?`background-image:url('${esc(v.thumbnail)}')`:''}" aria-pressed="${on}" title="${esc(v.title||'')}" onclick="pickToggle(${J(v.webpage_url)})"><i>${on?ic('check',14,2.6):''}</i></button>`}).join('')}</div>`
     :`<div class="row" style="gap:10px;padding:24px 0">${SPIN}<span class="t2">Reading @${esc(pk.handle)}'s newest videos...</span></div>`;
   return `<div class="modalbg" onclick="if(event.target===this)closeCreate()"><div class="modal nsm" role="dialog" aria-modal="true" aria-labelledby="ptitle">
@@ -1642,8 +1641,7 @@ function pickModal(){
 }
 async function pickLookup(v){
   v=(v||'').trim();if(!v)return;const r=await post('/lookup',{text:v});
-  if(r.kind!=='creator'||!r.handle||r.urls){ui.study.pick={msg:r.urls?'Those are video links. Go back and paste them as links.':'Paste a TikTok or YouTube profile, like tiktok.com/@name.'};return render()}
-  if(r.platform==='instagram'){ui.study.pick={msg:'Instagram hides profiles. Paste links to the reels instead.'};return render()}
+  if(r.kind!=='creator'||!r.handle||r.urls){ui.study.pick={msg:r.urls?'Those are video links. Go back and paste them as links.':'Paste a TikTok, YouTube or Instagram profile, like tiktok.com/@name.'};return render()}
   ui.study.pick={handle:r.handle,platform:r.platform,sel:new Set()};await load();
 }
 function pickToggle(u){const s=ui.study.pick.sel;s.has(u)?s.delete(u):s.add(u);render()}

@@ -7,6 +7,11 @@ What changed for every user, newest first.
 - Images in your answers. When Claude asks a question in the editor window, attach a picture to your
   answer with the paperclip, or paste or drop one on the question. For example a screenshot of how a title
   should look. Claude opens it before it carries on. Images stay on your computer, next to the edit.
+## ai-editor 2.6.6, creator-teardown 2.7.1 (2026-10-13)
+
+- Paste an Instagram profile to see its newest reels, as with TikTok and YouTube. It uses your own
+  Instagram login from your browser, read on your computer and sent only to instagram.com. Not logged in,
+  the window says to log in to instagram.com in Chrome and paste it again, or to paste reel links.
 
 ## ai-editor 2.6.5 (2026-10-13)
 

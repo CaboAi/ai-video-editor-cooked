@@ -7,12 +7,12 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23121211'/%3E%3Cg transform='translate%2810 10%29 scale%28.6875%29' fill='%23F2F0EA' color='%23F2F0EA'%3E%3Cpath d='M6 36H46C46 46 40 52 32 52H20C12 52 6 46 6 36Z'/%3E%3Cpath d='M45 36H58A3 3 0 0 1 58 42H45Z'/%3E%3Cpath d='M16 29C13 25 19 22 16 17M26 29C23 25 29 22 26 17M36 29C33 25 39 22 36 17' fill='none' stroke='currentColor' stroke-width='5' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E">
 <style>
 :root{--bg:#FAFAF9;--panel:#FFFFFF;--ink:#0C0A09;--t2:#57534E;--t3:#78716C;--t4:#A8A29E;--line:#E7E5E4;--soft:#F5F5F4;--ring:#D6D3D1;
-  --onink:#FFFFFF;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color-scheme:light}
+  --onink:#FFFFFF;--ok:#15803D;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color-scheme:light}
 /* dark: the OS setting until the user picks with the header switch (html[data-theme]), as on the review page */
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#100E0E;--panel:#161413;--ink:#F2F0EB;--t2:rgba(242,240,235,.80);--t3:rgba(242,240,235,.58);--t4:rgba(242,240,235,.42);
-  --line:rgba(255,255,255,.10);--soft:rgba(255,255,255,.06);--ring:rgba(255,255,255,.22);--onink:#100E0E;color-scheme:dark}}
+  --line:rgba(255,255,255,.10);--soft:rgba(255,255,255,.06);--ring:rgba(255,255,255,.22);--onink:#100E0E;--ok:#3DAA6B;color-scheme:dark}}
 :root[data-theme=dark]{--bg:#100E0E;--panel:#161413;--ink:#F2F0EB;--t2:rgba(242,240,235,.80);--t3:rgba(242,240,235,.58);--t4:rgba(242,240,235,.42);
-  --line:rgba(255,255,255,.10);--soft:rgba(255,255,255,.06);--ring:rgba(255,255,255,.22);--onink:#100E0E;color-scheme:dark}
+  --line:rgba(255,255,255,.10);--soft:rgba(255,255,255,.06);--ring:rgba(255,255,255,.22);--onink:#100E0E;--ok:#3DAA6B;color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--ink);font:14px/20px system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
@@ -29,7 +29,7 @@ header{display:flex;align-items:center;justify-content:space-between;height:64px
 .step{display:flex;gap:8px;align-items:center;padding:7px 14px;border-radius:9px;border:0;background:none;color:var(--t4);font-size:14px;line-height:18px}
 .step i{font-style:normal;font-size:13px}
 .step.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px #0C0A0914}
-.step.done{color:var(--t2)}
+.step.done{color:var(--t2)}.step.done svg{color:var(--ok)}   /* done is green (review.html's --done), the current step stays ink */
 .step:disabled{cursor:default}
 .bars{display:none}
 .live{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;gap:8px;align-items:center;justify-content:flex-end;width:260px;flex-shrink:0;font-size:13px;line-height:16px;color:var(--t3);text-align:right}
@@ -69,8 +69,8 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 .faint{color:var(--t4)}
 .row{display:flex;align-items:center;gap:10px}
 .between{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
-.check{width:16px;display:flex;justify-content:center;flex-shrink:0}
-.dot{width:7px;height:7px;border-radius:4px;background:var(--ink)}
+.check{width:16px;display:flex;justify-content:center;flex-shrink:0}.check svg{color:var(--ok)}
+.dot{width:7px;height:7px;border-radius:4px;background:var(--ok)}
 .ring{width:7px;height:7px;border-radius:4px;border:1.5px solid var(--ring)}
 .btn{white-space:nowrap;height:42px;padding:0 22px;border-radius:12px;border:1px solid var(--ink);background:var(--panel);font-weight:600;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
 .btn.dark{background:var(--ink);color:var(--onink)}
@@ -88,7 +88,7 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 .kr{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;padding-top:2px}
 .kname{font-size:15px;line-height:20px;font-weight:600}
 .msg{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:18px;color:var(--t3)}
-.msg.ok,.msg.bad{color:var(--ink)}
+.msg.bad{color:var(--ink)}.msg.ok{color:var(--ok)}
 .foot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 24px;border-top:1px solid var(--line);margin-top:auto}
 .mono{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:12px;line-height:16px;color:var(--t3)}
 .big-input{display:flex;align-items:center;gap:10px;height:72px;border:1.5px solid var(--ink);border-radius:14px;background:var(--panel);padding:0 16px 0 22px}
@@ -160,7 +160,7 @@ h1{margin:0;font-size:40px;line-height:44px;font-weight:700;letter-spacing:-.025
 .file{display:flex;align-items:center;gap:16px;border:1.5px solid var(--ink);border-radius:16px;padding:14px 20px;background:var(--panel)}
 .empty{color:var(--t3);font-size:14px;line-height:21px;padding:24px}
 .hide{display:none!important}
-.tick{width:18px;height:18px;border-radius:9px;background:#16A34A;color:#fff;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.tick{width:18px;height:18px;border-radius:9px;background:var(--ok);color:#fff;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .tick svg{width:10px;height:10px}
 .todo{width:18px;height:18px;border-radius:9px;border:1.5px solid var(--ring);flex-shrink:0}
 .logo{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--t2)}
@@ -196,6 +196,36 @@ body.dragging #dropov{display:flex}
 .cmenu{position:absolute;left:6px;top:36px;z-index:5;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px #0C0A0926;padding:4px;display:flex;flex-direction:column;min-width:160px}
 .cmenu button{border:0;background:none;text-align:left;padding:8px 10px;border-radius:7px;font-size:13px;color:var(--ink);white-space:nowrap}
 .cmenu button:hover{background:var(--soft)}
+.cmenu.r{left:auto;right:8px;top:42px}.cmenu.l{left:calc(100% - 36px);top:42px}
+.more2{position:absolute;top:8px;right:8px;z-index:2;width:28px;height:28px;border-radius:14px;border:0;background:#0C0A09a6;color:#fff;display:grid;place-items:center;padding:0;font-size:14px;line-height:1;cursor:pointer}
+.more2:hover,.more2:focus-visible{background:#0C0A09d9}
+.mopen{overflow:visible!important}
+.scard .newtag,.dtile .th .tick{right:44px}.dtile .th .tick{top:13px}.scard .newtag{top:14px}
+.pin{position:relative}
+.hm-tile .more2{position:static;flex-shrink:0;margin-left:auto;background:none;color:var(--t3)}.hm-tile .more2:hover{background:var(--soft);color:var(--ink)}
+.cmenu .sub{position:absolute;left:calc(100% + 6px);top:0}.cmenu.r .sub{left:auto;right:calc(100% + 6px)}
+.cmenu .hasub{display:flex;justify-content:space-between;gap:16px}.cmenu .hasub.on{background:var(--soft)}
+.cmenu hr{border:0;border-top:1px solid var(--line);margin:4px 6px}.cmenu .q{color:var(--t2)}
+.cmenu .tk{display:flex;justify-content:space-between;gap:16px}
+.folds{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:16px}
+.fold{--tile:color-mix(in srgb,var(--ink) 4%,var(--bg));position:relative;box-sizing:border-box;min-width:0;height:88px;text-align:left;border:0;display:flex;align-items:center;gap:14px;padding:0 16px 0 18px;border-radius:12px;background:var(--tile);cursor:pointer;outline:2px solid transparent;outline-offset:-2px}
+.fold:hover,.fold:focus-visible{background:color-mix(in srgb,var(--ink) 7%,var(--bg))}
+.fold.over,.dropout.over{outline-color:var(--ink)}
+.fold .fi{flex-shrink:0;color:var(--t2)}.fold .ft{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.fold .fths{display:flex;gap:4px;flex-shrink:0}.fold .fths i{width:26px;height:46px;border-radius:4px;background:#45403C center/cover}
+.fold .more2{position:static;flex-shrink:0;background:none;color:var(--t3)}.fold .more2:hover{background:var(--soft);color:var(--ink)}
+.fold .cmenu{top:62px}
+.fold.new{background:none;border:1.5px dashed var(--ring);color:var(--ink)}.fold.new:hover{border-color:var(--t3)}
+.fold input{font:inherit;font-size:15px;width:100%;border:1px solid var(--ring);border-radius:8px;padding:6px 8px;background:var(--panel);color:var(--ink)}
+.dropout{border-radius:8px;padding:4px 6px;margin-left:-6px;outline:2px solid transparent;outline-offset:-2px}
+[draggable="true"]{-webkit-user-drag:element}
+#toast.act{pointer-events:auto}#toast button{border:0;background:none;color:inherit;font-weight:600;text-decoration:underline;margin-left:12px;padding:0}
+.modalbg{position:fixed;inset:0;z-index:60;background:#0C0A0966;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{position:relative;width:min(880px,100%);max-height:calc(100dvh - 32px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:20px;box-shadow:0 24px 64px #0C0A0940;padding:24px;display:flex;flex-direction:column;gap:16px}
+.modal .mx{position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:16px;border:0;background:none;color:var(--t2);display:grid;place-items:center;padding:0}.modal .mx:hover{background:var(--soft);color:var(--ink)}
+.modal .mgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:20px;align-items:start}
+.modal .lrow{min-height:36px}.modal .ladd input{height:34px}
+@media (max-width:760px){.modal .mgrid{grid-template-columns:1fr}}
 .droptile{width:108px;height:192px;border:1.5px dashed var(--ring);border-radius:10px;background:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 10px;text-align:center;flex-shrink:0;cursor:pointer}
 .droptile.over{border-color:var(--ink)}
 .scr{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 12px;font-size:13px;line-height:18px;color:var(--t2)}
@@ -221,7 +251,6 @@ body.dragging #dropov{display:flex}
 .scard .studying{position:absolute;inset:auto 12px 12px 12px;background:#fffffff0;color:#0C0A09;border-radius:10px;padding:8px 10px;font-size:13px}
 .frow{display:flex;justify-content:space-between;gap:10px;font-size:13px;line-height:18px;padding:3px 0}
 .frow span:first-child{color:var(--t3)}.frow span:last-child{color:var(--ink);text-align:right}
-.create{flex:1 1 360px;min-width:300px;border:1.5px dashed var(--ring);border-radius:20px;padding:28px 24px;display:flex;flex-direction:column;gap:16px}
 .box2{border:1px solid var(--line);border-radius:16px;background:var(--panel);padding:18px 18px}
 .bar2{display:flex;align-items:center;justify-content:space-between;gap:20px;border:1px solid var(--line);border-radius:20px;background:var(--panel);padding:14px 14px 14px 24px}
 .steps2{display:flex;flex-direction:column;gap:22px;max-width:560px}
@@ -533,6 +562,7 @@ body.rh main.hmain{padding:28px 40px 32px}
   <div class="bars" id="bars"></div>
 </header>
 <main id="main"></main>
+<div id="modal"></div>
 <div id="dropov">Drop to add<span class="muted" style="font-size:14px;font-weight:400">Each clip is added and picked</span></div><div id="toast" role="status"></div>
 <input type="file" id="coverf" accept="image/*,video/*" class="hide" onchange="this.files[0]&&setCover(this.files[0]);this.value=''">
 </div>
@@ -566,7 +596,7 @@ const PART_WHAT={captions:'Font, size and place',pace:'Cuts, pauses and zooms',g
 // creator-teardown quick mode, in order. Claude reports these step names (references/home.md).
 const PLAN=['Listed their videos','Downloaded the top 5 and 2 median','Transcribed every word','Measured cuts, zooms and camera moves','Reading captions and faces','Naming graphics','Sound effects and music','Writing the style'];
 const VIDEO_PLAN=[['Transcribe every word','about 20 s'],['Cut retakes and pauses','about 1 min'],['You watch the cut and leave notes','review page'],['Captions, zooms and graphics','about 3 min'],['You approve the edit and export','review page']];
-let S=null, view=null, ui={keys:{},nc:{},likes:new Set(['captions','pace']),copy:null,paste:'',look:null,file:null,as:'creator',aspect:'9:16',show:{},kept:new Set()};
+let S=null, view=null, ui={fold:{videos:null,styles:null},keys:{},nc:{},likes:new Set(['captions','pace']),copy:null,paste:'',look:null,file:null,as:'creator',aspect:'9:16',show:{},kept:new Set()};
 try{const v=localStorage.getItem('ave-home-view');if(v)view=+v}catch(e){}
 
 async function post(u,b){const r=await fetch(u,{method:'POST',body:JSON.stringify(b||{})});let j={};try{j=await r.json()}catch(e){}return Object.assign(j,{_ok:r.ok})}
@@ -933,7 +963,7 @@ const CMD='nextwork-editor';
 const UP='<svg width="22" height="22" viewBox="0 0 22 22"><path d="M11 15V5M7 9l4-4 4 4M4 15v2a1 1 0 001 1h12a1 1 0 001-1v-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const FOLDER='<svg width="14" height="14" viewBox="0 0 14 14"><path d="M1.5 3.5a1 1 0 011-1h3l1.2 1.5h4.8a1 1 0 011 1v5.5a1 1 0 01-1 1h-9a1 1 0 01-1-1z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
 const WCHECK='<svg width="10" height="10" viewBox="0 0 12 12"><path d="M2 6.2l2.6 2.6L10 3.4" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const returning=()=>!!(L&&S&&(S.profile||L.videos.length||S.jobs.some(j=>j.type==='video')));   // set up before, or has a video
+const returning=()=>!!(L&&S&&(S.profile||L.videos.length||S.jobs.some(j=>j.type==='video'||(j.type==='setup'&&j.state==='done'))));   // set up before, or has a video (hiding every video never sends you back to setup)
 const ago=t=>{const d=(Date.now()/1000-t)/86400,dt=new Date(t*1000);if(d<1&&dt.getDate()===new Date().getDate())return 'today';if(d<2)return 'yesterday';if(d<7)return dt.toLocaleDateString(undefined,{weekday:'short'});return dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})};
 const clipOf=p=>nv.clips[p]||(R&&R.videos.find(v=>v.path===p))||{path:p,name:p.split(/[\\/]/).pop()};
 const total=()=>nv.sel.reduce((a,p)=>a+(clipOf(p).duration||0),0);
@@ -955,8 +985,8 @@ function rheader(){
 // ---- step 1: pick the clips
 function clipCard(v){
   const i=nv.sel.indexOf(v.path),P=esc(JSON.stringify(v.path)),menu=ui.clipmenu===v.path;
-  return `<div class="clip ${i>=0?'on':''} ${menu?'menu':''} ${nv.flash===v.path?'flash':''}" role="button" tabindex="0" onclick="toggleClip(${P})" onkeydown="if(event.key==='Enter')toggleClip(${P})"><div class="pic" style="background-image:url('${esc(v.thumb)}')">${i>=0?`<div class="num">${WCHECK}${i+1}</div>`:'<div class="ring2"></div>'}${v.duration?`<div class="dur">${fmtT(v.duration)}</div>`:''}<button class="more" aria-label="More for this clip" title="More" onclick="event.stopPropagation();ui.clipmenu=ui.clipmenu===${P}?null:${P};render()">&middot;&middot;&middot;</button></div>
-    ${menu?`<div class="cmenu" onclick="event.stopPropagation()">${v.where!=='Your videos'?`<button onclick="clipAct('hide',${P})">Hide from this list</button>`:''}<button onclick="ui.clipmenu=null;ui.cliptrash=${P};render()">Move to Trash</button></div>`:''}
+  return `<div class="clip ${i>=0?'on':''} ${menu?'menu':''} ${nv.flash===v.path?'flash':''}" role="button" tabindex="0" onclick="toggleClip(${P})" onkeydown="if(event.key==='Enter')toggleClip(${P})"><div class="pic" style="background-image:url('${esc(v.thumb)}')">${i>=0?`<div class="num">${WCHECK}${i+1}</div>`:'<div class="ring2"></div>'}${v.duration?`<div class="dur">${fmtT(v.duration)}</div>`:''}<button class="more" aria-label="More for this clip" title="More" onclick="event.stopPropagation();ui.cmenu=null;ui.clipmenu=ui.clipmenu===${P}?null:${P};render()">&middot;&middot;&middot;</button></div>
+    ${menu?`<div class="cmenu" onclick="event.stopPropagation()"><button onclick="clipAct('hide',${P})">Remove from this list</button><button onclick="ui.clipmenu=null;ui.cliptrash=${P};render()">Move to Trash</button></div>`:''}
     <div style="padding-top:2px"><div class="nm">${esc(v.name)}</div><div class="wh">${esc(v.where||'')} · ${ago(v.mtime)}</div></div></div>`;
 }
 async function clipAct(kind,path){
@@ -1040,7 +1070,7 @@ async function scanHome(on){await post('/scanhome',{on});await loadRecent()}
 // dropped or chosen files: a card at the front of the grid right away, with its copy progress; once in, it is
 // picked (that is why it was dropped), flashes once, and a toast names it. Problems stay on the card in words.
 let upN=0,toastT=null;
-function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('on'),2000)}
+function toast(t,undo){const e=$('#toast');e.textContent=t;e.classList.toggle('act',!!undo);if(undo){const b=document.createElement('button');b.textContent='Undo';b.onclick=()=>{e.classList.remove('on','act');undo()};e.append(b)}e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('on','act'),undo?6000:2000)}
 function paintUp(u){const e=$('#up-'+u.id);if(!e)return;const t=e.querySelector('.uptxt'),b=e.querySelector('.upbar div');if(t)t.textContent=`Adding... ${u.pct}%`;if(b)b.style.width=u.pct+'%'}
 function sendFile(u){return new Promise(res=>{const x=new XMLHttpRequest();x.open('POST','/upload?name='+encodeURIComponent(u.f.name));
   x.upload.onprogress=e=>{if(e.lengthComputable){u.pct=Math.round(e.loaded/e.total*100);paintUp(u)}};
@@ -1111,14 +1141,16 @@ function askName(c){
   setTimeout(()=>{const e=$('#ed-name');if(e){e.focus();e.select()}},0);
 }
 function delRow(c,note){
+  if(c.id==='mine')return `<div class="delrow" onclick="event.stopPropagation()"><b style="font-size:14px">Reset ${esc(c.name)} to the default style?</b><div class="sub" style="font-size:13px">Your feedback changes are cleared. You can't undo this.</div>
+    <div class="row" style="gap:8px"><button class="btn dark sm" onclick="delStyle('mine')">Reset</button><button class="btn quiet sm" onclick="ui.del=null;render()">Keep</button></div></div>`;
   const h=c.id.slice(1),m=ui.del&&ui.del.measured;
   return `<div class="delrow" onclick="event.stopPropagation()"><b style="font-size:14px">Delete ${esc(c.name)}'s style? Its skill goes too.</b>${note?`<div class="sub" style="font-size:13px">${esc(note)}</div>`:''}
     <label class="row" style="gap:8px;font-size:13px;color:var(--t2);cursor:pointer"><input type="checkbox" ${m?'checked':''} onchange="ui.del.measured=this.checked" style="accent-color:var(--ink)">Also delete what was measured (@${esc(h)}'s downloaded videos)</label>
     <div class="row" style="gap:8px"><button class="btn dark sm" onclick="delStyle(${esc(JSON.stringify(c.id))})">Delete</button><button class="btn quiet sm" onclick="ui.del=null;render()">Keep</button></div></div>`;
 }
 async function delStyle(id){
-  const r=await post('/style/delete',{id,measured:!!(ui.del&&ui.del.measured)});ui.del=null;
-  if(!r._ok){alert(r.error||'That did not delete.');return}
+  const r=id==='mine'?await post('/style/reset-all',{}):await post('/style/delete',{id,measured:!!(ui.del&&ui.del.measured)});ui.del=null;
+  if(!r._ok){ui.delmsg={id,msg:r.error||(id==='mine'?'That did not reset.':'That did not delete.')};return render()}
   if(nv.style===id)nv.style='mine';await loadLib();if(rv==='stylepage')rgo('mystyle');else render();
 }
 const skillBusy=id=>{const k=latest('skill');return k&&(k.state==='queued'||k.state==='taken')&&'@'+k.args.handle===id?k:null};
@@ -1140,10 +1172,10 @@ function factRows(c){
   return c.facts.map(([k,v])=>{const w=b&&was[k]!=null&&was[k]!==v?was[k]:null;return `<div class="frow"><span>${esc(k)}</span><span>${w?`<span class="chg">${esc(v)}</span><s class="was">${esc(w)}</s>`:esc(v)}</span></div>`}).join('');
 }
 function styleGroups(pick){
-  const st=L?L.styles:[],me=st.find(c=>c.id==='mine');
+  const st=(L?L.styles:[]).filter(c=>pick||!inFold('styles',c.id)),me=st.find(c=>c.id==='mine');
   const cr=st.filter(c=>c.id!=='mine').sort((a,b)=>(!!b.studying-!!a.studying)||((b.made||0)-(a.made||0)));
   return `${me?`<div class="sgroup"><div class="gh"><span class="h" style="font-size:17px">Your style</span></div><div style="display:flex;flex-wrap:wrap;gap:24px">${styleCard(me,pick,0)}</div></div>`:''}
-    <div class="sgroup"><div class="gh"><span class="h" style="font-size:17px">Copied from creators</span><span class="muted">newest first</span></div><div style="display:flex;flex-wrap:wrap;gap:24px">${cr.map((c,i)=>styleCard(c,pick,i+1)).join('')}${createCard()}</div></div>`;
+    <div class="sgroup"><div class="gh" style="align-items:center"><span class="h" style="font-size:17px">Creator styles</span><span class="muted">newest first</span><button class="btn quiet sm" style="margin-left:auto" onclick="openCreate()">+ New style</button></div><div style="display:flex;flex-wrap:wrap;gap:24px">${cr.map((c,i)=>styleCard(c,pick,i+1)).join('')||'<div class="muted">No creators yet. Copy one with + New style.</div>'}</div></div>`;
 }
 // right after a skill build: that creator's card flashes once and scrolls into view
 function flashBuilt(){
@@ -1154,24 +1186,31 @@ function flashBuilt(){
 }
 function styleCard(c,pick,i){
   const pic=picOf(c,i),on=pick&&nv.style===c.id,editing=ui.edit&&ui.edit.kind==='name'&&ui.edit.id===c.id;
-  const del=c.id!=='mine'&&!c.studying&&ui.del&&ui.del.id===c.id;
+  const del=!c.studying&&ui.del&&ui.del.id===c.id;
   const base=L&&L.styles[0]&&L.styles[0].base;
-  return `<div class="scard ${on?'on':''} ${isNewStyle(c)?'new':''}" id="sc-${esc(c.id)}" onclick="${pick?`nv.style='${esc(c.id)}';nv.picked=1;render()`:`openStyle('${esc(c.id)}')`}"><div class="pic" style="background-image:url('${esc(pic.url)}')">${pic.demo?'<span class="extag">Example photo</span>':pic.face?'<span class="extag">Their video</span>':''}${isNewStyle(c)?'<span class="newtag">New</span>':''}${picBtns(c)}${c.studying?'<div class="studying">Copying their style now</div>':skillBusy(c.id)?`<div class="buildtag"><div class="spin"></div><span>Building its skill · <span data-since="${jobStart(skillBusy(c.id))}">${secs(Math.max(0,Math.round(Date.now()/1000-jobStart(skillBusy(c.id)))))}</span></span></div>`:''}</div>
+  return `<div class="scard ${on?'on':''} ${isNewStyle(c)?'new':''}" id="sc-${esc(c.id)}" ${!pick&&!c.studying?dragAttrs('styles',c.id,c.name):''} onclick="${pick?`nv.style='${esc(c.id)}';nv.picked=1;render()`:`openStyle('${esc(c.id)}')`}"><div class="pic${mo('s:'+c.id)}" style="background-image:url('${esc(pic.url)}')">${pic.demo?'<span class="extag">Example photo</span>':pic.face?'<span class="extag">Their video</span>':''}${isNewStyle(c)?'<span class="newtag">New</span>':''}${sMenu(c,'r',!pick)}${c.studying?'<div class="studying">Copying their style now</div>':skillBusy(c.id)?`<div class="buildtag"><div class="spin"></div><span>Building its skill · <span data-since="${jobStart(skillBusy(c.id))}">${secs(Math.max(0,Math.round(Date.now()/1000-jobStart(skillBusy(c.id)))))}</span></span></div>`:''}</div>
     ${ui.covermsg&&ui.covermsg.id===c.id?`<div class="msg bad" style="margin:10px 6px 0">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
     <div class="between" style="align-items:center;margin-top:16px;padding:0 6px"><span class="row" style="gap:6px;min-width:0;flex:1">${editing?'':`<span style="font-size:18px;font-weight:600">${esc(c.name)}</span>`}${c.studying?'':editField('name',c.id,c.name,'font-size:16px')}</span>${pick?`<div class="radio ${on?'on':''}"></div>`:''}</div>
     ${styleWhat(c)}
     <div style="padding:0 6px 4px">${factRows(c)}</div>
-    ${del?delRow(c,base&&'@'+base===c.id?'My style started from this one. It goes back to the default style.':''):c.skill?`<div class="between" style="margin-top:auto;padding:12px 6px 2px;border-top:1px solid var(--line)"><span class="mono" style="font-size:12px">/${esc(c.skill)}</span><span class="row" style="gap:14px">${c.id!=='mine'&&!c.studying?`<button class="hlink" style="font-size:13px" onclick="event.stopPropagation();ui.del={id:${esc(JSON.stringify(c.id))},measured:false};render()">Delete</button>`:''}<button class="hlink" style="color:var(--ink);font-size:13px" onclick="event.stopPropagation();openStyle('${esc(c.id)}')">Edit style ›</button></span></div>`:''}</div>`;
+    ${ui.delmsg&&ui.delmsg.id===c.id?`<div class="msg bad" style="margin:10px 6px 0">${CROSS}<span>${esc(ui.delmsg.msg)}</span></div>`:''}
+    ${del?delRow(c,base&&'@'+base===c.id?'My style started from this one. It goes back to the default style.':''):c.skill?`<div class="between" style="margin-top:auto;padding:12px 6px 2px;border-top:1px solid var(--line)"><span class="mono" style="font-size:12px">/${esc(c.skill)}</span><span class="row" style="gap:14px"><button class="hlink" style="color:var(--ink);font-size:13px" onclick="event.stopPropagation();openStyle('${esc(c.id)}')">Edit style ›</button></span></div>`:''}</div>`;
 }
-function createCard(){
+// + New style: a modal over the page; Esc, the X, the backdrop or a started copy closes it (the typed links stay in LB.study)
+function openCreate(){ui.create=true;ui.study=null;render();setTimeout(()=>{const e=$('#lb-study');if(e)e.focus()},0)}
+function closeCreate(){ui.create=false;render()}
+function createModal(){
   const st=ui.study||{};
-  return `<div class="create"><div class="row" style="gap:12px"><span style="font-size:24px;line-height:24px">+</span><span style="font-size:22px;font-weight:600">Create a new style</span></div>
-    <div class="box2"><div class="between"><b style="font-size:16px">Copy an editing style</b><span class="muted">about 3 min</span></div>
+  return `<div class="modalbg" onclick="if(event.target===this)closeCreate()"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+    <button class="mx" aria-label="Close" title="Close" onclick="closeCreate()">${CROSS}</button>
+    <div class="row" style="gap:12px;padding-right:40px"><span style="font-size:22px;font-weight:600" id="mtitle">New style</span></div>
+    <div class="box2 mgrid"><div><div class="between"><b style="font-size:16px">Copy an editing style</b><span class="muted">about 3 min</span></div>
       <div class="sub" style="margin-top:6px;font-size:14px;line-height:20px">6 videos edited the same way works best. They can be from one creator or several.</div>
-      <div style="margin-top:14px">${linkBox('study',false)}</div>
-      <div class="between" style="margin-top:12px;align-items:center"><span class="lcount">${lbCount('study')}</span><button class="small" style="color:var(--ink);white-space:nowrap;width:auto;padding:0 16px" ${st.busy?'disabled':''} onclick="studyLink()">Copy this style</button></div>
+      <div class="lcount" style="margin-top:14px">${lbCount('study')}</div>
+      <button class="small" style="margin-top:12px;color:var(--ink);white-space:nowrap;width:auto;padding:0 16px" ${st.busy?'disabled':''} onclick="studyLink()">Copy this style</button>
       ${st.msg?`<div class="muted" style="margin-top:10px;color:var(--ink)">${esc(st.msg)}</div>`:''}</div>
-    <button class="box2 row" style="text-align:left;justify-content:space-between" onclick="buildYourself()"><div><b style="font-size:16px">Build it yourself</b><div class="sub" style="margin-top:6px">Pick captions, zooms, cut and sound yourself.</div></div><span style="font-size:20px;color:var(--t2)">›</span></button></div>`;
+      <div>${linkBox('study',false)}</div></div>
+    <button class="box2 row" style="text-align:left;justify-content:space-between" onclick="buildYourself()"><div><b style="font-size:16px">Build it yourself</b><div class="sub" style="margin-top:6px">Pick captions, zooms, cut and sound yourself.</div></div><span style="font-size:20px;color:var(--t2)">›</span></button></div></div>`;
 }
 async function studyLink(){
   const v=lbText('study');if(!v.trim())return;
@@ -1183,9 +1222,9 @@ async function studyLink(){
   const j=await post('/job',{type:'teardown',handle:r.handle,platform:r.platform,urls:r.urls,take:PARTS.map(p=>p[0])});
   if(!j._ok){ui.study={msg:j.error||'That did not start.'};return render()}
   const h=j.handle||r.handle;nv.style='@'+h;ui.study={msg:`Copying @${h}'s style. It is picked for this video: the cut starts now and the style waits for the copy.`};
-  LB.study={rows:[],draft:''};await load();await loadLib();
+  LB.study={rows:[],draft:''};ui.create=false;toast(ui.study.msg);await load();await loadLib();
 }
-function buildYourself(){nv.style='mine';openStyle('mine')}
+function buildYourself(){ui.create=false;nv.style='mine';openStyle('mine')}
 function vStyle(){
   if(!nv.sel.length)return `<div class="col grow"><div class="empty">Pick your clips first. <a href="#" onclick="rgo('new');return false">Back to your clips</a></div></div>`;
   const cards=(L?L.styles:[]),k=latest('skill');
@@ -1280,7 +1319,7 @@ function hmStatus(v){
 }
 function hmCard(v){
   const nc=newClaude(vJob(v));
-  return `<div class="hm-card" ${goAttrs(v)}><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${mkOver(v,true)}</div><div class="tx">
+  return `<div class="hm-card${mo('v:'+v.dir)}" ${goAttrs(v)}><div class="th${mo('v:'+v.dir)}" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${mkOver(v,true)}${vMenu(v,'l')}</div><div class="tx">
     <div style="display:flex;flex-direction:column;gap:5px;min-width:0"><div class="nmv nm1">${esc(v.name)}</div><div class="hm-t2 nm1">${[v.stage==='edit'?'Full edit':v.stage==='cut'?'Cut':'',v.round?`round ${v.round}`:'',ago(v.updated)].filter(Boolean).join(' · ')}</div></div>
     ${nc||hmStatus(v)}</div></div>`;
 }
@@ -1293,12 +1332,12 @@ function vHome(){
   <div class="hm-top"><div style="min-width:0"><h1>Home</h1>${ready||making?`<p>${[ready?`${ready} ready for you to watch.`:'',making?`${making} with Claude.`:''].filter(Boolean).join(' ')}</p>`:''}</div>
     <button class="hm-new" onclick="rgo('new')"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4"/></svg>New video</button></div>
   <div class="hm-strip"><label class="hm-drop" id="droptile"><svg width="20" height="20" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><div class="hm-tx"><div class="hm-t1">Drop a video here</div><div class="hm-t2">or choose a file</div></div><input type="file" multiple accept="video/*,.mov,.mkv,.mp4" class="hide" onchange="const f=[...this.files];this.value='';rgo('new');chooseFiles(f)"></label>
-    <div class="hm-clips" style="--n:${fit.clips}">${rec.map(v=>`<button class="hm-tile" title="${esc(v.name)}" onclick="nv.sel=[${P(v.path)}];rgo('new')"><div class="th" style="background-image:url('${esc(v.thumb)}')"></div><div class="hm-tx"><div class="hm-t1 nm1">${esc(v.name)}</div><div class="hm-t2 nm1">${esc(v.where)} · ${ago(v.mtime)}</div></div></button>`).join('')
+    <div class="hm-clips" style="--n:${fit.clips}">${rec.map(v=>`<div class="hm-tile pin" role="button" tabindex="0" title="${esc(v.name)}" onclick="nv.sel=[${P(v.path)}];rgo('new')" onkeydown="if(event.key==='Enter'&&event.target===this){nv.sel=[${P(v.path)}];rgo('new')}"><div class="th" style="background-image:url('${esc(v.thumb)}')"></div><div class="hm-tx"><div class="hm-t1 nm1">${esc(v.name)}</div><div class="hm-t2 nm1">${esc(v.where)} · ${ago(v.mtime)}</div></div><button class="more2" aria-label="More for this clip" title="More" onclick="event.stopPropagation();ui.cmenu=null;ui.clipmenu=ui.clipmenu===${P(v.path)}?null:${P(v.path)};render()">&middot;&middot;&middot;</button>${ui.clipmenu===v.path?`<div class="cmenu r" style="top:calc(100% + 4px)" onclick="event.stopPropagation()"><button onclick="clipAct('hide',${P(v.path)})">Remove from this list</button><button onclick="ui.clipmenu=null;ui.cliptrash=${P(v.path)};rgo('new')">Move to Trash</button></div>`:''}</div>`).join('')
       ||'<div class="hm-none">Your newest clips show here.</div>'}</div></div>
   <div class="hm-sec">${hd('Your videos',vids.length,'videos')}<div class="hm-cards">${vids.slice(0,3).map(hmCard).join('')||'<div class="hm-none">No videos yet. Drop a clip above to start one.</div>'}</div></div>
   <div class="hm-lib">
-    <div class="hm-sec">${hd('My styles',st.length,'mystyle')}<div class="hm-styles" style="--n:${fit.styles}">${st.slice(0,fit.styles).map((c,i)=>`<button class="hm-style" ${c.studying?'disabled':''} onclick="openStyle(${P(c.id)})"><div class="pic" style="background-image:url('${esc(picOf(c,i).url)}')"></div><span class="nm1">${esc(c.name)}</span></button>`).join('')||'<div class="hm-none">No styles yet.</div>'}</div></div>
-    <div class="hm-sec">${hd('Creators you copied',cr.length,'mystyle')}<div class="hm-crs">${cr.slice(0,4).map(c=>`<button class="hm-cr" ${c.studying?'disabled':''} onclick="openStyle(${P(c.id)})"><div class="ini" style="${c.face?`background-image:url('${esc(c.face)}')`:''}">${c.face?'':esc(c.id.slice(1,3).toUpperCase())}</div><span class="nm1">${esc(c.id)}</span></button>`).join('')
+    <div class="hm-sec">${hd('My styles',st.length,'mystyle')}<div class="hm-styles" style="--n:${fit.styles}">${st.slice(0,fit.styles).map((c,i)=>`<div class="hm-style" ${c.studying?'aria-disabled="true"':`role="button" tabindex="0" onclick="openStyle(${P(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)openStyle(${P(c.id)})"`}><div class="pic pin" style="background-image:url('${esc(picOf(c,i).url)}')">${sMenu(c,'l')}</div><span class="nm1">${esc(c.name)}</span></div>`).join('')||'<div class="hm-none">No styles yet.</div>'}</div></div>
+    <div class="hm-sec">${hd('Creator styles',cr.length,'mystyle')}<div class="hm-crs">${cr.slice(0,4).map(c=>`<button class="hm-cr" ${c.studying?'disabled':''} onclick="openStyle(${P(c.id)})"><div class="ini" style="${c.face?`background-image:url('${esc(c.face)}')`:''}">${c.face?'':esc(c.id.slice(1,3).toUpperCase())}</div><span class="nm1">${esc(c.id)}</span></button>`).join('')
       ||'<div class="hm-none">No creators yet. Copy one from My styles.</div>'}</div></div>
   </div></div>`;
 }
@@ -1306,9 +1345,9 @@ const NOWLINE={ready:v=>v.stage==='edit'?'The edit is ready. Leave notes or appr
   making:v=>vJob(v)&&!v.round?'Claude is making the cut. Your clip is in the editor meanwhile.':v.stage==='cut'&&v.round?'Claude is making the edit from your cut.':'Claude is working on your notes.',cutting:v=>(vJob(v)||{}).state==='queued'?'Starts as soon as Claude picks it up.':'Cutting out the mistakes.'};
 function nowCard(v){
   const st=v.status==='ready'?'<span class="dot"></span> Ready to watch':'<span class="ring"></span> Being made';
-  return `<div class="ncard" ${goAttrs(v)}><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${mkOver(v)}</div><div style="display:flex;flex-direction:column;gap:6px;min-width:0;flex:1;padding:4px 4px 2px 0">
+  return `<div class="ncard" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name)}><div class="th${mo('v:'+v.dir)}" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${mkOver(v)}${vMenu(v,'l')}</div><div style="display:flex;flex-direction:column;gap:6px;min-width:0;flex:1;padding:4px 4px 2px 0">
     <div class="row" style="gap:8px;font-size:13px;font-weight:${v.status==='ready'?600:400};color:${v.status==='ready'?'var(--ink)':'var(--t2)'}">${st}</div>
-    <div style="font-size:17px;line-height:22px;font-weight:600">${esc(v.name)}</div><div class="muted">${v.round?`round ${v.round} · `:''}${ago(v.updated)} · ${rmLink(v)}</div>
+    <div style="font-size:17px;line-height:22px;font-weight:600">${esc(v.name)}</div><div class="muted">${v.round?`round ${v.round} · `:''}${ago(v.updated)}</div>
     <div class="sub" style="font-size:13px;line-height:18px;margin-top:auto">${esc(NOWLINE[v.status](v))}</div>
     <div style="margin-top:6px">${newClaude(vJob(v))||openBtn(v)}</div></div></div>`;
 }
@@ -1317,18 +1356,81 @@ function editTrashRow(){
   return `<div class="confirm"><b>Remove ${esc(v.name)} from your videos?</b><div class="sub">Its folder in your library goes to the Trash: the cut, the renders and your notes. Your original clip stays.</div><div class="row"><button class="btn dark sm" onclick="trashEdit(${esc(JSON.stringify(v.dir))})">Move to Trash</button><button class="btn quiet sm" onclick="ui.edittrash=null;render()">Keep</button></div></div>`;
 }
 async function trashEdit(dir){const r=await post('/edit/trash',{dir});ui.edittrash=null;ui.editmsg=r.ok?null:(r.msg||'That did not work.');await loadLib();render()}
-const rmLink=v=>`<button class="hlink" style="font-size:13px" onclick="event.stopPropagation();event.preventDefault();ui.edittrash=${esc(JSON.stringify(v.dir))};render();window.scrollTo(0,0)">Remove</button>`;
+// one "more" menu for every video and style card: a ⋯ on the picture, the menu under it (ui.cmenu = 'v:<dir>' | 's:<id>')
+const J=v=>esc(JSON.stringify(v));
+const moreBtn=(k,lbl)=>`<button class="more2" aria-label="${lbl}" aria-haspopup="menu" aria-expanded="${ui.cmenu===k}" title="More" onclick="event.stopPropagation();event.preventDefault();ui.clipmenu=null;ui.sub=false;ui.cmenu=ui.cmenu===${J(k)}?null:${J(k)};render()">&middot;&middot;&middot;</button>`;
+const cMenu=(k,items,side='r')=>ui.cmenu===k?`<div class="cmenu ${side}" role="menu" onclick="event.stopPropagation();event.preventDefault()">${items.filter(Boolean).map(([t,js])=>`<button role="menuitem" onclick="ui.cmenu=null;${js}">${t}</button>`).join('')}</div>`:'';
+// Move to folder ›: a submenu of the folders (a tick on the current one), New folder, Take out of <folder>
+function subMenu(kind,item,name){
+  const F=fd(kind),cur=F.items[item],cf=F.folders.find(f=>f.id===cur);
+  return `<button class="hasub ${ui.sub?'on':''}" onclick="ui.sub=!ui.sub;render()">Move to folder<span>›</span></button>${ui.sub?`<div class="cmenu sub">${F.folders.map(f=>`<button class="tk" onclick="ui.cmenu=null;moveTo('${kind}',${J(item)},${J(f.id)},${J(name)})">${esc(f.name)}${f.id===cur?'<span>✓</span>':''}</button>`).join('')}${F.folders.length?'<hr>':''}<button class="q" onclick="ui.cmenu=null;ui.newfold={kind:'${kind}',move:${J(item)},name:${J(name)}};ui.fold['${kind}']=null;render();setTimeout(()=>{const e=$('#fold-name');if(e)e.focus()},0)">+ New folder</button>${cf?`<button class="q" onclick="ui.cmenu=null;moveTo('${kind}',${J(item)},null,${J(name)})">Take out of ${esc(cf.name)}</button>`:''}</div>`:''}<hr>`;
+}
+const withSub=(html,sub)=>html.replace('role="menu" onclick="event.stopPropagation();event.preventDefault()">','role="menu" onclick="event.stopPropagation();event.preventDefault()">'+sub);
+const vMenu=(v,side)=>moreBtn('v:'+v.dir,'More for this video')+withSub(cMenu('v:'+v.dir,[['Remove from this list',`hideEdit(${J(v.dir)})`],['Move to Trash',`askTrash(${J(v.dir)})`]],side),ui.cmenu==='v:'+v.dir?subMenu('videos',v.dir,v.name):'');
+const sMenu=(c,side,fold=true)=>c.studying?'':moreBtn('s:'+c.id,'More for this style')+withSub(cMenu('s:'+c.id,[['Change image',`pickCover(${J(c.id)})`],c.cover&&['Remove image',`removeCover(${J(c.id)})`],c.id==='mine'?['Reset to default style',`askDel('mine')`]:['Delete style',`askDel(${J(c.id)})`]],side),fold&&ui.cmenu==='s:'+c.id?subMenu('styles',c.id,c.name):'');
+// ---- folders (Your videos and My styles): folders.json through /folder/*; All shows what is in no folder
+const fd=k=>(L&&L.folders||{})[k]||{folders:[],items:{}};
+const inFold=(k,item)=>{const F=fd(k),f=F.items[item];return F.folders.some(x=>x.id===f)?f:null};
+let DRAG=null;
+const dragAttrs=(k,item,name)=>`draggable="true" ondragstart="DRAG={kind:'${k}',item:${J(item)},name:${J(name)}};event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/x-ave','1')" ondragend="DRAG=null;document.querySelectorAll('.over').forEach(e=>e.classList.remove('over'))"`;
+const dropAttrs=(k,fid)=>`ondragover="if(DRAG&&DRAG.kind==='${k}'){event.preventDefault();this.classList.add('over')}" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();this.classList.remove('over');if(DRAG&&DRAG.kind==='${k}'){const d=DRAG;DRAG=null;moveTo('${k}',d.item,${fid?J(fid):'null'},d.name)}"`;
+async function moveTo(k,item,fid,name,quiet){
+  const was=inFold(k,item);if(was===fid)return render();
+  const r=await post('/folder/move',{kind:k,item,folder:fid});
+  if(!r._ok){toast(r.error||'That did not move.');return}
+  L.folders=r.folders;render();
+  if(quiet)return;const f=fd(k).folders.find(x=>x.id===fid),wf=fd(k).folders.find(x=>x.id===was);
+  toast(fid?`Moved ${name} to ${f.name}`:`Took ${name} out of ${wf?wf.name:'the folder'}`,()=>moveTo(k,item,was,name,true));
+}
+async function foldSave(){
+  const e=ui.newfold||ui.renfold;if(!e)return;const name=($('#fold-name')||{}).value||'';
+  const r=await post(ui.newfold?'/folder/create':'/folder/rename',{kind:e.kind,id:e.id,name});
+  if(!r._ok){e.msg=r.error||'That did not save.';return render()}
+  L.folders=r.folders;ui.newfold=ui.renfold=null;
+  if(e.move)return moveTo(e.kind,e.move,r.id,e.name);render();
+}
+async function foldDel(k,id){const f=fd(k).folders.find(x=>x.id===id);const r=await post('/folder/delete',{kind:k,id});if(r._ok){L.folders=r.folders;if(ui.fold[k]===id)ui.fold[k]=null;toast(`Deleted ${f?f.name:'the folder'}. What was in it is back in All.`)}render()}
+function foldRow(k,thumbs){
+  const F=fd(k),fit=Math.max(2,Math.floor((innerWidth-80+16)/(256+16))),all=ui.allfold===k;
+  const shown=all?F.folders:F.folders.slice(0,fit-1),noun=k==='videos'?'video':'style';
+  const ed=e=>e&&e.kind===k;
+  const input=(e,ph)=>`<div class="ft"><input id="fold-name" value="${esc(e.val||'')}" placeholder="${ph}" maxlength="40" onclick="event.stopPropagation()" oninput="(ui.newfold||ui.renfold).val=this.value" onkeydown="event.stopPropagation();if(event.key==='Enter')foldSave();if(event.key==='Escape'){ui.newfold=ui.renfold=null;render()}">${e.msg?`<span class="msg bad" style="font-size:12px">${esc(e.msg)}</span>`:''}</div>`;
+  const tile=f=>{const n=Object.entries(F.items).filter(([,v])=>v===f.id).map(([i])=>i),ren=ed(ui.renfold)&&ui.renfold.id===f.id,K='f:'+k+':'+f.id;
+    return `<div class="fold" role="button" tabindex="0" onclick="ui.fold['${k}']=${J(f.id)};render();window.scrollTo(0,0)" onkeydown="if(event.key==='Enter'&&event.target===this)this.click()" ${dropAttrs(k,f.id)}><svg class="fi" width="22" height="22" viewBox="0 0 14 14">${FOLDER.replace(/^<svg[^>]*>|<\/svg>$/g,'')}</svg>
+      ${ren?input(ui.renfold,'Folder name'):`<div class="ft"><span class="hm-t1 nm1" style="font-size:15px">${esc(f.name)}</span><span class="hm-t2">${n.length?`${n.length} ${noun}${n.length>1?'s':''}`:'Empty'}</span></div><div class="fths">${n.map(thumbs).filter(Boolean).slice(0,2).map(u=>`<i style="background-image:url('${esc(u)}')"></i>`).join('')}</div>`}
+      ${moreBtn(K,'More for this folder')}${cMenu(K,[['Rename',`ui.renfold={kind:'${k}',id:${J(f.id)},val:${J(f.name)}};render();setTimeout(()=>{const e=$('#fold-name');if(e){e.focus();e.select()}},0)`],['Delete folder',`foldDel('${k}',${J(f.id)})`]])}</div>`};
+  const nw=ed(ui.newfold)?`<div class="fold new">${input(ui.newfold,'Folder name')}</div>`:`<button class="fold new" onclick="ui.newfold={kind:'${k}'};render();setTimeout(()=>{const e=$('#fold-name');if(e)e.focus()},0)"><span style="font-size:20px;line-height:20px">+</span><span style="font-size:15px">New folder</span></button>`;
+  return `<div><div class="between" style="margin-bottom:12px"><span class="h">Folders</span>${F.folders.length>fit-1?`<button class="hlink" style="font-size:14px" onclick="ui.allfold=${all?'null':`'${k}'`};render()">${all?'Show less':`See all ${F.folders.length}`}</button>`:''}</div><div class="folds" style="--n:${fit}${all?';grid-template-columns:repeat(auto-fill,minmax(256px,1fr))':''}">${shown.map(tile).join('')}${nw}</div></div>`;
+}
+// inside a folder: "‹ All videos" (a drop target to take things out) and the folder's name as the heading
+function foldHead(k,label){const f=fd(k).folders.find(x=>x.id===ui.fold[k]);return f?`<button class="hlink dropout" style="font-size:14px;align-self:flex-start" onclick="ui.fold['${k}']=null;render()" ${dropAttrs(k,null)}>‹ ${label}</button><h1 style="margin-top:6px">${esc(f.name)}</h1>`:''}
+const mo=k=>ui.cmenu===k?' mopen':'';
+async function hideEdit(dir){const r=await post('/edit/hide',{dir});ui.editmsg=r.ok?null:(r.msg||'That did not work.');await loadLib();render()}
+function askTrash(dir){ui.edittrash=dir;if(rv!=='videos')rgo('videos');else render();setTimeout(()=>{const c=$('.confirm');if(c)c.scrollIntoView({block:'nearest'})},0)}
+function askDel(id){ui.del={id,measured:false};ui.delmsg=null;if(rv==='home')rgo('mystyle');else render();setTimeout(()=>{const c=document.getElementById('sc-'+id);if(c)c.scrollIntoView({block:'nearest'})},0)}
+document.addEventListener('click',()=>{if(ui.cmenu||ui.clipmenu){ui.cmenu=ui.clipmenu=null;render()}});
+addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(ui.create){ui.create=false;render()}else if(ui.cmenu||ui.clipmenu){ui.cmenu=ui.clipmenu=null;render()}});
 function vVideos(){
-  const now=L.videos.filter(v=>v.status!=='done'),done=L.videos.filter(v=>v.status==='done');
+  if(ui.fold.videos&&!fd('videos').folders.some(f=>f.id===ui.fold.videos))ui.fold.videos=null;
+  const vids=L.videos.filter(v=>inFold('videos',v.dir)===ui.fold.videos),infold=!!ui.fold.videos;
+  const now=vids.filter(v=>v.status!=='done'),done=vids.filter(v=>v.status==='done');
   const lede=[now.filter(v=>v.status==='ready').length?`${now.filter(v=>v.status==='ready').length} ready for you to watch.`:'',now.filter(v=>v.status!=='ready').length?`${now.filter(v=>v.status!=='ready').length} still being made.`:'',done.length?`${done.length} done.`:''].filter(Boolean).join(' ');
-  return `<div class="col grow" style="min-width:0;gap:26px"><div class="between" style="align-items:flex-end;flex-wrap:wrap;gap:12px"><div><h1>Your videos</h1>${lede?`<p class="lede" style="margin-top:10px">${lede}</p>`:''}</div><div class="row"><button class="btn quiet" onclick="post('/reveal',{})">Show in ${/Mac/.test(navigator.platform)?'Finder':'Explorer'}</button><button class="btn dark" onclick="rgo('new')">+ New video</button></div></div>
+  return `<div class="col grow" style="min-width:0;gap:26px"><div class="between" style="align-items:flex-end;flex-wrap:wrap;gap:12px"><div class="col" style="gap:0">${infold?foldHead('videos','All videos'):'<h1>Your videos</h1>'}${lede?`<p class="lede" style="margin-top:10px">${lede}</p>`:''}</div><div class="row"><button class="btn quiet" onclick="post('/reveal',{})">Show in ${/Mac/.test(navigator.platform)?'Finder':'Explorer'}</button><button class="btn dark" onclick="rgo('new')">+ New video</button></div></div>
     ${editTrashRow()}
+    ${infold&&!ui.newfold?'':foldRow('videos',d=>(L.videos.find(v=>v.dir===d)||{}).thumb)}
+    ${infold&&!vids.length?'<div class="muted">Nothing in this folder yet. Drag a video onto it, or use ⋯ then Move to folder.</div>':''}
     ${now.length?`<div><div class="h" style="margin-bottom:12px">Now</div><div class="nowg">${now.map(nowCard).join('')}</div></div>`:''}
-    ${done.length?`<div><div class="between" style="margin-bottom:12px"><span class="h">Done</span><span class="muted">newest first</span></div><div class="doneg">${done.map(v=>`<div class="dtile"><a href="${v.review?'/review?dir='+encodeURIComponent(v.dir):esc(v.media||'#')}" style="text-decoration:none"><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${TICK}</div></a><div style="font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.name)}</div><div class="between"><span class="muted">${ago(v.updated)}</span><span class="row" style="gap:10px">${v.media?`<a class="muted" style="color:var(--ink)" href="${esc(v.media)}" download>Download</a>`:''}${rmLink(v)}</span></div></div>`).join('')}</div></div>`:''}
+    ${done.length?`<div><div class="between" style="margin-bottom:12px"><span class="h">Done</span><span class="muted">newest first</span></div><div class="doneg">${done.map(v=>`<div class="dtile" ${dragAttrs('videos',v.dir,v.name)}><div class="pin"><a href="${v.review?'/review?dir='+encodeURIComponent(v.dir):esc(v.media||'#')}" style="text-decoration:none"><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${TICK}</div></a>${vMenu(v)}</div><div style="font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.name)}</div><div class="between"><span class="muted">${ago(v.updated)}</span><span class="row" style="gap:10px">${v.media?`<a class="muted" style="color:var(--ink)" href="${esc(v.media)}" download>Download</a>`:''}</span></div></div>`).join('')}</div></div>`:''}
     ${L.videos.length?'':`<div>${EXROW}</div>`}</div>`;
 }
 function vMyStyle(){
+  if(ui.fold.styles&&!fd('styles').folders.some(f=>f.id===ui.fold.styles))ui.fold.styles=null;
+  const st=L?L.styles:[],picOfId=id=>{const i=st.findIndex(c=>c.id===id);return i<0?null:picOf(st[i],i).url};
+  if(ui.fold.styles){const inside=st.map((c,i)=>[c,i]).filter(([c])=>inFold('styles',c.id)===ui.fold.styles);
+    return `<div class="col grow" style="min-width:0;gap:24px"><div class="col" style="gap:0">${foldHead('styles','All styles')}</div>${ui.newfold?foldRow('styles',picOfId):''}
+      ${inside.length?`<div style="display:flex;flex-wrap:wrap;gap:24px">${inside.map(([c,i])=>styleCard(c,false,i)).join('')}</div>`:'<div class="muted">Nothing in this folder yet. Drag a style onto it, or use ⋯ then Move to folder.</div>'}</div>`}
   return `<div class="col grow" style="min-width:0;gap:24px"><div><h1>My styles</h1></div>
+    ${foldRow('styles',picOfId)}
     ${styleGroups(false)}</div>`;
 }
 // ---- Settings: keys (each with its own status), updates, the videos folder, the theme, this computer
@@ -1479,7 +1581,8 @@ function rrender(){
   rheader();
   if(rv==='settings'&&!ui.disk)loadDisk();
   const h=rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='making'?vMaking():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='settings'?vSettings():vHome();
-  paint($('#main'),h,rv+'|'+ui.sp);$('#main').classList.toggle('spwrap',rv==='stylepage');$('#main').classList.toggle('hmain',rv==='home');
+  paint($('#main'),h,rv+'|'+ui.sp);$('#main').classList.toggle('spwrap',rv==='stylepage');
+  const md=ui.create&&(rv==='mystyle'||rv==='style')?createModal():'';paint($('#modal'),md,'m');document.documentElement.style.overflow=md?'hidden':'';$('#main').classList.toggle('hmain',rv==='home');
   if(rv==='mystyle'||rv==='style')flashBuilt();
   const o=$('#order');if(o)o.querySelectorAll('[draggable]').forEach(el=>{
     el.ondragstart=e=>{e.dataTransfer.setData('text/plain',el.dataset.i)};el.ondragover=e=>e.preventDefault();

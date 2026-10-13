@@ -10,6 +10,27 @@ What changed for every user, newest first.
   README (`docs/logo.svg`). The repo moved to nextwork-projects/ai-video-editor-cooked (old links redirect), and the
   install lines and update checks point there. Nothing to reinstall: the plugin is still `ai-editor`,
   the commands, settings folder (`~/.ai-video-editor`) and library folder (`~/Movies/AI Editor`) stay the same.
+- Done is green in the home window, the same green as the review page: the ticks on finished steps and
+  videos, "Saved. The key works.", the done step numbers and the Ready to watch / Ready to review dot.
+  The current step, buttons and text stay black.
+
+- Folders for Your videos and My styles. A row of folder tiles sits under the heading: name, how many are
+  inside and two small pictures, then a dashed New folder tile (type the name, Enter saves, Esc cancels).
+  Click a folder to see only what is in it, with "‹ All videos" or "‹ All styles" to go back. Move a video or
+  a style in with ⋯ then Move to folder, or drag its card onto a folder tile; drag it onto the back link, or
+  pick Take out of, to move it back. A toast says where it went, with Undo. A folder's ⋯ has Rename and
+  Delete folder (what was in it goes back to All; nothing is deleted). Folders live in folders.json in the
+  editor's home. Home still shows everything.
+
+- Every video and style card has a ⋯ button on its picture, always showing, in Your videos (Now cards and Done
+  tiles), My styles, Pick a style and the Home shelves. Videos and clips get "Remove from this list" (off the
+  window, no file is touched) and "Move to Trash" (asks first). A creator's style gets "Delete style"; My style
+  gets "Reset to default style", which clears your feedback changes after asking. Change image and Remove image
+  moved into the same menu. The small Remove and Delete links are gone. A clip in Your videos can now be
+  removed from the list too. Create a new style is a "+ New style" button on the Copied from creators row that
+  opens the two choices in a window over the page (Esc, the X or a click outside closes it).
+
+## ai-editor 2.4.1 (2026-10-13)
 
 - Scrolling holds on the home window and the review page. The home window redraws every 1.5 s, and each
   redraw put every inner list (Your videos, My styles, a style's page, Settings) back at the top. Now a

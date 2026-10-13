@@ -621,6 +621,7 @@ def style_cards(root):
         changed = taste.rules_path().stat().st_mtime if n and taste.rules_path().exists() else None
         out.append({"id": sid, "name": ss.display(sp), "facts": facts(st), "look": look(st), "base": base,
                     "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "learned_from": vids, "made": made, "changed": changed, "cover": cover_of(root, sid), "face": face_of(root, base),
+                    "own": sid == "mine" or bool(st.get("own")),
                     "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False,
                     **naming(sid, sp, base)})
     return out
@@ -772,6 +773,8 @@ def style_page(root, sid):
             "changed": [k for k in CONTROLS if dig(changed, k) is not None], "look": look(st), "facts": facts(st),
             "copies": copies, "rules": rules, "style_path": str(sp) if sp else None, "presets": preset_state(root, sid, st, base, changed),
             "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid), "face": face_of(root, base),
+            "own": sid == "mine" or bool(st.get("own")), "videos": st.get("videos"),
+            "made": next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None) if sp else None,
             "delete_note": f"My style started from @{base}. It goes back to the default style." if sp and base and style_of(root, "mine")[2] == base else None,
             **naming(sid, sp, base)}
 
@@ -975,6 +978,30 @@ def save_cover(root, sid, src):
         return False
     os.replace(tmp, d / "cover.jpg")
     return True
+
+
+def new_own_style(root, name):
+    """A style the user builds themselves ("Build it yourself"): stored like a studied creator's, in
+    creator-teardowns/own-<slug>/style.json (the default style, own: true), named, with its skill written.
+    Returns its id ("@own-<slug>")."""
+    from ai_editor.profile import DEFAULT_STYLE
+    _, ss = _taste()
+    name = " ".join(str(name or "").split())
+    base = "own-" + (re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40].rstrip("-") or "style")
+    h, i = base, 2
+    while (Path(root) / "creator-teardowns" / h).exists():
+        h, i = f"{base}-{i}", i + 1
+    d = Path(root) / "creator-teardowns" / h
+    d.mkdir(parents=True)
+    p = d / "style.json"
+    p.write_text(json.dumps({**DEFAULT_STYLE, "handle": h, "own": True}, indent=2), encoding="utf-8")
+    try:
+        ss.rename(p, name)
+    except ValueError:
+        shutil.rmtree(d)
+        raise
+    ss.write(str(p))
+    return "@" + h
 
 
 def delete_style(root, sid, measured=False):
@@ -1347,7 +1374,8 @@ def make_handler(token):
                         cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True, "face": face_of(root, h),
                                       "line": "Being analysed now. Your cut starts first; the style waits for it."})
                 return self.send(200, {"path": root, "place": place(root), "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
-                                       "custom": str(custom.path(False)), "videos": vids, "styles": cards, "folders": folders()})
+                                       "custom": str(custom.path(False)), "videos": vids, "styles": cards, "folders": folders(),
+                                       "default_style": read().get("default_style") if any(c["id"] == read().get("default_style") for c in cards) else "mine"})
             if path == "/recent":
                 st = read()
                 rs = recent_list(st)
@@ -1554,6 +1582,17 @@ def make_handler(token):
                     return self.send(200, folder_change(kind, path.rsplit("/", 1)[1], body, listed))
                 except ValueError as e:
                     return self.send(400, {"ok": False, "error": str(e)})
+            if path == "/style/new":   # Build it yourself: a new own style, then its page
+                try:
+                    return self.send(200, {"ok": True, "id": new_own_style(read()["root"], body.get("name"))})
+                except ValueError as e:
+                    return self.send(400, {"error": str(e)})
+            if path == "/style/default":   # Make default: the style New video starts on
+                sid = str(body.get("id") or "mine")
+                if sid != "mine" and not any(c["id"] == sid for c in style_cards(read()["root"])):
+                    return self.send(404, {"error": "No such style."})
+                update(lambda d: d.__setitem__("default_style", sid))
+                return self.send(200, {"ok": True, "default_style": sid})
             if path == "/style/reset-all":
                 reset_mine()
                 return self.send(200, {"ok": True})
@@ -2360,6 +2399,23 @@ def demo():
     assert sr("Wrote down every word you said", q["args"]["edit"]) == "no video job on the page"   # never takes it
     assert latest(read(), "video")["state"] == "queued" and not latest(read(), "video")["steps"]
     assert " as=@newbie " in out(cmd_wait, 0.01)
+    # Analyse a format: links from several creators are one job, every link in its picks.txt
+    fl = ["https://www.tiktok.com/@a.one/video/7412345678901234567", "https://www.tiktok.com/@b.two/video/7412345678901234568",
+          "https://www.tiktok.com/@c.three/video/7412345678901234569"]
+    post("/job", {"type": "teardown", "urls": fl, "take": ["captions", "pace"]})
+    ft = latest(read(), "teardown")
+    assert ft["args"]["handle"].startswith("links-") and ft["args"]["platform"] == "tiktok" and ft["args"]["take"] == ["captions", "pace"], ft
+    assert Path(ft["args"]["urls"]).read_text(encoding="utf-8").split() == fl
+    update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["id"] != ft["id"]]))   # not Claude's to take here
+    # Build it yourself: a second own style, listed as own, can be the default, and goes when deleted
+    oid = post("/style/new", {"name": "Clean talking head"})["id"]
+    own = next(c for c in get("/library")["styles"] if c["id"] == oid)
+    assert oid.startswith("@own-") and own["own"] and own["name"] == "Clean talking head" and not own.get("studying"), own
+    assert next(c for c in get("/library")["styles"] if c["id"] == "mine")["own"]
+    assert post("/style/default", {"id": oid})["default_style"] == oid and get("/library")["default_style"] == oid
+    assert post("/style/set", {"id": oid, "key": "zoom.preset", "value": "none"})["presets"]["zoom"]["sel"] == "none"
+    assert post("/style/delete", {"id": oid})["ok"] and get("/library")["default_style"] == "mine"
+    assert oid not in [c["id"] for c in get("/library")["styles"]]
     post("/scanhome", {"on": False})   # picked files stay listed without the opt-in
     assert {r["name"] for r in get("/recent")["videos"]} == {"a.mov", "b.mov", "c.mp4", "drop.mp4", "take.mp4"}
 

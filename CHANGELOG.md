@@ -4,6 +4,13 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- The cut page opens sooner on long takes. The render starts encoding the kept parts while the judge reads,
+  and a later render (after a judge fix, a verify fix or a review note) re-encodes only the parts that changed:
+  on a 10-minute 4K take, a re-render after a judge change went from about 105 s to 29 s. The finished file is
+  frame-counted once instead of three times. Reader cuts on takes over 5 minutes go straight in, highlighted,
+  and the judge checks them, instead of a second wave of agents. The judge stops after 2 rounds, and the
+  mechanical steps (build, render, verify, cut page) run as one command.
+
 ## ai-editor 2.6.2 (2026-10-13)
 
 - Connect Claude. When no Claude is listening, the window shows one button, **Connect Claude**, instead of

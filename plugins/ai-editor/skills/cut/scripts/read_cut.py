@@ -2,8 +2,9 @@
 """Parallel readers for a long take: what word matching in retakes.py misses.
 
     paper edit -> one reader per ~180 s chunk (cut-reader agents, all in one message) -> proposed drops
-               -> one verifier per drop (cut-reader agents, one message), arguing to keep it -> confirmed
-               -> confirmed drops appended to spans.json; stitches and lost words listed for Claude
+               -> merge: drops appended to spans.json as confidence low; stitches and lost words listed
+               -> the cut-judge (which runs next anyway) restores any drop that took a line found nowhere else
+    verify is optional: one verifier per drop (cut-reader agents), arguing to keep it, before merge.
 
 Readers catch a line re-said in different words (last take wins), a sentence stitched from two takes,
 a word lost inside a cut, and a false start that survived. They quote text; this script resolves each
@@ -11,7 +12,7 @@ quote to transcript words and proves the new span resolves to those same words. 
 
     python3 read_cut.py chunks <edit_dir> [--chunk 180] [--overlap 30]   writes read/reader-N.md
     python3 read_cut.py verify <edit_dir> [--context 45]   reads read/reader-N.json, writes read/verify-N.md
-    python3 read_cut.py merge  <edit_dir>    reads read/verify-N.json, adds confirmed spans to spans.json
+    python3 read_cut.py merge  <edit_dir>    adds the drops to spans.json (after verify: only the confirmed ones)
     python3 read_cut.py demo                 self-check
 
 Each prompt prints with the path its agent writes its JSON to (the same name, .json).
@@ -255,10 +256,12 @@ def verify(d, context=45.0):
 
 
 def merge(d):
-    """Confirmed drops into spans.json. Returns (added, report lines)."""
+    """Drops into spans.json. Returns (added, report lines). After verify, a drop needs its verifier's "cut";
+    without verify (the default: the judge is the second opinion) every drop goes in as confidence low."""
     d = Path(d)
     r = d / "read"
-    F = json.loads((r / "proposed.json").read_text(encoding="utf-8"))
+    verified = (r / "proposed.json").exists() and any(r.glob("verify-*.md"))
+    F = json.loads((r / "proposed.json").read_text(encoding="utf-8")) if verified else proposals(d)
     toks, spans = toks_of(d), spans_of(d)
     added, lines = [], []
     for f in F:
@@ -266,14 +269,15 @@ def merge(d):
             lines.append(f"FIX BY HAND {f['kind']:9s} raw {f['raw']:7.1f} {f['quote']!r}: {f.get('why', '')}")
         if f["status"] != "proposed":
             continue
-        v = extract_json((r / f["prompt"].replace(".md", ".json")).read_text(encoding="utf-8"), "verdict") \
+        v = {"verdict": "cut"} if not verified else extract_json(
+            (r / f["prompt"].replace(".md", ".json")).read_text(encoding="utf-8"), "verdict") \
             if (r / f["prompt"].replace(".md", ".json")).exists() else None
         if not v or str(v.get("verdict", "")).lower() != "cut":
             lines.append(f"kept by verifier raw {f['raw']:7.1f} {f['quote']!r}: {(v or {}).get('why', 'no verdict')}")
             continue
         a, b = f["span"]
         sp = {"text": f["text"], "kind": "retake" if f["kind"] == "repeat" else "false_start",
-              "after": round(toks[a]["start"] - 0.001, 3), "confidence": "medium",
+              "after": round(toks[a]["start"] - 0.001, 3), "confidence": "medium" if verified else "low",
               "note": f"reader: {f.get('why', '')}"[:160]}
         try:   # proved: the span resolves to exactly these words, and spans.json still builds
             c = resolve_spans([sp], toks)[0]
@@ -329,6 +333,17 @@ def demo():
         assert [s["text"] for s in added] == ["Open the settings page first."] and added[0]["kind"] == "retake"
         assert any(x.startswith("FIX BY HAND lost_word") for x in lines)
         assert len(spans_of(d)) == 2 and len(cuts_of(spans_of(d), toks)) == 2
+        # no verifier: merge straight after the readers adds the drop as confidence low
+        (d / "spans.json").write_text(json.dumps([{"text": "then pick a model", "kind": "retake"}]), encoding="utf-8")
+        for f in (d / "read").glob("verify-*"):
+            f.unlink()
+        (d / "read" / "proposed.json").unlink()
+        added, lines = merge(d)
+        assert [(s["text"], s["confidence"]) for s in added] == [("Open the settings page first.", "low")], added
+        assert any(x.startswith("FIX BY HAND lost_word") for x in lines)
+        (d / "spans.json").write_text(json.dumps([{"text": "then pick a model", "kind": "retake"}]), encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()):
+            verify(d)                    # verify written again: merge now waits for the verdict
         # a verifier that keeps it: nothing added
         (d / "spans.json").write_text(json.dumps([{"text": "then pick a model", "kind": "retake"}]), encoding="utf-8")
         (d / "read" / "verify-0.json").write_text('{"verdict": "keep", "why": "builds on it"}', encoding="utf-8")

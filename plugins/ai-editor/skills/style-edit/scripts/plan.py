@@ -59,11 +59,13 @@ DEFAULT_BOX = {"9:16": [10, 15, 74, 20], "16:9": [54, 10, 40, 48]}
 # Where the app's own UI sits, in percent: left, top, right, bottom. Vertical: the
 # TikTok/Reels/Shorts top bar, the like/comment/share rail on the right and the
 # caption/username block at the bottom. Wide: YouTube's progress bar.
-SAFE = {"9:16": (6, 14, 14, 22), "16:9": (3, 5, 3, 10)}
-# Vertical overlays (free_regions) may go further than SAFE: up to 10% from the top (the top bar holds only
-# small text), 3% from the sides, and over the right rail while they end above RAIL_TOP (the like/share
-# rail starts lower down). check.py plan allows the same.
-OVERLAY_TOP, OVERLAY_EDGE, RAIL_TOP = 10, 3, 40
+# Vertical is the reels safe zone, x 60-940 and y 250-1440 of 1080x1920 (rounded inwards): nothing a plan draws
+# (cards, overlays, logos, captions, scene content) goes outside it. Cards centred on the frame keep the wider
+# side margin on both sides (x 140-940).
+SAFE = {"9:16": (5.6, 13.1, 13.0, 25.0), "16:9": (3, 5, 3, 10)}
+# Vertical overlays beside the head (free_regions) may reach the safe zone's left edge; the band above the head
+# is centred, so it keeps the wider margin. check.py plan allows the same.
+OVERLAY_TOP, OVERLAY_EDGE = SAFE["9:16"][1], SAFE["9:16"][0]
 LOGO_S = 1.2           # a logo stays up this long
 LOGO_BOX_H = 11        # logo tile height, % of the frame
 # logo_cluster on vertical (Overlays.tsx reads props.band and props.size): the logos' outer edges span this
@@ -818,7 +820,8 @@ def free_regions(hd, cap_y, aspect):
     top = OVERLAY_TOP if aspect == "9:16" else t       # overlays may use the top bar's margin: it holds only small text
     left, htop, right, hbot = hd
     floor = min(cap_y - 5, 100 - b) if aspect == "9:16" else 100 - b
-    out = [[4, top, 92, htop - HEAD_GAP - top]]
+    side = max(l, r) if aspect == "9:16" else 4      # vertical: the centred band inside the safe zone
+    out = [[side, top, 100 - 2 * side, htop - HEAD_GAP - top]]
     if aspect == "9:16":
         out += [[OVERLAY_EDGE, htop, left - HEAD_GAP - OVERLAY_EDGE, floor - htop], [right + HEAD_GAP, htop, 100 - r - (right + HEAD_GAP), floor - htop]]
     else:
@@ -1043,7 +1046,8 @@ def place_overlays(cards, face, cap_y, aspect, prefer=None):
             continue
         if c.get("lane") == "logo" or t in FIXED_BOX or c.get("_own_box") or not hd:
             if not hd and aspect == "9:16" and c.get("src") and not c.get("_own_box") and c.get("lane") != "logo":
-                c["box"] = [4, OVERLAY_TOP, 92, c["box"][3]]   # no head found: a capture takes the band above where it would be
+                m = max(SAFE[aspect][0], SAFE[aspect][2])   # no head found: a capture takes the band above where it would be
+                c["box"] = [m, OVERLAY_TOP, 100 - 2 * m, c["box"][3]]
             out.append(c)
             continue
         ar = content_aspect(c)
@@ -1618,6 +1622,9 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
     cap = dict(style.get("captions") or {})
     _, top, _, bottom = SAFE[aspect]
     cap["y_pct"] = min(max(cap.get("y_pct") or 70, top + 5), 100 - bottom - 4)   # clear of the app's UI
+    if aspect == "9:16":   # centred captions keep the safe zone's wider side margin on both sides
+        m = max(SAFE[aspect][0], SAFE[aspect][2])
+        cap["width_pct"] = min(cap.get("width_pct") or 86, 100 - 2 * m)
     chunks = mark_emph(chunk_captions(words, cap.get("words_per_caption") or 3, cap.get("case", "sentence"))) \
         if cap.get("present", True) else []
     fj = edit_dir and Path(edit_dir) / "face.json"
@@ -1996,8 +2003,8 @@ def demo():
         pl = {"width": 1080, "height": 1920, "fps": 30, "durationInFrames": 60, "zooms": zs, "cards": lg,
               "captions": {"style": {"y_pct": 68}, "chunks": []}}
         assert any("covers the head" in x["what"] for x in check_plan(pl, right)) == fails, (f, lg)
-    assert safe_box([6, 3, 88, 27], "9:16") == [14.0, 14, 72, 22], safe_box([6, 3, 88, 27], "9:16")
-    assert safe_box([50, 90, 20, 10], "9:16")[1] == 68
+    assert safe_box([6, 3, 88, 27], "9:16") == [13.0, 13.1, 74.0, 22], safe_box([6, 3, 88, 27], "9:16")
+    assert safe_box([50, 90, 20, 10], "9:16")[1] == 65
     words = []
     t = 0.0
     for i, text in enumerate("so this is how I edit. every video gets zooms and captions now. try notion today."
@@ -2056,7 +2063,7 @@ def demo():
     lg = {"start": 5.0, "end": 6.2, "box": [1, 1, 1, 1], "trigger_word": "l", "lane": "logo", "anim": {"type": "logo"}}
     big = {"start": 0.0, "end": 4.0, "box": [1, 1, 1, 1], "trigger_word": "b"}
     art = split_art_box(50)
-    assert art == [14, 14, 72, 34]   # centred: equal side margins
+    assert art == [13.0, 13.1, 74.0, 34.9], art   # centred: equal side margins
     sc2 = split_cards([big, lg, {**lg, "start": 3.5, "end": 4.7}], art)
     assert [c["box"] for c in sc2] == [art, art] and "lane" not in sc2[1] and sc2[1]["end"] == 6.5, sc2   # overlapping logo dropped
     vs = build(style, words, {**meta, "width": 1080, "height": 1920}, imgs, layout={"mode": "split"})
@@ -2121,6 +2128,7 @@ def demo():
     tv = [{"word": "notion", "nth": 1, "kind": "anim", "type": "flow", "layout": "scene", "props": {"nodes": [{"logo": "notion"}]}},
           {"word": "every", "nth": 1, "kind": "anim", "type": "caption_page", "hold_s": 2, "props": {}}]
     vp = build(style, words, vm, visuals=tv)
+    assert vp["captions"]["style"]["width_pct"] == 74.0, vp["captions"]["style"]   # vertical captions inside the safe zone
     assert "layout" not in vp and vp["motion"] == "smooth" and vp["look"] == {"preset": "neutral"}, vp   # no panel, no house palette
     cp = next(c for c in vp["cards"] if c["anim"]["type"] == "caption_page")
     assert cp["layout"] == "box" and [w["text"] for w in cp["anim"]["props"]["words"]][:2] == ["every", "video"], cp
@@ -2149,7 +2157,7 @@ def demo():
     tall = {"src": "images/t.png", "size": [600, 1400], "start": 0.0, "end": 2.0, "trigger_word": "t", "box": [1, 1, 1, 1]}
     lc = {"anim": {"type": "logo_cluster", "props": {}}, "start": 0.0, "end": 2.0, "trigger_word": "l", "box": [1, 1, 1, 1]}
     pw, pt, pl = place_overlays([wide, tall, lc], hd_face, 68, "9:16")
-    assert pw["box"][1] == 10 and pw["box"][1] + pw["box"][3] <= 34 - HEAD_GAP + 1e-6, pw["box"]
+    assert pw["box"][:3] == [13.0, OVERLAY_TOP, 74.0] and pw["box"][1] + pw["box"][3] <= 34 - HEAD_GAP + 1e-6, pw["box"]
     assert pt["box"] == pw["box"], pt["box"]
     assert pl["box"] == [0, 0, 100, 100] and pl["anim"]["props"]["head"] == [32, 34, 28, 23], pl
     assert pl["anim"]["props"]["band"] == list(LOGO_BAND) and pl["anim"]["props"]["size"] == LOGO_SIZE, pl   # big, centred
@@ -2211,7 +2219,7 @@ def demo():
     assert [c["entrance"] for c in no["cards"]] == [c["entrance"] for c in build(style, words, vm, caps)["cards"]]
     # her layout leans a tall card to the top band, still clear of the head
     pt2 = place_overlays([dict(tall)], hd_face, 68, "9:16", {"zones_pct": {"top": 90, "middle": 10}})[0]
-    assert pt2["box"][1] == 10 and pt2["box"][1] + pt2["box"][3] <= 34 - HEAD_GAP + 1e-6, pt2["box"]
+    assert pt2["box"][1] == OVERLAY_TOP and pt2["box"][1] + pt2["box"][3] <= 34 - HEAD_GAP + 1e-6, pt2["box"]
     assert heat({"grid": [[100, 0], [0, 0]]}, [0, 0, 50, 50]) == 1 and heat({"zones_pct": {"top": 40}}, [0, 10, 90, 20]) == 0.4
     # cut_kinds: a quarter of the cuts punch in
     cz = place_zooms({"per_min": 600, "on": "every_cut"}, words, t, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], {"zoom-punch": 1, "hard": 3})

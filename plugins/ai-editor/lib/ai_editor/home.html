@@ -609,6 +609,8 @@ body.rail .sb-theme{margin-top:2px}
 .cmenu button:hover,.cmenu .hasub.on{background:var(--card)!important}
 .cmenu button svg{flex-shrink:0}.cmenu button .lb{flex:1;min-width:0;text-align:left}.cmenu button .n{color:var(--t3);font-size:13px}
 .cmenu hr{border:0;border-top:1px solid var(--line);margin:4px 8px}
+.cmenu.top{position:fixed!important;right:auto!important;margin:0}
+#menus{position:fixed;inset:0;pointer-events:none;z-index:70}#menus>*{pointer-events:auto}
 .cmenu .mh{padding:8px 8px 4px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--t3)}
 .cmenu .sub{min-width:200px;left:calc(100% + 6px);top:-5px}
 .th .cmenu,.dt .pic .cmenu{left:calc(100% - 40px);right:auto;top:38px}
@@ -878,7 +880,7 @@ body.rail .sb-theme{margin-top:2px}
 <main id="main"></main>
 </div>
 <div id="modal"></div>
-<div id="dropov">Drop to add<span class="muted" style="font-size:14px;font-weight:400">Each clip is added and picked</span></div><div id="toast" role="status"></div><div id="ghost" aria-hidden="true"></div>
+<div id="dropov">Drop to add<span class="muted" style="font-size:14px;font-weight:400">Each clip is added and picked</span></div><div id="toast" role="status"></div><div id="ghost" aria-hidden="true"></div><div id="menus"></div>
 <input type="file" id="coverf" accept="image/*,video/*" class="hide" onchange="this.files[0]&&setCover(this.files[0]);this.value=''">
 </div>
 <script>
@@ -2094,6 +2096,8 @@ const mo=k=>ui.cmenu===k?' mopen':'';
 async function hideEdit(dir){const r=await post('/edit/hide',{dir});ui.editmsg=r.ok?null:(r.msg||'That did not work.');await loadLib();render()}
 function askTrash(dir){ui.edittrash=dir;if(rv!=='videos')rgo('videos');else render();setTimeout(()=>{const c=$('.confirm');if(c)c.scrollIntoView({block:'nearest'})},0)}
 document.addEventListener('click',()=>{if(ui.cmenu||ui.clipmenu){ui.cmenu=ui.clipmenu=null;render()}});
+// the page scrolls under an open menu: it follows its button, and closes once the button leaves the window
+document.addEventListener('scroll',e=>{const ms=[...$('#menus').children];if(ms.length&&!(e.target.closest&&e.target.closest('.cmenu'))&&!ms.every(placeMenu)){ui.cmenu=ui.clipmenu=null;render()}},true);
 addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(ui.del){ui.del=null;render()}else if(ui.create){ui.create=false;render()}else if(ui.cmenu||ui.clipmenu){ui.cmenu=ui.clipmenu=null;render()}});
 // ---- Settings: keys (each with its own status), updates, the videos folder, the theme, this computer
 const FINDER=()=>/Mac/.test(navigator.platform)?'Finder':'Explorer';
@@ -2194,7 +2198,7 @@ function rrender(){
   if(rv==='settings'&&!ui.disk)loadDisk();
   const h=rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='making'?vMaking():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='settings'?vSettings():vHome();
   $('#main').classList.toggle('pg',['home','videos','settings','mystyle','style','stylepage'].includes(rv));
-  paint($('#main'),h,rv+'|'+ui.sp);$('#main').classList.toggle('spwrap',rv==='stylepage');fixMenus();
+  paint($('#main'),h,rv+'|'+ui.sp);$('#main').classList.toggle('spwrap',rv==='stylepage');
   const md=ui.del?delModal():ui.create?createModal():'';paint($('#modal'),md,'m');document.documentElement.style.overflow=md?'hidden':'';$('#main').classList.toggle('hmain',rv==='home');
   if(rv==='mystyle'||rv==='style')flashBuilt();
   const o=$('#order');if(o)o.querySelectorAll('[draggable]').forEach(el=>{
@@ -2217,13 +2221,36 @@ window.addEventListener('drop',()=>{dragN=0;document.body.classList.remove('drag
 // ---------------------------------------------------------------- render loop
 // The poll redraws every 1.5 s. Same HTML: the DOM is left alone. New HTML on the same view: every inner
 // scroller (a column, panel or list) gets its scroll back, found again by its place in the tree.
+// A clock's text (data-since) is left out of the comparison: the 1 s timer keeps it current, so a ticking
+// clock never rebuilds the view under the pointer (a click that lands on a replaced card is lost).
+const still=h=>h.replace(/(data-since="[^"]*"[^>]*>)[^<]*/g,'$1');
 function paint(el,h,view){
-  if(el._h===h&&el._v===view)return;
+  if(el._h!=null&&still(el._h)===still(h)&&el._v===view)return;
   const keep=[];
   if(el._v===view)(function walk(e,path){if(e.scrollTop||e.scrollLeft)keep.push([path,e.scrollTop,e.scrollLeft]);[...e.children].forEach((c,i)=>walk(c,[...path,i]))})(el,[]);
   el.innerHTML=h;el._h=h;el._v=view;
   for(const [path,t,l] of keep){const e=path.reduce((x,i)=>x&&x.children[i],el);if(e){e.scrollTop=t;e.scrollLeft=l}}
+  placeMenus(el);tickClocks();
 }
+// Every open ⋯ menu lives in one top layer (#menus, position fixed) so no card, filter or overflow can cover
+// or clip it: placed under its button, flipped left or up to stay in the window. A poll that repaints the
+// same view puts it back in the same place.
+function placeMenus(root){
+  const layer=$('#menus');if(!layer||root===layer)return;
+  for(const m of [...layer.children])if(m._root===root)m.remove();
+  for(const m of root.querySelectorAll('.cmenu:not(.sub)')){
+    const b=m.previousElementSibling&&m.previousElementSibling.matches('button')?m.previousElementSibling:m.parentElement.querySelector('.dots,.more2')||m.parentElement;
+    m._root=root;m._btn=b;layer.appendChild(m);m.classList.add('top');placeMenu(m);
+  }
+}
+function placeMenu(m){
+  const r=m._btn.getBoundingClientRect(),w=m.offsetWidth,h=m.offsetHeight;let x=r.left,y=r.bottom+4;
+  if(x+w>innerWidth-8)x=Math.max(8,r.right-w);if(y+h>innerHeight-8)y=Math.max(8,r.top-h-4);
+  m.style.left=x+'px';m.style.top=y+'px';
+  const sub=m.querySelector('.cmenu.sub');m.classList.toggle('subflip',!!sub&&x+w+6+sub.offsetWidth>innerWidth-8);
+  return r.bottom>0&&r.top<innerHeight;
+}
+function tickClocks(){for(const e of document.querySelectorAll('[data-since]')){const t=+e.dataset.since,x=Math.max(0,Math.round(Date.now()/1000-t));if(t)e.textContent=e.dataset.f?fmtT(x):secs(x)}}
 function render(){
   if(!S||DRAG)return;   // a card is being dragged: a redraw would drop it
   const keep=document.activeElement&&document.activeElement.id,pos=keep&&document.activeElement.selectionStart,end=keep&&document.activeElement.selectionEnd,val=keep&&document.activeElement.value;
@@ -2246,7 +2273,7 @@ function render(){
   }
   if(keep){const e=document.getElementById(keep);if(e&&'value' in e&&!e.matches(':focus')){if(e.type!=='file')e.value=val;e.focus();try{e.setSelectionRange(pos,end??pos)}catch(x){}}}
 }
-setInterval(()=>{for(const e of document.querySelectorAll('[data-since]')){const t=+e.dataset.since,x=Math.max(0,Math.round(Date.now()/1000-t));if(t)e.textContent=e.dataset.f?fmtT(x):secs(x)}},1000);
+setInterval(tickClocks,1000);
 addEventListener('resize',()=>render());
 async function load(){
   try{const r=await fetch('/state');if(!r.ok)throw 0;S=await r.json();if(Date.now()-themeAt>3000)applyTheme(S.theme)}catch(e){const lv=$('#live');lv.className='live';lv.style.width='auto';lv.style.maxWidth='520px';lv.style.whiteSpace='normal';lv.textContent='The editor stopped. Run nextwork-editor to start it again.';return}

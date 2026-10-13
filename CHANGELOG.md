@@ -4,6 +4,12 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- The editor is now called cooked. The home window, page titles, setup messages and docs use the
+  new name. Its logo is a pan with three lines of sizzle: in a small tile beside the name in the home
+  window header, as the browser tab icon of the home window and the review page, and at the top of the
+  README (`docs/logo.svg`). The repo moved to nextwork-projects/ai-video-editor-cooked (old links redirect), and the
+  install lines and update checks point there. Nothing to reinstall: the plugin is still `ai-editor`,
+  the commands, settings folder (`~/.ai-video-editor`) and library folder (`~/Movies/AI Editor`) stay the same.
 - Done is green in the home window, the same green as the review page: the ticks on finished steps and
   videos, "Saved. The key works.", the done step numbers and the Ready to watch / Ready to review dot.
   The current step, buttons and text stay black.

@@ -210,6 +210,9 @@ a cut, a final video or your notes.
 | `style-edit` | "style it", "add captions and zooms", "render the edit", "export to Final Cut" (or Premiere, Resolve, CapCut) | |
 | `overlays` | after a render: "add an animation here", "make a diagram of how this works", "this card is wrong", "swap the logo", "show the real page instead", "fewer cards" | |
 | `taste` | "captions too small", "fewer zooms" | |
+| `logo-pack` | "make a logo pack", "get the logos for this video", "the logos look fake" | |
+| `skill-maker` | "make a skill", "create a skill", "turn this into a skill", "help me write a skill" | |
+| `skill-improver` | "teach my style from this video", "turn my notes into rules", "make this feedback stick" | |
 | `clips` | "clip this video", "make shorts from my podcast" | a long video, a YouTube link, a podcast episode (Apple Podcasts, RSS, YouTube) |
 | `product-video` | "make a launch video for my site" | a website URL |
 | `update` | "update the editor", "get the latest version", "sync my fork" | |

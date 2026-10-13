@@ -4,6 +4,12 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Card edits show real things, never a card of words on white. In the Card edit style (and your own
+  card-edit style) every card is a screenshot of the page or app named, framed round it to fill the band
+  above your head, a logo on its own white card, your photo or an animation. Cards come at the style's rate
+  (about one every 4 s) and tuck behind your head. New: a title pill at the top on the hook and the call to
+  action, a running numbered list, and a red X over a card that does not apply. The style page's card Look
+  dropdown is gone (the look belongs to the style), and Often now means 16 cards a minute.
 - Making the edit is faster and asks less. While you review the cut, the visuals, the plan and the stills
   sheet are made in the background (all free, on your computer), so approving the cut goes straight to the
   sheet. The audience and the names in a video are no longer asked: the first answer is used and the review

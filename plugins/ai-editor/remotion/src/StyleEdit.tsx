@@ -21,6 +21,7 @@ import { Capture, Mark } from "./Capture";
 import { Look, Texture, resolveLook, useFonts } from "./look";
 import { Motion, ease, pickMotion, prog, punchAt } from "./motion";
 import { Sfx } from "./Sfx";
+import { TextItem, Texts } from "./Texts";
 import { SceneCard, SceneView, TR_S, Transition, footageX, phases, sceneGrounds } from "./Scene";
 import { captionFade, groundCovers } from "./ground";
 import { Ground, onGround } from "./look";
@@ -87,6 +88,7 @@ export type Plan = {
   cutouts?: Cutout[];
   pans?: Pan[];
   cover?: Cover;
+  texts?: TextItem[]; // a card edit's title pill, running numbered list and X stamp (Texts.tsx)
 };
 // An audio-only clip (clips.py trim): the show's cover over a blurred, dimmed copy of itself. box: % of the frame.
 // push: the cover's scale at the end; ground_push: the ground's scale at the start (it eases back to 1 as the
@@ -332,7 +334,7 @@ const LetterboxView: React.FC<Letterbox & { video: string; captions: Plan["capti
   );
 };
 
-export const StyleEdit: React.FC<Plan> = ({ video, captions, zooms, cards, layout, look: lookIn, motion, cutouts, pans, cover }) => {
+export const StyleEdit: React.FC<Plan> = ({ video, captions, zooms, cards, layout, look: lookIn, motion, cutouts, pans, cover, texts }) => {
   const frame = useCurrentFrame();
   const { fps, width, height, durationInFrames } = useVideoConfig();
   const t = frame / fps;
@@ -378,6 +380,7 @@ export const StyleEdit: React.FC<Plan> = ({ video, captions, zooms, cards, layou
         ))}
         {cardViews}
         {sceneViews}
+        {texts?.length ? <Texts items={texts} t={t} width={width} height={height} font={captions.style.font_match} /> : null}
         <AbsoluteFill style={{ opacity: capFade }}><Captions style={capStyle} chunks={captions.chunks} t={t} m={m} /></AbsoluteFill>
         <Sfx />
       </AbsoluteFill>
@@ -404,6 +407,7 @@ export const StyleEdit: React.FC<Plan> = ({ video, captions, zooms, cards, layou
         </div>
       </div>
       {sceneViews}
+      {texts?.length ? <Texts items={texts} t={t} width={width} height={height} font={captions.style.font_match} /> : null}
       <AbsoluteFill style={{ opacity: capFade }}>
         <Captions style={{ ...capStyle, y_pct: sceneUp(cards, t) ? layout.caption_full_y : capY }} chunks={captions.chunks} t={t} m={m} />
       </AbsoluteFill>

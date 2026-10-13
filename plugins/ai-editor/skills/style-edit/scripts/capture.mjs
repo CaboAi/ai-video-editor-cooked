@@ -20,6 +20,10 @@
 // Free sources, no keys: "kind": "post" (X post via the public embed endpoint, text verified, fields
 // into images/post-<id>.json for a social_post card), "app" (App Store lookup: icon as the logo, first
 // screenshot as a card), "youtube" (the video's thumbnail), "github" (the repo's social card).
+// A card edit (style.json "card_kinds" without "text"): every capture is a picture of the real page, never a
+// re-set sentence. A sticker beat is shot as a "shot", the viewport is 640 wide (the page's narrow layout, as a
+// phone shows it) and, with a "find" mark and no clip or selector, the shot is a band-shaped window (CARD_BAND
+// wide per tall, at most 1.2x the mark's width) round that mark, so the named thing fills the card above the head.
 // Cookie banners: a bundled list of consent-manager selectors is hidden and a reject/accept button clicked.
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -388,8 +392,10 @@ async function shootSticker(s, beat, out) {
   return { size, marks, xh: Math.round(got.xh * k * 10) / 10, lines: lns };
 }
 
+const CARD_BAND = 1.5;   // the band above the head on 9:16, down to the hair line: about 800 x 530 frame px
 async function shoot(cdp, beat, out) {
-  const width = beat.width || 1000, height = beat.height || 700;
+  const card = beat.frame === "card";
+  const width = beat.width || (card ? 640 : 1000), height = beat.height || (card ? Math.round(640 / CARD_BAND) : 700);
   const sticker = beat.format === "sticker" && !beat.props?.crop && (beat.marks || []).some((mk) => mk.find);
   const dsf = beat.scale || (sticker ? 3 : 2);
   const { targetId } = await cdp.send("Target.createTarget", { url: "about:blank" });
@@ -445,6 +451,17 @@ async function shoot(cdp, beat, out) {
       marks.push({ ...mk, page_rect: [x0 - pad, y0 - pad, x1 - x0 + pad * 2, y1 - y0 + pad * 2], page_rects: rs });
       clip.height = Math.min(Math.max(clip.height, y1 + 140 - clip.y), 3200);
     }
+    // a card edit's window: the found thing centred in a band-shaped shot, wide enough to read as the page
+    const first = card && !beat.clip && !beat.selector && marks.find((mk) => mk.page_rect);
+    if (first) {
+      const [rx, ry, rw, rh] = first.page_rect;
+      const w = Math.min(width, Math.max(380, rw * 1.2)), h = Math.round(w / CARD_BAND);   // tight: the page's words read
+      clip = { x: Math.max(0, Math.min(width - w, rx + rw / 2 - w / 2)), y: Math.max(0, ry + rh / 2 - h / 2), width: w, height: h };
+    }
+    // a header pinned to the viewport (fixed or sticky) would be drawn over a window shot further down the page
+    if (first && clip.y > 0) await s("Runtime.evaluate", { expression: `for (const e of document.querySelectorAll('body *')) {
+      const p = getComputedStyle(e).position;
+      if (p === 'sticky') e.style.position = 'static'; else if (p === 'fixed') e.style.visibility = 'hidden'; }` });
     if (beat.page_text) {
       // the visible text, one line per block, for the planner's highlight pick (route.py highlight)
       const { result } = await s("Runtime.evaluate", { returnByValue: true, expression: `(() => [...document.querySelectorAll(
@@ -705,6 +722,11 @@ async function main() {
   const images = (fs.existsSync(listPath) ? JSON.parse(fs.readFileSync(listPath, "utf8")) : [])
     .filter((im) => !im.src.startsWith(PREFIX));
   const beats = visuals.filter((v) => v.kind === "capture");
+  // a card edit shows pictures only: its captures are framed shots of the page, never a sentence on white
+  let kinds = null;
+  try { kinds = JSON.parse(fs.readFileSync(path.join(edit, "style.json"), "utf8")).card_kinds; } catch {}
+  if (Array.isArray(kinds) && kinds.length && !kinds.includes("text"))
+    for (const b of beats) Object.assign(b, { frame: "card" }, b.format === "sticker" ? { format: "shot" } : {});
   const bin = beats.length && findBinary(SHELLS);
   if (beats.length && !bin) {
     console.error(`ERROR: no Chrome Headless Shell under ${SHELLS}. Run the setup skill (setup.py remotion) once.`);

@@ -4,6 +4,12 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.6.1 (2026-10-13)
+
+- Settings > Update now updates. Claude runs `claude plugin marketplace update nextwork` and
+  `claude plugin update ai-editor@nextwork` itself, then asks you to type `/reload-plugins`. Before, it only
+  told you what to type, and one of those lines said `/plugin install` instead of `/plugin update`.
+
 ## ai-editor 2.6.0 (2026-10-13)
 
 - Two new skills. `logo-pack` gets the official, brand-colour logo of every company, app and tool named in a

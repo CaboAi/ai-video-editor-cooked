@@ -14,7 +14,8 @@ What changed for every user, newest first.
   Settings and theme on the right; then a drop box and the newest clips in one strip, 3 video cards (the
   whole card opens the editor), My styles as image tiles and Creators you copied as a 2-column grid.
   Nothing on Home scrolls from 1280x720 to 1920x1080: it shows fewer clips and styles when the window is
-  narrower.
+  narrower. Tiles keep their width with a short library, leaving space on the right, and an empty
+  shelf says so in one line.
 
 - My style gets a name right away. When it is picked on Pick a style, or its page opens, before the user
   has named it, the name is a field already focused with a suggestion selected ("Like @<creator>" when

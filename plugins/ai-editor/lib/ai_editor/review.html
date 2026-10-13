@@ -84,6 +84,10 @@ header{position:relative;height:56px;flex-shrink:0;display:flex;align-items:cent
 #stages>button.done.on{color:var(--ok-text)}
 .status{flex:1 1 0;min-width:0;white-space:nowrap;display:flex;align-items:center;justify-content:flex-end;gap:12px;color:var(--body);font-size:13px;line-height:16px}
 .status i{display:none}
+/* Claude working: a spinner, the step it is on and how long, in ink, so it reads as busy at a glance */
+.status.work{color:var(--ink);font-weight:600}
+.status.work i{display:inline-flex;color:var(--ink);animation:spin .9s linear infinite}
+.status .stp{font-weight:400;color:var(--body)}
 .status span{overflow:hidden;text-overflow:ellipsis}
 #howbtn{width:32px;height:32px;border-radius:8px;border:1px solid var(--line2);display:grid;place-items:center;color:var(--ink);flex-shrink:0}
 #howbtn:hover{border-color:var(--ink)}
@@ -624,7 +628,10 @@ function render(){
   document.body.classList.toggle('vertical',!!S.vertical);renderRail();
   const p=pending(),lastEv=S.events[S.events.length-1],picked=!!(S.sent&&lastEv&&lastEv.handled),vr=viewRound();
   $('name').textContent=S.name;$('name').title=S.name;document.title=S.name+(p==='send'?' · Claude working':' · round '+S.round);steps();
-  $('listen').textContent=approving?'Cut approved':makingEdit()&&makeState().idle?'Claude is not working on the edit':listenText(S);$('statusbox').classList.toggle('work',picked&&p==='send');
+  const idleEdit=makingEdit()&&makeState().idle,busyNow=!idleEdit&&(picked&&(p==='send'||!!S.raw)||makingEdit()||approving);
+  const nowAct=busyNow&&(S.activity||[]).filter(x=>x.round===S.round&&!x.done).pop();
+  $('listen').innerHTML=esc(approving?'Cut approved':idleEdit?'Claude is not working on the edit':listenText(S))+(nowAct&&nowAct.text?` <span class="stp">· ${esc(nowAct.text)}</span>`:'');
+  $('statusbox').classList.toggle('work',busyNow);$('statusbox').querySelector('i').innerHTML=busyNow?SPIN:'';
   $('mstage').textContent=STAGE[view.stage];$('msub').textContent=S.name+' · '+rn(view).toLowerCase();
   const mine=S.comments.filter(c=>c.stage===S.stage&&c.round===S.round).length,live=isCur()&&!p;
   // Send is primary while there are notes; once a round lands with none, Approve is. Stop replaces Send while Claude works.

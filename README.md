@@ -234,7 +234,11 @@ the trial-reel treatment. Your skills live in your own folder and stay when the 
 
 ## Updating
 
-If you installed the plugin (Way 2), type these in Claude Code:
+If you installed the plugin (Way 2), turn on auto-update once: in Claude Code type `/plugin`, open
+**Marketplaces**, pick **nextwork**, then **Enable auto-update**. New versions then install when Claude
+Code starts.
+
+To update by hand, type these in Claude Code:
 
 ```
 /plugin marketplace update nextwork

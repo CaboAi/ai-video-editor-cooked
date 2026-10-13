@@ -51,6 +51,7 @@ import hmac
 import http.client
 import json
 import os
+import platform
 import re
 import secrets
 import shutil
@@ -97,7 +98,7 @@ REVIEW = Path(__file__).with_name("review.py")
 DEMO = Path(__file__).with_name("demo")   # stock photos for empty previews (demo/CREDITS.md)
 HANDLE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 PLUGIN_JSON = Path(__file__).resolve().parents[2] / ".claude-plugin" / "plugin.json"
-RAW = "https://raw.githubusercontent.com/nextwork-projects/ai-video-editor/main/"
+RAW = "https://raw.githubusercontent.com/nextwork-projects/ai-video-editor-cooked/main/"
 COVER_MAX = 50 << 20   # a style's chosen image, or a short clip to take a frame from
 SCRIPT_MAX = 200_000   # a script's text, in bytes; the file it came from may be up to 1 MB (a .docx with a logo)
 SCRIPT_EXT = (".txt", ".md", ".docx", ".pdf")
@@ -211,7 +212,7 @@ class _Lock:
             try:
                 os.close(os.open(self.p, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
                 return self
-            except FileExistsError:
+            except (FileExistsError, PermissionError):   # Windows: a lock being deleted refuses a new open
                 try:   # a writer that died holding it: older than 10 s is stale
                     if time.time() - self.p.stat().st_mtime > 10:
                         self.p.unlink(missing_ok=True)
@@ -231,6 +232,66 @@ def update(fn, wait=10):
         d["home_py"] = Path(__file__).resolve().as_posix()   # where progress.py finds this file
         save(state_path(), d)
         return out
+
+
+FOLDER_KINDS = ("videos", "styles")
+
+
+def folders():
+    """folders.json: {videos|styles: {folders: [{id, name}], items: {edit dir | style id: folder id}}}."""
+    try:
+        d = json.loads((home() / "folders.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        d = {}
+    return {k: {"folders": list((d.get(k) or {}).get("folders") or []), "items": dict((d.get(k) or {}).get("items") or {})}
+            for k in FOLDER_KINDS}
+
+
+def folder_change(kind, op, body, listed):
+    """One folder change, validated, written atomically. listed: the items the page can file (edit dirs or style
+    ids). Raises ValueError with a line the page shows."""
+    if kind not in FOLDER_KINDS:
+        raise ValueError("not a list")
+    with _Lock(10):
+        d = folders()
+        k = d[kind]
+        ids = {f["id"] for f in k["folders"]}
+        fid = body.get("id")
+
+        def name():
+            n = re.sub(r"\s+", " ", str(body.get("name") or "")).strip()
+            if not n:
+                raise ValueError("Give the folder a name.")
+            if len(n) > 40:
+                raise ValueError("Keep the name under 40 letters.")
+            if any(f["name"].lower() == n.lower() and f["id"] != fid for f in k["folders"]):
+                raise ValueError(f"There is already a folder called {n}.")
+            return n
+        if op != "create" and op != "move" and fid not in ids:
+            raise ValueError("no such folder")
+        if op == "create":
+            fid = secrets.token_hex(4)
+            k["folders"].append({"id": fid, "name": name()})
+        elif op == "rename":
+            next(f for f in k["folders"] if f["id"] == fid)["name"] = name()
+        elif op == "delete":   # its items go back to All; nothing is deleted
+            k["folders"] = [f for f in k["folders"] if f["id"] != fid]
+            k["items"] = {i: f for i, f in k["items"].items() if f != fid}
+        else:
+            item, to = str(body.get("item") or ""), body.get("folder")
+            if kind == "videos":
+                item = str(Path(item).resolve()) if item else ""
+            if item not in listed:
+                raise ValueError("That is not on your list.")
+            if to is not None and to not in ids:
+                raise ValueError("no such folder")
+            if to is None:
+                k["items"].pop(item, None)
+            else:
+                k["items"][item] = to
+        home().mkdir(parents=True, exist_ok=True)
+        save(home() / "folders.json", d)
+        return {"ok": True, "id": fid, "folders": d}
 
 
 def link_set(vids):
@@ -535,13 +596,69 @@ def naming(sid, sp, base):
     return {"named": bool(ss.names().get(ss.key(sp), {}).get("name")), "suggest": suggest_name(sid, base)}
 
 
+def skill_of(st):
+    """The skill a skill style names (style.json "skill"), when it is a usable skill name, else None."""
+    v = st.get("skill") if isinstance(st, dict) else None
+    return v if isinstance(v, str) and re.fullmatch(r"[a-z0-9][a-z0-9:_-]{0,63}", v) else None
+
+
+def skill_dirs(root):
+    """Where Claude Code loads skills from, as far as the page can see (read only): $AI_EDITOR_SKILLS, the library's and
+    the working folder's .claude/skills, ~/.claude/skills, then the plugins' own skills."""
+    env = [Path(x) for x in os.environ.get("AI_EDITOR_SKILLS", "").split(os.pathsep) if x]
+    return env + [Path(root) / ".claude" / "skills", Path.cwd() / ".claude" / "skills", Path.home() / ".claude" / "skills",
+                  *sorted(Path(__file__).resolve().parents[3].glob("*/skills"))]
+
+
+def find_skill(root, name, calls=False):
+    """A skill style's skill: found, the first sentence of its description and, with calls, the other skills its
+    SKILL.md names (hyphenated or in backticks, and only names of skills that exist here)."""
+    dirs = skill_dirs(root)
+    name = name.split(":")[-1]   # a plugin skill (plugin:skill) lives in <plugin>/skills/<skill>
+    md = next((d / name / "SKILL.md" for d in dirs if (d / name / "SKILL.md").is_file()), None)
+    if not md:
+        return {"found": False, "description": "", "calls": [], "path": None}
+    text = md.read_text(encoding="utf-8", errors="replace")
+    head, body = (text.split("---", 2)[1:] + [""])[:2] if text.startswith("---") else ("", text)
+    m = re.search(r"^description:[ \t]*(.*(?:\n[ \t]+.*)*)", head, re.M)
+    desc = re.sub(r"^[>|][-+]?\s*", "", " ".join((m.group(1) if m else "").split())).strip("'\"")
+    out = {"found": True, "description": re.split(r"(?<=[.!?])\s", desc, maxsplit=1)[0][:240], "calls": [], "path": str(md)}
+    if calls:
+        known = {q.parent.name for d in dirs for q in d.glob("*/SKILL.md")} - {name}
+        said = re.findall(r"`/?([a-z0-9][a-z0-9-]*)`|\b([a-z0-9]+(?:-[a-z0-9]+)+)\b", body)
+        out["calls"] = [x for x in dict.fromkeys(a or b for a, b in said) if x in known][:8]
+    return out
+
+
+def editing_skills(root):
+    """The skills a style can run ("Use your own skill"): every skill folder the page can see outside this plugin whose
+    name or description is about editing video. [{"name", "description"}], first found wins."""
+    plugins = Path(__file__).resolve().parents[3]
+    _, ss = _taste()
+    ours = {ss.MINE} | {v.get("skill") for v in ss.names().values()}   # the editor's own thin style skills
+    out = {}
+    for d in skill_dirs(root):
+        if d.resolve().parent.parent == plugins.resolve():   # the editor's own skills are not styles
+            continue
+        for md in sorted(d.glob("*/SKILL.md")):
+            n = md.parent.name
+            if n not in out and n not in ours and not n.startswith("edit-like-") and skill_of({"skill": n}):
+                f = find_skill(root, n)
+                # ponytail: keyword match on name + first sentence; a skill can opt in by naming "video" or "edit"
+                if re.search(r"\b(edits?|editing|editor|videos?|reels?|footage|clips?)\b", n.replace("-", " ") + " " + f["description"], re.I):
+                    out[n] = {"name": n, "description": f["description"]}
+    return list(out.values())
+
+
 def style_cards(root):
     """My style first (the profile's first copied creator, else the default style, with the user's
-    corrections), then every creator studied in the library (with that style's corrections). Each card
+    corrections), then every creator studied in the library (with that style's corrections), then the
+    plugin's sample styles. Each card
     names its skill."""
     taste, ss = _taste()
     out = []
-    for sid in ["mine"] + ["@" + h for h, _ in library.styles(root) if not h.endswith("-mine")]:
+    studied = sorted(library.styles(root), key=lambda hs: bool(hs[1].get("sample")))   # the plugin's samples last
+    for sid in ["mine"] + ["@" + h for h, _ in studied if not h.endswith("-mine")]:
         try:
             sp, st, base = style_of(root, sid)
         except (KeyError, OSError, ValueError):
@@ -554,15 +671,20 @@ def style_cards(root):
             line = (f"Your saved style. Started from @{base}." if base else "The default style.") + \
                 (f" {n} change{'s' if n != 1 else ''} from your feedback." if n else " Change it any time.")
         else:
-            line = (f"Measured from {st['videos']} of their videos." if st.get("videos") else "Copied by the editor.") + \
-                (f" {n} change{'s' if n != 1 else ''} from your feedback." if n else "")
+            line = (st.get("about") if st.get("sample") else f"Measured from {st['videos']} of their videos." if st.get("videos")
+                    else "Copied by the editor.") + (f" {n} change{'s' if n != 1 else ''} from your feedback." if n else "")
         # when it was made (a creator: their listing, the first thing a copy writes) and last changed (feedback rules)
         made = next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None) if sp else None
         changed = taste.rules_path().stat().st_mtime if n and taste.rules_path().exists() else None
-        out.append({"id": sid, "name": ss.display(sp), "facts": facts(st), "look": look(st), "base": base,
+        sk = skill_of(st) if sp else None   # a skill style: making a video runs that skill, no settings of ours
+        out.append({"id": sid, "name": ss.display(sp), "facts": [] if sk else facts(st), "look": look(st), "base": base,
                     "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "learned_from": vids, "made": made, "changed": changed, "cover": cover_of(root, sid), "face": face_of(root, base),
+                    "own": sid == "mine" or bool(st.get("own")),
                     "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False,
-                    **naming(sid, sp, base)})
+                    "sample": bool(st.get("sample")), **naming(sid, sp, base), "kind": "skill" if sk else "settings"})
+        if sk:
+            f = find_skill(root, sk)
+            out[-1].update(skill=sk, found=f["found"], description=f["description"])
     return out
 
 
@@ -632,7 +754,7 @@ def preset_state(root, sid, st, base, changed):
     dragging the caption re-renders only the big preview."""
     prof = _profile()
     tag = lambda prefixes, measured: "you changed this" if any(k.startswith(prefixes) and dig(changed, k) is not None for k in CONTROLS) \
-        else f"from @{base}" if base and measured else "default"
+        else f"from {creator.get('name') or '@' + base}" if base and measured else "default"
     creator = {}
     if base:
         try:
@@ -649,7 +771,7 @@ def preset_state(root, sid, st, base, changed):
     ws, real = presets.phrase(newest_edit(entries=entries))
     blocks = [(name, presets.label(name), {**caps, **block}) for name, block in presets.captions().items()]
     if base and (creator.get("captions") or {}).get("present") is not False and creator.get("captions"):
-        blocks.insert(0, ("", "Theirs" if sid != "mine" else f"@{base}'s", dict(caps)))
+        blocks.insert(0, ("", "Theirs" if sid != "mine" else creator.get("name") or f"@{base}'s", dict(caps)))
     tiles = []
     for tid, name, full in blocks:
         full = {**full, "y_pct": full.get("y_pct") if tid else own_y, **({"size_pct": size} if size is not None else {}), "present": True}
@@ -699,6 +821,14 @@ def style_page(root, sid):
               "said": len(r["corrections"]), "last": (r["corrections"][-1]["at"][:10] if r["corrections"] else None),
               "applied": r.get("applied", 0), "regressions": len(r.get("regressions") or [])}
              for r in (taste.load_rules() if taste.rules_path().exists() else []) if r["scope"] == sc]
+    sk = skill_of(st) if sp else None
+    if sk:   # a skill style: its skill does the edit, so the page shows the skill and no controls
+        return {"id": sid, "kind": "skill", "name": ss.display(sp), "base": base, "rules": rules, "style_path": str(sp),
+                "skill": {"name": sk, **find_skill(root, sk, calls=True)}, "cover": cover_of(root, sid), "face": face_of(root, base),
+                "own": bool(st.get("own")), "videos": st.get("videos"), "sample": bool(st.get("sample")),
+                "references": references(sp.parent) if not st.get("own") else {"videos": [], "profile": None},
+                "made": next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None),
+                "job": None, **naming(sid, sp, base)}
     md = ss.skills_dir() / ss.name(sp) / "SKILL.md"
     prof = _profile()
     vals = {k: dig(st, k) for k in CONTROLS}
@@ -708,10 +838,13 @@ def style_page(root, sid):
         vals["sfx"] = (prof.get("sound") or {}).get("sfx", True) if sp is None else st.get("sfx", True)
     copies = ss.copies(st) if sp else [f"@{base}'s style" if base else "the default style", "your corrections"]
     job = next((j for j in reversed(read()["jobs"]) if j["type"] == "style-change" and j["args"].get("style") == sid), None)
-    return {"id": sid, "name": ss.display(sp), "use_for": ss.use_for(sp), "base": base, "values": vals,
+    return {"id": sid, "name": ss.display(sp), "use_for": ss.use_for(sp), "base": base, "values": vals, "sample": bool(st.get("sample")),
             "changed": [k for k in CONTROLS if dig(changed, k) is not None], "look": look(st), "facts": facts(st),
             "copies": copies, "rules": rules, "style_path": str(sp) if sp else None, "presets": preset_state(root, sid, st, base, changed),
             "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid), "face": face_of(root, base),
+            "own": sid == "mine" or bool(st.get("own")), "videos": st.get("videos"),
+            "references": references(sp.parent) if sp and not st.get("own") else {"videos": [], "profile": None},
+            "made": next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None) if sp else None,
             "delete_note": f"My style started from @{base}. It goes back to the default style." if sp and base and style_of(root, "mine")[2] == base else None,
             **naming(sid, sp, base)}
 
@@ -759,6 +892,18 @@ def reset_section(root, sid, section):
             else:
                 taste.save_json(taste.unset_key(taste.read_json(), k))
     ss.write(str(sp) if sp else None)
+
+
+def reset_mine():
+    """My style back to the default: every feedback rule at its scope forgotten, taste.json and taste.md
+    emptied, the my-style skill rewritten. My style itself stays (every video uses it)."""
+    taste, ss = _taste()
+    if taste.rules_path().exists():
+        for r in [r for r in taste.load_rules() if r["scope"] == ss.scope(None)]:
+            taste.forget(r["id"])
+    taste.save_json({})
+    taste.save_md({s: [] for s in taste.SECTIONS})
+    ss.write(None)
 
 
 _UPD = {"at": 0.0, "latest": None, "notes": [], "busy": False}
@@ -835,6 +980,39 @@ def cover_of(root, sid):
     return f"/style/cover?id={quote(sid)}&v={int(f.stat().st_mtime)}" if f and f.is_file() else None
 
 
+def references(d):
+    """What a style was analysed from: references.json ({"videos": [{url, title}]}) when there is one, else the
+    videos.json entries that have a transcript (the ones actually measured). http(s) links only."""
+    ok = lambda u: isinstance(u, str) and re.match(r"https?://", u)
+    try:
+        r = json.loads((d / "references.json").read_text(encoding="utf-8"))
+        vids = [{"url": v["url"], "title": v.get("title") or "", "thumbnail": v.get("thumbnail") if ok(v.get("thumbnail")) else None}
+                for v in r.get("videos") or [] if ok(v.get("url"))]
+        return {"videos": vids, "profile": r.get("profile") if ok(r.get("profile")) else None}
+    except (OSError, ValueError, AttributeError, KeyError, TypeError):
+        pass
+    try:
+        vj = json.loads((d / "videos.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"videos": [], "profile": None}
+    have = {f.name.split(".")[0] for f in (d / "transcripts").glob("*.txt")} if (d / "transcripts").is_dir() else set()
+    vids = [{"url": v.get("webpage_url"), "title": v.get("title") or "", "thumbnail": v.get("thumbnail") if ok(v.get("thumbnail")) else None}
+            for v in vj.get("videos") or [] if ok(v.get("webpage_url")) and str(v.get("id")) in have]
+    h, plat = vj.get("handle") or d.name, vj.get("platform")
+    prof = None if h.startswith("links-") or plat not in ("tiktok", "youtube") else \
+        (f"https://www.tiktok.com/@{h}" if plat == "tiktok" else f"https://www.youtube.com/@{h}")
+    return {"videos": vids, "profile": prof}
+
+
+def write_references(d):
+    """At the end of an analysis: references.json from what was measured, so the style keeps its sources."""
+    if (d / "references.json").exists() or not (d / "videos.json").is_file():
+        return
+    r = references(d)
+    if r["videos"]:
+        (d / "references.json").write_text(json.dumps(r, indent=2), encoding="utf-8")
+
+
 def make_face(d):
     """creator-teardowns/<h>/face.jpg, once: the brightest of 1, 2 and 4 s into their top downloaded video
     (videos.json order), else the first cell of a contact sheet (visual.py's 3 x 3). False when neither is there."""
@@ -850,7 +1028,8 @@ def make_face(d):
             px = subprocess.run(["ffmpeg", "-v", "error", "-ss", str(t), "-i", str(mp4), "-frames:v", "1", "-vf",
                                  "scale=16:16,format=gray", "-f", "rawvideo", "-"], capture_output=True, timeout=30).stdout
             return sum(px) / len(px) if px else 0
-        src, pre = ["-ss", str(max((1, 2, 4), key=light)), "-i", str(mp4)], fit
+        dur = library.meta(mp4).get("duration") or 0   # the middle third shows the style (captions, cards), not an intro
+        src, pre = ["-ss", str(max([round(dur * f, 2) for f in (0.35, 0.5, 0.65)] if dur > 6 else [1, 2, 4], key=light)), "-i", str(mp4)], fit
     elif sheet:
         src, pre = ["-i", str(sheet)], "crop=iw/3:ih/3:0:0," + fit
     else:
@@ -866,9 +1045,17 @@ def make_face(d):
     return True
 
 
+def face_pic(d):
+    """A creator's picture: their account picture (avatar.jpg, fetch.py list saves it) over a frame (face.jpg)."""
+    return next((f for f in (d / "avatar.jpg", d / "face.jpg") if f.is_file()), None) if d else None
+
+
 def face_of(root, h):
-    """The URL of a studied creator's face (make_face), made the first time it is asked for. None without one."""
+    """The URL of a creator's picture: avatar.jpg as soon as the listing saved it, else their face frame (make_face),
+    made the first time it is asked for once they are studied. &a=1 marks an account picture. None without one."""
     d = style_dir(root, "@" + h) if h else None
+    if d and (d / "avatar.jpg").is_file():
+        return f"/style/face?id={quote('@' + h)}&v={int((d / 'avatar.jpg').stat().st_mtime)}&a=1"
     if d is None or not (d / "style.json").is_file():
         return None
     f = d / "face.jpg"
@@ -897,6 +1084,30 @@ def save_cover(root, sid, src):
     return True
 
 
+def new_own_style(root, name, skill=None):
+    """A style the user builds themselves ("Build it yourself"): stored like a studied creator's, in
+    creator-teardowns/own-<slug>/style.json (the default style, own: true), named, with its skill written.
+    Returns its id ("@own-<slug>")."""
+    from ai_editor.profile import DEFAULT_STYLE
+    _, ss = _taste()
+    name = " ".join(str(name or "").split())
+    base = "own-" + (re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40].rstrip("-") or "style")
+    h, i = base, 2
+    while (Path(root) / "creator-teardowns" / h).exists():
+        h, i = f"{base}-{i}", i + 1
+    d = Path(root) / "creator-teardowns" / h
+    d.mkdir(parents=True)
+    p = d / "style.json"
+    p.write_text(json.dumps({**DEFAULT_STYLE, "handle": h, "own": True, **({"skill": skill} if skill else {})}, indent=2), encoding="utf-8")
+    try:
+        ss.rename(p, name)
+    except ValueError:
+        shutil.rmtree(d)
+        raise
+    ss.write(str(p))
+    return "@" + h
+
+
 def delete_style(root, sid, measured=False):
     """A studied creator's style goes: its picks (<h>-mine), its style.json, corrections and cover, its
     edit-like skill, and its place in profile.json. The measured videos stay unless `measured`. My style is
@@ -904,6 +1115,12 @@ def delete_style(root, sid, measured=False):
     d = style_dir(root, sid)
     if d is None or sid == "mine":
         raise ValueError("not a creator style")
+    try:
+        sample = json.loads((d / "style.json").read_text(encoding="utf-8")).get("sample")
+    except (OSError, ValueError):
+        sample = False
+    if sample:
+        raise ValueError("a sample style ships with the editor and cannot be deleted")
     _, ss = _taste()
     gone = []
     if (d / "style.json").is_file():
@@ -999,11 +1216,24 @@ def job_line(j, root):
     if j["type"] == "video":
         src = f"takes={a['takes']}" if a.get("takes") else a["path"]
         return f"JOB video {src} as={a['as']} aspect={a['aspect']}" + (f" edit={a['edit']}" if a.get("edit") else "") + \
-            (f" script={a['script']}" if a.get("script") else "") + f" root={root}"
+            (f" script={a['script']}" if a.get("script") else "") + (f" skill={a['skill']}" if a.get("skill") else "") + f" root={root}"
     if j["type"] == "style-change":
         return f"JOB style-change {'my-style' if a['style'] == 'mine' else a['style']}" + \
             (f" style={a['path']}" if a.get("path") else "") + f" text={a['text']}"
     return f"JOB {j['type']}"
+
+
+def getting_started(d):
+    """The sidebar's Getting started block, from the real state (so it holds across reloads): the tools set up,
+    a format analysed (or the default style chosen instead), the first video made (a cut ready or done)."""
+    rows = (d.get("doctor") or {}).get("rows") or []
+    setup = any(j["type"] == "setup" and j["state"] == "done" for j in d["jobs"]) or bool(rows) and all(r.get("ok") for r in rows)
+    style = bool(d.get("style_skipped")) or any(j["type"] == "teardown" and j["state"] == "done" for j in d["jobs"]) \
+        or any(not h.startswith(("own-", "sample-")) for h, _ in library.styles(d["root"]))
+    es = library.entries()
+    video = any(e["status"] in ("ready", "done") for e in es)
+    # a user with a made video set up long ago (before the doctor rows were checked): never back to step 1
+    return {"setup": setup or video, "style": style or video, "video": video}
 
 
 def busy_with(d, sid):
@@ -1155,6 +1385,11 @@ def cmd_status(a):
         if a.result:
             r = json.loads(Path(a.result[1:]).read_text(encoding="utf-8") if a.result.startswith("@") else a.result)
             j["result"].update(r)
+        if a.done and j["type"] == "teardown" and j["args"].get("handle"):
+            try:
+                write_references(Path(d["root"]) / "creator-teardowns" / j["args"]["handle"])
+            except OSError:
+                pass
         if a.done or a.failed:
             for s in j["steps"]:
                 if not s.get("done"):
@@ -1231,6 +1466,9 @@ def make_handler(token):
                 d["busy"] = bz and {"id": bz["id"], "name": job_name(bz)}
                 d["profile"] = (home().parent / "profile.json").exists()   # set up before: a returning user
                 d["update"] = update_info()
+                d["getting_started"] = getting_started(d)
+                import launcher   # "Make it in a new Claude chat" only where a terminal window can be opened
+                d["new_claude"] = bool(launcher.terminal(d["root"], ["claude"], platform.system()))
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
                 lk = d.get("lookup") or {}
                 if lk.get("handle"):
@@ -1239,6 +1477,7 @@ def make_handler(token):
                 if td:
                     td["measured"] = measured(d["root"], td["args"]["handle"])
                     td["listing"] = listing(d["root"], td["args"]["handle"])
+                    td["face"] = face_of(d["root"], td["args"]["handle"])   # the account picture, once the listing saved it
                     try:   # creator-teardown's format check, when it ran: which links it left out
                         td["format"] = json.loads((Path(d["root"]) / "creator-teardowns" / td["args"]["handle"] / "format.json").read_text(encoding="utf-8"))
                     except (OSError, ValueError):
@@ -1252,15 +1491,24 @@ def make_handler(token):
                 vids = [dict(e, thumb=f"/thumb?p={quote(e['video'] or raw[e['dir']]['args']['path'])}&u={int(e['updated'])}"
                              if e["video"] or e["dir"] in raw else None,
                              media=e["video"] and "/media?p=" + quote(e["video"]), job=(raw.get(e["dir"]) or {}).get("id"))
-                        for e in library.entries()]
+                        for e in library.entries() if e["dir"] not in set(read().get("hidden_edits") or [])]   # Remove from this list
+                with ThreadPoolExecutor(8) as ex:   # its length and shape (cached ffprobe): "Done. 2:14 long", a wide or tall frame
+                    ms = list(ex.map(lambda v: library.meta(v["video"]) if v["video"] else {}, vids))
+                for v, m in zip(vids, ms):
+                    a = (raw.get(v["dir"]) or {}).get("args", {}).get("aspect")
+                    v["duration"] = m.get("duration") if v["status"] in ("ready", "done") else None
+                    v["wide"] = a == "16:9" if a and v["status"] == "cutting" or not m.get("h") else m["w"] > m["h"]   # the raw take is not the shape it is cut to
                 cards = style_cards(root)
                 for j in read()["jobs"]:   # a creator still being studied: a card the user can already pick
                     h = j["args"].get("handle")
                     if j["type"] == "teardown" and j["state"] in ("queued", "taken") and "@" + str(h) not in [c["id"] for c in cards]:
-                        cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True,
-                                      "line": "Being copied now. Your cut starts first; the style waits for the copy."})
+                        cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True, "face": face_of(root, h),
+                                      "line": "Being analysed now. Your cut starts first; the style waits for it."})
                 return self.send(200, {"path": root, "place": place(root), "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
-                                       "custom": str(custom.path(False)), "videos": vids, "styles": cards})
+                                       "custom": str(custom.path(False)), "videos": vids, "styles": cards, "folders": folders(),
+                                       "default_style": read().get("default_style") if any(c["id"] == read().get("default_style") for c in cards) else "mine"})
+            if path == "/skills":   # New style, "Use your own skill"
+                return self.send(200, {"skills": editing_skills(read()["root"])})
             if path == "/recent":
                 st = read()
                 rs = recent_list(st)
@@ -1294,7 +1542,7 @@ def make_handler(token):
                 return self.send(200, f.read_bytes(), "image/jpeg", cache="private, max-age=86400") if ok else self.send(404, {})
             if path in ("/style/cover", "/style/face"):
                 d = style_dir(read()["root"], q.get("id", [""])[0])
-                f = d / ("face.jpg" if path.endswith("face") else "cover.jpg") if d else None
+                f = face_pic(d) if path.endswith("face") else d / "cover.jpg" if d else None
                 return self.send(200, f.read_bytes(), "image/jpeg", cache="private, max-age=86400") if f and f.is_file() else self.send(404, {})
             if path in ("/style/tile", "/style/clip"):   # a preset's rendered still, a cut preview clip (presets.py cache)
                 k = q.get("k", [""])[0]
@@ -1382,6 +1630,9 @@ def make_handler(token):
                 update_info()
                 return self.send(200, {})
             if path == "/later":
+                if body.get("names") == ["style"]:   # first run: "Skip, use the default style"
+                    update(lambda d: d.__setitem__("style_skipped", True))
+                    return self.send(200, {})
                 for n in body.get("names") or []:
                     if n in KEY_NAMES + ("modal",):
                         subprocess.run([sys.executable, str(SETUP), "later", n], capture_output=True, timeout=30)
@@ -1457,6 +1708,33 @@ def make_handler(token):
                     return self.send(404, {"error": "no such style"})
                 except (ValueError, TypeError) as e:
                     return self.send(400, {"error": str(e)})
+            if path in ("/folder/create", "/folder/rename", "/folder/delete", "/folder/move"):
+                kind, root = str(body.get("kind") or ""), read()["root"]
+                listed = set()
+                if path == "/folder/move":
+                    listed = {str(d) for d in library.edit_dirs()} if kind == "videos" \
+                        else {c["id"] for c in style_cards(root)}
+                try:
+                    return self.send(200, folder_change(kind, path.rsplit("/", 1)[1], body, listed))
+                except ValueError as e:
+                    return self.send(400, {"ok": False, "error": str(e)})
+            if path == "/style/new":   # Build it yourself: a new own style, then its page
+                try:
+                    sk = body.get("skill")   # "Use your own skill": a skill style
+                    if sk is not None and not skill_of({"skill": sk}):
+                        raise ValueError("That is not a skill name.")
+                    return self.send(200, {"ok": True, "id": new_own_style(read()["root"], body.get("name"), sk)})
+                except ValueError as e:
+                    return self.send(400, {"error": str(e)})
+            if path == "/style/default":   # Make default: the style New video starts on
+                sid = str(body.get("id") or "mine")
+                if sid != "mine" and not any(c["id"] == sid for c in style_cards(read()["root"])):
+                    return self.send(404, {"error": "No such style."})
+                update(lambda d: d.__setitem__("default_style", sid))
+                return self.send(200, {"ok": True, "default_style": sid})
+            if path == "/style/reset-all":
+                reset_mine()
+                return self.send(200, {"ok": True})
             if path in ("/style/delete", "/style/cover/remove"):
                 root, sid = read()["root"], str(body.get("id") or "")
                 if path == "/style/cover/remove":
@@ -1469,12 +1747,15 @@ def make_handler(token):
                     return self.send(200, {"ok": True, "removed": delete_style(root, sid, body.get("measured") is True)})
                 except ValueError as e:
                     return self.send(400, {"error": str(e)})
-            if path in ("/clip/hide", "/clip/trash", "/edit/trash"):   # only what the page listed; Trash, never a delete
+            if path in ("/clip/hide", "/clip/trash", "/edit/trash", "/edit/hide"):   # only what the page listed; Trash, never a delete
                 st = read()
-                if path == "/edit/trash":
+                if path in ("/edit/trash", "/edit/hide"):
                     d = Path(str(body.get("dir") or "")).resolve()
                     if d not in library.edit_dirs() or Path(st["root"]).resolve() not in d.parents:
                         return self.send(400, {"ok": False, "msg": "That is not one of your videos."})
+                    if path == "/edit/hide":   # off the window only: its folder stays as it is
+                        update(lambda x: x.__setitem__("hidden_edits", (x.get("hidden_edits") or []) + [str(d)]))
+                        return self.send(200, {"ok": True})
                     ok = trash(d)
                     return self.send(200, {"ok": True} if ok else {"ok": False, "msg": "It could not be moved to the Trash."})
                 f = Path(str(body.get("path") or "")).resolve()
@@ -1574,7 +1855,9 @@ def make_handler(token):
                 args = {"handle": td["args"]["handle"], "take": take}
             elif kind == "video":
                 return self.videos(b, d)
-            elif kind in ("modal", "update"):
+            elif kind in ("modal", "update", "setup"):   # setup: the first run's Start setup (JOB setup, install-all --report)
+                if kind == "setup" and any(j["type"] == "setup" and j["state"] in ("queued", "taken") for j in d["jobs"]):
+                    return self.send(200, {"id": latest(d, "setup")["id"]})
                 args = {}
             elif kind == "style-change":   # "Tell it what to change": Claude turns the words into rules at that style's scope
                 text = re.sub(r"\s+", " ", str(b.get("text") or "")).strip()[:400]
@@ -1597,6 +1880,7 @@ def make_handler(token):
             if bad:
                 return self.send(400, bad)
             want, td = str(b.get("as") or "creator"), latest(d, "teardown")
+            skill = None
             if want.startswith("@"):
                 h = re.sub(r"[^a-z0-9._-]", "", want[1:].lower())
                 studying = any(j["type"] == "teardown" and j["args"].get("handle") == h and j["state"] in ("queued", "taken")
@@ -1604,6 +1888,10 @@ def make_handler(token):
                 if not studying and not (Path(d["root"]) / "creator-teardowns" / h / "style.json").exists():
                     return self.send(400, {"ok": False, "msg": f"@{h}'s style has not been copied yet."})
                 style = "@" + h
+                try:   # a skill style: the edit stage is that skill (start skill, JOB video skill=)
+                    skill = skill_of(json.loads((Path(d["root"]) / "creator-teardowns" / h / "style.json").read_text(encoding="utf-8")))
+                except (OSError, ValueError):
+                    pass
             elif want in ("mine", "defaults"):
                 style = want
             else:   # the first-run page: its creator once the study is done
@@ -1620,7 +1908,8 @@ def make_handler(token):
             update(remember)
             for g in groups:
                 edit = new_edit(Path(d["root"]), g[0]["name"])
-                args = {"path": g[0]["path"], "paths": [p["path"] for p in g], "as": style, "aspect": aspect, "edit": str(edit)}
+                args = {"path": g[0]["path"], "paths": [p["path"] for p in g], "as": style, "aspect": aspect, "edit": str(edit),
+                        **({"skill": skill} if skill else {})}
                 if len(g) > 1:
                     t = edit / "takes.txt"
                     t.write_text("\n".join(p["path"] for p in g) + "\n", encoding="utf-8")
@@ -1886,7 +2175,9 @@ def demo():
         except urllib.error.HTTPError as e:
             assert e.code == 403, (p, e.code)
     r = urllib.request.urlopen(base + "/?t=" + tok)
-    assert b"ai editor" in r.read() and "SameSite=Strict" in r.headers["Set-Cookie"]
+    page = r.read()   # the brand: pan tile, "cooked." and the pan favicon
+    assert b'class="mark"' in page and b"<b>cooked.</b>" in page and b'rel="icon" href="data:image/svg+xml' in page, "brand"
+    assert "SameSite=Strict" in r.headers["Set-Cookie"]
     # one theme for the window and every review page: saved in $AI_EDITOR_HOME/ui.json, on <html> before first paint
     assert get("/state")["theme"] == "system" and b"<html data-theme" not in urllib.request.urlopen(base + "/?t=" + tok).read()
     assert post("/theme", {"theme": "light"})["theme"] == "light" and get("/state")["theme"] == "light"
@@ -2255,6 +2546,84 @@ def demo():
     assert sr("Wrote down every word you said", q["args"]["edit"]) == "no video job on the page"   # never takes it
     assert latest(read(), "video")["state"] == "queued" and not latest(read(), "video")["steps"]
     assert " as=@newbie " in out(cmd_wait, 0.01)
+    # Getting started: from the real state, so it holds across reloads
+    gs = get("/state")["getting_started"]
+    assert gs["style"] and not gs["video"], gs   # @sample.creator was analysed above; no cut is ready yet
+    sid0 = post("/job", {"type": "setup"})["id"]
+    assert post("/job", {"type": "setup"})["id"] == sid0 and latest(read(), "setup")["state"] == "queued"   # one at a time
+    update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["id"] != sid0]))
+    post("/later", {"names": ["style"]})
+    assert read()["style_skipped"] and get("/state")["getting_started"]["style"]
+    assert getting_started({**read(), "style_skipped": False, "jobs": [], "doctor": {"rows": [{"ok": False}]}, "root": str(tmp)}) == \
+        {"setup": False, "style": False, "video": False}   # a fresh library: nothing done yet
+    # Analyse a format: links from several creators are one job, every link in its picks.txt
+    fl = ["https://www.tiktok.com/@a.one/video/7412345678901234567", "https://www.tiktok.com/@b.two/video/7412345678901234568",
+          "https://www.tiktok.com/@c.three/video/7412345678901234569"]
+    post("/job", {"type": "teardown", "urls": fl, "take": ["captions", "pace"]})
+    ft = latest(read(), "teardown")
+    assert ft["args"]["handle"].startswith("links-") and ft["args"]["platform"] == "tiktok" and ft["args"]["take"] == ["captions", "pace"], ft
+    assert Path(ft["args"]["urls"]).read_text(encoding="utf-8").split() == fl
+    update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["id"] != ft["id"]]))   # not Claude's to take here
+    # Analysed from: references.json first, else the measured videos (a transcript each); http(s) only
+    rd = tmp / "refs"
+    (rd / "transcripts").mkdir(parents=True)
+    (rd / "videos.json").write_text(json.dumps({"handle": "refs", "platform": "tiktok", "videos": [
+        {"id": "1", "webpage_url": "https://www.tiktok.com/@refs/video/1", "title": "one"},
+        {"id": "2", "webpage_url": "https://www.tiktok.com/@refs/video/2", "title": "not measured"},
+        {"id": "3", "webpage_url": "javascript:alert(1)", "title": "bad"}]}), encoding="utf-8")
+    (rd / "transcripts" / "1.txt").write_text("x", encoding="utf-8")
+    (rd / "transcripts" / "3.txt").write_text("x", encoding="utf-8")
+    assert references(rd) == {"videos": [{"url": "https://www.tiktok.com/@refs/video/1", "title": "one", "thumbnail": None}],
+                              "profile": "https://www.tiktok.com/@refs"}, references(rd)
+    write_references(rd)
+    (rd / "transcripts" / "1.txt").unlink()
+    assert references(rd)["videos"][0]["title"] == "one"   # kept in references.json once the analysis ended
+    # Build it yourself: a second own style, listed as own, can be the default, and goes when deleted
+    oid = post("/style/new", {"name": "Clean talking head"})["id"]
+    own = next(c for c in get("/library")["styles"] if c["id"] == oid)
+    assert oid.startswith("@own-") and own["own"] and own["name"] == "Clean talking head" and not own.get("studying"), own
+    assert next(c for c in get("/library")["styles"] if c["id"] == "mine")["own"]
+    assert post("/style/default", {"id": oid})["default_style"] == oid and get("/library")["default_style"] == oid
+    assert post("/style/set", {"id": oid, "key": "zoom.preset", "value": "none"})["presets"]["zoom"]["sel"] == "none"
+    assert post("/style/delete", {"id": oid})["ok"] and get("/library")["default_style"] == "mine"
+    assert oid not in [c["id"] for c in get("/library")["styles"]]
+    # a skill style: style.json names a skill, the card and page show the skill and no controls, the job carries it
+    kd, sks = root / "creator-teardowns" / "own-skilled", root / ".claude" / "skills"
+    kd.mkdir()
+    (kd / "style.json").write_text(json.dumps({"handle": "own-skilled", "own": True, "skill": "my-edit-style",
+                                               "zoom": {"kind": "punch", "per_min": 6}}), encoding="utf-8")
+    for n_, md_ in (("my-edit-style", "---\nname: my-edit-style\ndescription: >\n  Cuts a reel in my look. Then more.\n---\n"
+                                      "Runs `my-captions` on the cut, then `nope-skill`.\n"), ("my-captions", "---\nname: my-captions\n---\n")):
+        (sks / n_).mkdir(parents=True)
+        (sks / n_ / "SKILL.md").write_text(md_, encoding="utf-8")
+    kc = next(c for c in get("/library")["styles"] if c["id"] == "@own-skilled")
+    assert kc["kind"] == "skill" and kc["skill"] == "my-edit-style" and kc["found"] and kc["facts"] == [] \
+        and kc["description"] == "Cuts a reel in my look.", kc
+    assert next(c for c in get("/library")["styles"] if c["id"] == "mine")["kind"] == "settings"
+    kp = get("/style?id=@own-skilled")
+    assert kp["kind"] == "skill" and not {"presets", "values", "changed"} & set(kp) and kp["skill"]["calls"] == ["my-captions"], kp
+    kj = post("/job", {"type": "video", "path": str(vid), "as": "@own-skilled", "aspect": "9:16"})["id"]
+    kj = next(j for j in read()["jobs"] if j["id"] == kj)
+    assert kj["args"]["skill"] == "my-edit-style" and " skill=my-edit-style root=" in job_line(kj, root), kj
+    update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["id"] != kj["id"]]))   # not Claude's to take here
+    shutil.rmtree(kj["args"]["edit"])
+    (kd / "style.json").write_text(json.dumps({"own": True, "skill": "gone-skill"}), encoding="utf-8")
+    kc = next(c for c in get("/library")["styles"] if c["id"] == "@own-skilled")
+    assert kc["kind"] == "skill" and kc["found"] is False and kc["description"] == "", kc
+    (kd / "style.json").write_text(json.dumps({"own": True, "skill": "my-edit-style"}), encoding="utf-8")
+    assert post("/style/delete", {"id": "@own-skilled"})["ok"] and (sks / "my-edit-style" / "SKILL.md").is_file()   # never its skill
+    shutil.rmtree(kd, ignore_errors=True)
+    ks = {x["name"]: x["description"] for x in get("/skills")["skills"]}
+    assert ks.get("my-edit-style") == "Cuts a reel in my look." and "my-captions" not in ks and "start" not in ks and "my-style" not in ks, ks   # no edit words; the editor's own
+    nid = post("/style/new", {"name": "Reel edit", "skill": "my-edit-style"})["id"]
+    nc = next(c for c in get("/library")["styles"] if c["id"] == nid)
+    assert nc["kind"] == "skill" and nc["own"] and nc["found"] and nc["name"] == "Reel edit", nc
+    try:
+        post("/style/new", {"name": "Bad", "skill": "../x"})
+        raise AssertionError("a bad skill name made a style")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    assert post("/style/delete", {"id": nid})["ok"] and (sks / "my-edit-style" / "SKILL.md").is_file()
     post("/scanhome", {"on": False})   # picked files stay listed without the opt-in
     assert {r["name"] for r in get("/recent")["videos"]} == {"a.mov", "b.mov", "c.mp4", "drop.mp4", "take.mp4"}
 
@@ -2286,7 +2655,10 @@ def demo():
         assert e.code == 404
     # style cards: My style (the default style until a creator is saved), then each studied creator, measured only
     st = {c["id"]: c for c in lib["styles"]}
-    assert list(st) == ["mine", "@sample.creator", "@newbie"], list(st)
+    assert list(st) == ["mine", "@sample.creator", "@sample-card-edit", "@newbie"], list(st)
+    sm = st["@sample-card-edit"]   # the sample style the plugin ships: listed for every user, by its own name
+    assert sm["sample"] and sm["name"] == "Card edit" and sm["line"].startswith("A sample style") and sm["cover"], sm
+    assert sm["facts"][1] == ["Captions", "1 word at a time"] and not st["@sample.creator"]["sample"], sm["facts"]
     assert st["@sample.creator"]["facts"] == [["Cut every", "1.9 s"], ["Zooms", "Punch, 6 a minute"], ["Captions", "2 words at a time"]]
     assert st["@sample.creator"]["look"]["box_color"] == "#000000" and st["mine"]["line"].startswith("The default")
     assert st["mine"]["learned_from"] == 0, "no feedback yet: no \"Learned from N videos\""
@@ -2396,6 +2768,16 @@ def demo():
                 raise AssertionError(bad)
             except urllib.error.HTTPError as e:
                 assert e.code == 400, bad
+        yv = root / "videos" / "yours.mp4"   # a clip in the library's videos/ ("Your videos"): hidden, never moved
+        yv.parent.mkdir(exist_ok=True)
+        shutil.copyfile(vid, yv)
+        assert next(v for v in get("/recent")["videos"] if v["name"] == "yours.mp4")["where"] == "Your videos"
+        assert post("/clip/hide", {"path": str(yv)})["ok"] and "yours.mp4" not in names() and yv.exists()
+        hid = root / "edits" / "hide-me"
+        hid.mkdir(parents=True)
+        shutil.copyfile(vid, hid / "cut.mp4")
+        assert str(hid.resolve()) in [v["dir"] for v in get("/library")["videos"]]
+        assert post("/edit/hide", {"dir": str(hid)})["ok"] and (hid / "cut.mp4").exists() and str(hid.resolve()) not in [v["dir"] for v in get("/library")["videos"]]
         gone = root / "edits" / "old-edit"
         gone.mkdir(parents=True)
         shutil.copyfile(vid, gone / "cut.mp4")
@@ -2429,6 +2811,15 @@ def demo():
                         capture_output=True, check=True).stdout
     assert min(px) > 200, "the face frame is the bright one"
     assert urllib.request.urlopen(base + fc + "&t=" + tok).read()[:2] == b"\xff\xd8"
+    # their account picture (fetch.py list's avatar.jpg) wins over the frame wherever the creator shows; gone, the frame is back
+    subprocess.run(["ffmpeg", "-v", "error", "-n", "-f", "lavfi", "-i", "color=red:size=720x1280", "-frames:v", "1",
+                    str(td / "avatar.jpg")], check=True)
+    fa = next(c for c in get("/library")["styles"] if c["id"] == "@sample.creator")["face"]
+    assert fa.endswith("&a=1") and fa == face_of(root, "sample.creator"), fa
+    assert urllib.request.urlopen(base + fa + "&t=" + tok).read() == (td / "avatar.jpg").read_bytes()
+    (td / "avatar.jpg").unlink()
+    fb = next(c for c in get("/library")["styles"] if c["id"] == "@sample.creator")["face"]
+    assert "&a=1" not in fb and urllib.request.urlopen(base + fb + "&t=" + tok).read() == (td / "face.jpg").read_bytes(), fb
     # a style's own preview image: an image (or a clip's frame) cropped to 720x1280 in the style's folder
     img = tmp / "pick.png"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=red:size=400x300", "-frames:v", "1", str(img)], check=True)
@@ -2493,12 +2884,48 @@ def demo():
     assert post("/style/delete", {"id": "@gone.creator"})["removed"] == []
     post("/style/delete", {"id": "@gone.creator", "measured": True})
     assert not (cts / "gone.creator").exists() and td.exists() and (root / "my-style").exists()
-    for bad in ("mine", "@../work", "@a/b", "sample.creator", "@sample.creator-mine", ""):
+    for bad in ("mine", "@../work", "@a/b", "sample.creator", "@sample.creator-mine", "@sample-card-edit", ""):
         try:
             post("/style/delete", {"id": bad})
             raise AssertionError(bad)
         except urllib.error.HTTPError as e:
             assert e.code == 400, bad
+    # the sample style cannot be deleted (above), stays listed with its file, and is pickable for a video
+    assert (cts / "sample-card-edit" / "style.json").is_file() and "@sample-card-edit" in [c["id"] for c in get("/library")["styles"]]
+    assert get("/style?id=@sample-card-edit")["sample"]
+    post("/job", {"type": "video", "path": str(vid), "as": "@sample-card-edit", "aspect": "9:16"})
+    assert " as=@sample-card-edit aspect=9:16 " in out(cmd_wait, 0.01)
+    # folders: create, move an edit and a style in, rename, delete (items go back to All, files untouched); bad ids refused
+    reels = post("/folder/create", {"kind": "videos", "name": "  Reels  "})["id"]
+    assert get("/library")["folders"]["videos"]["folders"] == [{"id": reels, "name": "Reels"}]
+    edir = get("/library")["videos"][0]["dir"]
+    assert post("/folder/move", {"kind": "videos", "item": edir, "folder": reels})["ok"]
+    assert get("/library")["folders"]["videos"]["items"] == {edir: reels}
+    sf = post("/folder/create", {"kind": "styles", "name": "Fast"})["id"]
+    post("/folder/move", {"kind": "styles", "item": "@sample.creator", "folder": sf})
+    assert post("/folder/rename", {"kind": "videos", "id": reels, "name": "Shorts"})["folders"]["videos"]["folders"][0]["name"] == "Shorts"
+    for path_, bad in (("/folder/create", {"kind": "videos", "name": "shorts"}), ("/folder/create", {"kind": "videos", "name": " "}),
+                       ("/folder/create", {"kind": "videos", "name": "x" * 41}), ("/folder/create", {"kind": "nope", "name": "a"}),
+                       ("/folder/rename", {"kind": "videos", "id": "nope", "name": "a"}), ("/folder/delete", {"kind": "videos", "id": "nope"}),
+                       ("/folder/move", {"kind": "videos", "item": str(tmp), "folder": reels}), ("/folder/move", {"kind": "videos", "item": edir, "folder": "nope"}),
+                       ("/folder/move", {"kind": "styles", "item": "@nobody", "folder": sf})):
+        try:
+            post(path_, bad)
+            raise AssertionError(bad)
+        except urllib.error.HTTPError as e:
+            assert e.code == 400, bad
+    post("/folder/delete", {"kind": "videos", "id": reels})
+    f = get("/library")["folders"]
+    assert f["videos"] == {"folders": [], "items": {}} and Path(edir).is_dir() and edir in [v["dir"] for v in get("/library")["videos"]]
+    assert f["styles"]["items"] == {"@sample.creator": sf}
+    post("/folder/move", {"kind": "styles", "item": "@sample.creator", "folder": None})
+    assert get("/library")["folders"]["styles"]["items"] == {}
+    # My style can't be deleted, only reset: feedback rules, taste.json and taste.md go, the style stays
+    assert json.loads((tmp / "home" / "taste.json").read_text(encoding="utf-8")), "set above: zoom.per_min 0"
+    assert post("/style/reset-all", {})["ok"]
+    assert json.loads((tmp / "home" / "taste.json").read_text(encoding="utf-8")) == {} and get("/style?id=mine")["rules"] == []
+    assert "No zooms" not in (tmp / "skills" / "my-style" / "SKILL.md").read_text(encoding="utf-8")
+    assert "mine" in [c["id"] for c in get("/library")["styles"]]
     # updates: the version on GitHub (faked here) against plugin.json; Update queues one JOB line
     t0 = time.time()
     while not get("/state")["update"]["latest"] and time.time() - t0 < 5:

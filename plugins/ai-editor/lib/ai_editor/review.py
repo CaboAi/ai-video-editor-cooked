@@ -118,7 +118,7 @@ class FileLock:
             try:
                 os.close(os.open(self.p, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
                 return self
-            except FileExistsError:
+            except (FileExistsError, PermissionError):   # Windows: a lock being deleted refuses a new open
                 try:   # a writer that died holding it: older than 10 s is stale
                     if time.time() - self.p.stat().st_mtime > 10:
                         self.p.unlink(missing_ok=True)
@@ -384,6 +384,16 @@ def home_url():
         url = None
     _HOME.update(at=time.time(), url=url)
     return url
+
+
+def home_jobs():
+    """How many videos the home window is making (its state.json jobs queued or taken): the rail's Making ring."""
+    f = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home" / "state.json"
+    try:
+        jobs = json.loads(f.read_text(encoding="utf-8")).get("jobs") or []
+    except (OSError, ValueError, AttributeError):
+        return 0
+    return sum(1 for j in jobs if isinstance(j, dict) and j.get("type") == "video" and j.get("state") in ("queued", "taken"))
 
 
 def listening(folder):
@@ -740,6 +750,7 @@ def make_handler(folder, token):
                 d["cutcheck"] = (folder / "cut-check.html").exists()
                 d["rawvideo"] = raw_video(folder, d) is not None   # the transcript editor's preview plays the raw take
                 d["home"] = home_url()   # the Home button: back to the editor's window, or how to start it
+                d["jobs"] = home_jobs() if d["home"] else 0   # the rail's Making ring
                 d["intro"] = intro(folder, d)
                 for x in d.get("activity", [])[-1:]:
                     if x.get("log") and not x.get("done"):
@@ -870,6 +881,8 @@ def make_handler(folder, token):
                     d.pop("stopped", None)
                     if body["type"] == "approve" and (d["stage"] == "edit" or d.get("final")):   # the finished video
                         d["learn"] = {"state": "reading" if session_notes(d) else "none", "style": style}
+                    elif body["type"] == "approve" and d["stage"] == "cut":
+                        prepared_steps(folder, d)
                     return True
                 if not update(rj, ev):
                     return self.send(409, {"error": "Claude is applying your transcript changes"})
@@ -1080,6 +1093,7 @@ def serve(folder, port=0, open_browser=True):
     except OSError:   # the old port is taken now: a new one, same token
         srv = cls(("127.0.0.1", port), make_handler(folder, token))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
+    last.parent.mkdir(parents=True, exist_ok=True)   # a video made elsewhere has no review/ folder yet
     with os.fdopen(os.open(last, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
         f.write(url)   # private: the token in it lets a page in
     if os.name != "nt":
@@ -1239,6 +1253,22 @@ def add_step(d, text, log=None, key=None, done=False):
     d["activity"] = act[-30:]
 
 
+def prepared_steps(folder, d):
+    """visual-prep made these while the cut was reviewed, on this very cut (prep-decisions.json = decisions.json):
+    the Making the edit card shows them done the moment the cut is approved, not as steps still to come."""
+    try:
+        if (folder / "prep-decisions.json").read_bytes() != (folder / "decisions.json").read_bytes():
+            return []
+    except OSError:
+        return []
+    keys = [k for k, f in (("captions", "captions.json"), ("visuals", "visuals.json"), ("plan", "stills/sheet.png"))
+            if (folder / f).exists()]
+    for k in keys:
+        add_step(d, None, None, k)
+    add_step(d, None, done=True)
+    return keys
+
+
 def making_edit(d):
     """Claude is making the styled edit: the cut was approved and no edit round has landed yet, or a sent edit
     round is being redone."""
@@ -1271,8 +1301,12 @@ def making_style(folder):
         src = styleskill.sources(folder)
     except Exception:
         src = []
-    if len(src) == 1:
-        return f"@{re.sub(r'-mine$', '', src[0].parent.name)}'s style"
+    if len(src) == 1:   # the name the style has on the home page ("Card edit"), never the folder id
+        try:
+            n = styleskill.display(src[0])
+        except Exception:
+            n = "@" + re.sub(r"-mine$", "", src[0].parent.name)
+        return f"{n}'s style" if n.startswith("@") else "your style" if n == "My style" else f"the {n} style"
     return "your blended style" if src else "your style"
 
 
@@ -1715,6 +1749,12 @@ def demo():
     (tmp / "home" / "home" / ".server").write_text(hurl, encoding="utf-8")
     _HOME["at"] = 0
     assert json.loads(get("/state").read())["home"] == hurl, "the Home button reads home.py's fixed address"
+    hsf = tmp / "home" / "home" / "state.json"
+    keep_hs = hsf.read_text(encoding="utf-8") if hsf.exists() else None
+    hsf.write_text(json.dumps({"jobs": [{"type": "video", "state": "taken"}, {"type": "video", "state": "queued"},
+                                        {"type": "video", "state": "done"}, {"type": "teardown", "state": "taken"}]}), encoding="utf-8")
+    assert json.loads(get("/state").read())["jobs"] == 2, "the rail's Making ring counts the home window's videos being made"
+    hsf.write_text(keep_hs, encoding="utf-8") if keep_hs is not None else hsf.unlink()
     hs.shutdown()
     hs.server_close()
     # the cut's transcript: kept words on the cut's timeline, the cut word struck, the removed pause a chip
@@ -1968,6 +2008,20 @@ def demo():
     srv3.shutdown()
     save(sf / "review.json", keep_d)
     assert making_style(sf) == "your style" and making_style(folder) == "@alice's style"
+    with tempfile.TemporaryDirectory() as pd:   # the approve shows what visual-prep already made on this cut
+        pd = Path(pd)
+        for f in ("decisions.json", "prep-decisions.json", "captions.json", "visuals.json"):
+            (pd / f).write_text("[]", encoding="utf-8")
+        pdd = {"round": 1, "activity": []}
+        assert prepared_steps(pd, pdd) == ["captions", "visuals"] and all(x["done"] for x in pdd["activity"]), pdd
+        (pd / "decisions.json").write_text("[1]", encoding="utf-8")   # re-cut since: nothing is claimed
+        assert prepared_steps(pd, {"round": 1, "activity": []}) == []
+    from ai_editor import styleskill
+    keep_names, styleskill.names = styleskill.names, lambda: {"alice": {"name": "Card edit"}}
+    try:   # a named style shows its name, never the folder id ("@own-card-edit's style")
+        assert making_style(folder) == "the Card edit style", making_style(folder)
+    finally:
+        styleskill.names = keep_names
     with contextlib.redirect_stdout(io.StringIO()):
         cmd_round(ns(video=str(folder / "review" / "v-cut1.mp4"), stage="edit", transcript=None, plan=None, note=None,
                      name=None), sf)

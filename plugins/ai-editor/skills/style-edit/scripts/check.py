@@ -33,7 +33,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(HERE))
-from plan import GAP_S, QUIET_HOLD_S, card_gaps, INK_MIN_W, OVERLAY_EDGE, OVERLAY_TOP, RAIL_TOP, READ_XH, SAFE, capture_xh, explain_ink, clean, cut_lines, cut_points, head_during, overlay_led, small_lines, sticker_crop  # noqa: E402
+from plan import GAP_S, QUIET_HOLD_S, card_gaps, INK_MIN_W, OVERLAY_EDGE, READ_XH, SAFE, capture_xh, explain_ink, clean, cut_lines, cut_points, head_during, overlay_led, small_lines, sticker_crop  # noqa: E402
 
 CENTRE_PLAN = 1.5      # % of the width a vertical card's box centre may sit off 50
 CENTRE_INK = 2.0       # % of the width a card's drawn content may sit off centre
@@ -214,6 +214,12 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
             out.append(finding("FAIL", c["start"], f"{name} capture text renders at {xh:.0f} px x-height, under {READ_XH}: "
                                "unreadable on a phone", "plan again (plan.py cuts it to the evidence as a sticker), or give "
                                "the beat a \"crop\" round the evidence lines, or \"layout\": \"scene\""))
+        if c.get("layout") != "scene" and not spread(c):   # a scene or a logo cluster: the renderer keeps it inside
+            cl = OVERLAY_EDGE if aspect == "9:16" and overlay_led(c) else l   # plan.free_regions: beside the head
+            if x < cl - 0.05 or y < top - 0.05 or x + w > 100 - r + 0.05 or y + h > 100 - bottom + 0.05:
+                out.append(finding("FAIL", c["start"], f"{name} card {[round(v, 1) for v in c['box']]} reaches under the app's UI "
+                                   f"(safe: {l}% sides, {top}% top, {bottom}% bottom)",
+                                   "drop its box in visuals.json/images.json (plan.py fits it), then plan again"))
         if c.get("layer") == "behind":
             # behind the speaker: the cutout covers the card where it meets him, so it may reach the head,
             # but only once matte.py has cut him out for this card's time
@@ -235,15 +241,6 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
                                    f"{bx:.0f}-{bx + bw:.0f}%" if bw else "") + "): small and lopsided on a phone", PLAN_FIX))
         if c.get("layout") == "scene" or spread(c):
             continue    # a full-frame cut-away, or logos laid round the head: the renderer keeps them clear
-        cl, ct, cr = l, top, r
-        if aspect == "9:16" and overlay_led(c):     # plan.free_regions' allowances
-            cl, ct = OVERLAY_EDGE, OVERLAY_TOP
-            if y + h <= RAIL_TOP:
-                cr = OVERLAY_EDGE
-        if x < cl - 0.05 or y < ct - 0.05 or x + w > 100 - cr + 0.05 or y + h > 100 - bottom + 0.05:
-            out.append(finding("FAIL", c["start"], f"{name} card {[round(v, 1) for v in c['box']]} reaches under the app's UI "
-                               f"(safe: {l}% sides, {top}% top, {bottom}% bottom)",
-                               "drop its box in visuals.json/images.json (plan.py fits it), then plan again"))
         if aspect == "9:16" and c.get("lane") != "logo" and not spread(c) and abs(x + w / 2 - 50) > CENTRE_PLAN:
             out.append(finding("FAIL", c["start"], f"{name} card centre at {x + w / 2:.1f}% of the width, not 50",
                                "drop its box x in visuals.json/images.json so plan.py centres it"))
@@ -260,6 +257,9 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
         if v is not None and not top <= v <= 100 - bottom:
             out.append(finding("FAIL", None, f"{what} at {v}% down, under the app's UI ({top}-{100 - bottom}% is clear)",
                                "set captions.y_pct in style.json inside that band, then plan again"))
+    if aspect == "9:16" and (cap.get("width_pct") or 86) > 100 - 2 * r + 0.05 and (plan.get("layout") or {}).get("mode") != "letterbox":
+        out.append(finding("FAIL", None, f"captions {cap.get('width_pct') or 86}% wide reach past the safe zone's sides "
+                           f"({r}% each side)", "plan again (plan.py narrows them)"))
     for ch in plan["captions"]["chunks"]:
         ws = ch["words"] or [{"end": ch["end"]}]
         dur, tail = ch["end"] - ch["start"], ch["end"] - ws[-1]["end"]
@@ -669,7 +669,7 @@ def demo():
     face = {"step_s": 0.5, "heads": [{"t": t / 2, "box": [30, 32, 40, 24]} for t in range(20)]}
     words = [{"text": "a", "start": 0.0, "end": 0.3, "type": "word"}]
     plan = {"width": 1080, "height": 1920, "fps": 30, "durationInFrames": 600, "zooms": [],
-            "captions": {"style": {"y_pct": 68}, "chunks": [
+            "captions": {"style": {"y_pct": 68, "width_pct": 74}, "chunks": [
                 {"text": "ok", "start": 0.0, "end": 0.5, "words": [{"text": "ok", "start": 0.0, "end": 0.3}]},
                 {"text": "cloud", "start": 1.0, "end": 4.0, "words": [{"text": "cloud", "start": 1.0, "end": 3.9}]}]},
             "cards": [{"src": "images/a.png", "start": 0.5, "end": 3.0, "trigger_word": "a", "box": [14, 14, 72, 16]},
@@ -734,7 +734,7 @@ def demo():
     fp = {"nodes": [{"label": "jev", "src": "images/logo-typesafe.png"}], "tasks": [{"text": "small task"}, {"text": "harder", "heavy": True}],
           "split": [{"label": "haiku", "src": "images/logo-claude.svg"}, {"label": "opus", "src": "images/logo-claude.svg"}]}
     fl = {**plan, "cards": [{"anim": {"type": "flow", "props": fp}, "start": 0.5, "end": 3, "trigger_word": "task",
-                             "box": [4, 10, 92, 21.2], "layout": "box"}]}
+                             "box": [13, 13.1, 74, 18.1], "layout": "box"}]}
     bad = [f for f in check_plan(fl, face) if f["level"] == "FAIL" and "'task'" in f["what"]]
     assert bad and "% of the width" in bad[0]["what"] and bad[0]["fix"].startswith("plan again") and ".tsx" not in bad[0]["fix"], bad
     fl["cards"][0].update(box=[0, 0, 100, 100], layout="scene")
@@ -752,8 +752,12 @@ def demo():
     lc["cards"][0]["anim"]["props"]["logos"] = [{"src": "a"}]
     assert any(f["level"] == "FAIL" and "'l'" in f["what"] for f in check_plan(lc, face))
     # an overlay in the band above the head may span 4-96% and start 10% down (plan.free_regions)
-    band = {**plan, "cards": [{"src": "images/a.png", "start": 0.5, "end": 2, "trigger_word": "a", "box": [4, 10, 92, 20], "layout": "box"}]}
+    band = {**plan, "cards": [{"src": "images/a.png", "start": 0.5, "end": 2, "trigger_word": "a", "box": [13, 13.1, 74, 16.9], "layout": "box"}]}
     assert not any(f["level"] == "FAIL" and "'a'" in f["what"] for f in check_plan(band, face)), check_plan(band, face)
+    for extra in ({}, {"layer": "behind"}):   # the reels safe zone (x 60-940, y 250-1440), behind cards too
+        wide = {**band, "cards": [{**band["cards"][0], "box": [4, 10, 92, 16.9], **extra}]}
+        assert any("reaches under the app's UI" in f["what"] for f in check_plan(wide, face)), extra
+    assert any("captions 86% wide" in f["what"] for f in check_plan({**band, "captions": {**band["captions"], "style": {"y_pct": 68}}}, face))
     assert any(f["level"] == "FAIL" and "'cloud' up 3.0 s" in f["what"] for f in got), got
     assert has("FAIL", "d", "text fits at") and has("WARN", "d", "only text"), got
     assert any(f["level"] == "WARN" and "static for 9.5 s" in f["what"] for f in got), got
@@ -781,7 +785,7 @@ def demo():
     hk["targets"]["first_graphic_s"] = 1.0
     assert not any("winners" in f["what"] for f in check_plan(hk, face))
     # numbers on a built card are the speaker's: "40%" said as "forty" passes, an invented "3x" fails
-    talk = {**plan, "captions": {"style": {"y_pct": 68}, "chunks": [{"text": "it grew forty two percent in ten days", "words": []}]},
+    talk = {**plan, "captions": {"style": {"y_pct": 68, "width_pct": 74}, "chunks": [{"text": "it grew forty two percent in ten days", "words": []}]},
             "cards": [{"anim": {"type": "arrow_callout", "props": {"text": "42% in 10 days"}}, "trigger_word": "grew", "start": 0},
                       {"anim": {"type": "chat", "props": {"messages": [{"text": "3x faster"}]}}, "trigger_word": "it", "start": 1},
                       {"anim": {"type": "social_post", "props": {"text": "99 likes"}}, "trigger_word": "days", "start": 2}]}
@@ -790,7 +794,7 @@ def demo():
     import plan as pl
     lines = [[12, 14, 2430, 100], [12, 150, 1500, 100]]
     stk = {**band, "cards": [{"src": "images/s.png", "format": "sticker", "size": [2460, 260], "lines": lines, "start": 0.5,
-                              "end": 2, "trigger_word": "s", "box": [4, 10, 92, 20], "layout": "box"}]}
+                              "end": 2, "trigger_word": "s", "box": [13, 13.1, 74, 16.9], "layout": "box"}]}
     assert any("cuts 2 line" in f["what"] for f in check_plan(stk, face)), check_plan(stk, face)
     fixed = pl.with_formats([{k: v for k, v in stk["cards"][0].items()}], [])[0]
     stk["cards"][0]["props"] = fixed["props"]
@@ -801,11 +805,11 @@ def demo():
             "lines": [[12, 14, 194, 42], [766, 14, 159, 42], [704, 118, 369, 28], [884, 172, 233, 32], [767, 212, 465, 32],
                       [704, 402, 422, 32], [762, 460, 491, 32], [823, 664, 300, 58], [786, 705, 372, 58], [310, 763, 1360, 212],
                       [206, 914, 1568, 212], [310, 1064, 1360, 212], [196, 1215, 1553, 212]],
-            "start": 0.5, "end": 2.5, "trigger_word": "jev", "box": [4, 10, 92, 21.5], "layout": "box"}
+            "start": 0.5, "end": 2.5, "trigger_word": "jev", "box": [13, 13.1, 74, 18.4], "layout": "box"}
     cap2 = {"src": "images/capture-2-claude.png", "size": [2000, 1400], "format": "browser", "props": {"url": "https://c.d"},
             "lines": [[1332, 53, 196, 38], [1617, 53, 153, 38], [711, 232, 578, 152], [694, 364, 612, 152], [645, 543, 709, 56],
                       [846, 749, 356, 42], [614, 1030, 772, 30], [695, 1066, 610, 30], [848, 1229, 377, 42]],
-            "start": 3.0, "end": 5.0, "trigger_word": "claude", "box": [4, 10, 92, 21.7], "layout": "box"}
+            "start": 3.0, "end": 5.0, "trigger_word": "claude", "box": [13, 13.1, 74, 18.6], "layout": "box"}
     small = {**band, "cards": [json.loads(json.dumps(cap1)), json.loads(json.dumps(cap2))]}
     assert sum("x-height" in f["what"] for f in check_plan(small, face) if f["level"] == "FAIL") == 2, check_plan(small, face)
     hook = [f for f in check_plan(small, face) if "on the hook" in f["what"]]

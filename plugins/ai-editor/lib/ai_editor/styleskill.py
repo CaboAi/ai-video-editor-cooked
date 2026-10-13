@@ -93,7 +93,10 @@ def _save_names(d):
 
 def name(style_path=None):
     n = names().get(key(style_path), {}).get("skill")
-    return n or (MINE if style_path is None else f"edit-like-{slug(style_path)}"[:64].rstrip("-"))
+    if n or style_path is None:
+        return n or MINE
+    d = display(style_path)   # a sample style's own name ("Card edit" -> card-edit), else edit-like-<creator>
+    return re.sub(r"[^a-z0-9]+", "-", d.lower()).strip("-")[:40] if not d.startswith("@") else f"edit-like-{slug(style_path)}"[:64].rstrip("-")
 
 
 def display(style_path=None):
@@ -103,7 +106,11 @@ def display(style_path=None):
         return n
     if style_path is None:
         return "My style"
-    return "@" + re.sub(r"-mine$", "", Path(style_path).resolve().parent.name)
+    try:   # a sample style the plugin ships names itself
+        n = json.loads(Path(style_path).read_text(encoding="utf-8") or "{}").get("name")
+    except (OSError, ValueError):
+        n = None
+    return n or "@" + re.sub(r"-mine$", "", Path(style_path).resolve().parent.name)
 
 
 def use_for(style_path=None):
@@ -169,7 +176,11 @@ def remove(style_path):
     d = names()
     d.pop(key(style_path), None)
     _save_names(d)
-    if sk.is_dir() and sk.parent == skills_dir() and sk.name != MINE:
+    try:   # a skill style's own skill (style.json "skill") is the user's, never ours to delete
+        theirs = json.loads(Path(style_path).read_text(encoding="utf-8") or "{}").get("skill")
+    except (OSError, ValueError, TypeError):
+        theirs = None
+    if sk.is_dir() and sk.parent == skills_dir() and sk.name not in (MINE, theirs):
         import shutil
         shutil.rmtree(sk)
     rewrite_all()
@@ -282,13 +293,18 @@ def body(style_path=None, fmt=None):
         mix = list((style.get("blend") or {}).get("weights") or [])
         who, said = (f"the {h} blend of " + " and ".join("@" + x for x in mix), h) if len(mix) > 1 else (f"@{h}'s style", "@" + h)
         one = style.get("format") if len(mix) <= 1 else None   # creator-teardown's format check: the one format it copies
-        desc = describe(sp, (f"{who}, copying their {one}" if one else f"{who}, measured from their videos")
-                        + (f" ({', '.join(p.split(' (')[0] for p in parts)})" if parts else ""),
-                        [f"edit my video like {said}", f"in {said}'s style", f"make it look like {h}'s videos"],
+        sample = style.get("sample")   # shipped with the plugin (presets/styles/), not measured from a creator
+        if sample:
+            said = style.get("name") or h
+            who, what, extra = f"the {said} sample style", f"the {said} sample style, for {one}", [f"the {said.lower()} style"]
+        else:
+            what = f"{who}, copying their {one}" if one else f"{who}, measured from their videos"
+            extra = [f"edit my video like {said}", f"in {said}'s style", f"make it look like {h}'s videos"]
+        desc = describe(sp, what + (f" ({', '.join(p.split(' (')[0] for p in parts)})" if parts else ""), extra,
                         "videos meant to look like that creator's, with the corrections given on this style")
-        h = said.lstrip("@") if len(mix) > 1 else h
-        head = (f"# Edit like {said}\n\nEdits the user's video in {who} (measured) with the ai-editor plugin.\n\n"
-                f"- Style: `{sp}` (measured by creator-teardown; never edit it by hand)\n"
+        h = said if sample else "@" + (said.lstrip("@") if len(mix) > 1 else h)
+        head = (f"# Edit like {said}\n\nEdits the user's video in {who} ({'ships with the plugin' if sample else 'measured'}) with the ai-editor plugin.\n\n"
+                f"- Style: `{sp}` ({'the plugin keeps it current' if sample else 'measured by creator-teardown'}; never edit it by hand)\n"
                 f"- Corrections: `{overrides_path(sp)}` (laid over the style; a re-study keeps them)\n"
                 + (f"- Format: their {one} (videos of other formats were left out)\n" if one else "")
                 + (f"- Copies: {'; '.join(parts)}\n" if parts else "")
@@ -300,11 +316,11 @@ def body(style_path=None, fmt=None):
                 "2. Then cut and style-edit as start says. plan.py and the cut lay the corrections over the style themselves.\n"
                 "   Cards come at this creator's rate, kinds and place (route.py marks the `want` lines); fix every `style:`\n"
                 "   line plan.py's style check prints before the stills.\n"
-                f"3. Review notes that are preferences: ask the scope with `This style (@{h}) (Recommended)` first, then\n"
+                f"3. Review notes that are preferences: ask the scope with `This style ({h}) (Recommended)` first, then\n"
                 "   `review.py edits/<name> learn --scope this-style ...`. They land in the section below.\n\n"
                 "Follow every rule in \"Learned from your feedback\". Where one disagrees with the user's general taste,\n"
                 "the rule here wins on this style.\n")
-        empty = f"Nothing yet. Notes saved at \"This style (@{h})\" land here."
+        empty = f"Nothing yet. Notes saved at \"This style ({h})\" land here."
     rules = learned(scope(style_path))
     front = f"---\nname: {name(style_path)}\ndescription: {desc}\n---\n\n"
     return front + head + "\n## Learned from your feedback\n\n" + ("\n".join(rules) if rules else empty) + "\n"

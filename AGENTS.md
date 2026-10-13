@@ -1,4 +1,4 @@
-# AI Video Editor skills
+# cooked. skills
 
 **Most people who open this folder want to edit a video.** When the user asks for an edit, drops a
 video, pastes a link, names a creator, or asks how to start: read
@@ -50,9 +50,9 @@ single skill folders.
 
 ## Install
 
-- **Claude Code:** `/plugin marketplace add nextwork-projects/ai-video-editor`, then
+- **Claude Code:** `/plugin marketplace add nextwork-projects/ai-video-editor-cooked`, then
   `/plugin install ai-editor@nextwork`. See the README.
-- **Any agent with the skills CLI:** `npx skills add nextwork-projects/ai-video-editor`.
+- **Any agent with the skills CLI:** `npx skills add nextwork-projects/ai-video-editor-cooked`.
 - **Cursor and Codex:** this repo ships `.cursor-plugin/plugin.json` and `.codex-plugin/plugin.json`,
   both pointing at the same skill folders.
 

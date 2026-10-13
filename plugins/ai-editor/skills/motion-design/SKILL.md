@@ -17,7 +17,7 @@ metadata:
 
 Paths: `${CLAUDE_SKILL_DIR}` means the folder containing this SKILL.md
 
-In the AI video editor: the templates and overlay formats in `../style-edit/references/motion.md` already follow this skill. Use it when adding or changing a template, when choosing a card's motion personality, and as the review checklist for stills and clips (`reference/quality-checklist.md`).
+In cooked. the templates and overlay formats in `../style-edit/references/motion.md` already follow this skill. Use it when adding or changing a template, when choosing a card's motion personality, and as the review checklist for stills and clips (`reference/quality-checklist.md`).
 
 ## When to Apply
 

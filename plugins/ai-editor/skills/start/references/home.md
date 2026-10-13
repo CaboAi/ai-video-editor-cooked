@@ -132,7 +132,7 @@ Five prompts, each one the user can paste into Claude Code as it is. Every numbe
 
 ### `JOB video <path> as=<mine|@handle|defaults> aspect=<9:16|16:9> edit=<dir> root=<dir>`
 ### `JOB video takes=<dir>/takes.txt as=... aspect=... edit=<dir> root=<dir>`
-### either one with ` script=<edit>/script.md` before `root=`
+### either one with ` script=<edit>/script.md` and/or ` skill=<skill>` before `root=`
 
 The user picked clips and a style and pressed "Make my video" (or "Start the cut" on a first run).
 `edit=` is the edit folder the page already made and listed in the library: use it, never make
@@ -148,6 +148,7 @@ no question: the page asked it). "Separate videos" arrives as one JOB per clip; 
 `script=`: the user added their script on the page. The page wrote it to `<edit>/script.md` (copy it
 there if the path is elsewhere). Pass `--script <edit>/script.md` to `transcribe.py`; the cut then runs
 `script_match.py` before deciding spans (cut skill step 2).
+`skill=`: a skill style (its `style.json` has `"skill"`), see Skill style below.
 
 The window turns into the review page as soon as it has a URL, so open it FIRST, on the raw clip
 (after the join for `takes=`), before transcribing:
@@ -172,6 +173,20 @@ the cut: run `wait` and carry on there. `status video --done` once round 1 is up
 run `build_timeline.py`, `render.py`, `verify_cut.py`, then `review.py <edit> round --video <edit>/cut.mp4`
 (`../../style-edit/references/review.md`, Transcript edits).
 
+#### Skill style
+
+The style points at a skill, so that skill makes the edit instead of style-edit. Cut as usual (start
+steps 2-4: the profile, blend and cut still run, so the fallback has the style's numbers). After the
+cut's approve run `/<skill>` on `<edit>/cut.mp4`: it makes its own captions, visuals and render. Then
+hand its render back as the edit round, as style-edit step 8 does:
+`python3 "$R" <edit> round --stage edit --video <its render>`, then `wait` on the page as usual.
+
+When `<skill>` is not in this session's skill list, never switch silently:
+`python3 "$R" <edit> status "This style needs the <skill> skill, which this Claude session doesn't have"`,
+then ask: **Continue with the generic edit, using the style's numbers (Recommended)** / **Stop here**.
+Continue: style-edit with `<edit>/style.json` as usual. Stop: `status video --failed "This style needs
+the <skill> skill. Open Claude Code where that skill is loaded and make the video again."`.
+
 ### `JOB style-change <my-style|@handle> [style=<style.json>] text=<the user's words>`
 
 The user typed what to change on a style's page (My styles, "Tell it what to change"). Turn the words
@@ -192,6 +207,11 @@ and need no job.
 
 The user pressed "Log in with your browser". Follow the setup skill's step 6 (Modal), reporting
 each of its steps with `status modal --step "..."`, and `status modal --done` when it works.
+
+### `JOB setup`
+
+The user pressed Start setup on the first-run Home. Run `setup.py install-all --report` in the background
+(the setup skill's step 0); it reports its own steps onto this job, as in Setup from the page below.
 
 ### `JOB update`
 

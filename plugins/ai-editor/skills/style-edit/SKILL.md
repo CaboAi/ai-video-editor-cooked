@@ -13,16 +13,16 @@ Read `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` first: the rules every video follows 
 
 Every question goes in the question box: the AskUserQuestion tool (2-4 options, recommended first). Only in an agent without it, ask numbered questions in text.
 
-An approved cut and a creator's style in. The finished video out: captions, zooms, real captures and
-motion scenes timed to the words, in that creator's look and the user's brand. The user approves
-the stills sheet (step 5) and picks where to render (step 6).
+An approved cut and a creator's style in (a `skill=` job runs that skill: start step 3).
+The finished video out: captions, zooms, real captures and motion scenes timed to the words, in the
+creator's look and the user's brand. The user approves the stills (step 5) and picks the render (step 6).
 
 Paths are relative to the library (PRINCIPLES.md). Run the scripts with `python3` on Mac
 and Linux, `py` on Windows. `S="${CLAUDE_SKILL_DIR}/scripts"`,
 `VPY="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/run.py"`; `python3 "$VPY"` is the venv Python.
 
 ```
-edits/<name>/cut.mp4 + cut.transcript.json + words.json       (the cut skill)
+edits/<name>/cut.mp4 + cut.transcript.json + words.json       (cut)
 edits/<name>/style.json                                       (start: the profile's creators blended)
   or creator-teardowns/<handle>/style.json                    (one creator, from creator-teardown)
 ~/.ai-video-editor/profile.json                               (start: brand kit, names, assets, avoid, sound)
@@ -32,7 +32,7 @@ captions.json -> beats.json -> visuals.json -> images/ + images.json -> plan.jso
 References, read only when a step says: `references/visuals.md` (each format in detail),
 `references/plan.md` (plan.py, cutout, sound, music, checks), `references/motion.md` (templates,
 transitions, marks), `references/render.md` (targets, live preview, export), `references/review.md`
-(the review page), `references/ai-tells.md` (the banned AI looks). `references/contracts.md` (every file's shape) is for people: never read it.
+(the review page), `references/ai-tells.md` (the banned AI looks). `references/contracts.md` is for people: never read it.
 
 ## 0. Read the taste and profile
 
@@ -46,8 +46,8 @@ Follow every taste rule; the scripts read the settings themselves. When the user
 
 ## 1. Check the inputs
 
-- **No cut.mp4?** Run the cut skill first. Never style a raw take. **`prep-decisions.json`?** The
-  `visual-prep` agent did steps 1-3: `references/plan.md` "Prepared while the cut was reviewed".
+- **No cut.mp4?** Run the cut skill first, never style a raw take. **`prep-decisions.json`?** The
+  `visual-prep` agent did steps 1-3 and the sheet: `references/plan.md` "Prepared while the cut was reviewed".
 - **No style.json?** `python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/profile.py" style edits/<name>`.
   With no creators in the profile (or no profile) it writes the default style: a smooth zoom move
   at least every 5 s, 3-word captions (`references/plan.md` "No creator"). If it stops with
@@ -98,7 +98,7 @@ Pacing: a copied creator's rate wins. route.py prints her cards a minute, kinds 
 and marks that many sentences `want` (named ones first). Give each a card of her kind with a `box` at her
 place, clear of the head: the user's own photo, else a capture of the real thing the line is about (page,
 profile, post), else their own clip as a `video_card`. Never a made-up or stock picture: a `want` with
-nothing real stays empty. No creator: a card only where a line names something real. Never two at once; no
+nothing real stays empty. Never ask what to show: pick the real capture (their own product's too); the sheet shows it. No creator: a card only where a line names something real. Never two at once; no
 stretch without a card over `card_gap_s` (plan.py adds zooms there, `references/plan.md` "Pacing").
 Vertical captures need a `find` to read on a phone.
 
@@ -134,7 +134,7 @@ python3 "$S/edit.py" stills edits/<name>
 ```
 
 The first run installs the renderer (a few minutes, once; say so first). Writes one still per beat and
-`stills/sheet.png`, numbered and labelled with beat, time and card kind (about 1,600 tokens).
+`stills/sheet.png`, numbered and labelled with beat, time and card kind.
 Review the sheet; open a single still only to zoom in on a problem.
 Fix before showing: a box on the face, a zoom cutting the head, the wrong part of a capture, text
 too small for a phone, a default AI look (icon tiles, emoji, neon glass). `stills-critic` can check it.
@@ -160,12 +160,12 @@ python3 "$S/edit.py" estimate edits/<name>
 ```
 
 Prints `Laptop:`, `Modal:` and two `Other:` lines (GitHub Actions, Lambda) with this video's time and
-cost. Ask **one question** for every video, exactly three options in this order, each carrying the
-printed numbers, none marked recommended (the one exception: only the user knows their time and money).
+cost. `render` in the profile: render there, no question; say it in one line with the time ("say 'render
+on Modal' to change"). Not set: ask once, three options in this order with the printed numbers, none
+recommended (only the user knows their time and money), then `profile.py set render='"laptop|modal|github|lambda"'`.
 
 1. **Laptop**: its time, free.
-2. **Modal**: its time and cost (Modal's Starter plan includes $30 of free credit a month). If the
-   line says `Not set up yet`, say so in the description.
+2. **Modal**: its time and cost ($30 free credit a month); say `Not set up yet` if so.
 3. **Other: GitHub Actions or AWS Lambda**: both `Other:` lines in the description. On this pick, ask
    a second question with the two. GitHub Actions: free, needs `gh` logged in, the footage goes into
    a **private** repo in their account; ask before creating the repo. Lambda: their own AWS account.
@@ -195,7 +195,8 @@ FAILs go back to the plan or the cut; at most two fix rounds, then show the rend
 still listed. A caption contrast FAIL: plan again, then render (plan.py reads the check and steps
 those pages up). The full list: `references/plan.md`.
 
-A `loudness ... LUFS` WARN is the take's own level, not a fault in the edit. Ask once in the question box:
+A `loudness ... LUFS` or take's own `true peak` WARN is the take's level, not a fault in the edit. `loudness`
+in the profile: do that, no question. Not set: ask once, then `profile.py set loudness='"leave|normalize"'`:
 
 > Your video plays at <N> LUFS; the apps play speech at about -14, so it will sound <quieter|louder>
 > than the videos around it. Change the volume?
@@ -220,8 +221,8 @@ Only when the user asks to finish it by hand ("open it in Final Cut", "send it t
 python3 "$S/export_nle.py" edits/<name> --to fcpxml|premiere|resolve|capcut|edl|srt|all
 ```
 
-Writes `edits/<name>/export/`. Moving cards render with alpha first (about 0.7 s a card frame; say
-so). Tell the user which file to open and how: `references/render.md` "Export to another editor". 16:9: also offer YouTube chapters (`references/render.md` "YouTube chapters").
+Writes `edits/<name>/export/`. Moving cards render with alpha first (about 0.7 s a card frame; say so).
+Which file to open, YouTube chapters for 16:9: `references/render.md` "Export to another editor".
 
 ## If a script stops
 
@@ -246,5 +247,4 @@ so). Tell the user which file to open and how: `references/render.md` "Export to
 
 - `scripts/`: one script per step above, each with a `demo` self-check.
 - `${CLAUDE_PLUGIN_ROOT}/agents/template-filler.md` (haiku), `stills-critic.md` (sonnet): the helpers.
-- `${CLAUDE_PLUGIN_ROOT}/remotion/`: the renderer, copied to `~/.ai-video-editor/remotion` on
-  every run. `tests/golden.py` at the repo root: golden frames; `--update` after an intended look change.
+- `${CLAUDE_PLUGIN_ROOT}/remotion/`: the renderer, copied to `~/.ai-video-editor/remotion` on every run.

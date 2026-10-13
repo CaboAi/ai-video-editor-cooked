@@ -49,8 +49,11 @@ import shutil
 import statistics
 import subprocess
 import sys
+import urllib.request
+from http.client import HTTPException
 from pathlib import Path
 
+import _net  # noqa: E402
 import _progress  # noqa: E402
 from transcribe import KEY_FILE, VENV_PY, find_key
 
@@ -66,6 +69,12 @@ PROFILE_URL = {
     "youtube": "https://www.youtube.com/@{h}/shorts",
     "instagram": "https://www.instagram.com/{h}/reels/",
 }
+
+AVATAR_MAX = 2_000_000   # bytes: an account picture is ~50-300 KB
+UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"}
+# the picture square in the middle of a 720x1280 frame over a blurred copy: a 9:16 card shows it whole, a round crop shows only it
+AVATAR_VF = ("[0]split[a][b];[a]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,boxblur=40,eq=brightness=-0.12[bg];"
+             "[b]crop='min(iw,ih)':'min(iw,ih)',scale=720:720[fg];[bg][fg]overlay=0:280")
 
 # Fields we keep off the flat-playlist dump. Anything else is noise.
 KEEP = ("id", "title", "description", "duration", "view_count", "like_count",
@@ -339,7 +348,7 @@ def cmd_list(args):
         hint = list_hint(args.platform, r.stderr)
         sys.exit(f"yt-dlp returned nothing.\n{r.stderr.strip()[:800]}{hint}")
 
-    vids = []
+    vids, first = [], None
     for line in r.stdout.splitlines():
         line = line.strip()
         if not line.startswith("{"):
@@ -348,6 +357,7 @@ def cmd_list(args):
             d = json.loads(line)
         except json.JSONDecodeError:
             continue
+        first = first or d
         v = {k: d.get(k) for k in KEEP}
         if not v.get("webpage_url"):
             v["webpage_url"] = d.get("url")
@@ -383,6 +393,60 @@ def cmd_list(args):
         print(f"{reach(v):>10,}  {str(v['vs_median'] or '-'):>5}"
               f"  {str(v.get('duration') or '-'):>4}  {v['id']}{flag}")
     print(f"\n-> {outdir / 'videos.json'}   (* = >=3x median)")
+    # the account picture for ai-editor's cards: a profile's own page, or the first pasted video's account
+    prof = (first or {}).get("uploader_url") or (first or {}).get("channel_url") if args.urls else url
+    if save_avatar(outdir, prof):
+        print(f"-> {outdir / 'avatar.jpg'}")
+
+
+def avatar_url(info=None, page=""):
+    """The account picture's address: YouTube's channel JSON (yt-dlp -J, thumbnail id avatar_uncropped), else
+    TikTok's profile page (avatarLarger). http(s) only; None when there is none (Instagram, private, changed page)."""
+    u = next((t.get("url") for t in (info or {}).get("thumbnails") or [] if t.get("id") == "avatar_uncropped"), None)
+    m = None if u else re.search(r'"avatarLarger":"((?:[^"\\]|\\.)+)"', page or "")
+    try:
+        u = u or (json.loads(f'"{m[1]}"') if m else None)
+    except ValueError:
+        u = None
+    return u if isinstance(u, str) and re.match(r"https?://[^\s\"'<>]+$", u) else None
+
+
+def save_avatar(outdir, prof):
+    """creator-teardowns/<h>/avatar.jpg from a YouTube or TikTok account address (from PROFILE_URL or yt-dlp's JSON,
+    never typed input): one cheap call for the picture's address, one capped download, ffmpeg to AVATAR_VF.
+    Best effort: False (and any old avatar.jpg kept) when anything is missing."""
+    prof = str(prof or "")
+    try:
+        if re.match(r"https://(www\.)?youtube\.com/", prof) and ytdlp():
+            r = run(ytdlp() + ["-J", "--flat-playlist", "--playlist-items", "0", "--no-warnings", prof], timeout=90)
+            src = avatar_url(json.loads(r.stdout or "{}"))
+        elif re.match(r"https://(www\.)?tiktok\.com/@[\w.-]+/?$", prof):
+            with _net.urlopen(urllib.request.Request(prof, headers=UA), timeout=20) as r:
+                src = avatar_url(page=r.read(4_000_000).decode("utf-8", "replace"))
+        else:
+            return False
+        if not src:
+            return False
+        with _net.urlopen(urllib.request.Request(src, headers=UA), timeout=20) as r:
+            if not r.headers.get_content_type().startswith("image/"):
+                return False
+            data = r.read(AVATAR_MAX + 1)
+        if len(data) > AVATAR_MAX:
+            return False
+        raw, tmp = outdir / "avatar.src", outdir / "avatar.tmp.jpg"
+        raw.write_bytes(data)
+        tmp.unlink(missing_ok=True)
+        ok = run(["ffmpeg", "-v", "error", "-n", "-i", str(raw), "-frames:v", "1", "-filter_complex", AVATAR_VF,
+                  "-q:v", "3", str(tmp)], timeout=60).returncode == 0 and tmp.is_file()
+        if ok:
+            os.replace(tmp, outdir / "avatar.jpg")
+        return ok
+    except (OSError, ValueError, HTTPException, subprocess.SubprocessError) as e:
+        print(f"no profile picture: {str(e)[:120]}", file=sys.stderr)
+        return False
+    finally:
+        for f in ("avatar.src", "avatar.tmp.jpg"):
+            (outdir / f).unlink(missing_ok=True)
 
 
 def download_audio(v, audio_dir):
@@ -613,6 +677,17 @@ def demo():
     assert usual_length([{"id": "a"}, {"id": "b"}, {"id": "c", "duration": 30}]) is None
 
     assert slug("@Some.Creator") == "some.creator"
+
+    # The account picture: YouTube's avatar_uncropped, TikTok's avatarLarger (JSON-escaped in the page), http(s) only
+    yt = {"thumbnails": [{"id": "banner_uncropped", "url": "https://yt3.example/banner"},
+                         {"id": "avatar_uncropped", "url": "https://yt3.example/avatar=s0"}]}
+    assert avatar_url(yt) == "https://yt3.example/avatar=s0"
+    page = '<script>{"user":{"avatarThumb":"https:\\u002F\\u002Fp16.example\\u002Fs.jpg","avatarLarger":"https:\\u002F\\u002Fp19.example\\u002Fa~1080.jpeg?x=1&y=2"}}</script>'
+    assert avatar_url(page=page) == "https://p19.example/a~1080.jpeg?x=1&y=2", avatar_url(page=page)
+    assert avatar_url({"thumbnails": [{"id": "0", "url": "https://yt3.example/banner"}]}) is None
+    assert avatar_url(page='"avatarLarger":"javascript:alert(1)"') is None and avatar_url(page="") is None
+    assert avatar_url({"thumbnails": [{"id": "avatar_uncropped", "url": "file:///etc/passwd"}]}) is None
+    assert not save_avatar(Path("/nonexistent"), "https://www.instagram.com/x/") and not save_avatar(Path("/nonexistent"), "")
 
     # Instagram links carry likes, not views: rank and pick on likes.
     ig = [{"id": "a", "like_count": 900}, {"id": "b", "like_count": 100}, {"id": "c", "like_count": 120}]

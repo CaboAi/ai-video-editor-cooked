@@ -4,6 +4,150 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Skill styles. A style can point at a Claude Code skill (`"skill": "<name>"` in its style.json, or New style >
+  Use your own skill). Its card says "Runs /<name>", its page shows the skill's description and the skills it
+  calls instead of the caption, zoom, cut, card and sound controls, and making a video cuts it as usual, then
+  runs that skill on the approved cut and puts its render on the review page. When the session doesn't have
+  the skill, the window says so and offers the generic edit with the style's numbers.
+
+## ai-editor 2.5.0, creator-teardown 2.7.0 (2026-10-13)
+
+- Making the edit is faster and asks less. While you review the cut, the visuals, the plan and the stills
+  sheet are made in the background (all free, on your computer), so approving the cut goes straight to the
+  sheet. The audience and the names in a video are no longer asked: the first answer is used and the review
+  page says which, and you change it by saying so. Where to render and whether to change the volume are
+  asked once and saved. Claude no longer asks what to show before the sheet: it picks the real page and the
+  sheet shows it.
+
+- The Making the edit card names the style ("the Card edit style"), never its folder id
+  ("@own-card-edit's style"). Steps made while you reviewed the cut show as done the moment you approve.
+
+- Plan again no longer crashes on minimal captions with no stroke and no box, which left the old plan in
+  place so a fix render changed nothing. A peak that is already in your take is a warning, not a fail
+  that sent the edit into a render it could not fix.
+
+- A Claude Code the editor opens allows only the editor's own commands (its scripts, ffmpeg, ffprobe,
+  npx remotion), so they no longer ask Allow. The README has the same rules for a Claude Code you start.
+
+- Style cards show their picture tall (4:5), centred on the face, and a wide frame whole over a blurred copy
+  of itself. New face frames come from the middle of the video, where its captions and cards are on screen.
+  A style's page lists what it was analysed from (each video opens in a new tab, and the creator's profile);
+  new analyses keep that list in references.json. Menus open above everything, so a tile next to them never
+  covers them, and cards no longer rebuild under the pointer while a video is being made.
+
+- A first run happens inside the window: Home shows three steps (Set up, Analyse a format, Make your first
+  video) with one Start setup, then setup's real steps and sizes, the two optional keys with the ElevenLabs
+  key settings beside them, Analyse a format with link rows, the analysis's real steps, the format ready to
+  rename, and a drop box for the first clip that goes straight to Pick a style with the new format picked.
+  A Getting started block in the sidebar follows the real state (1, 2, 3 of 3) and goes once the first cut
+  is ready. Wide folder tiles fit three across (four on a big screen).
+
+- Styles is one list: every style is yours, and each card says where it came from (Built by you, Learned
+  from your edits, From @creator) with its cut, zooms and captions as icon rows. Tabs filter it (All, Built
+  by you, From creators). New style opens Analyse a format (paste 3 to 6 videos edited the same way, from any
+  creators, or pick them from a profile's newest videos) or Build it yourself, which makes a new named style
+  of your own. You can have several of your own and make any one the default. A style being analysed shows
+  its real steps first in the list. A style's page shows it on your video with its captions, zooms, cut,
+  cards and sound as option tiles, saved as you go. Delete and reset ask in a dialog. Style folders sit in
+  the sidebar with the video folders. Pick a style has the same cards, the default first, and a Make it in
+  a new Claude chat button where a terminal can be opened.
+
+- The home window has a sidebar instead of the top header: cooked. and its pan, + New video, Home, Your videos
+  and My styles with counts, your video folders (drag a video onto one to move it, with Undo), the job being
+  made right now with its real progress, Settings and the light/dark switch. The panel button folds it into a
+  rail of icons with labels (remembered in this browser); under 1100 px wide it is always the rail. Video cards
+  show their state on a bar along the bottom: green and full with "Done. 2:14 long" and Open the editor, or
+  black and part-filled with the current step and See progress. Finished videos are tiles in one row height,
+  wide for 16:9 videos and tall for 9:16. Home, Your videos and Done show one row; See all opens the rest in
+  place. Settings has its keys, updates, videos folder and theme in two columns. Done green is now #16A34A
+  (#4ADE80 in dark).
+
+- Vertical videos keep everything inside the reels safe zone: x 60-940, y 250-1440 of the 1080x1920
+  frame, for every style. Cards, overlays, logos, captions and scene content no longer reach the top bar,
+  the like and share rail or the caption block. The band above the head is now 74% of the width (it was
+  92%) and starts at 13.1% down (it was 10%). Captions are at most 74% wide. `check.py plan` fails any card
+  outside the zone, cards behind the speaker included, and captions that are too wide. Wide videos are
+  unchanged. The x-height check on a sticker now measures it the way the renderer draws it (98% of its
+  box, capture padding trimmed), not the older smaller fit, so a readable sticker in the narrower band is
+  no longer refused.
+
+- A sample style ships with the editor: Card edit. It shows in My styles and on Pick a style for every user
+  under Sample styles, with no creator to copy first. Real image cards land 0.1 s before the word that names
+  them, about 14 a minute, in the band above the speaker's head and tucked behind a cutout of it (matte.py),
+  popping in from 54% in 0.23 s or on a hard cut, still while up, leaving on a cut. Captions are one white word
+  at a time in TikTok Sans. It edits through the same style-edit path as a copied creator, its settings change
+  on its style page like any other, and it cannot be deleted. A style.json can now ask for cards behind the
+  speaker itself (`"behind": true`). Fixed: a creator's measured entrance longer than the card's lead (about
+  0.17 s) hid the card for its whole life in the render.
+- The review page is laid out as the approved editor design. A collapsed rail on the left (the cooked. pan
+  tile, New, Home, Videos, Styles, a Making ring with the number of videos the home window is making,
+  Settings, the theme switch) links to the home window's views; with no home window running those items are
+  hidden. The top bar has "Your videos / name", the two stages (a finished stage ticks green) and Claude's
+  status. The player, transcript card, transport and timeline sit under one stage line; a wide video plays
+  across the top with its transcript under it. The notes panel is a plain 320 px column: notes with Edit and
+  Delete under the words, "Sent" once sent, fixed notes in green with Claude's reply, Claude's steps with
+  green ticks and a spinner, and Send and Approve stacked at the foot. While Claude works no button is
+  black: Stop is outlined. The last approve turns into a green "Approved". Done green is #16A34A
+  (#4ADE80 dark), with #15803D for small green text.
+- A creator shows their own profile picture. When their videos are listed, creator-teardown saves the
+  account picture as `creator-teardowns/<handle>/avatar.jpg`: YouTube's channel avatar from one
+  `yt-dlp -J` call, TikTok's from the profile page. It replaces the frame from their top video on the
+  style cards, Creators you copied, the style page and the copy's progress card (as soon as it is
+  saved). Instagram, private accounts and no network keep the video frame. No new tools or keys.
+- The editor is now called cooked. The home window, page titles, setup messages and docs use the
+  new name. Its logo is a pan with three lines of sizzle: in a small tile beside the name in the home
+  window header, as the browser tab icon of the home window and the review page, and at the top of the
+  README (`docs/logo.svg`). The repo moved to nextwork-projects/ai-video-editor-cooked (old links redirect), and the
+  install lines and update checks point there. Nothing to reinstall: the plugin is still `ai-editor`,
+  the commands, settings folder (`~/.ai-video-editor`) and library folder (`~/Movies/AI Editor`) stay the same.
+- Done is green in the home window, the same green as the review page: the ticks on finished steps and
+  videos, "Saved. The key works.", the done step numbers and the Ready to watch / Ready to review dot.
+  The current step, buttons and text stay black.
+
+- Folders for Your videos and My styles. A row of folder tiles sits under the heading: name, how many are
+  inside and two small pictures, then a dashed New folder tile (type the name, Enter saves, Esc cancels).
+  Click a folder to see only what is in it, with "‹ All videos" or "‹ All styles" to go back. Move a video or
+  a style in with ⋯ then Move to folder, or drag its card onto a folder tile; drag it onto the back link, or
+  pick Take out of, to move it back. A toast says where it went, with Undo. A folder's ⋯ has Rename and
+  Delete folder (what was in it goes back to All; nothing is deleted). Folders live in folders.json in the
+  editor's home. Home still shows everything.
+
+- Every video and style card has a ⋯ button on its picture, always showing, in Your videos (Now cards and Done
+  tiles), My styles, Pick a style and the Home shelves. Videos and clips get "Remove from this list" (off the
+  window, no file is touched) and "Move to Trash" (asks first). A creator's style gets "Delete style"; My style
+  gets "Reset to default style", which clears your feedback changes after asking. Change image and Remove image
+  moved into the same menu. The small Remove and Delete links are gone. A clip in Your videos can now be
+  removed from the list too. Create a new style is a "+ New style" button on the Copied from creators row that
+  opens the two choices in a window over the page (Esc, the X or a click outside closes it).
+- The editor is now called Cooked Editor. The home window, page titles, setup messages and docs use the
+  new name. The repo moved to nextwork-projects/ai-video-editor-cooked (old links redirect), and the
+- The editor is now called cooked. The home window, page titles, setup messages and docs use the
+  new name. Its logo is a pan with three lines of sizzle: in a small tile beside the name in the home
+  window header, as the browser tab icon of the home window and the review page, and at the top of the
+  README (`docs/logo.svg`). The repo moved to nextwork-projects/ai-video-editor-cooked (old links redirect), and the
+  install lines and update checks point there. Nothing to reinstall: the plugin is still `ai-editor`,
+  the commands, settings folder (`~/.ai-video-editor`) and library folder (`~/Movies/AI Editor`) stay the same.
+
+## ai-editor 2.4.1 (2026-10-13)
+- A creator shows their own profile picture. When their videos are listed, creator-teardown saves the
+  account picture as `creator-teardowns/<handle>/avatar.jpg`: YouTube's channel avatar from one
+  `yt-dlp -J` call, TikTok's from the profile page. It replaces the frame from their top video on the
+  style cards, Creators you copied, the style page and the copy's progress card (as soon as it is
+  saved). Instagram, private accounts and no network keep the video frame. No new tools or keys.
+
+- Scrolling holds on the home window and the review page. The home window redraws every 1.5 s, and each
+  redraw put every inner list (Your videos, My styles, a style's page, Settings) back at the top. Now a
+  redraw with nothing new leaves the page alone, and one with something new keeps every list where it
+  was. On the review page, after Send, each status line from Claude no longer pulls the notes list to
+  the bottom, and the transcript's follow-along now also waits 3 s after Page Up/Down, the arrow keys,
+  Home/End or a long scrollbar drag, not only after the wheel. The returning Home view is rebuilt as
+  shelves: a header with the brand, text tabs (Home, Your videos, My styles) and the live status,
+  Settings and theme on the right; then a drop box and the newest clips in one strip, 3 video cards (the
+  whole card opens the editor), My styles as image tiles and Creators you copied as a 2-column grid.
+  Nothing on Home scrolls from 1280x720 to 1920x1080: it shows fewer clips and styles when the window is
+  narrower. Tiles keep their width with a short library, leaving space on the right, and an empty
+  shelf says so in one line.
+
 - My style gets a name right away. When it is picked on Pick a style, or its page opens, before the user
   has named it, the name is a field already focused with a suggestion selected ("Like @<creator>" when
   it started from a creator, else the computer's login + " style"). Typing replaces it. Enter or

@@ -118,8 +118,30 @@ def entries():
     return sorted((entry(d) for d in edit_dirs()), key=lambda e: e["updated"], reverse=True)
 
 
+SAMPLES = Path(__file__).resolve().parents[2] / "presets" / "styles"
+
+
+def seed_samples(lib):
+    """The sample styles the plugin ships (presets/styles/<id>/) into <library>/creator-teardowns/<id>/, so they
+    list, pick and edit like a studied creator. style.json is kept current (the user's changes live in
+    style.overrides.json beside it); any other file (the cover) only when missing, so an image the user picked stays."""
+    for src in SAMPLES.glob("*/style.json"):
+        d = Path(lib) / "creator-teardowns" / src.parent.name
+        try:
+            for f in src.parent.iterdir():
+                t = d / f.name
+                if t.exists() and (f.name != "style.json" or t.read_bytes() == f.read_bytes()):
+                    continue
+                d.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(f, t)
+        except OSError:
+            pass
+
+
 def styles(lib=None):
-    """Every studied creator in the library with a style.json: [(handle, style dict)]."""
+    """Every studied creator in the library with a style.json, the plugin's sample styles among them:
+    [(handle, style dict)]."""
+    seed_samples(lib or path())
     out = []
     for f in sorted((Path(lib or path()) / "creator-teardowns").glob("*/style.json")):
         try:
@@ -259,8 +281,9 @@ def trash_cmd(p, os_name=None):
     """Move to the Trash / Recycle Bin, never a permanent delete. The path is always its own argv item."""
     os_name = os_name or platform.system()
     if os_name == "Darwin":
-        return ["osascript", "-e", "on run argv", "-e", 'tell application "Finder" to delete POSIX file (item 1 of argv)',
-                "-e", "end run", str(p)]
+        # the POSIX file is made outside Finder's tell block: inside it Finder fails with -1728 "Can't get POSIX file"
+        return ["osascript", "-e", "on run argv", "-e", "set f to POSIX file (item 1 of argv) as alias",
+                "-e", 'tell application "Finder" to delete f', "-e", "end run", str(p)]
     if os_name == "Windows":
         fn = "DeleteDirectory" if Path(p).is_dir() else "DeleteFile"
         return ["powershell", "-NoProfile", "-Command", "param($p) Add-Type -AssemblyName Microsoft.VisualBasic; "

@@ -4,9 +4,9 @@ max_turns: 6
 plugins: []
 allowed_tools: [Read, Glob, Grep, Skill, AskUserQuestion]
 append_system_prompt: |
-  Eval dry run: this session has no shell tools, and that is expected; do not ask for them. Where a step runs a command, write the exact command in one line, then stop at the next question for the user. The working folder is a fresh download of the ai-video-editor repo, and no plugin from it is loaded. Its CLAUDE.md:
+  Eval dry run: this session has no shell tools, and that is expected; do not ask for them. Where a step runs a command, write the exact command in one line, then stop at the next question for the user. The working folder is a fresh download of the ai-video-editor-cooked repo, and no plugin from it is loaded. Its CLAUDE.md:
 
-  # AI Video Editor
+  # cooked.
 
   Most people who open this folder want to edit a video. When the user asks for an edit, drops a
   video, pastes a link, names a creator, or asks how to start:
@@ -16,7 +16,7 @@ append_system_prompt: |
   2. If it is not (the folder was not trusted, or this Claude Code is too old to load plugins from
      `.claude/settings.json`), ask in the question box (AskUserQuestion) whether to install the
      editor, recommended option first. On yes, run:
-     `claude plugin marketplace add nextwork-projects/ai-video-editor` then
+     `claude plugin marketplace add nextwork-projects/ai-video-editor-cooked` then
      `claude plugin install ai-editor@nextwork`. Then tell the user to type `/reload-plugins` and
      say "edit my video" again.
 

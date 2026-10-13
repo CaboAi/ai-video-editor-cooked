@@ -1,6 +1,6 @@
 ---
 name: start
-description: The front door of the AI video editor. Takes the user's video and a few multiple-choice answers (platform, creators to copy and what to take from each, audience, brand kit, own photos, names, what to avoid, captions, sound), saves them once to a profile, then runs the whole edit in order (setup if a tool is missing, creator-teardown for a new creator, cut, style-edit) so the user only drops a video, answers, approves the cut and approves the stills sheet. Use when the user says "edit my video", "edit this like @creator", "make my video look like @creator", "make this look like <creator>'s videos", "I want my videos edited", "start", "new video", drops a video file or pastes any link (video, Drive or Dropbox share, creator profile, website, podcast) with no other instruction, or asks how to use the editor. Not for one step named on its own (only cutting is cut, only analysing a creator is creator-teardown, a correction is taste, styling an existing cut is style-edit).
+description: The front door of cooked. Takes the user's video and a few multiple-choice answers (platform, creators to copy and what to take from each, audience, brand kit, own photos, names, what to avoid, captions, sound), saves them once to a profile, then runs the whole edit in order (setup if a tool is missing, creator-teardown for a new creator, cut, style-edit) so the user only drops a video, answers, approves the cut and approves the stills sheet. Use when the user says "edit my video", "edit this like @creator", "make my video look like @creator", "make this look like <creator>'s videos", "I want my videos edited", "start", "new video", drops a video file or pastes any link (video, Drive or Dropbox share, creator profile, website, podcast) with no other instruction, or asks how to use the editor. Not for one step named on its own (only cutting is cut, only analysing a creator is creator-teardown, a correction is taste, styling an existing cut is style-edit).
 license: MIT
 compatibility: Python 3.9+, standard library only for the intake. The steps it runs need what the setup skill installs. Runs from the full ai-editor plugin folder (uses its lib/).
 ---
@@ -56,21 +56,17 @@ Only download what the user may edit; a creator's video is for the teardown, not
 link or creator (a bare "edit my video"): ask **Open the home page (Recommended)** / **I'll give
 the path** / **Use the sample take** (cut's "No video yet?"). Edit folder: `IMG_1234.MOV` -> `edits/img-1234`.
 
-## 2. Intake: only what is missing
+## 2. Intake: ask nothing the profile or style answers
 
 ```bash
-python3 "$P" missing --video     # audience, names: asked for every video
-python3 "$P" missing --style     # normally answered at setup; ask here only if setup was skipped
+python3 "$P" missing --style     # answered at setup, or by the style picked in the window
 ```
 
-Prints the question ids with no saved answer. When any id is printed, read `references/intake.md` (the questions, their calls and options, and the
-`set` command for each) and ask only those ids. Save each answer as soon as it comes in.
-
-`audience` and `names` belong to this video (the audience answer also saves `goal`): ask "Same
-audience and names as last time?" on later videos (one question, yes as the first option) instead of
-the full intake. Edits by hand already: taste's "Learn from a past edit".
-The profile lives in `~/.ai-video-editor/profile.json`; `python3 "$P" show` prints it. On "just edit
-it" or "use the defaults", run `python3 "$P" defaults` and go on.
+A `JOB video` (the window picked the style), "just edit it", or no id printed: run `python3 "$P" defaults`
+and ask nothing. It keeps every saved answer and fills the rest with the first option (audience "people
+curious about the topic", goal follow, names found in what they say). Say what it used on the review page:
+`review.py <edit> status "For people curious about the topic, then follow. Tell Claude to change it"`.
+Otherwise read `references/intake.md` and ask the printed ids in one question box. Profile: `python3 "$P" show`.
 
 ## 3. Route
 
@@ -91,6 +87,7 @@ Do each step in order, skipping what is already done. Read each skill's SKILL.md
    profile itself: the brand kit sets the look, `names` get real logos and captures, `assets_dir`
    images go on screen first, `avoid` is enforced by plan.py. Letterbox (wide take, title on top):
    cut `--max-pause 0.5`, `--layout letterbox`.
+   `skill=<skill>` on the job: step 5 is that skill, not style-edit (`references/home.md`, Skill style).
 
 Between steps say one line about what is next. Never ask the user to do a step the skill can do.
 

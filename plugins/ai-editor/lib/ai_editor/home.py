@@ -51,6 +51,7 @@ import hmac
 import http.client
 import json
 import os
+import platform
 import re
 import secrets
 import shutil
@@ -211,7 +212,7 @@ class _Lock:
             try:
                 os.close(os.open(self.p, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
                 return self
-            except FileExistsError:
+            except (FileExistsError, PermissionError):   # Windows: a lock being deleted refuses a new open
                 try:   # a writer that died holding it: older than 10 s is stale
                     if time.time() - self.p.stat().st_mtime > 10:
                         self.p.unlink(missing_ok=True)
@@ -623,6 +624,7 @@ def style_cards(root):
         changed = taste.rules_path().stat().st_mtime if n and taste.rules_path().exists() else None
         out.append({"id": sid, "name": ss.display(sp), "facts": facts(st), "look": look(st), "base": base,
                     "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "learned_from": vids, "made": made, "changed": changed, "cover": cover_of(root, sid), "face": face_of(root, base),
+                    "own": sid == "mine" or bool(st.get("own")),
                     "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False,
                     "sample": bool(st.get("sample")), **naming(sid, sp, base)})
     return out
@@ -774,6 +776,9 @@ def style_page(root, sid):
             "changed": [k for k in CONTROLS if dig(changed, k) is not None], "look": look(st), "facts": facts(st),
             "copies": copies, "rules": rules, "style_path": str(sp) if sp else None, "presets": preset_state(root, sid, st, base, changed),
             "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid), "face": face_of(root, base),
+            "own": sid == "mine" or bool(st.get("own")), "videos": st.get("videos"),
+            "references": references(sp.parent) if sp and not st.get("own") else {"videos": [], "profile": None},
+            "made": next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None) if sp else None,
             "delete_note": f"My style started from @{base}. It goes back to the default style." if sp and base and style_of(root, "mine")[2] == base else None,
             **naming(sid, sp, base)}
 
@@ -909,6 +914,39 @@ def cover_of(root, sid):
     return f"/style/cover?id={quote(sid)}&v={int(f.stat().st_mtime)}" if f and f.is_file() else None
 
 
+def references(d):
+    """What a style was analysed from: references.json ({"videos": [{url, title}]}) when there is one, else the
+    videos.json entries that have a transcript (the ones actually measured). http(s) links only."""
+    ok = lambda u: isinstance(u, str) and re.match(r"https?://", u)
+    try:
+        r = json.loads((d / "references.json").read_text(encoding="utf-8"))
+        vids = [{"url": v["url"], "title": v.get("title") or "", "thumbnail": v.get("thumbnail") if ok(v.get("thumbnail")) else None}
+                for v in r.get("videos") or [] if ok(v.get("url"))]
+        return {"videos": vids, "profile": r.get("profile") if ok(r.get("profile")) else None}
+    except (OSError, ValueError, AttributeError, KeyError, TypeError):
+        pass
+    try:
+        vj = json.loads((d / "videos.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"videos": [], "profile": None}
+    have = {f.name.split(".")[0] for f in (d / "transcripts").glob("*.txt")} if (d / "transcripts").is_dir() else set()
+    vids = [{"url": v.get("webpage_url"), "title": v.get("title") or "", "thumbnail": v.get("thumbnail") if ok(v.get("thumbnail")) else None}
+            for v in vj.get("videos") or [] if ok(v.get("webpage_url")) and str(v.get("id")) in have]
+    h, plat = vj.get("handle") or d.name, vj.get("platform")
+    prof = None if h.startswith("links-") or plat not in ("tiktok", "youtube") else \
+        (f"https://www.tiktok.com/@{h}" if plat == "tiktok" else f"https://www.youtube.com/@{h}")
+    return {"videos": vids, "profile": prof}
+
+
+def write_references(d):
+    """At the end of an analysis: references.json from what was measured, so the style keeps its sources."""
+    if (d / "references.json").exists() or not (d / "videos.json").is_file():
+        return
+    r = references(d)
+    if r["videos"]:
+        (d / "references.json").write_text(json.dumps(r, indent=2), encoding="utf-8")
+
+
 def make_face(d):
     """creator-teardowns/<h>/face.jpg, once: the brightest of 1, 2 and 4 s into their top downloaded video
     (videos.json order), else the first cell of a contact sheet (visual.py's 3 x 3). False when neither is there."""
@@ -924,7 +962,8 @@ def make_face(d):
             px = subprocess.run(["ffmpeg", "-v", "error", "-ss", str(t), "-i", str(mp4), "-frames:v", "1", "-vf",
                                  "scale=16:16,format=gray", "-f", "rawvideo", "-"], capture_output=True, timeout=30).stdout
             return sum(px) / len(px) if px else 0
-        src, pre = ["-ss", str(max((1, 2, 4), key=light)), "-i", str(mp4)], fit
+        dur = library.meta(mp4).get("duration") or 0   # the middle third shows the style (captions, cards), not an intro
+        src, pre = ["-ss", str(max([round(dur * f, 2) for f in (0.35, 0.5, 0.65)] if dur > 6 else [1, 2, 4], key=light)), "-i", str(mp4)], fit
     elif sheet:
         src, pre = ["-i", str(sheet)], "crop=iw/3:ih/3:0:0," + fit
     else:
@@ -977,6 +1016,30 @@ def save_cover(root, sid, src):
         return False
     os.replace(tmp, d / "cover.jpg")
     return True
+
+
+def new_own_style(root, name):
+    """A style the user builds themselves ("Build it yourself"): stored like a studied creator's, in
+    creator-teardowns/own-<slug>/style.json (the default style, own: true), named, with its skill written.
+    Returns its id ("@own-<slug>")."""
+    from ai_editor.profile import DEFAULT_STYLE
+    _, ss = _taste()
+    name = " ".join(str(name or "").split())
+    base = "own-" + (re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40].rstrip("-") or "style")
+    h, i = base, 2
+    while (Path(root) / "creator-teardowns" / h).exists():
+        h, i = f"{base}-{i}", i + 1
+    d = Path(root) / "creator-teardowns" / h
+    d.mkdir(parents=True)
+    p = d / "style.json"
+    p.write_text(json.dumps({**DEFAULT_STYLE, "handle": h, "own": True}, indent=2), encoding="utf-8")
+    try:
+        ss.rename(p, name)
+    except ValueError:
+        shutil.rmtree(d)
+        raise
+    ss.write(str(p))
+    return "@" + h
 
 
 def delete_style(root, sid, measured=False):
@@ -1092,6 +1155,19 @@ def job_line(j, root):
         return f"JOB style-change {'my-style' if a['style'] == 'mine' else a['style']}" + \
             (f" style={a['path']}" if a.get("path") else "") + f" text={a['text']}"
     return f"JOB {j['type']}"
+
+
+def getting_started(d):
+    """The sidebar's Getting started block, from the real state (so it holds across reloads): the tools set up,
+    a format analysed (or the default style chosen instead), the first video made (a cut ready or done)."""
+    rows = (d.get("doctor") or {}).get("rows") or []
+    setup = any(j["type"] == "setup" and j["state"] == "done" for j in d["jobs"]) or bool(rows) and all(r.get("ok") for r in rows)
+    style = bool(d.get("style_skipped")) or any(j["type"] == "teardown" and j["state"] == "done" for j in d["jobs"]) \
+        or any(not h.startswith(("own-", "sample-")) for h, _ in library.styles(d["root"]))
+    es = library.entries()
+    video = any(e["status"] in ("ready", "done") for e in es)
+    # a user with a made video set up long ago (before the doctor rows were checked): never back to step 1
+    return {"setup": setup or video, "style": style or video, "video": video}
 
 
 def busy_with(d, sid):
@@ -1243,6 +1319,11 @@ def cmd_status(a):
         if a.result:
             r = json.loads(Path(a.result[1:]).read_text(encoding="utf-8") if a.result.startswith("@") else a.result)
             j["result"].update(r)
+        if a.done and j["type"] == "teardown" and j["args"].get("handle"):
+            try:
+                write_references(Path(d["root"]) / "creator-teardowns" / j["args"]["handle"])
+            except OSError:
+                pass
         if a.done or a.failed:
             for s in j["steps"]:
                 if not s.get("done"):
@@ -1319,6 +1400,9 @@ def make_handler(token):
                 d["busy"] = bz and {"id": bz["id"], "name": job_name(bz)}
                 d["profile"] = (home().parent / "profile.json").exists()   # set up before: a returning user
                 d["update"] = update_info()
+                d["getting_started"] = getting_started(d)
+                import launcher   # "Make it in a new Claude chat" only where a terminal window can be opened
+                d["new_claude"] = bool(launcher.terminal(d["root"], ["claude"], platform.system()))
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
                 lk = d.get("lookup") or {}
                 if lk.get("handle"):
@@ -1342,14 +1426,21 @@ def make_handler(token):
                              if e["video"] or e["dir"] in raw else None,
                              media=e["video"] and "/media?p=" + quote(e["video"]), job=(raw.get(e["dir"]) or {}).get("id"))
                         for e in library.entries() if e["dir"] not in set(read().get("hidden_edits") or [])]   # Remove from this list
+                with ThreadPoolExecutor(8) as ex:   # its length and shape (cached ffprobe): "Done. 2:14 long", a wide or tall frame
+                    ms = list(ex.map(lambda v: library.meta(v["video"]) if v["video"] else {}, vids))
+                for v, m in zip(vids, ms):
+                    a = (raw.get(v["dir"]) or {}).get("args", {}).get("aspect")
+                    v["duration"] = m.get("duration") if v["status"] in ("ready", "done") else None
+                    v["wide"] = a == "16:9" if a and v["status"] == "cutting" or not m.get("h") else m["w"] > m["h"]   # the raw take is not the shape it is cut to
                 cards = style_cards(root)
                 for j in read()["jobs"]:   # a creator still being studied: a card the user can already pick
                     h = j["args"].get("handle")
                     if j["type"] == "teardown" and j["state"] in ("queued", "taken") and "@" + str(h) not in [c["id"] for c in cards]:
                         cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True, "face": face_of(root, h),
-                                      "line": "Being copied now. Your cut starts first; the style waits for the copy."})
+                                      "line": "Being analysed now. Your cut starts first; the style waits for it."})
                 return self.send(200, {"path": root, "place": place(root), "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
-                                       "custom": str(custom.path(False)), "videos": vids, "styles": cards, "folders": folders()})
+                                       "custom": str(custom.path(False)), "videos": vids, "styles": cards, "folders": folders(),
+                                       "default_style": read().get("default_style") if any(c["id"] == read().get("default_style") for c in cards) else "mine"})
             if path == "/recent":
                 st = read()
                 rs = recent_list(st)
@@ -1471,6 +1562,9 @@ def make_handler(token):
                 update_info()
                 return self.send(200, {})
             if path == "/later":
+                if body.get("names") == ["style"]:   # first run: "Skip, use the default style"
+                    update(lambda d: d.__setitem__("style_skipped", True))
+                    return self.send(200, {})
                 for n in body.get("names") or []:
                     if n in KEY_NAMES + ("modal",):
                         subprocess.run([sys.executable, str(SETUP), "later", n], capture_output=True, timeout=30)
@@ -1556,6 +1650,17 @@ def make_handler(token):
                     return self.send(200, folder_change(kind, path.rsplit("/", 1)[1], body, listed))
                 except ValueError as e:
                     return self.send(400, {"ok": False, "error": str(e)})
+            if path == "/style/new":   # Build it yourself: a new own style, then its page
+                try:
+                    return self.send(200, {"ok": True, "id": new_own_style(read()["root"], body.get("name"))})
+                except ValueError as e:
+                    return self.send(400, {"error": str(e)})
+            if path == "/style/default":   # Make default: the style New video starts on
+                sid = str(body.get("id") or "mine")
+                if sid != "mine" and not any(c["id"] == sid for c in style_cards(read()["root"])):
+                    return self.send(404, {"error": "No such style."})
+                update(lambda d: d.__setitem__("default_style", sid))
+                return self.send(200, {"ok": True, "default_style": sid})
             if path == "/style/reset-all":
                 reset_mine()
                 return self.send(200, {"ok": True})
@@ -1679,7 +1784,9 @@ def make_handler(token):
                 args = {"handle": td["args"]["handle"], "take": take}
             elif kind == "video":
                 return self.videos(b, d)
-            elif kind in ("modal", "update"):
+            elif kind in ("modal", "update", "setup"):   # setup: the first run's Start setup (JOB setup, install-all --report)
+                if kind == "setup" and any(j["type"] == "setup" and j["state"] in ("queued", "taken") for j in d["jobs"]):
+                    return self.send(200, {"id": latest(d, "setup")["id"]})
                 args = {}
             elif kind == "style-change":   # "Tell it what to change": Claude turns the words into rules at that style's scope
                 text = re.sub(r"\s+", " ", str(b.get("text") or "")).strip()[:400]
@@ -2362,6 +2469,47 @@ def demo():
     assert sr("Wrote down every word you said", q["args"]["edit"]) == "no video job on the page"   # never takes it
     assert latest(read(), "video")["state"] == "queued" and not latest(read(), "video")["steps"]
     assert " as=@newbie " in out(cmd_wait, 0.01)
+    # Getting started: from the real state, so it holds across reloads
+    gs = get("/state")["getting_started"]
+    assert gs["style"] and not gs["video"], gs   # @sample.creator was analysed above; no cut is ready yet
+    sid0 = post("/job", {"type": "setup"})["id"]
+    assert post("/job", {"type": "setup"})["id"] == sid0 and latest(read(), "setup")["state"] == "queued"   # one at a time
+    update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["id"] != sid0]))
+    post("/later", {"names": ["style"]})
+    assert read()["style_skipped"] and get("/state")["getting_started"]["style"]
+    assert getting_started({**read(), "style_skipped": False, "jobs": [], "doctor": {"rows": [{"ok": False}]}, "root": str(tmp)}) == \
+        {"setup": False, "style": False, "video": False}   # a fresh library: nothing done yet
+    # Analyse a format: links from several creators are one job, every link in its picks.txt
+    fl = ["https://www.tiktok.com/@a.one/video/7412345678901234567", "https://www.tiktok.com/@b.two/video/7412345678901234568",
+          "https://www.tiktok.com/@c.three/video/7412345678901234569"]
+    post("/job", {"type": "teardown", "urls": fl, "take": ["captions", "pace"]})
+    ft = latest(read(), "teardown")
+    assert ft["args"]["handle"].startswith("links-") and ft["args"]["platform"] == "tiktok" and ft["args"]["take"] == ["captions", "pace"], ft
+    assert Path(ft["args"]["urls"]).read_text(encoding="utf-8").split() == fl
+    update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["id"] != ft["id"]]))   # not Claude's to take here
+    # Analysed from: references.json first, else the measured videos (a transcript each); http(s) only
+    rd = tmp / "refs"
+    (rd / "transcripts").mkdir(parents=True)
+    (rd / "videos.json").write_text(json.dumps({"handle": "refs", "platform": "tiktok", "videos": [
+        {"id": "1", "webpage_url": "https://www.tiktok.com/@refs/video/1", "title": "one"},
+        {"id": "2", "webpage_url": "https://www.tiktok.com/@refs/video/2", "title": "not measured"},
+        {"id": "3", "webpage_url": "javascript:alert(1)", "title": "bad"}]}), encoding="utf-8")
+    (rd / "transcripts" / "1.txt").write_text("x", encoding="utf-8")
+    (rd / "transcripts" / "3.txt").write_text("x", encoding="utf-8")
+    assert references(rd) == {"videos": [{"url": "https://www.tiktok.com/@refs/video/1", "title": "one", "thumbnail": None}],
+                              "profile": "https://www.tiktok.com/@refs"}, references(rd)
+    write_references(rd)
+    (rd / "transcripts" / "1.txt").unlink()
+    assert references(rd)["videos"][0]["title"] == "one"   # kept in references.json once the analysis ended
+    # Build it yourself: a second own style, listed as own, can be the default, and goes when deleted
+    oid = post("/style/new", {"name": "Clean talking head"})["id"]
+    own = next(c for c in get("/library")["styles"] if c["id"] == oid)
+    assert oid.startswith("@own-") and own["own"] and own["name"] == "Clean talking head" and not own.get("studying"), own
+    assert next(c for c in get("/library")["styles"] if c["id"] == "mine")["own"]
+    assert post("/style/default", {"id": oid})["default_style"] == oid and get("/library")["default_style"] == oid
+    assert post("/style/set", {"id": oid, "key": "zoom.preset", "value": "none"})["presets"]["zoom"]["sel"] == "none"
+    assert post("/style/delete", {"id": oid})["ok"] and get("/library")["default_style"] == "mine"
+    assert oid not in [c["id"] for c in get("/library")["styles"]]
     post("/scanhome", {"on": False})   # picked files stay listed without the opt-in
     assert {r["name"] for r in get("/recent")["videos"]} == {"a.mov", "b.mov", "c.mp4", "drop.mp4", "take.mp4"}
 

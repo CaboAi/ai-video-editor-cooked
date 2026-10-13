@@ -6,7 +6,8 @@ Edit your own talking-head video in the style of a creator you like. Open the fo
 and say **edit my video**, or paste a link.
 
 1. Give it your video. It cuts out the retakes, false starts and pauses.
-2. Give it a creator. It measures how they edit: cut speed, zooms, captions, graphics, transitions.
+2. Give it 3 to 6 videos edited the same way, from one creator or several. It measures the format:
+   cut speed, zooms, captions, graphics, transitions. That becomes one of your styles.
 3. It renders your video in that style, on your laptop or in the cloud, after you approve each step.
 
 It also makes three other things:
@@ -31,8 +32,10 @@ After setup, this is how you open the editor every time. In a terminal, type:
 nextwork-editor
 ```
 
-Your editor opens in the browser, at the same address every time (bookmark it). Drop in your clips
-or click the ones you want, pick a style, press **Make my video**. The first time, Claude Code asks
+Your editor opens in the browser, at the same address every time (bookmark it). The sidebar has
+**+ New video**, **Home**, **Your videos**, **Styles** and your folders. Drop in your clips or click
+the ones you want, pick a style, press **Make my video** (or **Make it in a new Claude chat**, so
+that video's questions stay in their own chat). The first time, Claude Code asks
 "Do you trust the files in this folder?": pick **Yes, proceed** (it is your videos folder). Inside Claude Code,
 `/ai-editor:start` does the same. Setup adds the command; `python3 plugins/ai-editor/skills/setup/scripts/setup.py
 uninstall-launcher` removes it.
@@ -72,11 +75,15 @@ it asks you to log in.
 **4. Say yes when it asks whether you trust this folder.** That lets the editor load. Then type
 **edit my video**.
 
-**5. Pick "Open the home page".** A page opens in your browser. It checks your computer, takes
-optional keys (saved on your computer, never sent to the chat), and asks for a creator you like.
-Paste their handle or profile link and press **Copy this style**: Claude measures their top
-videos (about 3 minutes, free) and shows what makes them work. Then you get a skill in their
-format, the prompts to use it, and a place to drop your video.
+**5. Pick "Open the home page".** The editor opens in your browser and takes you through three
+steps, shown as **Getting started** in the sidebar:
+
+1. **Set up.** It checks your computer and installs what is missing. Meanwhile it offers two
+   optional free keys (saved on your computer, never sent to the chat).
+2. **Analyse a format.** Paste 3 to 6 links to videos edited the same way (or a profile, then tick
+   its videos) and press **Analyse this format**. Claude measures them (about 3 minutes, free) and
+   saves a named style with what it measured and links to the videos it came from.
+3. **Make a video.** Drop in your clip, keep the new style picked, press **Make my video**.
 
 The folder's `.claude/settings.json` turns the editor on. If Claude says the editor is not loaded,
 it offers to install it: say yes, then type `/reload-plugins`.
@@ -132,29 +139,35 @@ If you want to change the editor's own code:
    66-75 s on Windows, with the 75 MB test model in place of the 500 MB default; a home line is
    slower. It asks before each step. Anything that needs your password, Claude gives you
    to paste into your own terminal.
-2. **Keys**, optional, about 5 minutes. Two free accounts that make each edit use
-   less of your Claude usage. Skip them and add them later by saying **finish setup**. Never paste
+2. **Keys**, optional, about 5 minutes. Two free accounts that make your edits better and use
+   less of your Claude usage: ElevenLabs hears every um and retake, so the cut is cleaner; Gemini
+   reads a format's fonts, colours and graphics. Skip either and Claude does that job instead. Skip them and add them later by saying **finish setup**. Never paste
    a key into the chat: Claude gives you a command that saves it from your own terminal.
 3. **A few questions, once.** Platform, creators you like, brand, names to show, captions, sound.
    Each is multiple choice and the first option is fine to accept. Saved in
    `~/.ai-video-editor/profile.json`.
 4. **Your first edit.** Give the path to your video (an mp4 or mov of you talking to camera), or
    paste a link to it. No video yet? Pick **Use the sample take**.
-5. **Approve the cut.** You watch it on a review page and leave notes at any moment; the transcript
-   with the removed parts struck through is one click away. Approve it, or send notes.
+5. **Approve the cut.** The editor shows your video beside its transcript, which follows playback.
+   Struck words were cut: select words to cut or restore them. Pause anywhere to leave a note, then
+   press **Send notes** for another round, or **Approve the cut and add captions**.
 6. **Approve the stills.** A sheet of frames from the styled edit. Approve, or say what to change.
    You can also open the edit in your browser and move, trim, swap or delete anything by hand.
 7. **Pick where to render.** Claude times each option on your video and shows the cost first.
    The render opens on a review page: watch it, pause and leave notes at the moments to change,
    then send them for the next round or approve.
 8. **Say what you'd change** ("captions too small", "fewer zooms"). It is saved to
-   `~/.ai-video-editor/taste.md` and used on every video after.
+   `~/.ai-video-editor/taste.md` and used on every video after. When you approve, pick **Teach your
+   style from this video** to save what you liked into that style.
 
 Your files land in your library folder (`~/Movies/AI Editor` on a Mac, `~/Videos/AI Editor`
 elsewhere), or in a project folder you name: `videos/` (clips you dropped in), `edits/<name>/`,
 `clips/<name>/`, `product/<name>/` and `creator-teardowns/<handle>/`. The editor's **Your videos**
-lists every one, with its review page, **Show in Finder**, and **Clear working files** in Settings
-(it never deletes your clips, a cut, a final video or your notes).
+lists every one, with its editor page and a ⋯ menu (Remove from this list, Move to folder, Download,
+Move to Trash). Folders in the sidebar filter the list: drag a card onto one to file it. **Styles**
+lists every style you can edit with, each saying where it came from (built by you, from creators'
+videos, or a sample like **Card edit**). **Clear working files** in Settings never deletes your clips,
+a cut, a final video or your notes.
 
 ## What you can say
 

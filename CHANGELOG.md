@@ -4,6 +4,39 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Style cards show their picture tall (4:5), centred on the face, and a wide frame whole over a blurred copy
+  of itself. New face frames come from the middle of the video, where its captions and cards are on screen.
+  A style's page lists what it was analysed from (each video opens in a new tab, and the creator's profile);
+  new analyses keep that list in references.json. Menus open above everything, so a tile next to them never
+  covers them, and cards no longer rebuild under the pointer while a video is being made.
+
+- A first run happens inside the window: Home shows three steps (Set up, Analyse a format, Make your first
+  video) with one Start setup, then setup's real steps and sizes, the two optional keys with the ElevenLabs
+  key settings beside them, Analyse a format with link rows, the analysis's real steps, the format ready to
+  rename, and a drop box for the first clip that goes straight to Pick a style with the new format picked.
+  A Getting started block in the sidebar follows the real state (1, 2, 3 of 3) and goes once the first cut
+  is ready. Wide folder tiles fit three across (four on a big screen).
+
+- Styles is one list: every style is yours, and each card says where it came from (Built by you, Learned
+  from your edits, From @creator) with its cut, zooms and captions as icon rows. Tabs filter it (All, Built
+  by you, From creators). New style opens Analyse a format (paste 3 to 6 videos edited the same way, from any
+  creators, or pick them from a profile's newest videos) or Build it yourself, which makes a new named style
+  of your own. You can have several of your own and make any one the default. A style being analysed shows
+  its real steps first in the list. A style's page shows it on your video with its captions, zooms, cut,
+  cards and sound as option tiles, saved as you go. Delete and reset ask in a dialog. Style folders sit in
+  the sidebar with the video folders. Pick a style has the same cards, the default first, and a Make it in
+  a new Claude chat button where a terminal can be opened.
+
+- The home window has a sidebar instead of the top header: cooked. and its pan, + New video, Home, Your videos
+  and My styles with counts, your video folders (drag a video onto one to move it, with Undo), the job being
+  made right now with its real progress, Settings and the light/dark switch. The panel button folds it into a
+  rail of icons with labels (remembered in this browser); under 1100 px wide it is always the rail. Video cards
+  show their state on a bar along the bottom: green and full with "Done. 2:14 long" and Open the editor, or
+  black and part-filled with the current step and See progress. Finished videos are tiles in one row height,
+  wide for 16:9 videos and tall for 9:16. Home, Your videos and Done show one row; See all opens the rest in
+  place. Settings has its keys, updates, videos folder and theme in two columns. Done green is now #16A34A
+  (#4ADE80 in dark).
+
 - Vertical videos keep everything inside the reels safe zone: x 60-940, y 250-1440 of the 1080x1920
   frame, for every style. Cards, overlays, logos, captions and scene content no longer reach the top bar,
   the like and share rail or the caption block. The band above the head is now 74% of the width (it was
@@ -61,8 +94,21 @@ What changed for every user, newest first.
   moved into the same menu. The small Remove and Delete links are gone. A clip in Your videos can now be
   removed from the list too. Create a new style is a "+ New style" button on the Copied from creators row that
   opens the two choices in a window over the page (Esc, the X or a click outside closes it).
+- The editor is now called Cooked Editor. The home window, page titles, setup messages and docs use the
+  new name. The repo moved to nextwork-projects/ai-video-editor-cooked (old links redirect), and the
+- The editor is now called cooked. The home window, page titles, setup messages and docs use the
+  new name. Its logo is a pan with three lines of sizzle: in a small tile beside the name in the home
+  window header, as the browser tab icon of the home window and the review page, and at the top of the
+  README (`docs/logo.svg`). The repo moved to nextwork-projects/ai-video-editor-cooked (old links redirect), and the
+  install lines and update checks point there. Nothing to reinstall: the plugin is still `ai-editor`,
+  the commands, settings folder (`~/.ai-video-editor`) and library folder (`~/Movies/AI Editor`) stay the same.
 
 ## ai-editor 2.4.1 (2026-10-13)
+- A creator shows their own profile picture. When their videos are listed, creator-teardown saves the
+  account picture as `creator-teardowns/<handle>/avatar.jpg`: YouTube's channel avatar from one
+  `yt-dlp -J` call, TikTok's from the profile page. It replaces the frame from their top video on the
+  style cards, Creators you copied, the style page and the copy's progress card (as soon as it is
+  saved). Instagram, private accounts and no network keep the video frame. No new tools or keys.
 
 - Scrolling holds on the home window and the review page. The home window redraws every 1.5 s, and each
   redraw put every inner list (Your videos, My styles, a style's page, Settings) back at the top. Now a

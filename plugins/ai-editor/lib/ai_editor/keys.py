@@ -85,7 +85,7 @@ def _locked(path, wait=10):
         try:
             os.close(os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
             break
-        except FileExistsError:
+        except (FileExistsError, PermissionError):   # Windows: a lock being deleted refuses a new open
             try:
                 if time.time() - lock.stat().st_mtime > 10:
                     lock.unlink(missing_ok=True)

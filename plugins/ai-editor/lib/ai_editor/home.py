@@ -630,21 +630,21 @@ def style_cards(root):
     return out
 
 
-# The style page's controls: the settings the scripts read (taste skill's table), never a look of their own.
+# The style page's controls: the settings the scripts read (taste skill's table), never a look of their own. The card
+# look is not one: it is part of the style (measured, or built by the user), so no page default can override it.
 # (section, type, low, high); "choice" keys take one of the names presets.py lists.
 CONTROLS = {"captions.size_pct": ("captions", float, 2.5, 9), "captions.words_per_caption": ("captions", int, 1, 6),
             "captions.y_pct": ("captions", float, 40, 85), "captions.preset": ("captions", "choice", None, None),
             "zoom.per_min": ("visuals", float, 0, 20), "zoom.preset": ("visuals", "choice", None, None),
             "cut.max_pause": ("cut", float, 0.05, 0.6), "cards.on": ("visuals", bool, None, None),
-            "cards.per_min": ("visuals", float, 1, 20), "look.preset": ("visuals", "choice", None, None),
+            "cards.per_min": ("visuals", float, 1, 20),
             "sfx": ("sound", bool, None, None), "music": ("sound", bool, None, None)}
 # Reset per section: every setting under these prefixes goes back to the style's own (or the default).
-SECTIONS = {"captions": ("captions.",), "zoom": ("zoom.",), "cut": ("cut.",), "cards": ("cards.", "look."), "sound": ("sfx", "music")}
+SECTIONS = {"captions": ("captions.",), "zoom": ("zoom.",), "cut": ("cut.",), "cards": ("cards.", "look."), "sound": ("sfx", "music")}   # look.: clears an old pick
 
 
 def choices(key):
-    return {"captions.preset": [""] + list(presets.captions()), "zoom.preset": list(presets.ZOOM),
-            "look.preset": list(presets.LOOKS)}[key]
+    return {"captions.preset": [""] + list(presets.captions()), "zoom.preset": list(presets.ZOOM)}[key]
 
 
 def control_rule(key, v):
@@ -661,7 +661,6 @@ def control_rule(key, v):
              "zoom.per_min": lambda: "No zooms" if not v else f"About {v:g} zooms a minute",
              "cut.max_pause": lambda: f"Pauses cut down to {v:g} s", "sfx": lambda: "Sound effects on" if v else "No sound effects",
              "cards.on": lambda: "Logos and screenshots on" if v else "No logos or screenshots",
-             "look.preset": lambda: f"Card look: {presets.LOOKS.get(v, v)}",
              "music": lambda: "Background music on" if v else "No background music"}[key]()
     return r + " (set on the style page)"
 
@@ -735,6 +734,7 @@ def preset_state(root, sid, st, base, changed):
     zsel = zp if zp in presets.ZOOM else presets.closest_zoom(st.get("zoom"))
     cut = dig(st, "cut.max_pause") or 0.15
     cpm = dig(st, "cards.per_min")   # what caps the cards (plan.py thin_cards): the user's pick, or the default style's 4
+    rate = cpm if cpm is not None else dig(st, "graphics.per_min")   # shown: the cap, else the style's measured rate
     sfx = (prof.get("sound") or {}).get("sfx", True) if sid == "mine" and st.get("sfx") is None else st.get("sfx", True)
     music = st["music"] if "music" in st else bool((prof.get("sound") or {}).get("music"))
     clips = newest_edit(("report.json", "words.raw.json"), entries)
@@ -747,8 +747,8 @@ def preset_state(root, sid, st, base, changed):
                     "sel": presets.nearest(presets.CUT, "max_pause", cut), "value": cut, "tag": tag(("cut.",), False),
                     "clips": bool(clips)},
             "cards": {"on": dig(st, "cards.on") is not False, "opts": [{"id": k, "label": v["label"], "value": v["per_min"]} for k, v in presets.CARDS.items()],
-                      "sel": presets.nearest(presets.CARDS, "per_min", cpm) if cpm is not None else "", "look": dig(st, "look.preset") or "neutral",
-                      "looks": [[k, v] for k, v in presets.LOOKS.items()], "tag": tag(("cards.", "look."), False)},
+                      "sel": presets.nearest(presets.CARDS, "per_min", rate) if rate is not None else "",
+                      "tag": tag(("cards.",), False)},
             "sound": {"sfx": bool(sfx), "music": bool(music), "tag": tag(("sfx", "music"), False)}}
 
 
@@ -2591,7 +2591,7 @@ def demo():
     pz = get("/style?id=@sample.creator")["presets"]
     assert [t["id"] for t in pz["captions"]["tiles"]][:5] == ["", "plain", "bold", "karaoke", "minimal"] and pz["captions"]["sel"] == ""
     assert pz["captions"]["tiles"][0]["name"] == "Theirs" and pz["captions"]["tag"] == "from @sample.creator"
-    assert pz["cut"]["sel"] == "natural" and pz["cards"]["on"] and pz["cards"]["look"] == "neutral" and pz["sound"]["sfx"]
+    assert pz["cut"]["sel"] == "natural" and pz["cards"]["on"] and "look" not in pz["cards"] and pz["sound"]["sfx"]
     assert pz["cards"]["sel"] == "", "a creator's style has no card cap until the user picks one"
     tb = [t["block"] for t in pz["captions"]["tiles"]]
     pg = post("/style/set", {"id": "@sample.creator", "key": "captions.y_pct", "value": 50})
@@ -2602,10 +2602,10 @@ def demo():
     assert json.loads((td / "style.overrides.json").read_text(encoding="utf-8"))["captions"]["preset"] == "karaoke"
     pg = post("/style/set", {"id": "@sample.creator", "key": "zoom.preset", "value": "punchy"})
     assert pg["presets"]["zoom"]["sel"] == "punchy" and "Zooms: Punchy (snaps in fast) (set on the style page)" in md.read_text(encoding="utf-8")
-    for key, v in (("cards.per_min", 2), ("cards.on", False), ("look.preset", "editorial"), ("music", True), ("cut.max_pause", 0.25)):
+    for key, v in (("cards.per_min", 2), ("cards.on", False), ("music", True), ("cut.max_pause", 0.25)):
         pg = post("/style/set", {"id": "@sample.creator", "key": key, "value": v})
     c = pg["presets"]
-    assert (c["cards"]["sel"], c["cards"]["on"], c["cards"]["look"], c["sound"]["music"], c["cut"]["sel"]) == ("rarely", False, "editorial", True, "relaxed"), c
+    assert (c["cards"]["sel"], c["cards"]["on"], c["sound"]["music"], c["cut"]["sel"]) == ("rarely", False, True, "relaxed"), c
     for bad in (("captions.preset", "../x"), ("zoom.preset", "wobbly"), ("look.preset", "poster-red")):
         try:
             post("/style/set", {"id": "@sample.creator", "key": bad[0], "value": bad[1]})

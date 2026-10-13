@@ -202,6 +202,23 @@ body.dragging #dropov{display:flex}
 .scard .newtag,.dtile .th .tick{right:44px}.dtile .th .tick{top:13px}.scard .newtag{top:14px}
 .pin{position:relative}
 .hm-tile .more2{position:static;flex-shrink:0;margin-left:auto;background:none;color:var(--t3)}.hm-tile .more2:hover{background:var(--soft);color:var(--ink)}
+.cmenu .sub{position:absolute;left:calc(100% + 6px);top:0}.cmenu.r .sub{left:auto;right:calc(100% + 6px)}
+.cmenu .hasub{display:flex;justify-content:space-between;gap:16px}.cmenu .hasub.on{background:var(--soft)}
+.cmenu hr{border:0;border-top:1px solid var(--line);margin:4px 6px}.cmenu .q{color:var(--t2)}
+.cmenu .tk{display:flex;justify-content:space-between;gap:16px}
+.folds{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:16px}
+.fold{--tile:color-mix(in srgb,var(--ink) 4%,var(--bg));position:relative;box-sizing:border-box;min-width:0;height:88px;text-align:left;border:0;display:flex;align-items:center;gap:14px;padding:0 16px 0 18px;border-radius:12px;background:var(--tile);cursor:pointer;outline:2px solid transparent;outline-offset:-2px}
+.fold:hover,.fold:focus-visible{background:color-mix(in srgb,var(--ink) 7%,var(--bg))}
+.fold.over,.dropout.over{outline-color:var(--ink)}
+.fold .fi{flex-shrink:0;color:var(--t2)}.fold .ft{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.fold .fths{display:flex;gap:4px;flex-shrink:0}.fold .fths i{width:26px;height:46px;border-radius:4px;background:#45403C center/cover}
+.fold .more2{position:static;flex-shrink:0;background:none;color:var(--t3)}.fold .more2:hover{background:var(--soft);color:var(--ink)}
+.fold .cmenu{top:62px}
+.fold.new{background:none;border:1.5px dashed var(--ring);color:var(--ink)}.fold.new:hover{border-color:var(--t3)}
+.fold input{font:inherit;font-size:15px;width:100%;border:1px solid var(--ring);border-radius:8px;padding:6px 8px;background:var(--panel);color:var(--ink)}
+.dropout{border-radius:8px;padding:4px 6px;margin-left:-6px;outline:2px solid transparent;outline-offset:-2px}
+[draggable="true"]{-webkit-user-drag:element}
+#toast.act{pointer-events:auto}#toast button{border:0;background:none;color:inherit;font-weight:600;text-decoration:underline;margin-left:12px;padding:0}
 .modalbg{position:fixed;inset:0;z-index:60;background:#0C0A0966;display:flex;align-items:center;justify-content:center;padding:16px}
 .modal{position:relative;width:min(880px,100%);max-height:calc(100dvh - 32px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:20px;box-shadow:0 24px 64px #0C0A0940;padding:24px;display:flex;flex-direction:column;gap:16px}
 .modal .mx{position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:16px;border:0;background:none;color:var(--t2);display:grid;place-items:center;padding:0}.modal .mx:hover{background:var(--soft);color:var(--ink)}
@@ -578,7 +595,7 @@ const PART_WHAT={captions:'Font, size and place',pace:'Cuts, pauses and zooms',g
 // creator-teardown quick mode, in order. Claude reports these step names (references/home.md).
 const PLAN=['Listed their videos','Downloaded the top 5 and 2 median','Transcribed every word','Measured cuts, zooms and camera moves','Reading captions and faces','Naming graphics','Sound effects and music','Writing the style'];
 const VIDEO_PLAN=[['Transcribe every word','about 20 s'],['Cut retakes and pauses','about 1 min'],['You watch the cut and leave notes','review page'],['Captions, zooms and graphics','about 3 min'],['You approve the edit and export','review page']];
-let S=null, view=null, ui={keys:{},nc:{},likes:new Set(['captions','pace']),copy:null,paste:'',look:null,file:null,as:'creator',aspect:'9:16',show:{},kept:new Set()};
+let S=null, view=null, ui={fold:{videos:null,styles:null},keys:{},nc:{},likes:new Set(['captions','pace']),copy:null,paste:'',look:null,file:null,as:'creator',aspect:'9:16',show:{},kept:new Set()};
 try{const v=localStorage.getItem('ave-home-view');if(v)view=+v}catch(e){}
 
 async function post(u,b){const r=await fetch(u,{method:'POST',body:JSON.stringify(b||{})});let j={};try{j=await r.json()}catch(e){}return Object.assign(j,{_ok:r.ok})}
@@ -1052,7 +1069,7 @@ async function scanHome(on){await post('/scanhome',{on});await loadRecent()}
 // dropped or chosen files: a card at the front of the grid right away, with its copy progress; once in, it is
 // picked (that is why it was dropped), flashes once, and a toast names it. Problems stay on the card in words.
 let upN=0,toastT=null;
-function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('on'),2000)}
+function toast(t,undo){const e=$('#toast');e.textContent=t;e.classList.toggle('act',!!undo);if(undo){const b=document.createElement('button');b.textContent='Undo';b.onclick=()=>{e.classList.remove('on','act');undo()};e.append(b)}e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('on','act'),undo?6000:2000)}
 function paintUp(u){const e=$('#up-'+u.id);if(!e)return;const t=e.querySelector('.uptxt'),b=e.querySelector('.upbar div');if(t)t.textContent=`Adding... ${u.pct}%`;if(b)b.style.width=u.pct+'%'}
 function sendFile(u){return new Promise(res=>{const x=new XMLHttpRequest();x.open('POST','/upload?name='+encodeURIComponent(u.f.name));
   x.upload.onprogress=e=>{if(e.lengthComputable){u.pct=Math.round(e.loaded/e.total*100);paintUp(u)}};
@@ -1154,7 +1171,7 @@ function factRows(c){
   return c.facts.map(([k,v])=>{const w=b&&was[k]!=null&&was[k]!==v?was[k]:null;return `<div class="frow"><span>${esc(k)}</span><span>${w?`<span class="chg">${esc(v)}</span><s class="was">${esc(w)}</s>`:esc(v)}</span></div>`}).join('');
 }
 function styleGroups(pick){
-  const st=L?L.styles:[],me=st.find(c=>c.id==='mine');
+  const st=(L?L.styles:[]).filter(c=>pick||!inFold('styles',c.id)),me=st.find(c=>c.id==='mine');
   const cr=st.filter(c=>c.id!=='mine').sort((a,b)=>(!!b.studying-!!a.studying)||((b.made||0)-(a.made||0)));
   return `${me?`<div class="sgroup"><div class="gh"><span class="h" style="font-size:17px">Your style</span></div><div style="display:flex;flex-wrap:wrap;gap:24px">${styleCard(me,pick,0)}</div></div>`:''}
     <div class="sgroup"><div class="gh" style="align-items:center"><span class="h" style="font-size:17px">Copied from creators</span><span class="muted">newest first</span><button class="btn quiet sm" style="margin-left:auto" onclick="openCreate()">+ New style</button></div><div style="display:flex;flex-wrap:wrap;gap:24px">${cr.map((c,i)=>styleCard(c,pick,i+1)).join('')||'<div class="muted">No creators yet. Copy one with + New style.</div>'}</div></div>`;
@@ -1170,7 +1187,7 @@ function styleCard(c,pick,i){
   const pic=picOf(c,i),on=pick&&nv.style===c.id,editing=ui.edit&&ui.edit.kind==='name'&&ui.edit.id===c.id;
   const del=!c.studying&&ui.del&&ui.del.id===c.id;
   const base=L&&L.styles[0]&&L.styles[0].base;
-  return `<div class="scard ${on?'on':''} ${isNewStyle(c)?'new':''}" id="sc-${esc(c.id)}" onclick="${pick?`nv.style='${esc(c.id)}';nv.picked=1;render()`:`openStyle('${esc(c.id)}')`}"><div class="pic${mo('s:'+c.id)}" style="background-image:url('${esc(pic.url)}')">${pic.demo?'<span class="extag">Example photo</span>':pic.face?'<span class="extag">Their video</span>':''}${isNewStyle(c)?'<span class="newtag">New</span>':''}${sMenu(c)}${c.studying?'<div class="studying">Copying their style now</div>':skillBusy(c.id)?`<div class="buildtag"><div class="spin"></div><span>Building its skill · <span data-since="${jobStart(skillBusy(c.id))}">${secs(Math.max(0,Math.round(Date.now()/1000-jobStart(skillBusy(c.id)))))}</span></span></div>`:''}</div>
+  return `<div class="scard ${on?'on':''} ${isNewStyle(c)?'new':''}" id="sc-${esc(c.id)}" ${!pick&&!c.studying?dragAttrs('styles',c.id,c.name):''} onclick="${pick?`nv.style='${esc(c.id)}';nv.picked=1;render()`:`openStyle('${esc(c.id)}')`}"><div class="pic${mo('s:'+c.id)}" style="background-image:url('${esc(pic.url)}')">${pic.demo?'<span class="extag">Example photo</span>':pic.face?'<span class="extag">Their video</span>':''}${isNewStyle(c)?'<span class="newtag">New</span>':''}${sMenu(c,'r',!pick)}${c.studying?'<div class="studying">Copying their style now</div>':skillBusy(c.id)?`<div class="buildtag"><div class="spin"></div><span>Building its skill · <span data-since="${jobStart(skillBusy(c.id))}">${secs(Math.max(0,Math.round(Date.now()/1000-jobStart(skillBusy(c.id)))))}</span></span></div>`:''}</div>
     ${ui.covermsg&&ui.covermsg.id===c.id?`<div class="msg bad" style="margin:10px 6px 0">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
     <div class="between" style="align-items:center;margin-top:16px;padding:0 6px"><span class="row" style="gap:6px;min-width:0;flex:1">${editing?'':`<span style="font-size:18px;font-weight:600">${esc(c.name)}</span>`}${c.studying?'':editField('name',c.id,c.name,'font-size:16px')}</span>${pick?`<div class="radio ${on?'on':''}"></div>`:''}</div>
     ${styleWhat(c)}
@@ -1327,7 +1344,7 @@ const NOWLINE={ready:v=>v.stage==='edit'?'The edit is ready. Leave notes or appr
   making:v=>vJob(v)&&!v.round?'Claude is making the cut. Your clip is in the editor meanwhile.':v.stage==='cut'&&v.round?'Claude is making the edit from your cut.':'Claude is working on your notes.',cutting:v=>(vJob(v)||{}).state==='queued'?'Starts as soon as Claude picks it up.':'Cutting out the mistakes.'};
 function nowCard(v){
   const st=v.status==='ready'?'<span class="dot"></span> Ready to watch':'<span class="ring"></span> Being made';
-  return `<div class="ncard" ${goAttrs(v)}><div class="th${mo('v:'+v.dir)}" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${mkOver(v)}${vMenu(v,'l')}</div><div style="display:flex;flex-direction:column;gap:6px;min-width:0;flex:1;padding:4px 4px 2px 0">
+  return `<div class="ncard" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name)}><div class="th${mo('v:'+v.dir)}" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${mkOver(v)}${vMenu(v,'l')}</div><div style="display:flex;flex-direction:column;gap:6px;min-width:0;flex:1;padding:4px 4px 2px 0">
     <div class="row" style="gap:8px;font-size:13px;font-weight:${v.status==='ready'?600:400};color:${v.status==='ready'?'var(--ink)':'var(--t2)'}">${st}</div>
     <div style="font-size:17px;line-height:22px;font-weight:600">${esc(v.name)}</div><div class="muted">${v.round?`round ${v.round} · `:''}${ago(v.updated)}</div>
     <div class="sub" style="font-size:13px;line-height:18px;margin-top:auto">${esc(NOWLINE[v.status](v))}</div>
@@ -1340,10 +1357,52 @@ function editTrashRow(){
 async function trashEdit(dir){const r=await post('/edit/trash',{dir});ui.edittrash=null;ui.editmsg=r.ok?null:(r.msg||'That did not work.');await loadLib();render()}
 // one "more" menu for every video and style card: a ⋯ on the picture, the menu under it (ui.cmenu = 'v:<dir>' | 's:<id>')
 const J=v=>esc(JSON.stringify(v));
-const moreBtn=(k,lbl)=>`<button class="more2" aria-label="${lbl}" aria-haspopup="menu" aria-expanded="${ui.cmenu===k}" title="More" onclick="event.stopPropagation();event.preventDefault();ui.clipmenu=null;ui.cmenu=ui.cmenu===${J(k)}?null:${J(k)};render()">&middot;&middot;&middot;</button>`;
+const moreBtn=(k,lbl)=>`<button class="more2" aria-label="${lbl}" aria-haspopup="menu" aria-expanded="${ui.cmenu===k}" title="More" onclick="event.stopPropagation();event.preventDefault();ui.clipmenu=null;ui.sub=false;ui.cmenu=ui.cmenu===${J(k)}?null:${J(k)};render()">&middot;&middot;&middot;</button>`;
 const cMenu=(k,items,side='r')=>ui.cmenu===k?`<div class="cmenu ${side}" role="menu" onclick="event.stopPropagation();event.preventDefault()">${items.filter(Boolean).map(([t,js])=>`<button role="menuitem" onclick="ui.cmenu=null;${js}">${t}</button>`).join('')}</div>`:'';
-const vMenu=(v,side)=>moreBtn('v:'+v.dir,'More for this video')+cMenu('v:'+v.dir,[['Remove from this list',`hideEdit(${J(v.dir)})`],['Move to Trash',`askTrash(${J(v.dir)})`]],side);
-const sMenu=(c,side)=>c.studying?'':moreBtn('s:'+c.id,'More for this style')+cMenu('s:'+c.id,[['Change image',`pickCover(${J(c.id)})`],c.cover&&['Remove image',`removeCover(${J(c.id)})`],c.id==='mine'?['Reset to default style',`askDel('mine')`]:['Delete style',`askDel(${J(c.id)})`]],side);
+// Move to folder ›: a submenu of the folders (a tick on the current one), New folder, Take out of <folder>
+function subMenu(kind,item,name){
+  const F=fd(kind),cur=F.items[item],cf=F.folders.find(f=>f.id===cur);
+  return `<button class="hasub ${ui.sub?'on':''}" onclick="ui.sub=!ui.sub;render()">Move to folder<span>›</span></button>${ui.sub?`<div class="cmenu sub">${F.folders.map(f=>`<button class="tk" onclick="ui.cmenu=null;moveTo('${kind}',${J(item)},${J(f.id)},${J(name)})">${esc(f.name)}${f.id===cur?'<span>✓</span>':''}</button>`).join('')}${F.folders.length?'<hr>':''}<button class="q" onclick="ui.cmenu=null;ui.newfold={kind:'${kind}',move:${J(item)},name:${J(name)}};ui.fold['${kind}']=null;render();setTimeout(()=>{const e=$('#fold-name');if(e)e.focus()},0)">+ New folder</button>${cf?`<button class="q" onclick="ui.cmenu=null;moveTo('${kind}',${J(item)},null,${J(name)})">Take out of ${esc(cf.name)}</button>`:''}</div>`:''}<hr>`;
+}
+const withSub=(html,sub)=>html.replace('role="menu" onclick="event.stopPropagation();event.preventDefault()">','role="menu" onclick="event.stopPropagation();event.preventDefault()">'+sub);
+const vMenu=(v,side)=>moreBtn('v:'+v.dir,'More for this video')+withSub(cMenu('v:'+v.dir,[['Remove from this list',`hideEdit(${J(v.dir)})`],['Move to Trash',`askTrash(${J(v.dir)})`]],side),ui.cmenu==='v:'+v.dir?subMenu('videos',v.dir,v.name):'');
+const sMenu=(c,side,fold=true)=>c.studying?'':moreBtn('s:'+c.id,'More for this style')+withSub(cMenu('s:'+c.id,[['Change image',`pickCover(${J(c.id)})`],c.cover&&['Remove image',`removeCover(${J(c.id)})`],c.id==='mine'?['Reset to default style',`askDel('mine')`]:['Delete style',`askDel(${J(c.id)})`]],side),fold&&ui.cmenu==='s:'+c.id?subMenu('styles',c.id,c.name):'');
+// ---- folders (Your videos and My styles): folders.json through /folder/*; All shows what is in no folder
+const fd=k=>(L&&L.folders||{})[k]||{folders:[],items:{}};
+const inFold=(k,item)=>{const F=fd(k),f=F.items[item];return F.folders.some(x=>x.id===f)?f:null};
+let DRAG=null;
+const dragAttrs=(k,item,name)=>`draggable="true" ondragstart="DRAG={kind:'${k}',item:${J(item)},name:${J(name)}};event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/x-ave','1')" ondragend="DRAG=null;document.querySelectorAll('.over').forEach(e=>e.classList.remove('over'))"`;
+const dropAttrs=(k,fid)=>`ondragover="if(DRAG&&DRAG.kind==='${k}'){event.preventDefault();this.classList.add('over')}" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();this.classList.remove('over');if(DRAG&&DRAG.kind==='${k}'){const d=DRAG;DRAG=null;moveTo('${k}',d.item,${fid?J(fid):'null'},d.name)}"`;
+async function moveTo(k,item,fid,name,quiet){
+  const was=inFold(k,item);if(was===fid)return render();
+  const r=await post('/folder/move',{kind:k,item,folder:fid});
+  if(!r._ok){toast(r.error||'That did not move.');return}
+  L.folders=r.folders;render();
+  if(quiet)return;const f=fd(k).folders.find(x=>x.id===fid),wf=fd(k).folders.find(x=>x.id===was);
+  toast(fid?`Moved ${name} to ${f.name}`:`Took ${name} out of ${wf?wf.name:'the folder'}`,()=>moveTo(k,item,was,name,true));
+}
+async function foldSave(){
+  const e=ui.newfold||ui.renfold;if(!e)return;const name=($('#fold-name')||{}).value||'';
+  const r=await post(ui.newfold?'/folder/create':'/folder/rename',{kind:e.kind,id:e.id,name});
+  if(!r._ok){e.msg=r.error||'That did not save.';return render()}
+  L.folders=r.folders;ui.newfold=ui.renfold=null;
+  if(e.move)return moveTo(e.kind,e.move,r.id,e.name);render();
+}
+async function foldDel(k,id){const f=fd(k).folders.find(x=>x.id===id);const r=await post('/folder/delete',{kind:k,id});if(r._ok){L.folders=r.folders;if(ui.fold[k]===id)ui.fold[k]=null;toast(`Deleted ${f?f.name:'the folder'}. What was in it is back in All.`)}render()}
+function foldRow(k,thumbs){
+  const F=fd(k),fit=Math.max(2,Math.floor((innerWidth-80+16)/(256+16))),all=ui.allfold===k;
+  const shown=all?F.folders:F.folders.slice(0,fit-1),noun=k==='videos'?'video':'style';
+  const ed=e=>e&&e.kind===k;
+  const input=(e,ph)=>`<div class="ft"><input id="fold-name" value="${esc(e.val||'')}" placeholder="${ph}" maxlength="40" onclick="event.stopPropagation()" oninput="(ui.newfold||ui.renfold).val=this.value" onkeydown="event.stopPropagation();if(event.key==='Enter')foldSave();if(event.key==='Escape'){ui.newfold=ui.renfold=null;render()}">${e.msg?`<span class="msg bad" style="font-size:12px">${esc(e.msg)}</span>`:''}</div>`;
+  const tile=f=>{const n=Object.entries(F.items).filter(([,v])=>v===f.id).map(([i])=>i),ren=ed(ui.renfold)&&ui.renfold.id===f.id,K='f:'+k+':'+f.id;
+    return `<div class="fold" role="button" tabindex="0" onclick="ui.fold['${k}']=${J(f.id)};render();window.scrollTo(0,0)" onkeydown="if(event.key==='Enter'&&event.target===this)this.click()" ${dropAttrs(k,f.id)}><svg class="fi" width="22" height="22" viewBox="0 0 14 14">${FOLDER.replace(/^<svg[^>]*>|<\/svg>$/g,'')}</svg>
+      ${ren?input(ui.renfold,'Folder name'):`<div class="ft"><span class="hm-t1 nm1" style="font-size:15px">${esc(f.name)}</span><span class="hm-t2">${n.length?`${n.length} ${noun}${n.length>1?'s':''}`:'Empty'}</span></div><div class="fths">${n.map(thumbs).filter(Boolean).slice(0,2).map(u=>`<i style="background-image:url('${esc(u)}')"></i>`).join('')}</div>`}
+      ${moreBtn(K,'More for this folder')}${cMenu(K,[['Rename',`ui.renfold={kind:'${k}',id:${J(f.id)},val:${J(f.name)}};render();setTimeout(()=>{const e=$('#fold-name');if(e){e.focus();e.select()}},0)`],['Delete folder',`foldDel('${k}',${J(f.id)})`]])}</div>`};
+  const nw=ed(ui.newfold)?`<div class="fold new">${input(ui.newfold,'Folder name')}</div>`:`<button class="fold new" onclick="ui.newfold={kind:'${k}'};render();setTimeout(()=>{const e=$('#fold-name');if(e)e.focus()},0)"><span style="font-size:20px;line-height:20px">+</span><span style="font-size:15px">New folder</span></button>`;
+  return `<div><div class="between" style="margin-bottom:12px"><span class="h">Folders</span>${F.folders.length>fit-1?`<button class="hlink" style="font-size:14px" onclick="ui.allfold=${all?'null':`'${k}'`};render()">${all?'Show less':`See all ${F.folders.length}`}</button>`:''}</div><div class="folds" style="--n:${fit}${all?';grid-template-columns:repeat(auto-fill,minmax(256px,1fr))':''}">${shown.map(tile).join('')}${nw}</div></div>`;
+}
+// inside a folder: "‹ All videos" (a drop target to take things out) and the folder's name as the heading
+function foldHead(k,label){const f=fd(k).folders.find(x=>x.id===ui.fold[k]);return f?`<button class="hlink dropout" style="font-size:14px;align-self:flex-start" onclick="ui.fold['${k}']=null;render()" ${dropAttrs(k,null)}>‹ ${label}</button><h1 style="margin-top:6px">${esc(f.name)}</h1>`:''}
 const mo=k=>ui.cmenu===k?' mopen':'';
 async function hideEdit(dir){const r=await post('/edit/hide',{dir});ui.editmsg=r.ok?null:(r.msg||'That did not work.');await loadLib();render()}
 function askTrash(dir){ui.edittrash=dir;if(rv!=='videos')rgo('videos');else render();setTimeout(()=>{const c=$('.confirm');if(c)c.scrollIntoView({block:'nearest'})},0)}
@@ -1351,16 +1410,26 @@ function askDel(id){ui.del={id,measured:false};ui.delmsg=null;if(rv==='home')rgo
 document.addEventListener('click',()=>{if(ui.cmenu||ui.clipmenu){ui.cmenu=ui.clipmenu=null;render()}});
 addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(ui.create){ui.create=false;render()}else if(ui.cmenu||ui.clipmenu){ui.cmenu=ui.clipmenu=null;render()}});
 function vVideos(){
-  const now=L.videos.filter(v=>v.status!=='done'),done=L.videos.filter(v=>v.status==='done');
+  if(ui.fold.videos&&!fd('videos').folders.some(f=>f.id===ui.fold.videos))ui.fold.videos=null;
+  const vids=L.videos.filter(v=>inFold('videos',v.dir)===ui.fold.videos),infold=!!ui.fold.videos;
+  const now=vids.filter(v=>v.status!=='done'),done=vids.filter(v=>v.status==='done');
   const lede=[now.filter(v=>v.status==='ready').length?`${now.filter(v=>v.status==='ready').length} ready for you to watch.`:'',now.filter(v=>v.status!=='ready').length?`${now.filter(v=>v.status!=='ready').length} still being made.`:'',done.length?`${done.length} done.`:''].filter(Boolean).join(' ');
-  return `<div class="col grow" style="min-width:0;gap:26px"><div class="between" style="align-items:flex-end;flex-wrap:wrap;gap:12px"><div><h1>Your videos</h1>${lede?`<p class="lede" style="margin-top:10px">${lede}</p>`:''}</div><div class="row"><button class="btn quiet" onclick="post('/reveal',{})">Show in ${/Mac/.test(navigator.platform)?'Finder':'Explorer'}</button><button class="btn dark" onclick="rgo('new')">+ New video</button></div></div>
+  return `<div class="col grow" style="min-width:0;gap:26px"><div class="between" style="align-items:flex-end;flex-wrap:wrap;gap:12px"><div class="col" style="gap:0">${infold?foldHead('videos','All videos'):'<h1>Your videos</h1>'}${lede?`<p class="lede" style="margin-top:10px">${lede}</p>`:''}</div><div class="row"><button class="btn quiet" onclick="post('/reveal',{})">Show in ${/Mac/.test(navigator.platform)?'Finder':'Explorer'}</button><button class="btn dark" onclick="rgo('new')">+ New video</button></div></div>
     ${editTrashRow()}
+    ${infold&&!ui.newfold?'':foldRow('videos',d=>(L.videos.find(v=>v.dir===d)||{}).thumb)}
+    ${infold&&!vids.length?'<div class="muted">Nothing in this folder yet. Drag a video onto it, or use ⋯ then Move to folder.</div>':''}
     ${now.length?`<div><div class="h" style="margin-bottom:12px">Now</div><div class="nowg">${now.map(nowCard).join('')}</div></div>`:''}
-    ${done.length?`<div><div class="between" style="margin-bottom:12px"><span class="h">Done</span><span class="muted">newest first</span></div><div class="doneg">${done.map(v=>`<div class="dtile"><div class="pin"><a href="${v.review?'/review?dir='+encodeURIComponent(v.dir):esc(v.media||'#')}" style="text-decoration:none"><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${TICK}</div></a>${vMenu(v)}</div><div style="font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.name)}</div><div class="between"><span class="muted">${ago(v.updated)}</span><span class="row" style="gap:10px">${v.media?`<a class="muted" style="color:var(--ink)" href="${esc(v.media)}" download>Download</a>`:''}</span></div></div>`).join('')}</div></div>`:''}
+    ${done.length?`<div><div class="between" style="margin-bottom:12px"><span class="h">Done</span><span class="muted">newest first</span></div><div class="doneg">${done.map(v=>`<div class="dtile" ${dragAttrs('videos',v.dir,v.name)}><div class="pin"><a href="${v.review?'/review?dir='+encodeURIComponent(v.dir):esc(v.media||'#')}" style="text-decoration:none"><div class="th" style="${v.thumb?`background-image:url('${esc(v.thumb)}')`:''}">${TICK}</div></a>${vMenu(v)}</div><div style="font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.name)}</div><div class="between"><span class="muted">${ago(v.updated)}</span><span class="row" style="gap:10px">${v.media?`<a class="muted" style="color:var(--ink)" href="${esc(v.media)}" download>Download</a>`:''}</span></div></div>`).join('')}</div></div>`:''}
     ${L.videos.length?'':`<div>${EXROW}</div>`}</div>`;
 }
 function vMyStyle(){
+  if(ui.fold.styles&&!fd('styles').folders.some(f=>f.id===ui.fold.styles))ui.fold.styles=null;
+  const st=L?L.styles:[],picOfId=id=>{const i=st.findIndex(c=>c.id===id);return i<0?null:picOf(st[i],i).url};
+  if(ui.fold.styles){const inside=st.map((c,i)=>[c,i]).filter(([c])=>inFold('styles',c.id)===ui.fold.styles);
+    return `<div class="col grow" style="min-width:0;gap:24px"><div class="col" style="gap:0">${foldHead('styles','All styles')}</div>${ui.newfold?foldRow('styles',picOfId):''}
+      ${inside.length?`<div style="display:flex;flex-wrap:wrap;gap:24px">${inside.map(([c,i])=>styleCard(c,false,i)).join('')}</div>`:'<div class="muted">Nothing in this folder yet. Drag a style onto it, or use ⋯ then Move to folder.</div>'}</div>`}
   return `<div class="col grow" style="min-width:0;gap:24px"><div><h1>My styles</h1></div>
+    ${foldRow('styles',picOfId)}
     ${styleGroups(false)}</div>`;
 }
 // ---- Settings: keys (each with its own status), updates, the videos folder, the theme, this computer

@@ -4,6 +4,14 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Folders for Your videos and My styles. A row of folder tiles sits under the heading: name, how many are
+  inside and two small pictures, then a dashed New folder tile (type the name, Enter saves, Esc cancels).
+  Click a folder to see only what is in it, with "‹ All videos" or "‹ All styles" to go back. Move a video or
+  a style in with ⋯ then Move to folder, or drag its card onto a folder tile; drag it onto the back link, or
+  pick Take out of, to move it back. A toast says where it went, with Undo. A folder's ⋯ has Rename and
+  Delete folder (what was in it goes back to All; nothing is deleted). Folders live in folders.json in the
+  editor's home. Home still shows everything.
+
 - Every video and style card has a ⋯ button on its picture, always showing, in Your videos (Now cards and Done
   tiles), My styles, Pick a style and the Home shelves. Videos and clips get "Remove from this list" (off the
   window, no file is touched) and "Move to Trash" (asks first). A creator's style gets "Delete style"; My style

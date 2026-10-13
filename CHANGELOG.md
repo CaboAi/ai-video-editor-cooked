@@ -15,6 +15,42 @@ What changed for every user, newest first.
   safe zone. The Card edit's captions are plain white, no box, no shadow.
 - A new default motion reference (`style-edit/references/motion-design.md`) for every style: built animations
   over static captures, big cards, real logos in brand colours, no blur, bounce or 3D tilt on entrances.
+## ai-editor 2.6.8 (2026-10-13)
+
+- The cut page opens sooner on long takes. The render starts encoding the kept parts while the judge reads,
+  and a later render (after a judge fix, a verify fix or a review note) re-encodes only the parts that changed:
+  on a 10-minute 4K take, a re-render after a judge change went from about 105 s to 29 s. The finished file is
+  frame-counted once instead of three times. Reader cuts on takes over 5 minutes go straight in, highlighted,
+  and the judge checks them, instead of a second wave of agents. The judge stops after 2 rounds, and the
+  mechanical steps (build, render, verify, cut page) run as one command.
+## ai-editor 2.6.7 (2026-10-13)
+
+- Images in your answers. When Claude asks a question in the editor window, attach a picture to your
+  answer with the paperclip, or paste or drop one on the question. For example a screenshot of how a title
+  should look. Claude opens it before it carries on. Images stay on your computer, next to the edit.
+## ai-editor 2.6.6, creator-teardown 2.7.1 (2026-10-13)
+
+- Paste an Instagram profile to see its newest reels, as with TikTok and YouTube. It uses your own
+  Instagram login from your browser, read on your computer and sent only to instagram.com. Not logged in,
+  the window says to log in to instagram.com in Chrome and paste it again, or to paste reel links.
+
+## ai-editor 2.6.5 (2026-10-13)
+
+- Two videos at once. Make a video while Claude is making another, and a second Claude opens in its own
+  Terminal window for it straight away, so both are made at the same time. The card says so. Before, the
+  second video waited behind a button most people never saw.
+
+- The stills open in the editor. After you approve the cut, the stills come back on the same page as the
+  cut: one frame for each card, captions and zooms, over your sound, with notes and "Approve and render".
+  Before, they were shown in the terminal and offered a raw plan page first. That page (the live preview) is
+  now only for moving cards by hand when you ask for it.
+
+- Make my video opens the editor straight away, on your clip, with every step of the cut beside it: done
+  steps ticked, the one now with a spinner, the rest waiting, from what the scripts really report. The
+  in-between "Making your video" screen is gone. The editor then carries on into the stills and the edit.
+
+- A plan with no cards in a style that uses cards now stops at the plan check, with what to fix, instead of
+  reaching you as an edit with nothing on screen.
 
 ## ai-editor 2.6.4 (2026-10-13)
 

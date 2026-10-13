@@ -50,8 +50,11 @@ plain `wait` afterwards unless the user asks for more.
 ## Questions
 
 Ask with AskUserQuestion as usual. When the home page or a review page is open and showing, a hook
-(`lib/ai_editor/askhook.py`) puts the question on that page: the options, an Other box, and "Answer in
-Claude Code instead". The answer comes back as the tool's result, the same as a terminal answer. No page
+(`lib/ai_editor/askhook.py`) puts the question on that page: the options, an Other box with a paperclip (an image
+can also be pasted or dropped on the card), and "Answer in Claude Code instead". Images are saved on this
+computer (the review page: `<edit>/review/`; the home page: `<edit>/asks/`, or `$AI_EDITOR_HOME/asks` with no
+edit folder yet) and the answer ends with `Attached images: /abs/a.png (Read each one to see it)`: Read every
+listed image before acting on the answer. The answer comes back as the tool's result, the same as a terminal answer. No page
 showing, "Answer in Claude Code instead", or 10 minutes with no answer: the terminal box shows. Never ask
 a question in plain chat text when AskUserQuestion fits: only the tool reaches the page. A question only
 reaches pages this session works on (the home page while it holds a job there or listens, the review page
@@ -157,22 +160,24 @@ there if the path is elsewhere). Pass `--script <edit>/script.md` to `transcribe
 `script_match.py` before deciding spans (cut skill step 2).
 `skill=`: a skill style (its `style.json` has `"skill"`), see Skill style below.
 
-The window turns into the review page as soon as it has a URL, so open it FIRST, on the raw clip
-(after the join for `takes=`), before transcribing:
+The page already opened the editor on the raw clip when the user pressed Make my video (round 0, "Your
+clip, before the cut", `review.json` is there) and lists every step of the cut beside it, ticked as the
+scripts report them (review.py `CUT_STEPS`). Serve it and report its URL before transcribing; for `takes=`,
+swap in the joined clip after the join:
 
 ```bash
 R="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/review.py"
-python3 "$R" <edit> start --raw --video <the clip or joined.mp4> --stage cut   # round 0: "Your clip, before the cut"
-python3 "$R" <edit> serve --no-open                                            # background; prints the URL
+python3 "$R" <edit> start --raw --video <edit>/joined.mp4 --stage cut   # takes= only, after join.py; no review.json: the clip
+python3 "$R" <edit> serve --no-open                                     # background; prints the URL
 python3 "$H" status video --result '{"review_url": "<that URL>"}'
 ```
 
 `serve` opens no browser tab while the home window is showing this job: the home window goes to the
 review page in its own tab. Otherwise (no home window, or Claude Code alone) it opens a tab. Round 0 has no Approve; notes left on it wait for the cut. Then the start skill from step 2 on, with
 this file (or joined.mp4) as the video. The steps
-`Joined your clips in order` (takes only), `Wrote down every word you said`, `Cutting out the mistakes`
-reach the home page by themselves (join.py, transcribe.py, build_timeline.py, render.py); put each on the
-review page with `python3 "$R" <edit> status "<step>"`. After the cut's approve the style-edit scripts
+`Joining your clips` (takes only), `Writing down every word`, `Finding retakes and pauses`, `Cutting out
+the mistakes`, `Rendering the cut`, `Checking the cut` reach the home page and the editor by themselves
+(join.py, transcribe.py, build_timeline.py, render.py, verify_cut.py): never report them yourself. After the cut's approve the style-edit scripts
 put their own `--step` on the page's Making the edit card (style-edit `references/review.md`). The cut's
 own `start` (cut skill step 6) then opens round 1 on the same page, with the round 0 notes moved onto
 the cut: run `wait` and carry on there. `status video --done` once round 1 is up. When that `wait` prints

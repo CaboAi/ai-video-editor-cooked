@@ -94,12 +94,12 @@ def _review(d):
 
 
 def status(r):
-    """cutting (no review page yet), making (Claude has the notes), ready (to review), done (approved)."""
-    if not r:
+    """cutting (no cut yet: no review page, or round 0 on the raw clip), making (Claude has the notes), ready (to review), done (approved)."""
+    if not r or r.get("raw"):   # round 0 plays the raw clip while the cut is made
         return "cutting"
     last = (r.get("events") or [{}])[-1]
     if r.get("sent") and last.get("type") == "approve":
-        return "making" if r.get("stage") == "cut" else "done"
+        return "making" if r.get("stage") == "cut" or last.get("stills") else "done"   # the stills approved: rendering
     return "making" if r.get("sent") else "ready"
 
 

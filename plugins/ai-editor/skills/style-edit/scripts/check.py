@@ -339,6 +339,25 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
     return out
 
 
+def no_cards(plan, style, picks=(), wanted=0, edit="edits/<name>"):
+    """A plan with no cards while the style shows them (its measured rate, plan.card_rate): a card edit with nothing
+    on screen must never reach the user. The fix says where the cards went missing: none picked in visuals.json /
+    images.json, or picked and dropped by capture.mjs or plan.py. A skill style makes its own visuals: not here."""
+    from plan import card_rate
+    rate = None if style.get("skill") else card_rate(style)
+    if plan.get("cards") or not rate:
+        return []
+    dur = plan["durationInFrames"] / plan["fps"]
+    want = wanted or max(1, round(dur / 60 * rate))
+    if not picks:
+        fix = (f"visuals.json and images.json pick no card: give each `want` beat in beats.json ({want}) the real thing its line "
+               f"is about (a capture, post or logo, or the user's own photo; SKILL.md step 3), run capture.mjs, then plan.py")
+    else:
+        fix = (f"{len(picks)} pick(s) in visuals.json / images.json, none placed: run `node capture.mjs {edit}` if images/ is "
+               f"missing them, plan.py again, and fix each card its 'skipped' / 'dropped' warnings name")
+    return [finding("FAIL", None, f"no cards at all, and this style shows {rate:g} a minute (about {want} in {dur:.0f} s)", fix)]
+
+
 UNITS = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split()
 TENS = dict(zip("twenty thirty forty fifty sixty seventy eighty ninety".split(), range(20, 100, 10)))
 BIG = {"hundred": 100, "thousand": 1000, "million": 10 ** 6, "billion": 10 ** 9}
@@ -678,6 +697,13 @@ def demo():
     assert gf is None or {"TikTok Sans", "Inter", "IBM Plex Sans", "Newsreader"} <= gf, "the default fonts load"
     assert "no --style" in style_note(None, None) and style_note("s.json", {"pace": {}}) is None
     assert "no --style" not in style_note("edits/x/style.json", {}), style_note("edits/x/style.json", {})
+    # a card style with an empty plan FAILs, saying where the cards went missing; the default style (no rate) does not
+    bare, her = {"fps": 30, "durationInFrames": 750, "cards": []}, {"graphics": {"per_min": 12}}
+    nc = no_cards(bare, her)
+    assert len(nc) == 1 and nc[0]["level"] == "FAIL" and "about 5 in 25 s" in nc[0]["what"] and "pick no card" in nc[0]["fix"], nc
+    assert "1 pick(s)" in no_cards(bare, her, [{"word": "x"}])[0]["fix"] and "(3)" in no_cards(bare, her, (), 3)[0]["fix"]
+    assert no_cards(bare, {}) == [] and no_cards(bare, {**her, "cards": {"on": False}}) == [] and no_cards(bare, {**her, "skill": "s"}) == []
+    assert no_cards({**bare, "cards": [{"start": 1}]}, her) == []
     face = {"step_s": 0.5, "heads": [{"t": t / 2, "box": [30, 32, 40, 24]} for t in range(20)]}
     words = [{"text": "a", "start": 0.0, "end": 0.3, "type": "word"}]
     plan = {"width": 1080, "height": 1920, "fps": 30, "durationInFrames": 600, "zooms": [],
@@ -907,6 +933,9 @@ def main():
                            (rd("visuals.json") or []) + (rd("images.json") or []))
         extra = {"static_s": static_s}
         found += font_findings(plan, google_fonts())
+        style = json.loads(Path(a.style).read_text(encoding="utf-8")) if a.style else rd("style.json") or {}
+        found += no_cards(plan, style, (rd("visuals.json") or []) + (rd("images.json") or []),
+                          sum(bool(x.get("want")) for x in rd("beats.json") or []), str(edit))
     else:
         video = edit / f"render{tag}.mp4"
         if not video.exists():

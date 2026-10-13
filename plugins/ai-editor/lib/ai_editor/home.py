@@ -46,6 +46,7 @@ to it, `wait` never takes a job reserved for a new Claude ("Open a new Claude fo
 question (askhook.py) reaches this page only from a session holding one of its jobs or listening for one.
 """
 import argparse
+import base64
 import glob
 import hmac
 import http.client
@@ -359,6 +360,14 @@ def asks_for(sid):
     if not lis and not any(j.get("owner") for j in taken):
         return job_name(taken[0]) if taken else ""
     return None
+
+
+def asks_dir(sid):
+    """Where an answer's images are saved: the asking session's edit folder (<edit>/asks) once it exists, else
+    $AI_EDITOR_HOME/asks."""
+    j = next((j for j in reversed(read()["jobs"]) if sid and j["state"] == "taken" and j.get("owner") == sid), None)
+    e = Path((j or {}).get("args", {}).get("edit") or "")
+    return e / "asks" if str(e) != "." and e.is_dir() else home().parent / "asks"
 
 
 def listening():
@@ -1239,6 +1248,25 @@ def getting_started(d):
     return {"setup": setup or video, "style": style or video, "video": video}
 
 
+def claude_for(jid):
+    """A new terminal with a Claude that takes video job jid only ("take job <id>"): reserved first, so the listening
+    Claude leaves it alone. {opened, command} (also kept on the job as "claude", so the page shows it), or None when
+    the job is not queued any more."""
+    def reserve(d):
+        j = next((j for j in d["jobs"] if j["id"] == jid and j["state"] == "queued"), None)
+        if j:
+            j["reserved"] = time.time()
+        return d["root"] if j else None
+    root = update(reserve)
+    if not root:
+        return None
+    import launcher
+    opened, cmd = launcher.open_claude(root, f"/ai-editor:start take job {jid}")
+    r = {"opened": opened, "command": cmd}
+    update(lambda d: [j.__setitem__("claude", r) for j in d["jobs"] if j["id"] == jid])
+    return r
+
+
 def busy_with(d, sid):
     """The video job session sid is making now, or None."""
     return next((j for j in reversed(d["jobs"]) if j["type"] == "video" and j["state"] == "taken"
@@ -1597,7 +1625,8 @@ def make_handler(token):
                 with live.busy():   # no live-reload restart under an upload
                     return self.upload() if path == "/upload" else self.cover()
             try:
-                body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 1 << 20)) or b"{}")
+                cap = askhook.MAX_BODY if path == "/ask/answer" else 1 << 20   # an answer can carry images
+                body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), cap)) or b"{}")
             except ValueError:
                 return self.send(400, {"error": "not json"})
             if askhook.route(self, "POST", path, {}, body):
@@ -1810,17 +1839,8 @@ def make_handler(token):
             self.send(404, {})
 
         def new_claude(self, jid):
-            def reserve(d):
-                j = next((j for j in d["jobs"] if j["id"] == jid and j["state"] == "queued"), None)
-                if j:
-                    j["reserved"] = time.time()
-                return d["root"] if j else None
-            root = update(reserve)
-            if not root:
-                return self.send(409, {"msg": "Claude already has this video."})
-            import launcher
-            opened, cmd = launcher.open_claude(root, f"/ai-editor:start take job {jid}")
-            return self.send(200, {"opened": opened, "command": cmd})
+            r = claude_for(jid)
+            return self.send(200, r) if r else self.send(409, {"msg": "Claude already has this video."})
 
         def lookup(self, text, platform=None):
             parts = text.split()
@@ -1837,9 +1857,8 @@ def make_handler(token):
                 return self.send(200, {"kind": it["kind"], "note": "Paste a creator's handle or profile link, like "
                                                                    "@name or tiktok.com/@name."})
             handle, plat = re.sub(r"[^a-z0-9._-]", "", it["handle"].lower()), it.get("platform") or platform or "tiktok"
-            out = {"kind": "creator", "handle": handle, "platform": plat, "note": it.get("note") if plat == "instagram" else None,
-                   "ask_platform": not it.get("platform")}
-            if plat in ("tiktok", "youtube"):
+            out = {"kind": "creator", "handle": handle, "platform": plat, "note": None, "ask_platform": not it.get("platform")}
+            if plat in ("tiktok", "youtube", "instagram"):
                 d = read()
                 if (d.get("lookup") or {}).get("handle") != handle or (d.get("lookup") or {}).get("platform") != plat \
                         or d["lookup"].get("status") == "failed":
@@ -1858,7 +1877,7 @@ def make_handler(token):
                     handle = link_set([links.classify(u) for u in urls])["handle"] or "links-" + time.strftime("%m%d%H%M")
                 if not handle:
                     return self.send(400, {"error": "no creator"})
-                args = {"handle": handle, "platform": b.get("platform") if b.get("platform") in ("tiktok", "youtube") else "tiktok",
+                args = {"handle": handle, "platform": b.get("platform") if b.get("platform") in ("tiktok", "youtube", "instagram") else "tiktok",
                         "take": take}
                 if urls:
                     f = Path(d["root"]) / "creator-teardowns" / handle / "picks.txt"
@@ -1918,7 +1937,7 @@ def make_handler(token):
             if len(script.encode("utf-8")) > SCRIPT_MAX:
                 return self.send(400, {"ok": False, "msg": "That script is over 200 KB. Paste only the lines you film."})
             groups = [ps] if b.get("join") and len(ps) > 1 else [[p] for p in ps]
-            ids = []
+            ids, edits = [], []
 
             def remember(d):
                 d["picked"] = list(dict.fromkeys([p["path"] for p in ps] + (d.get("picked") or [])))[:60]
@@ -1935,7 +1954,15 @@ def make_handler(token):
                     (edit / "script.md").write_text(script + "\n", encoding="utf-8")
                     args["script"] = str(edit / "script.md")
                 ids.append(update(lambda d: queue(d, "video", args))["id"])
-            return self.send(200, {"id": ids[0], "ids": ids})
+                edits.append(str(edit))
+                # the editor opens at once on the clip (round 0, "The cut / your clip"); Claude's cut lands there
+                subprocess.run([sys.executable, str(REVIEW), str(edit), "start", "--raw", "--video", g[0]["path"], "--stage", "cut"],
+                               capture_output=True, timeout=60)
+            lis = listener()   # the listening Claude makes one video at a time: every other one gets a Claude of its own now
+            if lis is not None:
+                for jid in ids if busy_with(read(), lis) else ids[1:]:
+                    claude_for(jid)
+            return self.send(200, {"id": ids[0], "ids": ids, "edits": edits})
 
         def cover(self):
             """A style's preview image: an image or a short clip, streamed to a temp file, then one 720x1280 frame."""
@@ -2130,7 +2157,7 @@ def serve(root=None, port=None, open_browser=True):
         update(lambda d: d.__setitem__("port", srv.server_address[1]))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
     (home() / ".server").write_text(url, encoding="utf-8")
-    askhook.register(srv, url, "home", asks_for)
+    askhook.register(srv, url, "home", asks_for, asks_dir)
     threading.Thread(target=run_doctor, daemon=True).start()
     try:   # an update adds a new plugin folder: point nextwork-editor at this one
         import launcher
@@ -2317,8 +2344,9 @@ def demo():
     assert one["urls"] and one["handle"] == "some.one" and one["platform"] == "tiktok" and "6 or more" in one["note"], one
     mix = post("/lookup", {"text": "https://youtu.be/abcDEF12345 https://www.youtube.com/shorts/xyzXYZ12345"})
     assert len(mix["urls"]) == 2 and mix["platform"] == "youtube" and mix["handle"] is None, mix
+    n = len(calls)
     ig = post("/lookup", {"text": "https://www.instagram.com/someone/"})
-    assert ig["platform"] == "instagram" and "reel" in ig["note"], ig
+    assert ig["platform"] == "instagram" and ig["handle"] == "someone" and len(calls) == n + 1, ig   # listed like TikTok
     post("/lookup", {"text": "@sample.creator"})
     lk = get("/state")["lookup"]["listing"]
     assert [v["role"] for v in lk["videos"]] == ["Top 1", "Top 2", "Top 3", "Top 4", "Top 5", "Top 6, spare", "Top 7, spare",
@@ -2415,9 +2443,24 @@ def demo():
     assert ja["state"] == "taken" and ja["owner"] == "sess-A", ja
     (home() / ".listening").write_text("sess-A", encoding="utf-8")   # A listens again while it works: still busy
     assert get("/state")["busy"] == {"id": ja["id"], "name": "team-250k-general"}
+    # Make my video while the listening Claude is busy: a Claude of its own opens for the new one at once (claude_for)
+    jx = post("/job", {"type": "video", "path": str(vid), "aspect": "9:16", "as": "mine"})["id"]
+    jxj = next(j for j in read()["jobs"] if j["id"] == jx)
+    assert opened == [(str(root.resolve()), f"/ai-editor:start take job {jx}")] and jxj["claude"]["opened"] and jxj["reserved"], (opened, jxj)
+    assert not takeable(jxj, "sess-A", read()), "the busy Claude never takes it"
+    update(lambda d: next(j for j in d["jobs"] if j["id"] == jx).update(state="done"))
+    opened.clear()
     (home() / ".listening").unlink()
     post("/ask", {"id": "qa", "questions": qs, "session": "sess-A"})
     assert get("/ask?v=1")["ask"]["about"] == "team-250k-general"
+    # an image on the answer (over the 1 MB cap of other POSTs): saved beside A's edit, its path in the answer
+    edir = root / "edits" / "team-250k-general"
+    assert srv.asks["qa"]["dir"] == str((edir / "asks") if edir.is_dir() else home().parent / "asks")
+    big = "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\n" + bytes(2 << 20)).decode()
+    post("/ask/answer", {"id": "qa", "answers": ["like this"], "images": [[big]]})
+    shot = Path(srv.asks["qa"]["dir"]) / "ask-qa-q1-img1.png"
+    assert get("/ask?id=qa")["result"] == {"answers": [f"like this\nAttached images: {shot} (Read each one to see it)"]}
+    assert shot.stat().st_size == (2 << 20) + 8
     post("/ask/clear", {"id": "qa"})
     os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"   # a second terminal: never writes to A's job
     assert vs(step="B was here", done=True).startswith("no video job")

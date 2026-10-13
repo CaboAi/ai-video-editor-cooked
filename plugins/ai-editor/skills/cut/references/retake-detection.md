@@ -112,9 +112,9 @@ when the user wants the video shorter. Every `redundant` cut is highlighted in c
 4. Mark false starts, then meta, then fillers.
 5. For every cut ask: is this a worse take of something said better elsewhere? If there is no
    better take, it is not a cut. Repetition for emphasis, delivered cleanly both times, stays.
-6. Write `spans.json`, then `build_timeline.py --dry-run` and read the cut list.
-7. Read `paper-edit.md` straight through, as the viewer will hear it. Fix anything that reads
-   wrong at a `<<n>>` join.
+6. Write `spans.json`, then build (cut skill step 3) and read the cut list it prints.
+7. The `cut-judge` reads `paper-edit.md` straight through, as the viewer will hear it, and fixes what
+   reads wrong at a `<<n>>` join. Do not read it again yourself.
 
 ## Mistakes to check yourself against
 

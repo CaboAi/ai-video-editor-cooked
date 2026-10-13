@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
 """Render the cut with plain ffmpeg: every kept span trimmed and joined.
 
-    python3 render.py <source> <edit_dir> [--crf 18] [--no-hw] [--flip]
+    python3 render.py <source> <edit_dir> [--crf 18] [--no-hw] [--flip] [--segments-only]
 
 Reads <edit_dir>/decisions.json and report.json, writes <edit_dir>/cut.mp4 at the
 source resolution (rotation applied), H.264 + AAC. --flip flips it left to right (a mirrored front-camera
-take the user asked to flip, mirror.py).
+take the user asked to flip, mirror.py). --segments-only encodes the kept spans into the cache and stops:
+run it in the background right after the first build, while the judge reads, and the real render later
+only encodes the spans the judge changed.
 
 How it stays exact on a big 4K source:
   - Each kept span is encoded on its own (video only), in parallel. One
     filter_complex over the whole 4K stream with 100 trims crawls.
-  - Frames are counted per segment and again after joining. Frames in == frames out.
+  - Frames are counted on the finished file. Frames in == frames out.
   - Audio is cut in ONE pass and muxed on at the end. Separate AAC tracks per
     segment add encoder padding at every join and drift by seconds.
   - Every audio span gets an 8 ms fade in and out, so a join never clicks.
   - Keyframe every 15 frames, so the next step (Remotion) can seek quickly.
+  - Encoded spans are kept in <edit_dir>/.segments/ (one folder per source + encoder + flip), so a
+    re-render after a fix or a review note encodes only the spans that changed.
 Never stream-copy (-c copy) across cuts: that snaps to keyframes, up to 2 s off.
 """
 import argparse
 import concurrent.futures as cf
+import hashlib
 import json
 import os
 import re
@@ -26,6 +31,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 FADE_S = 0.008
@@ -79,8 +85,10 @@ def main():
     ap.add_argument("--crf", type=int, default=18)
     ap.add_argument("--no-hw", action="store_true", help="skip hardware decode on a Mac")
     ap.add_argument("--flip", action="store_true", help="flip left to right (a mirrored take, on the user's yes)")
+    ap.add_argument("--segments-only", action="store_true", help="fill the segment cache, write no cut.mp4")
     a = ap.parse_args()
-    progress.step("Cutting out the mistakes", job="video", key=a.edit_dir)
+    if not a.segments_only:   # the background encode runs while the judge reads: the checklist is not there yet
+        progress.step("Rendering the cut", job="video", key=a.edit_dir)
 
     d = Path(a.edit_dir)
     rep = json.loads((d / "report.json").read_text(encoding="utf-8"))
@@ -100,10 +108,25 @@ def main():
     try:
         print(f"{len(frames)} spans, {sum(e - s for s, e in frames)} frames -> {out}", flush=True)
 
+        def cache():
+            """This render's segment folder; any other (another source, encoder or flip) is stale."""
+            st = Path(src).stat()
+            key = hashlib.sha1(f"{Path(src).resolve()}|{st.st_size}|{st.st_mtime_ns}|{fps}|{' '.join(enc)}|{a.flip}"
+                               .encode()).hexdigest()[:12]
+            return d.resolve() / ".segments" / key
+
+        def seg_of(i):
+            return cache() / f"{frames[i][0]}-{frames[i][1]}.mp4"
+
         def one(i):
             s, e = frames[i]
             t0, t1 = video_window(s, e, fps, vstart)
-            seg = tmp / f"{i:05d}.mp4"
+            seg = seg_of(i)
+            if seg.exists():
+                return None
+            # renamed only once whole, so a killed encode is never reused; the pid keeps a background
+            # --segments-only run and the real render from writing the same file at once
+            part = seg.with_name(f"{seg.stem}.{os.getpid()}.part.mp4")
             # -copyts is load-bearing: without it the input seek rebases timestamps
             # to zero and the absolute trim picks the wrong footage at the right length.
             # Frame-numbered timestamps at an explicit -r: after setpts the frames carry no duration,
@@ -113,12 +136,14 @@ def main():
             cmd = ["ffmpeg", "-v", "error", "-y", "-copyts", *(["-hwaccel", "videotoolbox"] if hw else []),
                    "-ss", f"{max(0.0, t0 - fstart - LEAD_S):.6f}", "-i", src, "-an",
                    "-vf", f"trim=start={max(0.0, t0):.6f}:end={t1:.6f},setpts=N/({fps})/TB" + (",hflip" if a.flip else ""),
-                   "-r", str(fps), *enc, "-pix_fmt", "yuv420p", "-g", "15", str(seg)]
+                   "-r", str(fps), *enc, "-pix_fmt", "yuv420p", "-g", "15", str(part)]
             r = subprocess.run(cmd, capture_output=True, text=True)
+            # Frames are counted once, on the finished file: a decode per segment cost a 10-minute 4K take
+            # a full extra decode of the cut (about 40 s), and a short segment still fails the final count.
             if r.returncode:
                 return f"span {i}: {r.stderr[-300:]}"
-            got = count_frames(seg)
-            return None if got == e - s else f"span {i}: {got} frames, wanted {e - s}"
+            part.replace(seg)
+            return None
 
         def encode_all():
             """The first span's error, else None."""
@@ -133,20 +158,22 @@ def main():
 
         def attempt():
             """The whole render with the current encoder: the first error, else None."""
+            cache().mkdir(parents=True, exist_ok=True)
+            reused = sum(seg_of(i).exists() for i in range(len(frames)))
+            if reused:
+                print(f"  {reused} of {len(frames)} spans already encoded, reused", flush=True)
             err = encode_all()
             if err:
                 return err
             lst = tmp / "list.txt"
             # concat quoting: a ' in the temp path (a user name like O'Brien) is closed, escaped, reopened
-            lst.write_text("".join("file '" + str(tmp / f"{i:05d}.mp4").replace("'", "'\\''") + "'\n"
+            lst.write_text("".join("file '" + str(seg_of(i)).replace("'", "'\\''") + "'\n"
                                    for i in range(len(frames))), encoding="utf-8")
             allv = tmp / "all.mp4"
             if subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst),
                                "-c", "copy", str(allv)]).returncode:
                 return "concat failed"
             want = sum(e - s for s, e in frames)
-            if count_frames(allv) != want:
-                return "concat lost frames"
 
             print("  audio, one pass", flush=True)
             parts = []
@@ -170,8 +197,33 @@ def main():
             got = count_frames(out)
             print(f"  check: {got} frames of {want}, {want / fps:.2f}s")
             if got != want:
+                shutil.rmtree(cache(), ignore_errors=True)   # never reuse a segment from a render that failed
                 return "frame mismatch"
 
+        lock = d.resolve() / ".segments" / "prewarm.lock"
+        if a.segments_only:   # never prunes: the real render owns the cache
+            cache().mkdir(parents=True, exist_ok=True)
+            lock.write_text(str(os.getpid()), encoding="utf-8")
+            try:
+                err = encode_all()
+            finally:
+                lock.unlink(missing_ok=True)
+            print(f"segments: {err}" if err else f"segments ready in {cache()}")
+            return
+        # A background --segments-only run still encoding holds the hardware sessions: wait for it rather
+        # than have the encoder refuse ours and send the whole render to x264. A lock with no segment
+        # written for 60 s is a killed run.
+        def busy():
+            def fresh(f):
+                try:
+                    return time.time() - f.stat().st_mtime < 60
+                except OSError:   # renamed or pruned between the listing and the stat
+                    return False
+            return lock.exists() and any(fresh(f) for f in lock.parent.glob("*/*.mp4"))
+        if busy():
+            print("  waiting for the background segment encode to finish", flush=True)
+        while busy():
+            time.sleep(2)
         err = attempt()
         # A hardware render that fails anywhere (a refused session, a span short, a lost frame at the join)
         # is redone whole with x264: re-encoding only the failed spans would mix two encoders in one concat -c copy.
@@ -181,6 +233,13 @@ def main():
             err = attempt()
         if err:
             sys.exit(f"ERROR {err}")
+        keep = {seg_of(i) for i in range(len(frames))}   # only this cut's spans stay on disk
+        for f in cache().iterdir():
+            if f not in keep:
+                f.unlink(missing_ok=True)
+        for f in (d.resolve() / ".segments").iterdir():
+            if f != cache():
+                shutil.rmtree(f, ignore_errors=True)
         print(out)
     finally:   # a failed render left 24-66 MB of segments behind on every try
         shutil.rmtree(tmp, ignore_errors=True)

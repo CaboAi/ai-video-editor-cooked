@@ -233,6 +233,66 @@ def update(fn, wait=10):
         return out
 
 
+FOLDER_KINDS = ("videos", "styles")
+
+
+def folders():
+    """folders.json: {videos|styles: {folders: [{id, name}], items: {edit dir | style id: folder id}}}."""
+    try:
+        d = json.loads((home() / "folders.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        d = {}
+    return {k: {"folders": list((d.get(k) or {}).get("folders") or []), "items": dict((d.get(k) or {}).get("items") or {})}
+            for k in FOLDER_KINDS}
+
+
+def folder_change(kind, op, body, listed):
+    """One folder change, validated, written atomically. listed: the items the page can file (edit dirs or style
+    ids). Raises ValueError with a line the page shows."""
+    if kind not in FOLDER_KINDS:
+        raise ValueError("not a list")
+    with _Lock(10):
+        d = folders()
+        k = d[kind]
+        ids = {f["id"] for f in k["folders"]}
+        fid = body.get("id")
+
+        def name():
+            n = re.sub(r"\s+", " ", str(body.get("name") or "")).strip()
+            if not n:
+                raise ValueError("Give the folder a name.")
+            if len(n) > 40:
+                raise ValueError("Keep the name under 40 letters.")
+            if any(f["name"].lower() == n.lower() and f["id"] != fid for f in k["folders"]):
+                raise ValueError(f"There is already a folder called {n}.")
+            return n
+        if op != "create" and op != "move" and fid not in ids:
+            raise ValueError("no such folder")
+        if op == "create":
+            fid = secrets.token_hex(4)
+            k["folders"].append({"id": fid, "name": name()})
+        elif op == "rename":
+            next(f for f in k["folders"] if f["id"] == fid)["name"] = name()
+        elif op == "delete":   # its items go back to All; nothing is deleted
+            k["folders"] = [f for f in k["folders"] if f["id"] != fid]
+            k["items"] = {i: f for i, f in k["items"].items() if f != fid}
+        else:
+            item, to = str(body.get("item") or ""), body.get("folder")
+            if kind == "videos":
+                item = str(Path(item).resolve()) if item else ""
+            if item not in listed:
+                raise ValueError("That is not on your list.")
+            if to is not None and to not in ids:
+                raise ValueError("no such folder")
+            if to is None:
+                k["items"].pop(item, None)
+            else:
+                k["items"][item] = to
+        home().mkdir(parents=True, exist_ok=True)
+        save(home() / "folders.json", d)
+        return {"ok": True, "id": fid, "folders": d}
+
+
 def link_set(vids):
     """Pasted video links as one study: the creator when every link names the same one, the app they are on
     (instagram when any is, since it ranks by likes), and a plain note."""
@@ -761,6 +821,18 @@ def reset_section(root, sid, section):
     ss.write(str(sp) if sp else None)
 
 
+def reset_mine():
+    """My style back to the default: every feedback rule at its scope forgotten, taste.json and taste.md
+    emptied, the my-style skill rewritten. My style itself stays (every video uses it)."""
+    taste, ss = _taste()
+    if taste.rules_path().exists():
+        for r in [r for r in taste.load_rules() if r["scope"] == ss.scope(None)]:
+            taste.forget(r["id"])
+    taste.save_json({})
+    taste.save_md({s: [] for s in taste.SECTIONS})
+    ss.write(None)
+
+
 _UPD = {"at": 0.0, "latest": None, "notes": [], "busy": False}
 
 
@@ -1261,7 +1333,7 @@ def make_handler(token):
                 vids = [dict(e, thumb=f"/thumb?p={quote(e['video'] or raw[e['dir']]['args']['path'])}&u={int(e['updated'])}"
                              if e["video"] or e["dir"] in raw else None,
                              media=e["video"] and "/media?p=" + quote(e["video"]), job=(raw.get(e["dir"]) or {}).get("id"))
-                        for e in library.entries()]
+                        for e in library.entries() if e["dir"] not in set(read().get("hidden_edits") or [])]   # Remove from this list
                 cards = style_cards(root)
                 for j in read()["jobs"]:   # a creator still being studied: a card the user can already pick
                     h = j["args"].get("handle")
@@ -1269,7 +1341,7 @@ def make_handler(token):
                         cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True, "face": face_of(root, h),
                                       "line": "Being copied now. Your cut starts first; the style waits for the copy."})
                 return self.send(200, {"path": root, "place": place(root), "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
-                                       "custom": str(custom.path(False)), "videos": vids, "styles": cards})
+                                       "custom": str(custom.path(False)), "videos": vids, "styles": cards, "folders": folders()})
             if path == "/recent":
                 st = read()
                 rs = recent_list(st)
@@ -1466,6 +1538,19 @@ def make_handler(token):
                     return self.send(404, {"error": "no such style"})
                 except (ValueError, TypeError) as e:
                     return self.send(400, {"error": str(e)})
+            if path in ("/folder/create", "/folder/rename", "/folder/delete", "/folder/move"):
+                kind, root = str(body.get("kind") or ""), read()["root"]
+                listed = set()
+                if path == "/folder/move":
+                    listed = {str(d) for d in library.edit_dirs()} if kind == "videos" \
+                        else {c["id"] for c in style_cards(root)}
+                try:
+                    return self.send(200, folder_change(kind, path.rsplit("/", 1)[1], body, listed))
+                except ValueError as e:
+                    return self.send(400, {"ok": False, "error": str(e)})
+            if path == "/style/reset-all":
+                reset_mine()
+                return self.send(200, {"ok": True})
             if path in ("/style/delete", "/style/cover/remove"):
                 root, sid = read()["root"], str(body.get("id") or "")
                 if path == "/style/cover/remove":
@@ -1478,12 +1563,15 @@ def make_handler(token):
                     return self.send(200, {"ok": True, "removed": delete_style(root, sid, body.get("measured") is True)})
                 except ValueError as e:
                     return self.send(400, {"error": str(e)})
-            if path in ("/clip/hide", "/clip/trash", "/edit/trash"):   # only what the page listed; Trash, never a delete
+            if path in ("/clip/hide", "/clip/trash", "/edit/trash", "/edit/hide"):   # only what the page listed; Trash, never a delete
                 st = read()
-                if path == "/edit/trash":
+                if path in ("/edit/trash", "/edit/hide"):
                     d = Path(str(body.get("dir") or "")).resolve()
                     if d not in library.edit_dirs() or Path(st["root"]).resolve() not in d.parents:
                         return self.send(400, {"ok": False, "msg": "That is not one of your videos."})
+                    if path == "/edit/hide":   # off the window only: its folder stays as it is
+                        update(lambda x: x.__setitem__("hidden_edits", (x.get("hidden_edits") or []) + [str(d)]))
+                        return self.send(200, {"ok": True})
                     ok = trash(d)
                     return self.send(200, {"ok": True} if ok else {"ok": False, "msg": "It could not be moved to the Trash."})
                 f = Path(str(body.get("path") or "")).resolve()
@@ -2405,6 +2493,16 @@ def demo():
                 raise AssertionError(bad)
             except urllib.error.HTTPError as e:
                 assert e.code == 400, bad
+        yv = root / "videos" / "yours.mp4"   # a clip in the library's videos/ ("Your videos"): hidden, never moved
+        yv.parent.mkdir(exist_ok=True)
+        shutil.copyfile(vid, yv)
+        assert next(v for v in get("/recent")["videos"] if v["name"] == "yours.mp4")["where"] == "Your videos"
+        assert post("/clip/hide", {"path": str(yv)})["ok"] and "yours.mp4" not in names() and yv.exists()
+        hid = root / "edits" / "hide-me"
+        hid.mkdir(parents=True)
+        shutil.copyfile(vid, hid / "cut.mp4")
+        assert str(hid.resolve()) in [v["dir"] for v in get("/library")["videos"]]
+        assert post("/edit/hide", {"dir": str(hid)})["ok"] and (hid / "cut.mp4").exists() and str(hid.resolve()) not in [v["dir"] for v in get("/library")["videos"]]
         gone = root / "edits" / "old-edit"
         gone.mkdir(parents=True)
         shutil.copyfile(vid, gone / "cut.mp4")
@@ -2517,6 +2615,37 @@ def demo():
             raise AssertionError(bad)
         except urllib.error.HTTPError as e:
             assert e.code == 400, bad
+    # folders: create, move an edit and a style in, rename, delete (items go back to All, files untouched); bad ids refused
+    reels = post("/folder/create", {"kind": "videos", "name": "  Reels  "})["id"]
+    assert get("/library")["folders"]["videos"]["folders"] == [{"id": reels, "name": "Reels"}]
+    edir = get("/library")["videos"][0]["dir"]
+    assert post("/folder/move", {"kind": "videos", "item": edir, "folder": reels})["ok"]
+    assert get("/library")["folders"]["videos"]["items"] == {edir: reels}
+    sf = post("/folder/create", {"kind": "styles", "name": "Fast"})["id"]
+    post("/folder/move", {"kind": "styles", "item": "@sample.creator", "folder": sf})
+    assert post("/folder/rename", {"kind": "videos", "id": reels, "name": "Shorts"})["folders"]["videos"]["folders"][0]["name"] == "Shorts"
+    for path_, bad in (("/folder/create", {"kind": "videos", "name": "shorts"}), ("/folder/create", {"kind": "videos", "name": " "}),
+                       ("/folder/create", {"kind": "videos", "name": "x" * 41}), ("/folder/create", {"kind": "nope", "name": "a"}),
+                       ("/folder/rename", {"kind": "videos", "id": "nope", "name": "a"}), ("/folder/delete", {"kind": "videos", "id": "nope"}),
+                       ("/folder/move", {"kind": "videos", "item": str(tmp), "folder": reels}), ("/folder/move", {"kind": "videos", "item": edir, "folder": "nope"}),
+                       ("/folder/move", {"kind": "styles", "item": "@nobody", "folder": sf})):
+        try:
+            post(path_, bad)
+            raise AssertionError(bad)
+        except urllib.error.HTTPError as e:
+            assert e.code == 400, bad
+    post("/folder/delete", {"kind": "videos", "id": reels})
+    f = get("/library")["folders"]
+    assert f["videos"] == {"folders": [], "items": {}} and Path(edir).is_dir() and edir in [v["dir"] for v in get("/library")["videos"]]
+    assert f["styles"]["items"] == {"@sample.creator": sf}
+    post("/folder/move", {"kind": "styles", "item": "@sample.creator", "folder": None})
+    assert get("/library")["folders"]["styles"]["items"] == {}
+    # My style can't be deleted, only reset: feedback rules, taste.json and taste.md go, the style stays
+    assert json.loads((tmp / "home" / "taste.json").read_text(encoding="utf-8")), "set above: zoom.per_min 0"
+    assert post("/style/reset-all", {})["ok"]
+    assert json.loads((tmp / "home" / "taste.json").read_text(encoding="utf-8")) == {} and get("/style?id=mine")["rules"] == []
+    assert "No zooms" not in (tmp / "skills" / "my-style" / "SKILL.md").read_text(encoding="utf-8")
+    assert "mine" in [c["id"] for c in get("/library")["styles"]]
     # updates: the version on GitHub (faked here) against plugin.json; Update queues one JOB line
     t0 = time.time()
     while not get("/state")["update"]["latest"] and time.time() - t0 < 5:

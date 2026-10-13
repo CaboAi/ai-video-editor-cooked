@@ -779,7 +779,9 @@ body.rail .sb-theme{margin-top:2px}
 .pc .pic{width:84px;height:150px;border-radius:8px;background:#45403C center/cover;flex-shrink:0}
 .pc .tx{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1;padding:4px 28px 0 0}
 .pc .ttl{display:flex;align-items:center;gap:8px;font-size:17px;line-height:22px;font-weight:600;min-width:0}
-.pc .t2{white-space:normal}.pc .pf{display:flex;align-items:center;gap:10px;font-size:15px;line-height:20px;margin-top:10px}
+.pc .nm1{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pc .ttl .tagc{flex-shrink:0}
+.pc .t2{white-space:normal}.pc .pf{display:flex;align-items:center;gap:10px;font-size:15px;line-height:20px;margin-top:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc .pf svg{flex-shrink:0}
 .rd{position:absolute;top:16px;right:16px;width:24px;height:24px;border-radius:12px;border:1.5px solid var(--ring);background:var(--panel)}
 .rd.on{border:7px solid var(--ink)}
 .clipsum{display:flex;align-items:center;gap:14px;padding:12px 20px 12px 12px;border-radius:12px;background:var(--card);min-width:0}
@@ -924,7 +926,7 @@ const PARTS=[['captions','Captions'],['pace','Pace'],['graphics','Graphics'],['s
 const PART_WHAT={captions:'Font, size and place',pace:'Cuts, pauses and zooms',graphics:'Cards and text on screen',sound:'Sound effects and music'};
 // creator-teardown quick mode, in order. Claude reports these step names (references/home.md).
 const PLAN=['Listed their videos','Downloaded the top 5 and 2 median','Transcribed every word','Measured cuts, zooms and camera moves','Reading captions and faces','Naming graphics','Sound effects and music','Writing the style'];
-const VIDEO_PLAN=[['Transcribe every word','about 20 s'],['Cut retakes and pauses','about 1 min'],['You watch the cut and leave notes','review page'],['Captions, zooms and graphics','about 3 min'],['You approve the edit and export','review page']];
+const VIDEO_PLAN=[['Transcribe every word',''],['Cut retakes and pauses',''],['You watch the cut and leave notes','review page'],['Captions, zooms and graphics',''],['You approve the edit and export','review page']];
 let S=null, view=null, ui={exp:{},fold:{videos:null,styles:null},keys:{},nc:{},likes:new Set(['captions','pace']),copy:null,paste:'',look:null,file:null,as:'creator',aspect:'9:16',show:{},kept:new Set()};
 try{const v=localStorage.getItem('ave-home-view');if(v)view=+v}catch(e){}
 
@@ -1110,7 +1112,7 @@ function h2(){
   </div>
   <div class="panel grow" style="align-self:flex-start">${head}<div style="overflow:auto">${right}</div>
     <div class="foot"><div class="sub">${L&&L.urls?`Claude measures these ${L.urls.length} video${L.urls.length>1?'s':''}.`:'Claude measures their top 5 and 2 typical videos.'}</div>
-    <div class="row" style="gap:20px"><span class="muted" style="font-size:14px;white-space:nowrap">about 3 min · ${(S.keys.elevenlabs||{}).set?'under 1 cent':'free'}</span><button class="btn dark" ${can?'':'disabled'} onclick="study()">Analyse this style</button></div></div>
+    <div class="row" style="gap:20px"><button class="btn dark" ${can?'':'disabled'} onclick="study()">Analyse this style</button></div></div>
   </div>`;
 }
 async function study(){
@@ -1596,7 +1598,7 @@ function createModal(){
   if(st.skills)return skillModal();
   return `<div class="modalbg" onclick="if(event.target===this)closeCreate()"><div class="modal nsm" role="dialog" aria-modal="true" aria-labelledby="mtitle">
     <div class="row" style="justify-content:space-between"><b class="mt2" id="mtitle">New style</b><button class="mx2" aria-label="Close" title="Close" onclick="closeCreate()">${ic('x',18,2)}</button></div>
-    <div class="nbox"><div class="row" style="justify-content:space-between;align-items:baseline"><b>Analyse a format</b><span class="t2">about 3 min</span></div>
+    <div class="nbox"><div class="row" style="justify-content:space-between;align-items:baseline"><b>Analyse a format</b></div>
       <p>Paste 3 to 6 videos edited the same way. They can be from different creators.</p>
       ${rows.map(linkRow).join('')}
       <label class="lin">${ic('plus',16,2)}<input id="lb-study" placeholder="${rows.length?'Paste another link':'Paste a video link'}" value="${esc(b.draft)}" oninput="lbInput('study',this.value)" onkeydown="lbKey(event,'study')" onpaste="lbPaste(event,'study')" autocomplete="off" spellcheck="false"></label>
@@ -1652,14 +1654,14 @@ async function studyLink(){
   const j=await post('/job',{type:'teardown',urls:rows,take:PARTS.map(p=>p[0])});
   if(!j._ok){ui.study={msg:j.error||'That did not start.'};return render()}
   if(rv==='style'&&j.handle)nv.style='@'+j.handle;
-  LB.study={rows:[],draft:''};ui.create=false;ui.study=null;toast(`Analysing ${rows.length} video${rows.length>1?'s':''}. About 3 min.`);await load();await loadLib();
+  LB.study={rows:[],draft:''};ui.create=false;ui.study=null;toast(`Analysing ${rows.length} video${rows.length>1?'s':''}.`);await load();await loadLib();
 }
 
 // ---- Pick a style (New video, step 2): radio cards, Your styles then Creator styles
 function pickCard(c,i){
   const on=nv.style===c.id,f=fact3(c)[0],pic=picOf(c,i),chip=isDefault(c)?'Default':'';
   return `<button class="pc ${on?'on':''}" id="sc-${esc(c.id)}" role="radio" aria-checked="${on}" onclick="nv.style=${J(c.id)};nv.picked=1;render()"><span class="pic" style="background-image:url('${esc(pic.url)}')"></span>
-    <span class="tx"><span class="ttl">${esc(dname(c))}${chip?`<span class="tagc">${chip}</span>`:''}</span><span class="t2">${esc(c.studying?'Being analysed now. The cut starts first.':origin(c))}</span>${f?`<span class="pf">${ic(f[0])}${esc(f[2])}</span>`:''}</span><span class="rd ${on?'on':''}"></span></button>`;
+    <span class="tx"><span class="ttl"><span class="nm1">${esc(dname(c))}</span>${chip?`<span class="tagc">${chip}</span>`:''}</span><span class="t2">${esc(c.studying?'Being analysed now. The cut starts first.':origin(c))}</span>${f?`<span class="pf">${ic(f[0])}${esc(f[2])}</span>`:''}</span><span class="rd ${on?'on':''}"></span></button>`;
 }
 function vStyle(){
   if(!nv.sel.length)return `<div class="col grow"><div class="empty">Pick your clips first. <a href="#" onclick="rgo('new');return false">Back to your clips</a></div></div>`;
@@ -1667,13 +1669,13 @@ function vStyle(){
   if(!nv.picked&&k&&k.state==='done'&&Date.now()/1000-(k.finished||0)<86400&&cards.some(c=>c.id==='@'+k.args.handle))nv.style='@'+k.args.handle;   // the style just built
   if(!nv.picked&&!nv.style)nv.style=L.default_style||'mine';
   if(!cards.some(c=>c.id===nv.style)&&nv.style!=='defaults')nv.style=L.default_style||'mine';
-  const own=cards.filter(c=>c.own),cr=cards.filter(c=>!c.own).sort((a,b)=>(!!b.studying-!!a.studying)||((b.made||0)-(a.made||0))),per=perRow();
+  const own=cards.filter(c=>c.own),cr=cards.filter(c=>!c.own).sort((a,b)=>(!!b.studying-!!a.studying)||((b.made||0)-(a.made||0))),per=Math.max(1,Math.floor((cw()+16)/400))   /* picture beside the text: wider cards than the 272 px grid */;
   const n=nv.sel.length,c0=clipOf(nv.sel[0]),cur=cards.find(c=>c.id===nv.style);
   return `<div class="pgc" style="min-height:100%"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
       <div class="ph"><button class="back" style="text-decoration:none" onclick="rgo('new')">${ic('back',14,2)}New video · step 2 of 2</button><h1>Pick a style</h1></div>
       <div class="clipsum"><span class="th" style="background-image:url('${esc(c0.thumb||'')}')"></span><div style="min-width:0"><div class="t1" style="font-weight:600">${n>1?`${n} clips, ${nv.join?'joined':'separate'}`:esc(c0.name)}</div><div class="t2">${n} clip${n>1?'s':''}${total()?' · '+fmtT(Math.round(total())):''} · ${nv.aspect==='9:16'?'Tall':'Wide'} ${nv.aspect}</div></div><button class="ul" onclick="rgo('new')">Change</button></div></div>
     <div class="sec2"><div class="sh"><b>Styles</b><button class="b2 s" onclick="openCreate()">${ic('plus',14,2.2)}New style</button></div>${gridRows([...cards].sort((a,b)=>(isDefault(b)-isDefault(a))||(!!b.studying-!!a.studying)||(!!b.own-!!a.own)||((b.made||0)-(a.made||0))).map(c=>pickCard(c,idx(c))),per)}</div>
-    <div class="pfoot"><div style="min-width:0"><div class="t1" style="font-weight:600">${esc(cur?cur.name:styleName(nv.style))}</div><div class="t2" style="white-space:normal">First the cut (about 1 min). Captions, zooms and sound start after you approve it.</div>${S.listening?'':`<div class="t2" style="white-space:normal;margin-top:10px">${connectHTML('Claude is not listening.')}</div>`}</div>
+    <div class="pfoot"><div style="min-width:0"><div class="t1" style="font-weight:600">${esc(cur?cur.name:styleName(nv.style))}</div><div class="t2" style="white-space:normal">First the cut. Captions, zooms and sound start after you approve it.</div>${S.listening?'':`<div class="t2" style="white-space:normal;margin-top:10px">${connectHTML('Claude is not listening.')}</div>`}</div>
       <span class="row" style="gap:12px">${S.new_claude?`<button class="b2" title="The questions for this video stay in their own Claude chat" onclick="makeVideo(true)">Make it in a new Claude chat</button>`:''}<button class="b1" id="make" onclick="makeVideo()">Make my video</button></span></div></div>`;
 }
 async function makeVideo(fresh){

@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.5.0, creator-teardown 2.7.0 (2026-10-13)
+
 - Making the edit is faster and asks less. While you review the cut, the visuals, the plan and the stills
   sheet are made in the background (all free, on your computer), so approving the cut goes straight to the
   sheet. The audience and the names in a video are no longer asked: the first answer is used and the review

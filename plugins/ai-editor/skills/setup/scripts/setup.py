@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check and install everything Cooked Editor needs. Stdlib only.
+"""Check and install everything cooked. needs. Stdlib only.
 
   python3 setup.py doctor     one line per tool: ok, or FIX with the exact command for this computer;
                               also FIX on drift from the pinned versions (env.json vs what is installed)
@@ -539,15 +539,15 @@ def doctor_quiet():
     missing = [name for name, _, _, cmd in rows if not cmd.endswith("repair")]
     drifted = [name for name, _, _, cmd in rows if cmd.endswith("repair")]
     if missing and not profile.path().exists():   # first run: the window opens before anything installs
-        print("First run of Cooked Editor: open its window first (home.py serve and wait in the background), "
+        print("First run of cooked. Open its window first (home.py serve and wait in the background), "
               "then install in the background with setup.py install-all --report (the setup skill's step 0).")
     elif missing:
-        print(f"Cooked Editor: {', '.join(missing)} not set up yet. Say \"set up the editor\" to install.")
+        print(f"cooked. is missing {', '.join(missing)}. Say \"set up the editor\" to install.")
     elif drifted:
-        print(f"Cooked Editor: {', '.join(drifted)} moved off the pinned versions. "
+        print(f"cooked. found {', '.join(drifted)} moved off the pinned versions. "
               f"Run: {'py' if OS == 'Windows' else 'python3'} \"{Path(__file__).resolve()}\" repair")
     elif still_later():
-        print(f"Cooked Editor: saved for later: {', '.join(still_later())}. Say \"finish setup\" to add.")
+        print(f"cooked. saved for later: {', '.join(still_later())}. Say \"finish setup\" to add.")
     return 0   # never block the session
 
 
@@ -950,13 +950,13 @@ RC_LINE = 'export PATH="$HOME/.local/bin:$PATH"  # added by ai-editor setup.py i
 
 def launcher_text(os_name=OS, launcher=LAUNCHER, py=sys.executable):
     if os_name == "Windows":
-        return (f"@echo off\r\nrem nextwork-editor: opens Cooked Editor. {MARK}; remove with setup.py uninstall-launcher\r\n"
+        return (f"@echo off\r\nrem nextwork-editor: opens cooked. {MARK}; remove with setup.py uninstall-launcher\r\n"
                 f'set "L={launcher}"\r\nset "PY={py}"\r\nif not exist "%PY%" set "PY=py"\r\n'
-                'if not exist "%L%" (echo Cooked Editor moved, maybe an update. In Claude Code, say: set up the editor. & exit /b 1)\r\n'
+                'if not exist "%L%" (echo cooked. moved, maybe an update. In Claude Code, say: set up the editor. & exit /b 1)\r\n'
                 '"%PY%" "%L%" %*\r\n')
-    return (f"#!/bin/sh\n# nextwork-editor: opens Cooked Editor. {MARK}; remove with setup.py uninstall-launcher\n"
+    return (f"#!/bin/sh\n# nextwork-editor: opens cooked. {MARK}; remove with setup.py uninstall-launcher\n"
             f"L='{launcher}'\nPY='{py}'\n[ -x \"$PY\" ] || PY=python3\n"
-            'if [ ! -f "$L" ]; then echo "Cooked Editor moved, maybe an update. In Claude Code, say: set up the editor."; exit 1; fi\n'
+            'if [ ! -f "$L" ]; then echo "cooked. moved, maybe an update. In Claude Code, say: set up the editor."; exit 1; fi\n'
             'exec "$PY" "$L" "$@"\n')
 
 
@@ -1039,7 +1039,7 @@ def demo_launcher():
         with open(moved, "w", encoding="utf-8", newline="") as fh:
             fh.write(real.read_text(encoding="utf-8").replace(str(LAUNCHER), str(t / "gone.py")))
         r = subprocess.run(run(moved), capture_output=True, text=True)
-        assert r.returncode == 1 and r.stdout.strip() == "Cooked Editor moved, maybe an update. In Claude Code, say: set up the editor.", r.stdout
+        assert r.returncode == 1 and r.stdout.strip() == "cooked. moved, maybe an update. In Claude Code, say: set up the editor.", r.stdout
         moved.unlink()
         if win:
             real.unlink()

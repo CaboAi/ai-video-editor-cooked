@@ -1,6 +1,6 @@
 {
   "name": "ai-editor",
-  "displayName": "Cooked Editor",
+  "displayName": "cooked.",
   "description": "Edit your own talking-head video in a creator's measured style: retakes and pauses cut, then zooms, captions and cards rendered with Remotion on your laptop or AWS Lambda.",
   "version": "2.4.0",
   "author": { "name": "NextWork", "url": "https://nextwork.ai" },

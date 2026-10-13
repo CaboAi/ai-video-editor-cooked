@@ -1886,7 +1886,9 @@ def demo():
         except urllib.error.HTTPError as e:
             assert e.code == 403, (p, e.code)
     r = urllib.request.urlopen(base + "/?t=" + tok)
-    assert b"Cooked Editor" in r.read() and "SameSite=Strict" in r.headers["Set-Cookie"]
+    page = r.read()   # the brand: pan tile, "cooked." and the pan favicon
+    assert b'class="mark"' in page and b"<b>cooked.</b>" in page and b'rel="icon" href="data:image/svg+xml' in page, "brand"
+    assert "SameSite=Strict" in r.headers["Set-Cookie"]
     # one theme for the window and every review page: saved in $AI_EDITOR_HOME/ui.json, on <html> before first paint
     assert get("/state")["theme"] == "system" and b"<html data-theme" not in urllib.request.urlopen(base + "/?t=" + tok).read()
     assert post("/theme", {"theme": "light"})["theme"] == "light" and get("/state")["theme"] == "light"

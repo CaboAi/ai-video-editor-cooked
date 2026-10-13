@@ -4,6 +4,15 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- A sample style ships with the editor: Card edit. It shows in My styles and on Pick a style for every user
+  under Sample styles, with no creator to copy first. Real image cards land 0.1 s before the word that names
+  them, about 14 a minute, in the band above the speaker's head and tucked behind a cutout of it (matte.py),
+  popping in from 54% in 0.23 s or on a hard cut, still while up, leaving on a cut. Captions are one white word
+  at a time in TikTok Sans. It edits through the same style-edit path as a copied creator, its settings change
+  on its style page like any other, and it cannot be deleted. A style.json can now ask for cards behind the
+  speaker itself (`"behind": true`). Fixed: a creator's measured entrance longer than the card's lead (about
+  0.17 s) hid the card for its whole life in the render.
+
 - Scrolling holds on the home window and the review page. The home window redraws every 1.5 s, and each
   redraw put every inner list (Your videos, My styles, a style's page, Settings) back at the top. Now a
   redraw with nothing new leaves the page alone, and one with something new keeps every list where it

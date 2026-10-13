@@ -537,11 +537,13 @@ def naming(sid, sp, base):
 
 def style_cards(root):
     """My style first (the profile's first copied creator, else the default style, with the user's
-    corrections), then every creator studied in the library (with that style's corrections). Each card
+    corrections), then every creator studied in the library (with that style's corrections), then the
+    plugin's sample styles. Each card
     names its skill."""
     taste, ss = _taste()
     out = []
-    for sid in ["mine"] + ["@" + h for h, _ in library.styles(root) if not h.endswith("-mine")]:
+    studied = sorted(library.styles(root), key=lambda hs: bool(hs[1].get("sample")))   # the plugin's samples last
+    for sid in ["mine"] + ["@" + h for h, _ in studied if not h.endswith("-mine")]:
         try:
             sp, st, base = style_of(root, sid)
         except (KeyError, OSError, ValueError):
@@ -554,15 +556,15 @@ def style_cards(root):
             line = (f"Your saved style. Started from @{base}." if base else "The default style.") + \
                 (f" {n} change{'s' if n != 1 else ''} from your feedback." if n else " Change it any time.")
         else:
-            line = (f"Measured from {st['videos']} of their videos." if st.get("videos") else "Copied by the editor.") + \
-                (f" {n} change{'s' if n != 1 else ''} from your feedback." if n else "")
+            line = (st.get("about") if st.get("sample") else f"Measured from {st['videos']} of their videos." if st.get("videos")
+                    else "Copied by the editor.") + (f" {n} change{'s' if n != 1 else ''} from your feedback." if n else "")
         # when it was made (a creator: their listing, the first thing a copy writes) and last changed (feedback rules)
         made = next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None) if sp else None
         changed = taste.rules_path().stat().st_mtime if n and taste.rules_path().exists() else None
         out.append({"id": sid, "name": ss.display(sp), "facts": facts(st), "look": look(st), "base": base,
                     "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "learned_from": vids, "made": made, "changed": changed, "cover": cover_of(root, sid), "face": face_of(root, base),
                     "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False,
-                    **naming(sid, sp, base)})
+                    "sample": bool(st.get("sample")), **naming(sid, sp, base)})
     return out
 
 
@@ -632,7 +634,7 @@ def preset_state(root, sid, st, base, changed):
     dragging the caption re-renders only the big preview."""
     prof = _profile()
     tag = lambda prefixes, measured: "you changed this" if any(k.startswith(prefixes) and dig(changed, k) is not None for k in CONTROLS) \
-        else f"from @{base}" if base and measured else "default"
+        else f"from {creator.get('name') or '@' + base}" if base and measured else "default"
     creator = {}
     if base:
         try:
@@ -649,7 +651,7 @@ def preset_state(root, sid, st, base, changed):
     ws, real = presets.phrase(newest_edit(entries=entries))
     blocks = [(name, presets.label(name), {**caps, **block}) for name, block in presets.captions().items()]
     if base and (creator.get("captions") or {}).get("present") is not False and creator.get("captions"):
-        blocks.insert(0, ("", "Theirs" if sid != "mine" else f"@{base}'s", dict(caps)))
+        blocks.insert(0, ("", "Theirs" if sid != "mine" else creator.get("name") or f"@{base}'s", dict(caps)))
     tiles = []
     for tid, name, full in blocks:
         full = {**full, "y_pct": full.get("y_pct") if tid else own_y, **({"size_pct": size} if size is not None else {}), "present": True}
@@ -708,7 +710,7 @@ def style_page(root, sid):
         vals["sfx"] = (prof.get("sound") or {}).get("sfx", True) if sp is None else st.get("sfx", True)
     copies = ss.copies(st) if sp else [f"@{base}'s style" if base else "the default style", "your corrections"]
     job = next((j for j in reversed(read()["jobs"]) if j["type"] == "style-change" and j["args"].get("style") == sid), None)
-    return {"id": sid, "name": ss.display(sp), "use_for": ss.use_for(sp), "base": base, "values": vals,
+    return {"id": sid, "name": ss.display(sp), "use_for": ss.use_for(sp), "base": base, "values": vals, "sample": bool(st.get("sample")),
             "changed": [k for k in CONTROLS if dig(changed, k) is not None], "look": look(st), "facts": facts(st),
             "copies": copies, "rules": rules, "style_path": str(sp) if sp else None, "presets": preset_state(root, sid, st, base, changed),
             "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid), "face": face_of(root, base),
@@ -904,6 +906,12 @@ def delete_style(root, sid, measured=False):
     d = style_dir(root, sid)
     if d is None or sid == "mine":
         raise ValueError("not a creator style")
+    try:
+        sample = json.loads((d / "style.json").read_text(encoding="utf-8")).get("sample")
+    except (OSError, ValueError):
+        sample = False
+    if sample:
+        raise ValueError("a sample style ships with the editor and cannot be deleted")
     _, ss = _taste()
     gone = []
     if (d / "style.json").is_file():
@@ -2286,7 +2294,10 @@ def demo():
         assert e.code == 404
     # style cards: My style (the default style until a creator is saved), then each studied creator, measured only
     st = {c["id"]: c for c in lib["styles"]}
-    assert list(st) == ["mine", "@sample.creator", "@newbie"], list(st)
+    assert list(st) == ["mine", "@sample.creator", "@sample-card-edit", "@newbie"], list(st)
+    sm = st["@sample-card-edit"]   # the sample style the plugin ships: listed for every user, by its own name
+    assert sm["sample"] and sm["name"] == "Card edit" and sm["line"].startswith("A sample style") and sm["cover"], sm
+    assert sm["facts"][1] == ["Captions", "1 word at a time"] and not st["@sample.creator"]["sample"], sm["facts"]
     assert st["@sample.creator"]["facts"] == [["Cut every", "1.9 s"], ["Zooms", "Punch, 6 a minute"], ["Captions", "2 words at a time"]]
     assert st["@sample.creator"]["look"]["box_color"] == "#000000" and st["mine"]["line"].startswith("The default")
     assert st["mine"]["learned_from"] == 0, "no feedback yet: no \"Learned from N videos\""
@@ -2493,12 +2504,17 @@ def demo():
     assert post("/style/delete", {"id": "@gone.creator"})["removed"] == []
     post("/style/delete", {"id": "@gone.creator", "measured": True})
     assert not (cts / "gone.creator").exists() and td.exists() and (root / "my-style").exists()
-    for bad in ("mine", "@../work", "@a/b", "sample.creator", "@sample.creator-mine", ""):
+    for bad in ("mine", "@../work", "@a/b", "sample.creator", "@sample.creator-mine", "@sample-card-edit", ""):
         try:
             post("/style/delete", {"id": bad})
             raise AssertionError(bad)
         except urllib.error.HTTPError as e:
             assert e.code == 400, bad
+    # the sample style cannot be deleted (above), stays listed with its file, and is pickable for a video
+    assert (cts / "sample-card-edit" / "style.json").is_file() and "@sample-card-edit" in [c["id"] for c in get("/library")["styles"]]
+    assert get("/style?id=@sample-card-edit")["sample"]
+    post("/job", {"type": "video", "path": str(vid), "as": "@sample-card-edit", "aspect": "9:16"})
+    assert " as=@sample-card-edit aspect=9:16 " in out(cmd_wait, 0.01)
     # updates: the version on GitHub (faked here) against plugin.json; Update queues one JOB line
     t0 = time.time()
     while not get("/state")["update"]["latest"] and time.time() - t0 < 5:

@@ -1,0 +1,25 @@
+{
+ "handle": "sample-card-edit",
+ "name": "Card edit",
+ "sample": true,
+ "about": "A sample style. Real image cards land just before the word that names them, in the band above your head and tucked behind it, with one-word white captions.",
+ "format": "talking-head videos with real image cards above the speaker's head",
+ "aspect": "9:16",
+ "behind": true,
+ "transitions": [],
+ "zoom": {"per_min": 3, "kind": "push", "scale": 1.15, "duration_s": 0.8, "on": "sentence_start", "max_hold_s": 5.0},
+ "captions": {"present": true, "words_per_caption": 1, "y_pct": 64, "size_pct": 4.4, "case": "lower",
+              "font_match": "TikTok Sans", "weight": 700, "color": "#FFFDF8", "highlight_color": "#FFFDF8",
+              "stroke": false, "box": false, "animation": "none"},
+ "cats": {"card": {"hold_s": 2.6}},
+ "graphics": {
+  "per_min": 14,
+  "kinds": {"real screenshot": 56, "photo": 24, "logo": 20},
+  "layout": {"zones_pct": {"top": 86, "bottom": 14}, "median_box": [6, 14, 88, 22]},
+  "entrances": [{"kind": "scale", "ease": "power2.out", "duration_s": 0.23, "scale_from": 0.54, "share_pct": 72},
+                {"kind": "cut", "ease": "none", "duration_s": 0, "share_pct": 28}],
+  "exits": [{"kind": "cut", "ease": "none", "duration_s": 0, "share_pct": 88},
+            {"kind": "fade", "ease": "power1.in", "duration_s": 0.27, "fade": true, "share_pct": 6}],
+  "secondary_motion": {"still": 100}
+ }
+}

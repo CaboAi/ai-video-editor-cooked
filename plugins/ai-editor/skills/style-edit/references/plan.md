@@ -99,7 +99,7 @@ that fails to load stops the render. Cards still come from visuals.json (step 3)
 
 ## Behind the speaker (the cutout)
 
-When the profile says `"behind": true` (or `plan.py ... --behind on`), shots, stickers, social
+When the profile or the style.json says `"behind": true` (the sample Card edit style does; `--behind on|off` overrides both), shots, stickers, social
 posts and logo clusters get `"layer": "behind"`: they draw over the footage and under a cutout of
 the speaker, and a card above the head grows down behind the hair while its marked words stay
 clear of the head. Overlay layout only. Then cut the speaker out where those cards are up:

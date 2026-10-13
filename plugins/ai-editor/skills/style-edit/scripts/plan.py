@@ -1604,9 +1604,10 @@ def with_formats(images, visuals):
 @with_sfx
 def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edit_dir=None, layout=None, profile=None,
           behind=None):
-    """behind: cards in BEHIND formats sit behind the speaker (default: the profile's "behind" answer)."""
+    """behind: cards in BEHIND formats sit behind the speaker (default: the profile's "behind" answer, or the
+    style's own "behind", as the sample Card edit style sets)."""
     if behind is None:
-        behind = bool((profile or {}).get("behind"))
+        behind = bool((profile or {}).get("behind") or style.get("behind"))
     words = [w for w in words if w.get("type", "word") == "word" and w["text"].strip()]
     if aspect == "auto":
         aspect = "9:16" if meta["height"] > meta["width"] else "16:9"

@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.6.5 (2026-10-13)
+
 - Two videos at once. Make a video while Claude is making another, and a second Claude opens in its own
   Terminal window for it straight away, so both are made at the same time. The card says so. Before, the
   second video waited behind a button most people never saw.

@@ -210,7 +210,17 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
                                "headline, not what is said", "give the beat a mark whose \"find\" is the page's words for what "
                                "the speaker says (visuals.json), capture again; or move the card past the hook"))
         xh = aspect == "9:16" and c.get("src") and c.get("layout") != "scene" and capture_xh(c, aspect)
-        if xh and xh < READ_XH:
+        pictures = plan.get("card_kinds") and "text" not in plan["card_kinds"]   # a card edit: real pictures only
+        if pictures and c.get("format") == "sticker" and c.get("xh"):
+            out.append(finding("FAIL", c["start"], f"{name} is a sentence set alone on white: a text card, and this style "
+                               "shows only screenshots, logos, photos and animations",
+                               "give the beat \"format\": \"shot\" (capture.mjs frames the real page round its mark), "
+                               "or a logo or an animation, then capture.mjs and plan.py again"))
+        elif pictures and xh and xh < READ_XH:
+            out.append(finding("WARN", c["start"], f"{name} screenshot text renders at {xh:.0f} px x-height: it reads "
+                               "as a picture of the page, the push-in carries its mark",
+                               "frame it tighter round the named thing (a \"clip\" or the find mark's line) if the words must read"))
+        elif xh and xh < READ_XH:
             out.append(finding("FAIL", c["start"], f"{name} capture text renders at {xh:.0f} px x-height, under {READ_XH}: "
                                "unreadable on a phone", "plan again (plan.py cuts it to the evidence as a sticker), or give "
                                "the beat a \"crop\" round the evidence lines, or \"layout\": \"scene\""))
@@ -366,7 +376,8 @@ def unsaid_numbers(plan):
         a = c.get("anim") or {}
         if a.get("type") in REAL_ANIMS:
             continue
-        for n in sorted({n for _, t in strings(a.get("props") or {}) for n in nums(t)} - said):
+        shown = {k: v for k, v in (a.get("props") or {}).items() if k not in ("enter", "exit", "ambient")}   # motion, not text ("power1.in")
+        for n in sorted({n for _, t in strings(shown) for n in nums(t)} - said):
             out.append((c, n))
     return out
 
@@ -845,6 +856,16 @@ def demo():
     assert gaps(check_plan(pc, face, named=[(14.0, "Jev")])) and "'Jev' at 14.0 s" in gaps(check_plan(pc, face, named=[(14.0, "Jev")]))[0]["what"]
     assert not gaps(check_plan(pc, face)), gaps(check_plan(pc, face))
     assert gaps(check_plan({**pc, "zooms": []}, face))
+    # a card edit (card_kinds without "text"): a small-text screenshot is a picture (WARN), a re-set sentence FAILs
+    pics = {**withfind, "card_kinds": ["capture", "logo", "photo", "animation"]}
+    lv = lambda pl_, k: [f["level"] for f in check_plan(pl_, face) if k in f["what"]]
+    assert lv(withfind, "x-height") == ["FAIL"] and lv(pics, "x-height") == ["WARN"], (lv(withfind, "x-height"), lv(pics, "x-height"))
+    label = {**pics, "cards": [{**pics["cards"][0], "format": "sticker", "xh": 30}]}
+    assert lv(label, "text card") == ["FAIL"], check_plan(label, face)
+    # a card's motion props (its measured ease "power1.in") are not a number on screen
+    lg = {**pics, "captions": {"chunks": [{"text": "youtube"}]}, "cards": [{"anim": {"type": "logo", "props": {"src": "images/l.svg",
+          "exit": {"kind": "fade", "ease": "power1.in"}}}, "trigger_word": "youtube", "start": 1, "end": 2, "box": [40, 15, 20, 11]}]}
+    assert not unsaid_numbers(lg), unsaid_numbers(lg)
     print("demo ok")
 
 

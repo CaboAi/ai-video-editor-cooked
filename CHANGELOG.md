@@ -14,6 +14,12 @@ What changed for every user, newest first.
 
 - Every page in the window ends with space under its last row, so the last card or line never sits on the
   bottom edge of the window.
+- Card edits show real things, never a card of words on white. In the Card edit style (and your own
+  card-edit style) every card is a screenshot of the page or app named, framed round it to fill the band
+  above your head, a logo on its own white card, your photo or an animation. Cards come at the style's rate
+  (about one every 4 s) and tuck behind your head. New: a title pill at the top on the hook and the call to
+  action, a running numbered list, and a red X over a card that does not apply. The style page's card Look
+  dropdown is gone (the look belongs to the style), and Often now means 16 cards a minute.
 - Skill styles. A style can point at a Claude Code skill (`"skill": "<name>"` in its style.json, or New style >
   Use your own skill). Its card says "Runs /<name>", its page shows the skill's description and the skills it
   calls instead of the caption, zoom, cut, card and sound controls, and making a video cuts it as usual, then

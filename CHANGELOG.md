@@ -4,6 +4,9 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Auto-updates. Setup, Settings > Updates and the README show how to turn them on: type /plugin, open
+  Marketplaces, pick nextwork, choose Enable auto-update.
+  The repo's `.claude/settings.json` sets `autoUpdate` on the nextwork marketplace.
 - Card edits show real things, never a card of words on white. In the Card edit style (and your own
   card-edit style) every card is a screenshot of the page or app named, framed round it to fill the band
   above your head, a logo on its own white card, your photo or an animation. Cards come at the style's rate

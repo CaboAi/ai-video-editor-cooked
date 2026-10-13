@@ -110,6 +110,26 @@ Inside Claude Code, type these two lines (same on every computer):
 If it asks, type `/reload-plugins`. Then say **edit my video**. `creator-teardown` installs with it.
 Your edits land in your library folder (above), wherever you started Claude Code.
 
+### Updates
+
+Turn on auto-updates once, and new versions download on their own:
+
+1. Type `/plugin`.
+2. Open **Marketplaces**.
+3. Pick **nextwork**.
+4. Choose **Enable auto-update**.
+
+Claude Code checks a few minutes after you start a session. A new version loads the next time you
+open Claude Code, or straight away after `/reload-plugins`.
+
+To update by hand, say **update the editor**, or type:
+
+```
+/plugin marketplace update nextwork
+/plugin install ai-editor@nextwork
+/reload-plugins
+```
+
 ### Way 3: other agents (Codex, Cursor, Gemini CLI, Copilot)
 
 In a terminal, on a computer with [Node.js](https://nodejs.org):

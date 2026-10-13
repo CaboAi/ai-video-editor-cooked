@@ -2221,6 +2221,7 @@ function stUpdate(){
   const line=u.checking?'Checking...':u.newer?'A new version is out':u.latest?'Up to date':u.checked?'Could not reach GitHub':'';
   return `<div class="scd"><div class="hd"><b>Updates</b><span class="ss ${ok?'ok':''}">${ok?OKTICK:''}${line}</span></div>
     <div class="kvs"><div><span>Installed</span><b>${esc(u.installed||'?')}</b></div><div><span>Latest</span><b>${esc(u.latest||'?')}</b></div></div>
+    <div class="t2" style="white-space:normal">Turn on auto-updates: type <b>/plugin</b>, open Marketplaces, pick nextwork, choose Enable auto-update.</div>
     ${u.newer&&(u.notes||[]).length?`<div><div class="t2">What changed</div>${u.notes.map(n=>`<div class="dash">${esc(n)}</div>`).join('')}</div>`:''}
     <div class="lks">${u.newer?`<button class="b1 s" ${busy?'disabled':''} onclick="queue({type:'update'})">${busy?'Updating...':'Update'}</button>`:`<button class="b2 s" ${u.checking?'disabled':''} onclick="stCheckUpd()">Check now</button>`}<a href="https://github.com/nextwork-projects/ai-video-editor-cooked/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Full changelog</a></div>
     ${wq?`<div class="msg">${connectHTML('Waiting for Claude.')}</div>`:st?`<div class="msg ${j.state==='failed'?'bad':''}">${esc(st)}</div>`:''}</div>`;

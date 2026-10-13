@@ -40,6 +40,10 @@ local, so they are made now and made again if the cut changes.
    when they count steps, a `stamp` when they say a card's thing does not apply (visuals.md "Card edit").
    Never a `file://` page from the user's config folders.
    Decide it all yourself: the caller must not have to ask the user what to show.
+   When `EDIT/logos.json` exists (the logo-pack skill), use its `brand` for each `logo` beat (beats.json
+   `logos`) and one `logo_cluster` per `together` group; capture.mjs keeps its files. No logos.json and two
+   or more brands named: follow `<ROOT>/skills/logo-pack/SKILL.md` steps 1-4 first (free, no questions; a logo
+   still failing after two rounds is left out), then `route.py beats` again.
 5. **Fetch and face:** `node "$S/capture.mjs" EDIT` (free: local Chrome screenshots, logos, posts), then
    `python3 "$PY" "$S/face.py" EDIT`.
 6. **Plan and sheet:** `python3 "$S/plan.py" EDIT/style.json EDIT/captions.json --aspect <style.json aspect>`,

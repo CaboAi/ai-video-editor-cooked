@@ -10,6 +10,29 @@ What changed for every user, newest first.
   "Opening Claude in a new Terminal window..." and, if nothing connects within a minute, offers Try again.
   `nextwork-editor` now opens that Claude too when the window is already open and nobody is listening;
   `nextwork-editor --window-only` opens just the window.
+## ai-editor 2.6.1 (2026-10-13)
+
+- Settings > Update now updates. Claude runs `claude plugin marketplace update nextwork` and
+  `claude plugin update ai-editor@nextwork` itself, then asks you to type `/reload-plugins`. Before, it only
+  told you what to type, and one of those lines said `/plugin install` instead of `/plugin update`.
+
+## ai-editor 2.6.0 (2026-10-13)
+
+- Two new skills. `logo-pack` gets the official, brand-colour logo of every company, app and tool named in a
+  video, trims it, makes a transparent 512 px PNG beside the SVG, checks each one and shows them on one sheet;
+  the edit picks them up and shows logos named together side by side. `skill-improver` turns a finished
+  video's notes into one-line rules (with the reason and date) in the style or skill that made it, after you
+  say yes; it runs the review page's "Teach your style from this video", and for a style that runs your own
+  skill it writes into that skill's "Learned rules" with a short log.
+
+- `skill-maker` helps you make your own editing skill: a few questions, one run without a skill, three test
+  scenarios, a SKILL.md checked against the skill-authoring rules, a test in a fresh agent, then rounds of
+  fixes with you. The skill plugs into the editor (your edit's files, the review page, the safe zone) and can
+  run as a style (My styles > New style > Use your own skill).
+
+- Auto-updates. Setup, Settings > Updates and the README show how to turn them on: type /plugin, open
+  Marketplaces, pick nextwork, choose Enable auto-update.
+  The repo's `.claude/settings.json` sets `autoUpdate` on the nextwork marketplace.
 - Every video card has one layout, tall or wide: the picture on top (a tall video shows whole over a blurred
   copy of itself), then the name, the details, the status and the button at full width along the bottom. The
   buttons in a row line up. Done tiles and folders use the same picture area.

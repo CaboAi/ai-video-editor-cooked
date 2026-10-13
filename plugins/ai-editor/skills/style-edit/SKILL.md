@@ -83,7 +83,7 @@ Use captions.json from here on.
 on screen and the rules plan.py enforces.
 
 1. **Propose:** `python3 "$S/route.py" beats edits/<name>` splits captions.json into sentences,
-   marks the profile's named things into beats.json. Pick one route per sentence yourself
+   marks the named things (profile, logo-pack) into beats.json. Pick one route per sentence yourself
    (`none`, `capture:shot|browser|sticker`, `post`, `logo`, `logo_cluster`, `chat`, `terminal`,
    `toasts`, `side_by_side`, `video_card`).
 2. **Real things first:** write `visuals.json` (`references/shapes.md`): a named product
@@ -92,7 +92,7 @@ on screen and the rules plan.py enforces.
 3. **Fill the overlays:** for the overlay picks, write only the props (`references/shapes.md`). Hand it to the `template-filler` agent (haiku) with the full path of `references/shapes.md` when available, else write them. Only
    words and numbers the speaker said. There are no type cards.
 4. **Fetch:** `node "$S/capture.mjs" edits/<name>` screenshots, fetches logos, posts and
-   free sources into `images/`, hides cookie banners, measures marks. Do not open them: the sheet shows all.
+   free sources into `images/`, hides cookie banners, measures marks. The step 5 sheet shows them.
 
 Pacing: a copied creator's rate wins. route.py prints her cards a minute, kinds and place in the frame,
 and marks that many sentences `want` (named ones first). Give each a card of her kind with a `box` at her

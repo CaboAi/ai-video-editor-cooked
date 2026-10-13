@@ -194,6 +194,10 @@ then ask: **Continue with the generic edit, using the style's numbers (Recommend
 Continue: style-edit with `<edit>/style.json` as usual. Stop: `status video --failed "This style needs
 the <skill> skill. Open Claude Code where that skill is loaded and make the video again."`.
 
+Notes on a skill style's video become rules in that skill's own SKILL.md (`## Learned rules`), never in a
+settings file: the final approve's Teach panel does it (`review.py learn --done`), as do `learn --scope this-style` and a
+`style-change` job on a skill style, through the skill-improver skill.
+
 ### `JOB style-change <my-style|@handle> [style=<style.json>] text=<the user's words>`
 
 The user typed what to change on a style's page (My styles, "Tell it what to change"). Turn the words
@@ -223,11 +227,18 @@ The user pressed Start setup on the first-run Home. Run `setup.py install-all --
 ### `JOB update`
 
 The user pressed Update in Settings (the page saw a newer version on GitHub main than this plugin.json).
-The update skill handles it when it is installed. Without it: for a marketplace install run
-`claude plugin marketplace update nextwork` then `claude plugin update ai-editor@nextwork` from the shell,
-each reported with `status update --step "..."`; if the `claude plugin` commands are missing, tell the user
-to type `/plugin marketplace update nextwork` and `/plugin update ai-editor@nextwork`. Then
-`status update --done` and ask them to type `/reload-plugins`. A git clone: `git pull` in the plugin folder.
+Do it here, not through the update skill, and end the job either way so the page never hangs on it:
+
+```bash
+python3 "$H" status update --step "Getting the new version"
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/update/scripts/update.py" market
+```
+
+Exit 0: `status update --done`, then tell the user to type `/reload-plugins`. Exit 1 (no `claude`
+command, or it failed): `status update --failed "Type /plugin marketplace update nextwork, then /plugin update
+ai-editor@nextwork, then /reload-plugins."` and say the same lines. A git clone instead of the marketplace
+plugin: `git pull` in the plugin folder, then `--done`. Keep your background `wait` running afterwards: the
+update never ends listening.
 
 ### `JOB cancel teardown`
 

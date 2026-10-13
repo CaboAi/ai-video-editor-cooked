@@ -167,6 +167,9 @@ Run doctor again until it prints `Ready.` Skipped keys show as `--`; that is fin
 `python3 "$U" install-launcher`: the `nextwork-editor` command opens the editor's window from any
 terminal, with a listening Claude (`--window-only`: the window alone; `uninstall-launcher` takes it off).
 
+Then say this line once: "Turn on auto-updates: type /plugin, open Marketplaces, pick nextwork,
+choose Enable auto-update." Never write to their `~/.claude` files for them.
+
 ## 8. Your style (asked once)
 
 Last, taste. Ask what is still missing:

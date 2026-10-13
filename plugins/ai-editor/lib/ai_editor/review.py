@@ -1283,8 +1283,12 @@ def making_style(folder):
         src = styleskill.sources(folder)
     except Exception:
         src = []
-    if len(src) == 1:
-        return f"@{re.sub(r'-mine$', '', src[0].parent.name)}'s style"
+    if len(src) == 1:   # the name the style has on the home page ("Card edit"), never the folder id
+        try:
+            n = styleskill.display(src[0])
+        except Exception:
+            n = "@" + re.sub(r"-mine$", "", src[0].parent.name)
+        return f"{n}'s style" if n.startswith("@") else "your style" if n == "My style" else f"the {n} style"
     return "your blended style" if src else "your style"
 
 
@@ -1986,6 +1990,12 @@ def demo():
     srv3.shutdown()
     save(sf / "review.json", keep_d)
     assert making_style(sf) == "your style" and making_style(folder) == "@alice's style"
+    from ai_editor import styleskill
+    keep_names, styleskill.names = styleskill.names, lambda: {"alice": {"name": "Card edit"}}
+    try:   # a named style shows its name, never the folder id ("@own-card-edit's style")
+        assert making_style(folder) == "the Card edit style", making_style(folder)
+    finally:
+        styleskill.names = keep_names
     with contextlib.redirect_stdout(io.StringIO()):
         cmd_round(ns(video=str(folder / "review" / "v-cut1.mp4"), stage="edit", transcript=None, plan=None, note=None,
                      name=None), sf)

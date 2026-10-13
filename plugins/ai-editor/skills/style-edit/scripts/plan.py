@@ -1832,7 +1832,7 @@ def pick_treat(pixels, style):
     if got >= CONTRAST_TARGET:
         return None, hexc, got
     # a creator measured with no stroke and no box (plain white over the footage) keeps that look first too
-    plain = style.get("style") == "plain" or (style.get("stroke") is False and style.get("box") is False)
+    plain = is_plain(style)
     for t in PLAIN_TREATS + TREATS[1:] if plain else TREATS:
         if plain and t == "stroke" and got >= PLAIN_MIN:
             return "glow", hexc, got
@@ -1917,9 +1917,15 @@ def treat_captions(plan, edit_dir, meta, floors=None):
 STEPS = (None, "shadow", "glow", "stroke", "backing")   # every treatment, least visible first
 
 
+def is_plain(cs):
+    """Plain white over the footage: the plain style, or a creator measured with no stroke and no box."""
+    return cs.get("style") == "plain" or (cs.get("stroke") is False and cs.get("box") is False)
+
+
 def steps_of(cs):
-    """The treatments a page of this caption style steps through: plain captions have the glow, others skip it."""
-    return STEPS if cs.get("style") == "plain" else (None,) + TREATS
+    """The treatments a page of this caption style steps through: plain captions have the glow, others skip it.
+    Same test as pick_treat, so a page pick_treat gave the glow always has a next step."""
+    return STEPS if is_plain(cs) else (None,) + TREATS
 
 
 def contrast_summary(changed, chunks, worst=3):
@@ -2352,6 +2358,13 @@ def demo_contrast():
             {"start": 1.0, "end": 2.0, "treat": "glow"}, {"start": 2.0, "end": 3.0, "treat": "glow"}, {"start": 3.0, "end": 4.0, "treat": "shadow"}]}}), encoding="utf-8")
         (d / "check.json").write_text(json.dumps({"render": {"caption_contrast": {"low_at": [1.5, 2.5, 3.5], "fail_at": [2.5]}}}), encoding="utf-8")
         assert contrast_floors(d, d / "plan.json") == {"2.00": "stroke", "3.00": "glow"}   # a WARN keeps the glow
+        # a minimal style with no stroke and no box got the glow from pick_treat: plan again steps it up, no crash
+        mini = {"color": "#FFFFFF", "style": "minimal", "stroke": False, "box": False}
+        (d / "contrast.json").unlink()
+        (d / "plan.json").write_text(json.dumps({"captions": {"style": mini, "chunks": [
+            {"start": 5.0, "end": 6.0, "treat": "glow"}]}}), encoding="utf-8")
+        (d / "check.json").write_text(json.dumps({"render": {"caption_contrast": {"low_at": [5.5], "fail_at": [5.5]}}}), encoding="utf-8")
+        assert contrast_floors(d, d / "plan.json")["5.00"] == "stroke"
     assert pick_treat([(230, 225, 216)] * 9, {**white, "stroke_color": "#1B2A4A"})[1] == "#1B2A4A"   # her palette
     assert pick_treat([(250, 250, 250)] * 9, {**white, "highlight_color": "#5A5A5A"})[0] == "backing"
     assert pick_treat([(20, 20, 20)] * 9, {"color": "#111111"})[:2] == ("backing", "#F5F5F5")     # dark text

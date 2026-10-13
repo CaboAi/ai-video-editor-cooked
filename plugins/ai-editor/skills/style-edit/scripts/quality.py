@@ -1154,8 +1154,14 @@ def run(edit, plan, video, plan_path, style=None, cuts=(), brand=None):
                      "leave it (the default), or opt in: quality.py normalize <render> applies one gain to "
                      "-14 LUFS under a -1 dBTP peak, no compression"))
     if tp is not None and tp > TP_WARN:
-        out.append(F("FAIL" if tp > TP_FAIL else "WARN", None, f"true peak {tp} dBTP (keep it under {TP_WARN})",
-                     "a quieter cue (sfx.py) or a quieter source; peaks over 0 clip on every phone"))
+        src = edit / plan.get("video", "cut.mp4")
+        own = loudness(src)[1] if src.exists() else None
+        if own is not None and own >= tp - 0.5:   # the take itself peaks there: not a fault of the edit, no fix round
+            out.append(F("WARN", None, f"true peak {tp} dBTP: the take itself peaks at {own} dBTP",
+                         "the loudness question: leave it, or quality.py normalize <render> (one gain, under -1 dBTP)"))
+        else:
+            out.append(F("FAIL" if tp > TP_FAIL else "WARN", None, f"true peak {tp} dBTP (keep it under {TP_WARN})",
+                         "a quieter cue (sfx.py) or a quieter source; peaks over 0 clip on every phone"))
     cues = plan.get("sfx") or []
     if cues and (edit / plan["video"]).exists():
         info, lv = cue_levels(pcm(video), pcm(edit / plan["video"]), cues)

@@ -23,8 +23,9 @@ work. Pushing to their fork happens only when they ask for it.
 python3 "$U" where
 ```
 
-- **marketplace**: say the three lines it prints (`/plugin marketplace update nextwork`,
-  `/plugin install ai-editor@nextwork`, `/reload-plugins`). Their styles, skills and settings live in
+- **marketplace**: run `python3 "$U" market`. It runs `claude plugin marketplace update nextwork` and
+  `claude plugin update ai-editor@nextwork` itself. Then tell them to type `/reload-plugins`. If it
+  fails, say the three lines it prints instead. Their styles, skills and settings live in
   their own folder and survive (docs/customise.md). Stop here.
 - **plain clone**: say the three fork steps it prints. Stop here.
 - **a fork, run outside its clone**: ask for the folder of their clone, then use `--repo`.

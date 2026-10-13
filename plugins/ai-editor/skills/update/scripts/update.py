@@ -2,6 +2,7 @@
 """Pull new versions of the editor into a fork, keeping the user's own changes. Stdlib only.
 
     python3 update.py where              which install this is, and how it updates
+    python3 update.py market             the official plugin: runs the two `claude plugin` update commands
     python3 update.py add-upstream       add the `upstream` remote (ask the user first)
     python3 update.py check              fetch upstream: new commits, their CHANGELOG lines, files both sides changed
     python3 update.py merge              backup branch, then merge upstream/main (refuses a dirty tree)
@@ -16,6 +17,7 @@ Exit codes: 0 ok, 1 checks failed, 2 refused (says why), 3 merge stopped on conf
 import datetime
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -70,6 +72,25 @@ def where(repo):
     return "fork", remotes.get("upstream")
 
 
+SLASH = ("  /plugin marketplace update nextwork\n"
+         "  /plugin update ai-editor@nextwork\n"
+         "  /reload-plugins\n")
+
+
+def market():
+    """The official plugin: run the same two commands /plugin runs. Without the claude command, the slash lines."""
+    exe = shutil.which("claude")
+    for args in (["plugin", "marketplace", "update", "nextwork"], ["plugin", "update", "ai-editor@nextwork"]):
+        r = subprocess.run([exe, *args], capture_output=True, text=True, timeout=600) if exe else None
+        out = (r.stdout + r.stderr).strip().splitlines()[-1:] if r else []
+        print(f"claude {' '.join(args)}: {out[0] if out else 'no claude command'}")
+        if not r or r.returncode:
+            print("Could not update from here. Type these in Claude Code:\n" + SLASH)
+            return 1
+    print("Updated. Type /reload-plugins in Claude Code to load it.")
+    return 0
+
+
 def say_where(repo):
     kind, up = where(repo)
     if kind == "marketplace":
@@ -79,10 +100,8 @@ def say_where(repo):
                 print(f"Your plugin comes from {o}, a fork. Run this from your clone of it, or pass --repo <that folder>.")
                 return "fork", None
         print("install: marketplace (the official plugin, no fork)\n"
-              "update: type these in Claude Code:\n"
-              "  /plugin marketplace update nextwork\n"
-              "  /plugin install ai-editor@nextwork\n"
-              "  /reload-plugins\n"
+              "update: `python3 update.py market` runs it. By hand, type these in Claude Code:\n"
+              f"{SLASH}"
               "Your styles, skills and settings live in your own folder and survive the update (docs/customise.md).")
     elif kind == "clone":
         print(f"install: a plain clone of upstream ({repo.as_posix()})\n"
@@ -299,6 +318,9 @@ def demo():
         assert r.returncode == 0, r.stdout + r.stderr
         assert g(fork, "rev-parse", "HEAD") == before and not dirty(fork)
         assert len([b for b in g(fork, "branch").split() if b.startswith("before-update-")]) == 2
+    # market without the claude command falls back to the slash lines
+    r = subprocess.run([sys.executable, __file__, "market"], capture_output=True, text=True, env={**os.environ, "PATH": ""})
+    assert r.returncode == 1 and "/plugin update ai-editor@nextwork" in r.stdout, r.stdout
     print("update demo ok")
     return 0
 
@@ -310,6 +332,8 @@ def main(argv):
     cmd, rest = argv[0], argv[1:]
     if cmd == "demo":
         return demo()
+    if cmd == "market":
+        return market()
     repo = find_repo(rest[rest.index("--repo") + 1] if "--repo" in rest else None)
     if cmd == "where":
         say_where(repo)

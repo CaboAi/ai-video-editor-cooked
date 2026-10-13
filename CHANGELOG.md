@@ -4,6 +4,16 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Styles is one list: every style is yours, and each card says where it came from (Built by you, Learned
+  from your edits, From @creator) with its cut, zooms and captions as icon rows. Tabs filter it (All, Built
+  by you, From creators). New style opens Analyse a format (paste 3 to 6 videos edited the same way, from any
+  creators, or pick them from a profile's newest videos) or Build it yourself, which makes a new named style
+  of your own. You can have several of your own and make any one the default. A style being analysed shows
+  its real steps first in the list. A style's page shows it on your video with its captions, zooms, cut,
+  cards and sound as option tiles, saved as you go. Delete and reset ask in a dialog. Style folders sit in
+  the sidebar with the video folders. Pick a style has the same cards, the default first, and a Make it in
+  a new Claude chat button where a terminal can be opened.
+
 - The home window has a sidebar instead of the top header: cooked. and its pan, + New video, Home, Your videos
   and My styles with counts, your video folders (drag a video onto one to move it, with Undo), the job being
   made right now with its real progress, Settings and the light/dark switch. The panel button folds it into a

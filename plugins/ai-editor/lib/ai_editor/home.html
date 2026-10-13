@@ -609,6 +609,7 @@ body.rail .sb-theme{margin-top:2px}
 .cmenu button:hover,.cmenu .hasub.on{background:var(--card)!important}
 .cmenu button svg{flex-shrink:0}.cmenu button .lb{flex:1;min-width:0;text-align:left}.cmenu button .n{color:var(--t3);font-size:13px}
 .cmenu hr{border:0;border-top:1px solid var(--line);margin:4px 8px}
+.cmenu .mh{padding:8px 8px 4px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--t3)}
 .cmenu .sub{min-width:200px;left:calc(100% + 6px);top:-5px}
 .th .cmenu,.dt .pic .cmenu{left:calc(100% - 40px);right:auto;top:38px}
 .cmenu.flip{left:auto!important;right:6px!important}.cmenu.subflip .sub{left:auto;right:calc(100% + 6px)}
@@ -642,7 +643,7 @@ body.rail .sb-theme{margin-top:2px}
 .vi .bar>i{display:block;height:4px;background:var(--ink)}.vi .bar.indet>i{width:40%;animation:slide 1.3s ease-in-out infinite}
 @container (min-width:300px){.vc:not(.vw) .vi{flex-direction:row;gap:16px}.vc:not(.vw) .vi>.th{height:172px}.vc:not(.vw) .vi .st{align-items:flex-start}.vc:not(.vw) .vi .tx{padding-top:4px}}
 @container (min-width:440px){.vc.vw .vi{flex-direction:row;gap:16px}.vc.vw .vi>.th{height:95px}.vc.vw .vi .st{align-items:flex-start}.vc.vw .vi .tx{padding-top:4px}}
-@media (min-width:761px) and (max-height:780px){.pgc{gap:24px}.hdrop{height:68px}}
+@media (min-width:761px) and (max-height:780px){main.pg .pgc{gap:24px}.pgc .hdrop{height:68px}}
 .vfill{flex:1 1 0;min-width:0}
 /* done tiles: one row height, the width follows the video's shape */
 .dts{display:flex;gap:14px;flex-wrap:wrap;row-gap:20px}
@@ -706,6 +707,110 @@ body.rail .sb-theme{margin-top:2px}
 /* the first-run panels lost 232 px to the sidebar: a key row stacks its two halves until the window is wide */
 @media (min-width:761px) and (max-width:1560px){.krow{flex-direction:column;gap:12px}.kl{width:auto}}
 @media (max-width:760px){main.pg{padding:20px 16px!important}.hshelf{flex-direction:column}.hdrop{height:auto;flex-wrap:wrap}.hdrop>*{flex-basis:100%;height:76px}}
+
+/* ---- styles (Paper "P App: styles") ---- */
+.cgrid{display:grid;grid-template-columns:repeat(var(--per,3),minmax(0,1fr));gap:24px}.cgrids{display:flex;flex-direction:column;gap:24px}
+.cgrid.own{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+.cs{position:relative;display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:12px;background:var(--card);min-width:0;cursor:pointer;text-align:left;border:0;color:var(--ink)}
+.cs .pic{position:relative;height:140px;border-radius:8px;background:#44403C 50% 30%/cover;flex-shrink:0}
+.cs:hover .pic{filter:brightness(.97)}.cs.dragsrc{opacity:.45}
+.cs .who{display:flex;align-items:center;gap:10px;min-width:0}
+.cs .nm,.cs .ttl{font-size:15px;line-height:18px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ict{width:32px;height:32px;border-radius:16px;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center;flex-shrink:0}
+.fl{display:flex;flex-direction:column;gap:6px}
+.fr2{display:flex;align-items:center;gap:10px;font-size:13px;line-height:16px;min-width:0}.fr2 svg{flex-shrink:0}
+.fr2 .k{width:64px;flex-shrink:0;color:var(--t2)}.fr2 .v{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.cs.big{flex-direction:row;gap:20px}.cs.big .pic{width:150px;height:266px;background-position:50%}
+.cs.big .info{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px;padding-top:4px}
+.cs.big .ttl{font-size:20px;line-height:24px;display:flex;align-items:center;gap:10px}
+.sub2{font-size:14px;line-height:20px;color:var(--t2);margin-top:4px}
+.schip{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;height:28px;padding:0 10px 0 4px;border:1px solid var(--line);border-radius:14px;background:var(--panel);font-size:13px;line-height:16px;flex-shrink:0}
+.chg{font-size:13px;line-height:18px;font-weight:600}
+.tagc{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:12px;background:var(--panel);border:1px solid var(--line);font-size:13px;font-weight:600;line-height:16px;color:var(--ink);flex-shrink:0;white-space:nowrap}
+.tagc.dflt{background:var(--panel);border:1px solid var(--line);height:22px;padding:0 8px;font-size:12px}
+.stabs{display:flex;gap:22px;border-bottom:1px solid var(--line);margin-top:-12px}
+.stabs button{border:0;background:none;padding:0 0 10px;margin-bottom:-1px;border-bottom:2px solid transparent;font-size:14px;line-height:18px;color:var(--t3);white-space:nowrap}
+.stabs button span{color:var(--t4)}.stabs button:hover{color:var(--ink)}
+.stabs button.on{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}.stabs button.on span{color:var(--t3);font-weight:400}
+.tagc.ontop{position:absolute;top:8px;left:8px;background:#F5C400;color:#0C0A09}
+.cs.newt{align-items:center;justify-content:center;gap:8px;background:none;border:1.5px dashed var(--ring);text-align:center;min-height:200px;color:var(--ink)}
+.cs.newt:hover{border-color:var(--t3)}.cs.newt b{font-size:15px}.cs.newt .t2{white-space:normal;max-width:220px}
+.cs .steps{background:var(--panel);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-height:140px}
+.sr{display:flex;align-items:center;gap:10px;font-size:14px;line-height:18px;color:var(--t2)}.sr.cur{color:var(--ink);font-weight:600}.sr.later{color:var(--t3)}
+.sr i{width:6px;height:6px;border-radius:3px;background:var(--ring);margin:0 4px;flex-shrink:0}.sr .sring{width:14px;height:14px}
+.okc{color:var(--ok);display:inline-flex;flex-shrink:0}
+.cs .bar{position:absolute;left:0;right:0;bottom:0;height:4px;border-radius:0 0 12px 12px;background:var(--track);overflow:hidden}.cs .bar>i{display:block;height:4px;background:var(--ink)}
+.sbar .sb-flist .sb-row svg{flex-shrink:0}
+/* dialogs: delete/reset, New style, pick videos */
+.dlg{width:min(560px,100%);background:var(--panel);border-radius:16px;padding:28px;display:flex;flex-direction:column;gap:14px;box-shadow:0 24px 64px #0C0A0940}
+.dlg>b{font-size:20px;line-height:26px;font-weight:600}.dlg p{margin:0;font-size:15px;line-height:22px;color:var(--t2)}
+.modal.nsm{width:min(760px,100%);padding:28px;gap:20px;border-radius:20px;border:0}
+.mt2{font-size:24px;line-height:30px;font-weight:600}
+.mx2{width:36px;height:36px;border-radius:18px;border:0;background:none;display:grid;place-items:center;color:var(--ink);flex-shrink:0}.mx2:hover{background:var(--soft)}
+.nbox{border:1px solid var(--line);border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:12px;background:var(--panel);text-align:left;color:var(--ink);width:100%}
+.nbox b{font-size:17px;line-height:22px;font-weight:600}.nbox p{margin:0;font-size:14px;line-height:20px;color:var(--t2)}
+.nbox.brow{flex-direction:row;align-items:center;justify-content:space-between;cursor:pointer}.nbox.brow:hover{border-color:var(--ring)}
+.nbox.brow p{margin-top:6px}
+.lr{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--line);border-radius:10px;min-width:0}
+.lr b{font-size:15px;font-weight:600}.lr .u{font-size:14px;line-height:18px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.lth{width:36px;height:60px;border-radius:6px;background:var(--card);display:grid;place-items:center;flex-shrink:0}
+.lin{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;border:1.5px solid var(--ink);border-radius:10px;color:var(--t3);cursor:text}
+.lin input{flex:1;min-width:0;border:0;outline:0;background:none;font:15px/20px system-ui,sans-serif;color:var(--ink)}
+.ul{border:0;background:none;padding:0;color:var(--ink);font-size:14px;line-height:20px;text-decoration:underline 1px;text-underline-offset:3px;cursor:pointer}
+.pgrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;max-height:min(600px,calc(100dvh - 260px));overflow-y:auto;padding:3px}
+.pv{position:relative;aspect-ratio:9/16;border-radius:8px;border:0;background:#45403C center/cover;cursor:pointer;padding:0}
+.pv.on{outline:2px solid var(--ink);outline-offset:2px}
+.pv i{position:absolute;top:10px;left:10px;width:24px;height:24px;border-radius:12px;background:#FFFFFFB3;display:grid;place-items:center;color:#fff}
+.pv.on i{background:#0C0A09}
+/* Pick a style */
+.pc{position:relative;display:flex;gap:16px;padding:16px;border-radius:12px;background:var(--card);border:2px solid transparent;text-align:left;color:var(--ink);min-width:0;cursor:pointer}
+.pc:hover{border-color:var(--ring)}.pc.on{border-color:var(--ink);background:var(--panel)}
+.pc .pic{width:84px;height:150px;border-radius:8px;background:#45403C center/cover;flex-shrink:0}
+.pc .tx{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1;padding:4px 28px 0 0}
+.pc .ttl{display:flex;align-items:center;gap:8px;font-size:17px;line-height:22px;font-weight:600;min-width:0}
+.pc .t2{white-space:normal}.pc .pf{display:flex;align-items:center;gap:10px;font-size:15px;line-height:20px;margin-top:10px}
+.rd{position:absolute;top:16px;right:16px;width:24px;height:24px;border-radius:12px;border:1.5px solid var(--ring);background:var(--panel)}
+.rd.on{border:7px solid var(--ink)}
+.clipsum{display:flex;align-items:center;gap:14px;padding:12px 20px 12px 12px;border-radius:12px;background:var(--card);min-width:0}
+.clipsum .th{width:38px;height:68px;border-radius:6px;background:#45403C center/cover;flex-shrink:0}
+.pfoot{position:sticky;bottom:-32px;margin:auto -40px -32px;padding:18px 40px 24px;border-top:1px solid var(--line);background:var(--page);display:flex;align-items:center;justify-content:space-between;gap:16px;z-index:3}
+/* a style's page */
+.spg{display:flex;gap:40px;align-items:flex-start;min-width:0}
+.spl{width:250px;flex-shrink:0;display:flex;flex-direction:column;gap:16px;position:sticky;top:0}
+.sprev2{position:relative;width:250px;height:444px;border-radius:14px;overflow:hidden;background:#45403C center/cover}
+.ptag{position:absolute;top:10px;left:10px;background:#FFFFFFF0;color:#0C0A09;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600;line-height:16px}
+.spr{flex:1;min-width:0;display:flex;flex-direction:column;gap:22px;padding-top:40px}
+.sth{width:48px;height:85px;border-radius:6px;background:#45403C center/cover;flex-shrink:0}
+.sname{font-size:28px;line-height:34px;font-weight:600;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
+.pgdots{position:relative;flex-shrink:0}.pgdots .dots{position:static;width:32px;height:32px;border:1px solid var(--ring);background:none;box-shadow:none;color:var(--ink)}
+.pgdots .cmenu{left:auto!important;right:0!important;top:40px!important}
+.seg4{display:inline-flex;background:var(--card);border-radius:10px;padding:3px}
+.seg4 button{display:flex;align-items:center;gap:6px;height:28px;padding:0 12px;border:0;border-radius:8px;background:none;font-size:13px;font-weight:500;line-height:16px;color:var(--t2)}
+.seg4 button.on{background:var(--segon);color:var(--ink);font-weight:600;box-shadow:0 1px 2px #0C0A091F}
+.seg4 i{border:1.5px solid currentColor;border-radius:2px;flex-shrink:0}
+.ssec{border-top:1px solid var(--line);padding-top:18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.ssec.two{flex-direction:row;gap:32px}.ssec.two>div{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:10px}
+.shd{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}.shd b{font-size:15px;line-height:20px;font-weight:600;white-space:nowrap}
+.shd .t2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctiles{display:flex;gap:12px}
+.ct{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:6px;border:0;background:none;padding:0;text-align:left;color:var(--ink);cursor:pointer}
+.ct .ci{height:64px;border-radius:8px;overflow:hidden;background:#1C1917;display:flex;align-items:center;justify-content:center}
+.ct .ci img{width:100%;height:100%;object-fit:cover;display:block}
+.ct.on .ci{outline:2px solid var(--ink);outline-offset:2px}
+.ct b{font-size:13px;line-height:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ct.on b{font-weight:600}
+.rng{width:180px;accent-color:var(--ink)}.vr{width:1px;height:16px;background:var(--line);flex-shrink:0}
+.ocs{display:flex;gap:8px}
+.oc{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--ring);border-radius:10px;background:none;text-align:left;color:var(--ink);cursor:pointer}
+.oc b{font-size:13px;line-height:16px;font-weight:600}.oc span{font-size:12px;line-height:16px;color:var(--t3)}
+.oc:hover{border-color:var(--t3)}.oc.on{background:var(--card);border:1.5px solid var(--ink);padding:9.5px 11.5px}.oc.on span{color:var(--t2)}
+.sw{width:36px;height:20px;border-radius:10px;border:0;padding:2px;background:var(--ring);display:flex;flex-shrink:0;cursor:pointer}
+.sw i{width:16px;height:16px;border-radius:8px;background:#fff;transition:transform .15s}.sw.on{background:var(--ink)}.sw.on i{transform:translateX(16px);background:var(--panel)}
+.srow2{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;line-height:16px;color:var(--t2)}
+.lrow2{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--line);font-size:15px;line-height:20px}
+.ssec>.shd+.lrow2{border-top:0}
+.sfoot{flex-direction:row;align-items:center;gap:8px;font-size:13px;line-height:16px;flex-wrap:wrap}
+@media (max-width:1180px){.ssec.two{flex-direction:column;gap:22px}.cgrid.own{grid-template-columns:1fr}}
+@media (max-width:900px){.spg{flex-direction:column}.spl{position:static}.ctiles{flex-wrap:wrap}.ct{flex-basis:30%}}
 
 </style>
 </head>
@@ -1288,43 +1393,10 @@ function askName(c){
   ui.edit={kind:'name',id:c.id,val:c.suggest,fresh:1};
   setTimeout(()=>{const e=$('#ed-name');if(e){e.focus();e.select()}},0);
 }
-function delRow(c,note){
-  if(c.id==='mine')return `<div class="delrow" onclick="event.stopPropagation()"><b style="font-size:14px">Reset ${esc(c.name)} to the default style?</b><div class="sub" style="font-size:13px">Your feedback changes are cleared. You can't undo this.</div>
-    <div class="row" style="gap:8px"><button class="btn dark sm" onclick="delStyle('mine')">Reset</button><button class="btn quiet sm" onclick="ui.del=null;render()">Keep</button></div></div>`;
-  const h=c.id.slice(1),m=ui.del&&ui.del.measured;
-  return `<div class="delrow" onclick="event.stopPropagation()"><b style="font-size:14px">Delete ${esc(c.name)}'s style? Its skill goes too.</b>${note?`<div class="sub" style="font-size:13px">${esc(note)}</div>`:''}
-    <label class="row" style="gap:8px;font-size:13px;color:var(--t2);cursor:pointer"><input type="checkbox" ${m?'checked':''} onchange="ui.del.measured=this.checked" style="accent-color:var(--ink)">Also delete what was measured (@${esc(h)}'s downloaded videos)</label>
-    <div class="row" style="gap:8px"><button class="btn dark sm" onclick="delStyle(${esc(JSON.stringify(c.id))})">Delete</button><button class="btn quiet sm" onclick="ui.del=null;render()">Keep</button></div></div>`;
-}
-async function delStyle(id){
-  const r=id==='mine'?await post('/style/reset-all',{}):await post('/style/delete',{id,measured:!!(ui.del&&ui.del.measured)});ui.del=null;
-  if(!r._ok){ui.delmsg={id,msg:r.error||(id==='mine'?'That did not reset.':'That did not delete.')};return render()}
-  if(nv.style===id)nv.style='mine';await loadLib();if(rv==='stylepage')rgo('mystyle');else render();
-}
 const skillBusy=id=>{const k=latest('skill');return k&&(k.state==='queued'||k.state==='taken')&&'@'+k.args.handle===id?k:null};
 const madeAgo=t=>{if(!t)return '';const d=Math.floor((Date.now()/1000-t)/86400);return d<1?'today':d<2?'yesterday':`${d} days ago`};
 const isNewStyle=c=>c.id!=='mine'&&!c.studying&&c.made&&Date.now()/1000-c.made<86400;
 const learnedN=c=>c.learned_from?` · Learned from ${c.learned_from} video${c.learned_from>1?'s':''}`:'';
-// what the card is, in plain words; My style says what it started as and what feedback changed
-function styleWhat(c){
-  if(c.studying)return `<div class="sub" style="padding:8px 6px 10px;font-size:14px;line-height:21px">${esc(c.line)}</div>`;
-  if(c.id!=='mine')return `<div class="sub" style="padding:8px 6px 4px;font-size:14px;line-height:21px">${esc(c.id)}'s style${c.videos?`, measured from ${c.videos} of their videos`:''}. Pick it to edit exactly like them.</div><div class="muted" style="padding:0 6px 10px;font-size:13px">Made ${madeAgo(c.made)||'here'}${learnedN(c)}</div>`;
-  const b=c.base&&(L.styles.find(x=>x.id==='@'+c.base)||{}),was=Object.fromEntries((b&&b.facts)||[]);
-  const n=Math.max(c.changes||0,b?c.facts.filter(([k,v])=>was[k]!=null&&was[k]!==v).length:0);   // a changed number counts even before its rule is written
-  return `<div class="sub" style="padding:8px 6px 8px;font-size:14px;line-height:21px">Your style. Used on every video unless you pick another.</div>
-    ${c.base?`<div class="basechip"><i style="${b.face?`background-image:url('${esc(b.face)}')`:''}"></i>Started from @${esc(c.base)}</div>`:''}
-    <div class="muted" style="padding:8px 6px 10px;font-size:13px;line-height:19px">${n?`${n} change${n>1?'s':''} from your feedback${c.changed?` · last ${madeAgo(c.changed)}`:''}${learnedN(c)}`:c.base?`No changes yet: it edits exactly like @${esc(c.base)}. Your feedback on videos changes it.`:'Starts from the default style. Your feedback on videos changes it.'}</div>`;
-}
-function factRows(c){
-  const b=c.id==='mine'&&c.base&&(L.styles.find(x=>x.id==='@'+c.base)||{}),was=Object.fromEntries((b&&b.facts)||[]);
-  return c.facts.map(([k,v])=>{const w=b&&was[k]!=null&&was[k]!==v?was[k]:null;return `<div class="frow"><span>${esc(k)}</span><span>${w?`<span class="chg">${esc(v)}</span><s class="was">${esc(w)}</s>`:esc(v)}</span></div>`}).join('');
-}
-function styleGroups(pick){
-  const st=(L?L.styles:[]),me=st.find(c=>c.id==='mine');
-  const cr=st.filter(c=>c.id!=='mine').sort((a,b)=>(!!b.studying-!!a.studying)||((b.made||0)-(a.made||0)));
-  return `${me?`<div class="sgroup"><div class="gh"><span class="h" style="font-size:17px">Your styles</span></div><div style="display:flex;flex-wrap:wrap;gap:24px">${styleCard(me,pick,0)}</div></div>`:''}
-    <div class="sgroup"><div class="gh" style="align-items:center"><span class="h" style="font-size:17px">Creator styles</span><span class="muted">newest first</span><button class="btn quiet sm" style="margin-left:auto" onclick="openCreate()">+ New style</button></div><div style="display:flex;flex-wrap:wrap;gap:24px">${cr.map((c,i)=>styleCard(c,pick,i+1)).join('')||'<div class="muted">No creator styles yet. Analyse one with + New style.</div>'}</div></div>`;
-}
 // right after a skill build: that creator's card flashes once and scrolls into view
 function flashBuilt(){
   const k=latest('skill');if(!k||k.state!=='done'||Date.now()/1000-(k.finished||0)>600)return;
@@ -1332,67 +1404,240 @@ function flashBuilt(){
   try{if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1')}catch(e){return}
   const el=document.getElementById('sc-'+id);if(!el)return;el.scrollIntoView({block:'center'});el.classList.add('flash');
 }
-function styleCard(c,pick,i){
-  const pic=picOf(c,i),on=pick&&nv.style===c.id,editing=ui.edit&&ui.edit.kind==='name'&&ui.edit.id===c.id;
-  const del=!c.studying&&ui.del&&ui.del.id===c.id;
-  const base=L&&L.styles[0]&&L.styles[0].base;
-  return `<div class="scard ${on?'on':''} ${isNewStyle(c)?'new':''}" id="sc-${esc(c.id)}" ${!pick&&!c.studying?dragAttrs('styles',c.id,c.name):''} onclick="${pick?`nv.style='${esc(c.id)}';nv.picked=1;render()`:`openStyle('${esc(c.id)}')`}"><div class="pic${mo('s:'+c.id)}" style="background-image:url('${esc(pic.url)}')">${pic.demo?'<span class="extag">Example photo</span>':pic.face?'<span class="extag">Their video</span>':''}${isNewStyle(c)?'<span class="newtag">New</span>':''}${sMenu(c,'r',!pick)}${c.studying?'<div class="studying">Analysing their style now</div>':skillBusy(c.id)?`<div class="buildtag"><div class="spin"></div><span>Building its skill · <span data-since="${jobStart(skillBusy(c.id))}">${secs(Math.max(0,Math.round(Date.now()/1000-jobStart(skillBusy(c.id)))))}</span></span></div>`:''}</div>
-    ${ui.covermsg&&ui.covermsg.id===c.id?`<div class="msg bad" style="margin:10px 6px 0">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
-    <div class="between" style="align-items:center;margin-top:16px;padding:0 6px"><span class="row" style="gap:6px;min-width:0;flex:1">${editing?'':`<span style="font-size:18px;font-weight:600">${esc(c.name)}</span>`}${c.studying?'':editField('name',c.id,c.name,'font-size:16px')}</span>${pick?`<div class="radio ${on?'on':''}"></div>`:''}</div>
-    ${styleWhat(c)}
-    <div style="padding:0 6px 4px">${factRows(c)}</div>
-    ${ui.delmsg&&ui.delmsg.id===c.id?`<div class="msg bad" style="margin:10px 6px 0">${CROSS}<span>${esc(ui.delmsg.msg)}</span></div>`:''}
-    ${del?delRow(c,base&&'@'+base===c.id?'My style started from this one. It goes back to the default style.':''):c.skill?`<div class="between" style="margin-top:auto;padding:12px 6px 2px;border-top:1px solid var(--line)"><span class="mono" style="font-size:12px">/${esc(c.skill)}</span><span class="row" style="gap:14px"><button class="hlink" style="color:var(--ink);font-size:13px" onclick="event.stopPropagation();openStyle('${esc(c.id)}')">Edit style ›</button></span></div>`:''}</div>`;
+// ---- styles (Paper "P App: styles"): Your styles (own) and Creator styles as cards with icon facts; the analysing
+// card first while a format is being analysed; a delete or reset asks in a dialog
+const IC2={cut:'<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/>',
+ pace:'<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/>',caption:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 11h10M7 15h6"/>',
+ zoom:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4M11 8v6M8 11h6"/>',sound:'<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/>',
+ x:'<path d="M6 6l12 12M18 6 6 18"/>',star:'<path d="M12 4l2.4 5 5.6.6-4.2 3.8 1.2 5.6L12 16.2 7 19l1.2-5.6L4 9.6 9.6 9z"/>'};
+// a measured fact as [icon, label, value]: the same icon for the same fact everywhere
+function fact3(c){
+  return (c.facts||[]).map(([k,v])=>/^cut/i.test(k)?['cut','Cut','Every '+v]:/^zoom/i.test(k)?['zoom','Zooms',v]:/^caption/i.test(k)?['caption','Captions',v]
+    :/^music|^sound/i.test(k)?['sound','Sound',v]:/^card/i.test(k)?['styles','Cards',v]:/^pace/i.test(k)?['pace','Pace',v]:['image',k,v]).slice(0,3);
 }
-// + New style: a modal over the page; Esc, the X, the backdrop or a started copy closes it (the typed links stay in LB.study)
-function openCreate(){ui.create=true;ui.study=null;render();setTimeout(()=>{const e=$('#lb-study');if(e)e.focus()},0)}
-function closeCreate(){ui.create=false;render()}
+const factList=c=>`<div class="fl">${fact3(c).map(([i,k,v])=>`<div class="fr2">${ic(i)}<span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join('')||'<div class="fr2"><span class="v" style="color:var(--t3);font-weight:400">The default style</span></div>'}</div>`;
+const handleOf=c=>c.id.startsWith('@')&&!c.own?c.id.slice(1):'';
+const avaHTML=(url,px=32)=>`<span class="ava" style="width:${px}px;height:${px}px;border-radius:${px/2}px;${url?`background-image:url('${esc(url)}')`:''}">${url?'':SIL}</span>`;
+const origin=c=>c.sample?'Sample':c.id==='mine'?'Learned from your edits':c.own?'Built by you':c.studying?'Being analysed now':handleOf(c).startsWith('links-')?'From several creators':`From @${handleOf(c)}`;
+const isDefault=c=>(L&&L.default_style||'mine')===c.id;
+const ownSub=c=>c.id==='mine'?(c.learned_from?`Learned from ${c.learned_from} video${c.learned_from>1?'s':''}`:c.base?`Started from @${c.base}`:'The default style'):`Built yourself${c.made?' · '+ago(c.made):''}`;
+const crSub=c=>c.studying?'Being analysed now':handleOf(c).startsWith('links-')?'From several creators':`From @${handleOf(c)}`;
+const tdOf=c=>S.jobs.filter(j=>j.type==='teardown'&&'@'+j.args.handle===c.id).pop();
+// the analysing card: the real teardown steps, then what is still to come, a clock and the bar
+function studyCard(c){
+  const j=tdOf(c),steps=j?j.steps:[],cur=steps.find(s=>!s.done),n=j&&j.listing&&j.listing.videos?j.listing.videos.length:0;
+  const rows=steps.map(s=>`<div class="sr ${s.done?'':'cur'}">${s.done?`<span class="okc">${ic('check',14,2.4)}</span>`:SPIN}<span>${esc(s.text)}${!s.done&&s.detail?' · '+esc(s.detail):''}</span></div>`).join('')
+    +PLAN.slice(steps.length,steps.length+Math.max(0,6-steps.length)).map(p=>`<div class="sr later"><i></i><span>${esc(p)}</span></div>`).join('');
+  const t=j?jobStart(j):Date.now()/1000,f=j?jobFrac(j):0;
+  return `<div class="cs" id="sc-${esc(c.id)}"><div class="steps">${rows||`<div class="sr cur">${SPIN}<span>${j&&j.state==='queued'&&!S.listening?`Waiting for Claude. Type ${CMD} in Terminal.`:'Starting'}</span></div>`}</div>
+    <div class="who">${avaHTML(c.face)}<div style="min-width:0"><div class="nm">${esc(handleOf(c).startsWith('links-')?'New format':c.name)}</div><div class="t2">${esc(crSub({...c,studying:0}))}</div></div></div>
+    <div><div class="t1" style="font-weight:600">Analysing ${n?n+' videos':'the videos'} · <span data-since="${t}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-t)))}</span></div><div class="t2" style="white-space:normal;margin-top:4px">About 3 min. It keeps going if you leave.</div></div>
+    <div class="bar"><i style="width:${Math.round((f||0)*100)}%"></i></div></div>`;
+}
+function crCard(c,i){
+  if(c.studying)return studyCard(c);
+  const pic=picOf(c,i);
+  return `<div class="cs" id="sc-${esc(c.id)}" role="button" tabindex="0" onclick="openStyle(${J(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)this.click()" ${dragAttrs('styles',c.id,c.name,pic.url)}>
+    <div class="pic" style="background-image:url('${esc(pic.url)}')">${sMenu(c)}</div>
+    <div class="who">${c.own||c.sample?`<span class="ict">${ic('styles',16)}</span>`:avaHTML(c.face)}<div style="min-width:0;flex:1"><div class="nm">${esc(c.name)}</div><div class="t2">${esc(origin(c))}</div></div>${isDefault(c)?'<span class="tagc dflt">Default</span>':''}</div>
+    ${factList(c)}</div>`;
+}
+function mineCard(c,i){
+  const n=c.changes||0,pic=picOf(c,i);
+  const line=[n?`${n} change${n>1?'s':''} from your feedback`:'',c.changed&&n?'last '+madeAgo(c.changed):'',c.learned_from?`Learned from ${c.learned_from} video${c.learned_from>1?'s':''}`:''].filter(Boolean).join(' · ');
+  const b=c.base&&(L.styles.find(x=>x.id==='@'+c.base)||{});
+  return `<div class="cs big" id="sc-${esc(c.id)}" role="button" tabindex="0" onclick="openStyle(${J(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)this.click()"><div class="pic" style="background-image:url('${esc(pic.url)}')">${sMenu(c)}</div>
+    <div class="info"><div><div class="ttl">${esc(c.name)}${isDefault(c)?'<span class="tagc">Default</span>':''}</div><div class="sub2">${isDefault(c)?'Used on every video unless you pick another.':'Your style. Pick it for a video, or make it the default.'}</div></div>
+      ${c.base?`<span class="schip">${avaHTML(b&&b.face,20)}Started from @${esc(c.base)}</span>`:''}
+      ${line?`<div class="chg">${esc(line)}</div>`:'<div class="t2" style="white-space:normal">No changes yet. Your notes on videos change it.</div>'}
+      ${factList(c)}</div></div>`;
+}
+const newTile=()=>`<button class="cs newt" onclick="buildYourself()">${ic('plus',20,2)}<b>Build a style yourself</b><span class="t2">Name it, then pick captions, zooms, cut and sound.</span></button>`;
+// rows of three equal cards (My style takes two places)
+function gridRows(items,per=3){const out=[];for(let i=0;i<items.length;i+=per){const r=items.slice(i,i+per);out.push(`<div class="cgrid" style="--per:${per}">${r.join('')}</div>`)}return `<div class="cgrids">${out.join('')}</div>`}
+const STABS=[['all','All'],['own','Built by you'],['cr','From creators'],['sample','Samples']];
+const inTab=(c,t)=>t==='all'||(t==='own'?c.own&&!c.sample:t==='cr'?!c.own&&!c.sample:!!c.sample);
+// Styles: one list, every style is the user's; tabs filter it; a style folder (sidebar) filters it too
+function vMyStyle(){
+  if(ui.fold.styles&&!fd('styles').folders.some(f=>f.id===ui.fold.styles))ui.fold.styles=null;
+  const st=L?L.styles:[],idx=c=>st.indexOf(c),per=perRow(),f=ui.fold.styles&&fd('styles').folders.find(x=>x.id===ui.fold.styles);
+  const base=f?st.filter(c=>inFold('styles',c.id)===f.id):st,tab=ui.stab||'all';
+  const shown=base.filter(c=>inTab(c,tab)).sort((a,b)=>(!!b.studying-!!a.studying)||(isDefault(b)-isDefault(a))||((b.id==='mine')-(a.id==='mine'))||((b.made||0)-(a.made||0)));
+  const tabs=STABS.filter(([t])=>t!=='sample'||base.some(c=>c.sample)).map(([t,l])=>`<button class="${tab===t?'on':''}" onclick="ui.stab='${t}';render()">${l} <span>${base.filter(c=>inTab(c,t)).length}</span></button>`).join('');
+  const head=f?`<div class="ph"><button class="back" onclick="ui.fold.styles=null;render()" ${dropAttrs('styles',null)}>${ic('back',14,2)}Styles</button><h1>${esc(f.name)}</h1><p>${base.length} style${base.length===1?'':'s'}. Drag a style onto a folder to move it.</p></div>`
+    :`<div class="ph"><h1>Styles</h1><p>How your videos get edited. Each one learns from your reviews.</p></div>`;
+  return `<div class="pgc"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">${head}<button class="b1" style="margin-top:${f?32:0}px" onclick="openCreate()">${ic('plus',16,2.2)}New style</button></div>
+    <div class="stabs" role="tablist">${tabs}</div>
+    ${shown.length||tab==='all'||tab==='own'?gridRows([...shown.map(c=>crCard(c,idx(c))),...(!f&&(tab==='all'||tab==='own')?[newTile()]:[])],per):`<div class="none">${tab==='cr'?'No styles from creators yet. New style analyses 3 to 6 videos edited the same way.':'Nothing here yet.'}</div>`}</div>`;
+}
+// Build it yourself: a new own style with a free name, then its page with the name field open
+async function buildYourself(){
+  const names=new Set((L.styles||[]).map(c=>c.name.toLowerCase()));let n='My own style',k=2;while(names.has(n.toLowerCase()))n=`My own style ${k++}`;
+  const r=await post('/style/new',{name:n});if(!r._ok){toast(r.error||'That did not work.');return}
+  ui.create=false;await loadLib();openStyle(r.id);ui.edit={kind:'name',id:r.id,val:null};
+  setTimeout(()=>{const e=$('#ed-name');if(e){e.focus();e.select()}},400);
+}
+async function makeDefault(id){const r=await post('/style/default',{id});if(r._ok){L.default_style=r.default_style;toast('New videos start on this style.')}render()}
+function renameStyle(id){ui.edit={kind:'name',id,val:null};openStyle(id);setTimeout(()=>{const e=$('#ed-name');if(e){e.focus();e.select()}},400)}
+// a delete or reset asks first, in a dialog (Esc or Keep closes it)
+function askDel(id){ui.del={id,measured:false};ui.delmsg=null;render()}
+function delModal(){
+  const c=ui.del&&((L&&L.styles||[]).find(x=>x.id===ui.del.id)||(ui.spage&&ui.spage.id===ui.del.id?ui.spage:null));if(!c)return '';
+  const mine=c.id==='mine',vids=!c.own&&c.videos;
+  return `<div class="modalbg" onclick="if(event.target===this){ui.del=null;render()}"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dtitle">
+    <b id="dtitle">${mine?`Reset ${esc(c.name)} to the default style?`:`Delete ${esc(c.name)}?`}</b>
+    <p>${mine?'Your feedback changes are cleared. You can\'t undo this.':`Its skill goes too. Videos already made with it stay as they are.${c.delete_note?' '+esc(c.delete_note):''}`}</p>
+    ${!mine&&!c.own?`<label class="row" style="gap:10px;font-size:15px;cursor:pointer"><input type="checkbox" ${ui.del.measured?'checked':''} onchange="ui.del.measured=this.checked" style="width:20px;height:20px;accent-color:var(--ink)">Also delete the ${vids?vids+' ':''}downloaded videos it was measured from</label>`:''}
+    ${ui.delmsg?`<div class="msg bad">${CROSS}<span>${esc(ui.delmsg.msg)}</span></div>`:''}
+    <div class="row" style="justify-content:flex-end;gap:12px"><button class="b2" onclick="ui.del=null;render()">Keep</button><button class="b1" onclick="delStyle(${J(c.id)})">${mine?'Reset':'Delete style'}</button></div></div></div>`;
+}
+async function delStyle(id){
+  const r=id==='mine'?await post('/style/reset-all',{}):await post('/style/delete',{id,measured:!!(ui.del&&ui.del.measured)});
+  if(!r._ok){ui.delmsg={id,msg:r.error||(id==='mine'?'That did not reset.':'That did not delete.')};return render()}
+  ui.del=null;if(nv.style===id)nv.style='mine';await loadLib();if(rv==='stylepage'&&id!=='mine')rgo('mystyle');else{if(rv==='stylepage')await loadStyle();render()}
+}
+const sMenu=(c,side='',fold=true)=>c.studying?'':dotsBtn('s:'+c.id,'More for this style')+cMenu('s:'+c.id,[
+  !isDefault(c)&&['Make default',`makeDefault(${J(c.id)})`,'star'],['Rename',`renameStyle(${J(c.id)})`,'pencil'],
+  fold&&ui.cmenu==='s:'+c.id&&subMenu('styles',c.id,c.name),['Change image',`pickCover(${J(c.id)})`,'image'],c.cover&&!c.sample&&['Remove image',`removeCover(${J(c.id)})`,'minus'],!c.sample&&'hr',
+  c.sample?null:c.id==='mine'?['Reset to default style',`askDel('mine')`,'trash']:['Delete style',`askDel(${J(c.id)})`,'trash']],side);
+
+// ---- New style: Analyse a format (3 to 6 links, any creators; or pick them from a profile), or Build it yourself
+function openCreate(){ui.create=true;ui.study={};render();setTimeout(()=>{const e=$('#lb-study');if(e)e.focus()},0)}
+function closeCreate(){ui.create=false;ui.study=null;render()}
+const linkHandle=u=>(/@([\w.-]+)/.exec(u)||[])[1]||'';
+function linkRow(u,i){
+  const h=linkHandle(u),known=h&&(L.styles||[]).find(c=>c.id==='@'+h.toLowerCase()),p=platOf(u);
+  return `<div class="lr"><span class="lth">${p?logo(p,18):LINKG}</span><div style="min-width:0;flex:1"><div class="row" style="gap:8px">${known&&known.face?avaHTML(known.face,24):''}<b>${h?'@'+esc(h):esc(PLAT[p]||'Video')}</b></div><div class="u" title="${esc(u)}">${esc(shortLink(u))}</div></div><button class="lx" aria-label="Remove this link" title="Remove" onclick="lbRemove('study',${i})">${ic('x',16,2)}</button></div>`;
+}
 function createModal(){
-  const st=ui.study||{};
-  return `<div class="modalbg" onclick="if(event.target===this)closeCreate()"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mtitle">
-    <button class="mx" aria-label="Close" title="Close" onclick="closeCreate()">${CROSS}</button>
-    <div class="row" style="gap:12px;padding-right:40px"><span style="font-size:22px;font-weight:600" id="mtitle">New style</span></div>
-    <div class="box2 mgrid"><div><div class="between"><b style="font-size:16px">Analyse a format</b><span class="muted">about 3 min</span></div>
-      <div class="sub" style="margin-top:6px;font-size:14px;line-height:20px">6 videos edited the same way works best. They can be from one creator or several.</div>
-      <div class="lcount" style="margin-top:14px">${lbCount('study')}</div>
-      <button class="small" style="margin-top:12px;color:var(--ink);white-space:nowrap;width:auto;padding:0 16px" ${st.busy?'disabled':''} onclick="studyLink()">Analyse this style</button>
-      ${st.msg?`<div class="muted" style="margin-top:10px;color:var(--ink)">${esc(st.msg)}</div>`:''}</div>
-      <div>${linkBox('study',false)}</div></div>
-    <button class="box2 row" style="text-align:left;justify-content:space-between" onclick="buildYourself()"><div><b style="font-size:16px">Build it yourself</b><div class="sub" style="margin-top:6px">Pick captions, zooms, cut and sound yourself.</div></div><span style="font-size:20px;color:var(--t2)">›</span></button></div></div>`;
+  const st=ui.study||{},b=lbOf('study'),rows=b.rows.filter(r=>!isProfile(r));
+  if(st.pick)return pickModal();
+  return `<div class="modalbg" onclick="if(event.target===this)closeCreate()"><div class="modal nsm" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+    <div class="row" style="justify-content:space-between"><b class="mt2" id="mtitle">New style</b><button class="mx2" aria-label="Close" title="Close" onclick="closeCreate()">${ic('x',18,2)}</button></div>
+    <div class="nbox"><div class="row" style="justify-content:space-between;align-items:baseline"><b>Analyse a format</b><span class="t2">about 3 min</span></div>
+      <p>Paste 3 to 6 videos edited the same way. They can be from different creators.</p>
+      ${rows.map(linkRow).join('')}
+      <label class="lin">${ic('plus',16,2)}<input id="lb-study" placeholder="${rows.length?'Paste another link':'Paste a video link'}" value="${esc(b.draft)}" oninput="lbInput('study',this.value)" onkeydown="lbKey(event,'study')" onpaste="lbPaste(event,'study')" autocomplete="off" spellcheck="false"></label>
+      ${st.msg?`<div class="msg bad">${CROSS}<span>${esc(st.msg)}</span></div>`:''}
+      <div class="row" style="justify-content:space-between;gap:16px;flex-wrap:wrap"><div><div class="t1" style="font-weight:600">${rows.length} video${rows.length===1?'':'s'} · 6 works best</div><button class="ul" onclick="ui.study={pick:{}};render();setTimeout(()=>{const e=$('#pf-in');if(e)e.focus()},0)">Or paste a profile and pick its videos</button></div>
+        <button class="b1" ${rows.length&&!st.busy?'':'disabled'} onclick="studyLink()">${st.busy?'Starting...':'Analyse this format'}</button></div></div>
+    <button class="nbox brow" onclick="buildYourself()"><div><b>Build it yourself</b><p>Pick captions, zooms, cut and sound yourself.</p></div>${ic('chev',18,2)}</button></div></div>`;
 }
+// a profile's newest videos as ticks (the same listing the first run uses, /lookup); Use these adds them as links
+function pickModal(){
+  const pk=ui.study.pick,lk=S.lookup||{},mine=pk.handle&&lk.handle===pk.handle,vs=mine&&lk.listing?lk.listing.videos||[]:[];
+  const sel=pk.sel||(pk.sel=new Set()),n=sel.size;
+  const body=!pk.handle?`<label class="lin">${ic('plus',16,2)}<input id="pf-in" placeholder="Paste a TikTok or YouTube profile" onkeydown="if(event.key==='Enter')pickLookup(this.value)" onpaste="setTimeout(()=>pickLookup(this.value),0)" autocomplete="off" spellcheck="false"></label>${pk.msg?`<div class="msg bad">${CROSS}<span>${esc(pk.msg)}</span></div>`:''}`
+    :mine&&lk.status==='failed'?`<div class="msg bad">${CROSS}<span>Could not read @${esc(pk.handle)}: ${esc(lk.msg||'try again')}</span></div>`
+    :vs.length?`<div class="pgrid">${vs.map(v=>{const on=sel.has(v.webpage_url);return `<button class="pv ${on?'on':''}" style="${v.thumbnail?`background-image:url('${esc(v.thumbnail)}')`:''}" aria-pressed="${on}" title="${esc(v.title||'')}" onclick="pickToggle(${J(v.webpage_url)})"><i>${on?ic('check',14,2.6):''}</i></button>`}).join('')}</div>`
+    :`<div class="row" style="gap:10px;padding:24px 0">${SPIN}<span class="t2">Reading @${esc(pk.handle)}'s newest videos...</span></div>`;
+  return `<div class="modalbg" onclick="if(event.target===this)closeCreate()"><div class="modal nsm" role="dialog" aria-modal="true" aria-labelledby="ptitle">
+    <div class="row" style="gap:16px;align-items:flex-start"><button class="b2" style="width:40px;padding:0" aria-label="Back to links" onclick="ui.study={};render()">${ic('back',16,2)}</button><div style="flex:1;min-width:0"><b class="mt2" id="ptitle">Pick the videos edited the same way</b><div class="t2">${pk.handle?`${esc(PLAT[pk.platform]||'')} @${esc(pk.handle)}${vs.length?` · newest ${vs.length} videos`:''}`:'Paste a profile to see its newest videos'}</div></div><button class="mx2" aria-label="Close" title="Close" onclick="closeCreate()">${ic('x',18,2)}</button></div>
+    ${body}
+    <div class="row" style="justify-content:space-between;gap:12px"><span class="t1" style="font-weight:600">${n} video${n===1?'':'s'} · 6 works best</span><span class="row" style="gap:12px"><button class="b2" onclick="ui.study={};render()">Back to links</button><button class="b1" ${n?'':'disabled'} onclick="pickUse()">Use these ${n||''}</button></span></div></div></div>`;
+}
+async function pickLookup(v){
+  v=(v||'').trim();if(!v)return;const r=await post('/lookup',{text:v});
+  if(r.kind!=='creator'||!r.handle||r.urls){ui.study.pick={msg:r.urls?'Those are video links. Go back and paste them as links.':'Paste a TikTok or YouTube profile, like tiktok.com/@name.'};return render()}
+  if(r.platform==='instagram'){ui.study.pick={msg:'Instagram hides profiles. Paste links to the reels instead.'};return render()}
+  ui.study.pick={handle:r.handle,platform:r.platform,sel:new Set()};await load();
+}
+function pickToggle(u){const s=ui.study.pick.sel;s.has(u)?s.delete(u):s.add(u);render()}
+function pickUse(){const b=lbOf('study');for(const u of ui.study.pick.sel)if(!b.rows.includes(u))b.rows.push(u);b.rows=b.rows.filter(r=>!isProfile(r));ui.study={};render()}
 async function studyLink(){
-  const v=lbText('study');if(!v.trim())return;
+  const b=lbOf('study');if(b.draft.trim())lbAdd('study',b.draft);
+  const rows=b.rows.filter(r=>!isProfile(r));if(!rows.length){ui.study={msg:'Paste links to 3 to 6 videos edited the same way.'};return render()}
+  if(rows.some(r=>platOf(r)==='instagram')&&rows.some(r=>platOf(r)!=='instagram')){ui.study={msg:'Use links from one app at a time.'};return render()}
   ui.study={busy:1};render();
-  let r=await post('/lookup',{text:v.trim()});
-  const m=/(?:tiktok\.com|youtube\.com)\/@([\w.-]+)/i.exec(v);
-  if(r.kind!=='creator'&&m)r={kind:'creator',handle:m[1].toLowerCase(),platform:/youtube/i.test(v)?'youtube':'tiktok'};
-  if(r.kind!=='creator'||(!r.handle&&!r.urls)||(r.platform==='instagram'&&!r.urls)){ui.study={msg:r.platform==='instagram'?'Instagram hides profiles. Paste links to their reels instead.':'Paste a TikTok or YouTube profile, or links to their videos.'};return render()}
-  const j=await post('/job',{type:'teardown',handle:r.handle,platform:r.platform,urls:r.urls,take:PARTS.map(p=>p[0])});
+  const j=await post('/job',{type:'teardown',urls:rows,take:PARTS.map(p=>p[0])});
   if(!j._ok){ui.study={msg:j.error||'That did not start.'};return render()}
-  const h=j.handle||r.handle;nv.style='@'+h;ui.study={msg:`Analysing @${h}'s style. It is picked for this video: the cut starts now and the style waits for it.`};
-  LB.study={rows:[],draft:''};ui.create=false;toast(ui.study.msg);await load();await loadLib();
-}
-function buildYourself(){ui.create=false;nv.style='mine';openStyle('mine')}
-function vStyle(){
-  if(!nv.sel.length)return `<div class="col grow"><div class="empty">Pick your clips first. <a href="#" onclick="rgo('new');return false">Back to your clips</a></div></div>`;
-  const cards=(L?L.styles:[]),k=latest('skill');
-  if(!nv.picked&&k&&k.state==='done'&&Date.now()/1000-(k.finished||0)<86400&&cards.some(c=>c.id==='@'+k.args.handle))nv.style='@'+k.args.handle;   // the style just built
-  if(!cards.some(c=>c.id===nv.style)&&nv.style!=='defaults')nv.style='mine';
-  askName(cards.find(c=>c.id===nv.style));
-  const n=nv.sel.length,busy=nv.making.some(id=>{const j=S.jobs.find(x=>x.id===id);return j&&j.state==='queued'});
-  return `<div class="col grow" style="min-width:0;padding:4px 14px 0;gap:24px">
-    <div class="between" style="align-items:flex-end;flex-wrap:wrap;gap:16px"><div><button class="hlink" style="font-size:14px;color:var(--t2)" onclick="rgo('new')">‹ Back to your clips</button><h1 style="margin-top:12px">Pick a style</h1></div>
-      <div class="row" style="gap:6px">${nv.sel.slice(0,3).map(p=>`<div style="width:26px;height:46px;border-radius:4px;background:#45403C url('${esc(clipOf(p).thumb||'')}') center/cover"></div>`).join('')}<div style="margin-left:6px"><div style="font-weight:500">${n>1?`${n} clips, ${nv.join?'joined':'separate'}`:'1 clip'}</div><div class="muted">${total()?fmtT(total())+' · ':''}${nv.aspect==='9:16'?'Tall':'Wide'} ${nv.aspect}</div></div></div></div>
-    ${styleGroups(true)}
-    <div class="bar2 stick"><div><div style="font-size:15px;font-weight:500">${summary()} · ${esc(styleName(nv.style))}</div><div class="muted" style="margin-top:4px;font-size:14px">Runs on this computer. Free.</div></div><button class="go" id="make" style="width:300px" onclick="makeVideo()">Make my video</button></div>
-  </div>`;
-}
-async function makeVideo(){
-  const r=await queue({type:'video',paths:nv.sel,join:nv.join,as:nv.style,aspect:nv.aspect,script:nv.script});
-  if(r._ok){nv.making=r.ids;nv.sel=[];nv.script='';nv.scriptName='';await loadLib();rgo('making')}
+  if(rv==='style'&&j.handle)nv.style='@'+j.handle;
+  LB.study={rows:[],draft:''};ui.create=false;ui.study=null;toast(`Analysing ${rows.length} video${rows.length>1?'s':''}. About 3 min.`);await load();await loadLib();
 }
 
-// ---- making your video
+// ---- Pick a style (New video, step 2): radio cards, Your styles then Creator styles
+function pickCard(c,i){
+  const on=nv.style===c.id,f=fact3(c)[0],pic=picOf(c,i),chip=isDefault(c)?'Default':'';
+  return `<button class="pc ${on?'on':''}" id="sc-${esc(c.id)}" role="radio" aria-checked="${on}" onclick="nv.style=${J(c.id)};nv.picked=1;render()"><span class="pic" style="background-image:url('${esc(pic.url)}')"></span>
+    <span class="tx"><span class="ttl">${esc(c.studying&&handleOf(c).startsWith('links-')?'New format':c.name)}${chip?`<span class="tagc">${chip}</span>`:''}</span><span class="t2">${esc(c.studying?'Being analysed now. The cut starts first.':origin(c))}</span>${f?`<span class="pf">${ic(f[0])}${esc(f[2])}</span>`:''}</span><span class="rd ${on?'on':''}"></span></button>`;
+}
+function vStyle(){
+  if(!nv.sel.length)return `<div class="col grow"><div class="empty">Pick your clips first. <a href="#" onclick="rgo('new');return false">Back to your clips</a></div></div>`;
+  const cards=(L?L.styles:[]),k=latest('skill'),idx=c=>cards.indexOf(c);
+  if(!nv.picked&&k&&k.state==='done'&&Date.now()/1000-(k.finished||0)<86400&&cards.some(c=>c.id==='@'+k.args.handle))nv.style='@'+k.args.handle;   // the style just built
+  if(!nv.picked&&!nv.style)nv.style=L.default_style||'mine';
+  if(!cards.some(c=>c.id===nv.style)&&nv.style!=='defaults')nv.style=L.default_style||'mine';
+  const own=cards.filter(c=>c.own),cr=cards.filter(c=>!c.own).sort((a,b)=>(!!b.studying-!!a.studying)||((b.made||0)-(a.made||0))),per=perRow();
+  const n=nv.sel.length,c0=clipOf(nv.sel[0]),cur=cards.find(c=>c.id===nv.style);
+  return `<div class="pgc" style="min-height:100%"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+      <div class="ph"><button class="back" style="text-decoration:none" onclick="rgo('new')">${ic('back',14,2)}New video · step 2 of 2</button><h1>Pick a style</h1></div>
+      <div class="clipsum"><span class="th" style="background-image:url('${esc(c0.thumb||'')}')"></span><div style="min-width:0"><div class="t1" style="font-weight:600">${n>1?`${n} clips, ${nv.join?'joined':'separate'}`:esc(c0.name)}</div><div class="t2">${n} clip${n>1?'s':''}${total()?' · '+fmtT(Math.round(total())):''} · ${nv.aspect==='9:16'?'Tall':'Wide'} ${nv.aspect}</div></div><button class="ul" onclick="rgo('new')">Change</button></div></div>
+    <div class="sec2"><div class="sh"><b>Styles</b><button class="b2 s" onclick="openCreate()">${ic('plus',14,2.2)}New style</button></div>${gridRows([...cards].sort((a,b)=>(isDefault(b)-isDefault(a))||(!!b.studying-!!a.studying)||(!!b.own-!!a.own)||((b.made||0)-(a.made||0))).map(c=>pickCard(c,idx(c))),per)}</div>
+    <div class="pfoot"><div style="min-width:0"><div class="t1" style="font-weight:600">${esc(cur?cur.name:styleName(nv.style))}</div><div class="t2" style="white-space:normal">First the cut (about 1 min). Captions, zooms and sound start after you approve it.</div></div>
+      <span class="row" style="gap:12px">${S.new_claude?`<button class="b2" title="The questions for this video stay in their own Claude chat" onclick="makeVideo(true)">Make it in a new Claude chat</button>`:''}<button class="b1" id="make" onclick="makeVideo()">Make my video</button></span></div></div>`;
+}
+async function makeVideo(fresh){
+  const r=await queue({type:'video',paths:nv.sel,join:nv.join,as:nv.style,aspect:nv.aspect,script:nv.script});
+  if(!r._ok)return;nv.making=r.ids;nv.sel=[];nv.script='';nv.scriptName='';
+  if(fresh)for(const id of r.ids||[])await openClaude(id);
+  await loadLib();rgo('making');
+}
+
+// ---- a style's page (Paper styles-4 / styles-5): the preview on your video, then each part with its options
+function spPreview(P){
+  const C=P.presets.captions,pic=picOf(P,0),cl=ui.spclip,y=C.y;
+  const inner=cl&&cl.before?`<video id="sp-clip" src="${esc(cl.at==='after'?cl.after:cl.before)}" autoplay playsinline onended="cutEnded(this)" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0C0A09"></video>
+      <span class="ptag" id="sp-cliptag">${cl.at==='after'?'After: '+esc(cl.label):'Before'}</span><div class="picbtns" style="opacity:1"><button onclick="ui.spclip=null;render()">Close</button></div>`
+    :`${C.big?`<img src="${esc(C.big)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`:''}
+      <span class="ptag">${P.presets.pic==='Your video'?'Shown on your video':esc(P.presets.pic)}${C.big?'':' · rendering'}</span>
+      ${C.off?'':`<div class="sp-drag" style="top:${y}%" onpointerdown="spDrag(event)" title="Drag to move the captions" aria-label="Caption height, drag to move"></div>`}`;
+  return `<div class="pic sprev2" style="background-image:url('${esc(C.big||pic.url)}')">${inner}</div>`;
+}
+const spTag=(tag,sec)=>tag==='you changed this'?`<span class="row" style="gap:10px;font-size:13px"><b style="font-weight:600">You changed this</b><button class="ul" onclick="resetSec('${sec}')">Reset</button></span>`:`<span class="t2" style="font-size:12px">${tag==='default'?'default':/^from @/.test(tag)&&!(ui.spage||{}).own?'measured':esc(tag)}</span>`;
+const spSwitch=(on,key,lbl)=>`<button class="sw ${on?'on':''}" role="switch" aria-checked="${on}" aria-label="${lbl}" onclick="setCtl('${key}',${!on})"><i></i></button>`;
+const secHd=(icn,title,sub,tag,sec)=>`<div class="shd"><span class="row" style="gap:10px;min-width:0">${ic(icn)}<b>${title}</b>${sub?`<span class="t2" style="color:var(--t2)">${esc(sub)}</span>`:''}</span>${tag!=null?spTag(tag,sec):''}</div>`;
+const optCard=(o,on,key,val)=>`<button class="oc ${on?'on':''}" onclick="setCtl('${key}',${val})"><b>${esc(o.label)}</b><span>${esc(o.sub)}</span></button>`;
+function useFor(P){
+  const wide=/16:9|wide/i.test(P.use_for||'');
+  return `<div class="row" style="gap:12px"><span class="t2" style="color:var(--t2)">Use for</span><span class="seg4"><button class="${wide?'':'on'}" onclick="setUse(false)"><i style="width:9px;height:14px"></i>Tall 9:16</button><button class="${wide?'on':''}" onclick="setUse(true)"><i style="width:14px;height:9px"></i>Wide 16:9</button></span></div>`;
+}
+async function setUse(wide){const r=await post('/style/usefor',{id:ui.sp,text:wide?'Wide 16:9 videos':'Tall 9:16 videos'});if(r._ok){ui.spage=r;loadLib()}render()}
+function vStylePage(){
+  const P=ui.spage;if(!P)return `<div class="pgc"><div class="none">Loading the style...</div></div>`;
+  const Z=P.presets,C=Z.captions,job=P.job,jr=job&&job.result||{},card=(L.styles||[]).find(c=>c.id===P.id)||P;
+  const jobLine=!job?'':job.state==='queued'?(S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal.`):job.state==='taken'?`Claude: ${esc((job.steps.at(-1)||{}).text||'working on it')}`:job.state==='done'?`Changed: ${esc((jr.changed||[]).join('; ')||'nothing')}`:job.state==='failed'?esc(job.error):'';
+  const size=+((C.tiles.find(x=>x.id===C.sel)||{}).block||{}).size_pct||C.size,h=P.own?'':handleOf({...P,own:false});
+  const editing=ui.edit&&ui.edit.kind==='name'&&ui.edit.id===P.id,n=card.changes||0;
+  const meta=P.own?`<div class="row" style="gap:12px;flex-wrap:wrap">${P.base?`<span class="schip">${avaHTML(P.face,20)}Started from @${esc(P.base)}</span>`:''}<span class="chg">${[n?`${n} change${n>1?'s':''} from your feedback`:'No changes yet',card.changed&&n?'last '+madeAgo(card.changed):'',card.learned_from?`Learned from ${card.learned_from} video${card.learned_from>1?'s':''}`:''].filter(Boolean).join(' · ')}</span></div>`
+    :`<div class="row" style="gap:8px">${avaHTML(P.face,24)}<span style="color:var(--t2);font-size:14px">${h.startsWith('links-')?'From several creators':'From @'+esc(h)}${P.videos?` · measured from ${P.videos} videos`:''}${P.made?' · analysed '+ago(P.made):''}</span></div>`;
+  const pic=picOf(P,0);
+  const capName=t=>t.id===''?(P.own?'Yours':'Their captions'):t.name;
+  return `<div class="spg"><div class="spl"><button class="back" style="text-decoration:none;font-size:14px" onclick="rgo('mystyle')">${ic('back',14,2)}Styles</button>${spPreview(P)}
+      ${ui.covermsg&&ui.covermsg.id===P.id?`<div class="msg bad">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
+      <button class="b1" style="width:100%" onclick="nv.style=${J(P.id)};nv.picked=1;rgo('new')">Make a video with this style</button></div>
+    <div class="spr"><div class="row" style="gap:20px;align-items:flex-start">${P.own?'':`<span class="sth" style="background-image:url('${esc(pic.url)}')"></span>`}
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px"><div class="row" style="justify-content:space-between;gap:12px"><span class="row" style="gap:8px;min-width:0;flex:1">${editing?'':`<h1 class="sname">${esc(P.name)}</h1>`}${editField('name',P.id,P.name,'font-size:24px;font-weight:600')}</span><span class="pgdots">${sMenu(card)}</span></div>
+          ${meta}${useFor(P)}</div></div>
+      ${P.own&&P.id!=='x'?`<div class="ssec"><div class="shd"><b style="font-size:17px">What it learned from you</b><span class="t2">From your review notes and chats</span></div>
+        ${P.rules.map(r=>`<div class="lrow2"><div style="min-width:0"><div>${esc(r.rule)}</div><div class="t2" style="white-space:normal">Said ${r.said}x${r.last?` · last ${esc(r.last)}`:''}${r.applied?` · used ${r.applied}x`:''}${r.regressions?` · came back ${r.regressions}x`:''}</div></div><button class="b2 s" onclick="forgetRule(${r.id})">Forget</button></div>`).join('')||'<div class="t2" style="white-space:normal">Nothing yet. Your notes on the review page and corrections in the Claude chat land here.</div>'}</div>`:''}
+      <div class="ssec">${secHd('caption','Captions',(fact3(card).find(f=>f[0]==='caption')||[])[2],C.tag,'captions')}
+        <div class="ctiles">${C.tiles.slice(0,6).map(t=>`<button class="ct ${t.id===C.sel?'on':''}" onclick="setCtl('captions.preset',${J(t.id)})"><span class="ci">${t.img?`<img src="${esc(t.img)}" alt="${esc(t.name)} captions" style="object-position:50% ${t.block.y_pct||C.y}%">`:`<span class="t2">${t.err?'No preview':'Rendering...'}</span>`}</span><b>${esc(capName(t))}</b></button>`).join('')}</div>
+        <div class="row" style="gap:12px;flex-wrap:wrap"><span class="t2" style="color:var(--t2);width:34px">Size</span><span style="color:var(--t4);font-size:11px">A</span><input type="range" class="rng" min="3" max="8" step="0.2" value="${size}" aria-label="Caption size" onchange="setCtl('captions.size_pct',+this.value)"><span style="color:var(--t4);font-size:16px">A</span><b style="font-weight:500;font-size:13px">${size<4?'Small':size<5.2?'Medium':'Large'}</b><i class="vr"></i><span class="t2" style="color:var(--t2)">Drag the caption on your video to move it</span></div></div>
+      <div class="ssec two"><div>${secHd('zoom','Zooms','',Z.zoom.tag,'zoom')}<div class="ocs">${Z.zoom.opts.map(o=>optCard(o,o.id===Z.zoom.sel,'zoom.preset',J(o.id))).join('')}</div></div>
+        <div>${secHd('cut','Cut',(fact3(card).find(f=>f[0]==='cut')||[])[2],Z.cut.tag,'cut')}<div class="ocs">${Z.cut.opts.map(o=>optCard(o,o.id===Z.cut.sel,'cut.max_pause',o.value)).join('')}</div>
+          ${Z.cut.clips?`<button class="ul" style="align-self:flex-start;margin-top:10px" onclick="playCut()" ${ui.spclip&&ui.spclip.busy?'disabled':''}>${ui.spclip&&ui.spclip.busy?'Making the clips...':'Play 5 s of your video, before and after'}</button>`:''}${ui.spclip&&ui.spclip.err?`<div class="t2">${esc(ui.spclip.err)}</div>`:''}</div></div>
+      <div class="ssec two"><div><div class="shd"><span class="row" style="gap:10px">${ic('styles')}<b>Cards</b><span class="t2" style="color:var(--t2)">Logos and screenshots</span></span>${spSwitch(Z.cards.on,'cards.on','Cards')}</div>
+          <div class="srow2" style="${Z.cards.on?'':'opacity:.45;pointer-events:none'}"><span>How often</span><span class="seg4">${Z.cards.opts.map(o=>`<button class="${o.id===Z.cards.sel?'on':''}" onclick="setCtl('cards.per_min',${o.value})">${esc(o.label)}</button>`).join('')}</span></div>
+          <label class="srow2" style="${Z.cards.on?'':'opacity:.45;pointer-events:none'}"><span>Look</span><select class="sp-sel" onchange="setCtl('look.preset',JSON.parse(this.value))">${Z.cards.looks.map(([k,l])=>`<option value='${esc(JSON.stringify(k))}' ${k===Z.cards.look?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
+          ${Z.cards.tag==='you changed this'?spTag(Z.cards.tag,'cards'):''}</div>
+        <div><div class="shd"><span class="row" style="gap:10px">${ic('sound')}<b>Sound</b></span>${Z.sound.tag==='you changed this'?spTag(Z.sound.tag,'sound'):''}</div>
+          <div class="srow2"><span style="color:var(--ink)">Sound effects</span>${spSwitch(Z.sound.sfx,'sfx','Sound effects')}</div>
+          <div class="srow2"><span style="color:var(--ink)">Background music</span>${spSwitch(Z.sound.music,'music','Background music')}</div></div></div>
+      <div class="ssec two"><div><div class="shd"><b>Its skill</b></div><div class="row" style="gap:10px;flex-wrap:wrap"><span style="font:500 14px var(--mono)">/${esc(P.skill.name)}</span><button class="b2 s" onclick="post('/style/reveal',{id:ui.sp}).then(loadStyle)">Open the skill file</button></div><div class="t2" style="white-space:normal;margin-top:8px">Say "/${esc(P.skill.name)}" in Claude Code to edit a video in this style.</div></div>
+        <div><div class="shd"><b>Tell it what to change</b></div><div class="fld"><div class="in2"><input id="tell" placeholder="captions a bit bigger, fewer zooms" aria-label="What to change" onkeydown="if(event.key==='Enter')tellChange()"></div><button class="b1" onclick="tellChange()">Send</button></div>${jobLine?`<div class="t2" style="white-space:normal;color:var(--ink);margin-top:8px">${jobLine}</div>`:''}</div></div>
+      <div class="ssec sfoot"><span class="okc">${ic('check',16,2.4)}</span><span>Saved as you go. Your next videos use this style.</span><span class="t2">Videos already made stay as they are.</span></div></div></div>`;
+}
+
 function planFor(j){
   const a=j.args,st=a.as==='defaults'?'the default style':a.as.startsWith('@')&&styleName(a.as)===a.as?a.as+"'s style":styleName(a.as);
   const studying=a.as.startsWith('@')&&L&&(L.styles.find(c=>c.id===a.as)||{}).studying;
@@ -1481,7 +1726,7 @@ const seeAll=(k,n,shown)=>n>shown||ui.exp[k]?`<button class="b2 s" onclick="ui.e
 // ---- Home: drop box and the newest clips, Your videos, My styles and Creator styles. One row each; See all opens
 // the rest in place. No inner scrollbars: fewer items show on a smaller window.
 function vHome(){
-  const vids=L.videos,W=cw(),st=L.styles||[],own=st.filter(c=>!c.id.startsWith('@')),cr=st.filter(c=>c.id.startsWith('@'));
+  const vids=L.videos,W=cw(),st=L.styles||[],own=st.filter(c=>c.own),cr=st.filter(c=>!c.own);
   const done=vids.filter(v=>v.status==='ready'||v.status==='done').length,making=vids.length-done;
   const nc=Math.min(3,Math.max(0,Math.floor((W+12)/212)-1)),rec=(R?R.videos:[]).slice(0,nc),P=J,per=perRow();
   const sw=innerWidth<=760?W:(W-40)*1.4/2.4,ns=Math.max(1,Math.floor((sw+12)/162)),tw=Math.floor((sw-(ns-1)*12)/ns);
@@ -1494,8 +1739,8 @@ function vHome(){
   <div class="hdrop"><label class="hd-box" id="droptile">${ic('up',20)}<div><div class="t1" style="font-weight:600">Drop a video here</div><div class="t2">or choose a file</div></div><input type="file" multiple accept="video/*,.mov,.mkv,.mp4" class="hide" onchange="const f=[...this.files];this.value='';rgo('new');chooseFiles(f)"></label>${rec.map(clip).join('')}${'<div aria-hidden="true"></div>'.repeat(nc-rec.length)}</div>
   <div class="sec2"><div class="sh"><b>Your videos</b>${seeAll('hv',vids.length,per)}</div>${vids.length?cardRows(ui.exp.hv?vids:vids.slice(0,per)):'<div class="none">No videos yet. Drop a clip above to start one.</div>'}</div>
   <div class="hshelf">
-    <div class="sec2"><div class="sh"><b>My styles</b>${seeAll('hs',own.length,ns)}</div><div class="sts">${(ui.exp.hs?own:own.slice(0,ns)).map(c=>stl(c,st.indexOf(c))).join('')||'<div class="none">No styles yet.</div>'}</div></div>
-    <div class="sec2"><div class="sh"><b>Creator styles</b>${seeAll('hc',cr.length,3)}</div><div class="crs">${(ui.exp.hc?cr:cr.slice(0,3)).map(crow).join('')||'<div class="none">No creator styles yet. Analyse one from My styles.</div>'}</div></div>
+    <div class="sec2"><div class="sh"><b>Built by you</b>${seeAll('hs',own.length,ns)}</div><div class="sts">${(ui.exp.hs?own:own.slice(0,ns)).map(c=>stl(c,st.indexOf(c))).join('')||'<div class="none">No styles yet.</div>'}</div></div>
+    <div class="sec2"><div class="sh"><b>From creators</b>${seeAll('hc',cr.length,3)}</div><div class="crs">${(ui.exp.hc?cr:cr.slice(0,3)).map(crow).join('')||'<div class="none">No creator styles yet. Analyse one from My styles.</div>'}</div></div>
   </div></div>`;
 }
 // ---- Your videos: Now (cards) and Done (tiles); a folder opens from the sidebar
@@ -1533,6 +1778,7 @@ const IC={home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 
  lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
  moon:'<path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/>'};
+Object.assign(IC,IC2);
 const ic=(k,px=18,sw=1.8)=>`<svg width="${px}" height="${px}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k]}</svg>`;
 const DOTS='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>';
 const PAN=px=>`<svg width="${px}" height="${px}" viewBox="0 0 64 64" fill="currentColor" aria-hidden="true"><path d="M6 36H46C46 46 40 52 32 52H20C12 52 6 46 6 36Z"/><path d="M45 36H58A3 3 0 0 1 58 42H45Z"/><path d="M16 29C13 25 19 22 16 17M26 29C23 25 29 22 26 17M36 29C33 25 39 22 36 17" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>`;
@@ -1566,10 +1812,10 @@ function jobInfo(){
   return {label:j.type==='video'||j.type==='teardown'?`${name} ${n}`:name,short:j.type==='video'||j.type==='teardown'?name:'Working',n:j.type==='video'||j.type==='teardown'?n:'',text,frac:j.state==='queued'?0:jobFrac(j),since:s&&!s.done?s.t:jobStart(j),go};
 }
 const ringSvg=f=>{const C=2*Math.PI*10;return `<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="var(--line)" stroke-width="2.5"/><circle cx="12" cy="12" r="10" fill="none" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-(f==null?.25:f))).toFixed(1)}" transform="rotate(-90 12 12)"/></svg>`};
-function openFold(id){ui.fold.videos=id;rgo('videos')}
-function newFolder(move,name){
-  if(isRail()){const n=prompt('Folder name');if(n)foldSaveName({kind:'videos',move,name},n);return}
-  ui.newfold={kind:'videos',move,name};render();setTimeout(()=>{const e=$('#fold-name');if(e)e.focus()},0);
+function openFold(id,k='videos'){ui.fold[k]=id;rgo(k==='videos'?'videos':'mystyle')}
+function newFolder(move,name,kind='videos'){
+  if(isRail()){const n=prompt(kind==='videos'?'Folder name':'Style folder name');if(n)foldSaveName({kind,move,name},n);return}
+  ui.newfold={kind,move,name};render();setTimeout(()=>{const e=$('#fold-name');if(e)e.focus()},0);
 }
 async function foldSaveName(e,name){const r=await post('/folder/create',{kind:e.kind,name});if(!r._ok){toast(r.error||'That did not save.');return}L.folders=r.folders;if(e.move)return moveTo(e.kind,e.move,r.id,e.name);render()}
 function sideHTML(){
@@ -1587,19 +1833,21 @@ function sideHTML(){
       ${ji?`<button class="rl-it rl-job" onclick="${ji.go}" title="${esc(ji.label+': '+ji.text)}"><span class="ic">${ringSvg(ji.frac)}${ji.n}</span>${ji.short}</button>`:''}
       ${it('gear','Settings',cur==='settings',"rgo('settings')")}${thm}`;
   }
-  const F=fd('videos'),cnt=id=>Object.entries(F.items).filter(([d,f])=>f===id&&vids.some(v=>v.dir===d)).length;
+  const cnt=(k,id)=>Object.entries(fd(k).items).filter(([d,f])=>f===id&&(k==='videos'?vids.some(v=>v.dir===d):st.some(c=>c.id===d))).length;
   const inp=(e,ph)=>`<input id="fold-name" value="${esc(e.val||'')}" placeholder="${ph}" maxlength="40" aria-label="Folder name" onclick="event.stopPropagation()" oninput="(ui.newfold||ui.renfold).val=this.value" onkeydown="event.stopPropagation();if(event.key==='Enter')foldSave();if(event.key==='Escape'){ui.newfold=ui.renfold=null;render()}">`;
-  const frow=f=>{const K='f:videos:'+f.id,ren=ui.renfold&&ui.renfold.kind==='videos'&&ui.renfold.id===f.id;
-    if(ren)return `<div class="sb-row">${ic('folder')}${inp(ui.renfold,'Folder name')}</div>`;
-    return `<div class="sb-row sfold ${cur==='videos'&&ui.fold.videos===f.id?'on':''}" role="button" tabindex="0" onclick="openFold(${J(f.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)this.click()" ${dropAttrs('videos',f.id)}>${ic('folder')}<span class="lb">${esc(f.name)}</span>${moreBtn(K,'More for this folder')}<span class="n hv">${cnt(f.id)}</span>${cMenu(K,[['Rename',`ui.renfold={kind:'videos',id:${J(f.id)},val:${J(f.name)}};render();setTimeout(()=>{const e=$('#fold-name');if(e){e.focus();e.select()}},0)`,'pencil'],['Delete folder',`foldDel('videos',${J(f.id)})`,'trash']])}</div>`};
-  const nf=ui.newfold&&ui.newfold.kind==='videos'?`<div class="sb-row">${ic('folder')}${inp(ui.newfold,'Folder name')}</div>${ui.newfold.msg?`<div class="msg bad" style="padding:0 12px;font-size:12px">${esc(ui.newfold.msg)}</div>`:''}`:'';
+  // one Folders list: video folders (folder icon) then style folders (layers icon); each holds one kind
+  const frow=(k,f)=>{const K='f:'+k+':'+f.id,ren=ui.renfold&&ui.renfold.kind===k&&ui.renfold.id===f.id,icn=k==='videos'?'folder':'styles';
+    if(ren)return `<div class="sb-row">${ic(icn)}${inp(ui.renfold,'Folder name')}</div>`;
+    const on=k==='videos'?cur==='videos'&&ui.fold.videos===f.id:cur==='mystyle'&&ui.fold.styles===f.id;
+    return `<div class="sb-row sfold ${on?'on':''}" role="button" tabindex="0" onclick="openFold(${J(f.id)},'${k}')" onkeydown="if(event.key==='Enter'&&event.target===this)this.click()" ${dropAttrs(k,f.id)}>${ic(icn)}<span class="lb">${esc(f.name)}</span>${moreBtn(K,'More for this folder')}<span class="n hv">${cnt(k,f.id)}</span>${cMenu(K,[['Rename',`ui.renfold={kind:'${k}',id:${J(f.id)},val:${J(f.name)}};render();setTimeout(()=>{const e=$('#fold-name');if(e){e.focus();e.select()}},0)`,'pencil'],['Delete folder',`foldDel('${k}',${J(f.id)})`,'trash']])}</div>`};
+  const nf=ui.newfold?`<div class="sb-row">${ic(ui.newfold.kind==='videos'?'folder':'styles')}${inp(ui.newfold,'Folder name')}</div>${ui.newfold.msg?`<div class="msg bad" style="padding:0 12px;font-size:12px">${esc(ui.newfold.msg)}</div>`:''}`:'';
   return `<div class="sb-brand"><button class="brand" data-home onclick="goHome()" title="Home"><span class="mark" aria-hidden="true">${PAN(18)}</span><b>cooked.</b></button>${tog}</div>
     <button class="sb-new" onclick="rgo('new')">${ic('plus',16,2.2)}New video</button>
     <nav class="sb-nav"><button class="sb-row ${cur==='home'?'on':''}" onclick="goHome()">${ic('home')}<span class="lb">Home</span></button>
       <button class="sb-row ${cur==='videos'&&!ui.fold.videos?'on':''}" onclick="${vgo}" ${dropAttrs('videos',null)}>${ic('videos')}<span class="lb">Your videos</span><span class="n">${vids.length}</span></button>
-      <button class="sb-row ${onS?'on':''}" onclick="rgo('mystyle')">${ic('styles')}<span class="lb">My styles</span><span class="n">${st.length}</span></button></nav>
-    <div class="sb-fold"><div class="sb-fh">Folders<button class="sb-add" title="New folder" aria-label="New folder" onclick="newFolder()">${ic('plus',12,2.4)}</button></div>
-      <div class="sb-flist">${F.folders.map(frow).join('')}${nf}</div></div>
+      <button class="sb-row ${onS?'on':''}" onclick="rgo('mystyle')">${ic('styles')}<span class="lb">Styles</span><span class="n">${st.length}</span></button></nav>
+    <div class="sb-fold"><div class="sb-fh">Folders<button class="sb-add" title="New folder" aria-label="New folder" onclick="newFolder(null,null,rv==='mystyle'||rv==='stylepage'?'styles':'videos')">${ic('plus',12,2.4)}</button></div>
+      <div class="sb-flist">${fd('videos').folders.map(f=>frow('videos',f)).join('')}${fd('styles').folders.map(f=>frow('styles',f)).join('')}${nf}</div></div>
     <div class="sb-sp"></div>
     ${ji?`<button class="sb-job" onclick="${ji.go}"><div class="tp"><b>${SPIN}${esc(ji.label)}</b>${ji.since?`<span data-since="${ji.since}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-ji.since)))}</span>`:''}</div><div class="tx">${esc(ji.text)}</div><div class="trk ${ji.frac==null?'indet':''}"><i style="width:${Math.round((ji.frac||0)*100)}%"></i></div></button>`:''}
     <div class="sb-bot"><button class="sb-row ${cur==='settings'?'on':''}" onclick="rgo('settings')" ${upd?'title="A new version is out"':''}>${ic('gear')}<span class="lb">Settings</span>${upd?'<span class="sdot"></span>':''}</button>${thm}</div>`;
@@ -1623,13 +1871,11 @@ const cMenu=(k,items,side='')=>ui.cmenu===k?`<div class="cmenu ${side}" role="me
 // Move to folder ›: the folders (a tick on the current one, else its count), New folder, Take out of <folder>
 function subMenu(kind,item,name){
   const F=fd(kind),cur=F.items[item],cf=F.folders.find(f=>f.id===cur),n=id=>Object.values(F.items).filter(x=>x===id).length;
-  const nf=kind==='videos'?`newFolder(${J(item)},${J(name)})`:`ui.newfold={kind:'${kind}',move:${J(item)},name:${J(name)}};ui.fold['${kind}']=null;render();setTimeout(()=>{const e=$('#fold-name');if(e)e.focus()},0)`;
-  return `<button class="hasub ${ui.sub?'on':''}" onclick="ui.sub=!ui.sub;render()">${ic('folder',16)}<span class="lb">Move to folder</span>${ic('chev',14,2)}</button>${ui.sub?`<div class="cmenu sub">${F.folders.map(f=>`<button onclick="ui.cmenu=null;moveTo('${kind}',${J(item)},${J(f.id)},${J(name)})">${ic('folder',16)}<span class="lb">${esc(f.name)}</span>${f.id===cur?ic('check',14,2.4):`<span class="n">${n(f.id)}</span>`}</button>`).join('')}${F.folders.length?'<hr>':''}<button onclick="ui.cmenu=null;${nf}">${ic('plus',16)}<span class="lb">New folder</span></button>${cf?`<button onclick="ui.cmenu=null;moveTo('${kind}',${J(item)},null,${J(name)})">${ic('minus',16)}<span class="lb">Take out of ${esc(cf.name)}</span></button>`:''}</div>`:''}`;
+  const nf=`newFolder(${J(item)},${J(name)},'${kind}')`;
+  return `<button class="hasub ${ui.sub?'on':''}" onclick="ui.sub=!ui.sub;render()">${ic('folder',16)}<span class="lb">Move to folder</span>${ic('chev',14,2)}</button>${ui.sub?`<div class="cmenu sub">${kind==='styles'?'<div class="mh">Style folders</div>':''}${F.folders.map(f=>`<button onclick="ui.cmenu=null;moveTo('${kind}',${J(item)},${J(f.id)},${J(name)})">${ic(kind==='styles'?'styles':'folder',16)}<span class="lb">${esc(f.name)}</span>${f.id===cur?ic('check',14,2.4):`<span class="n">${n(f.id)}</span>`}</button>`).join('')}${F.folders.length?'<hr>':''}<button onclick="ui.cmenu=null;${nf}">${ic('plus',16)}<span class="lb">${kind==='styles'?'New style folder':'New folder'}</span></button>${cf?`<button onclick="ui.cmenu=null;moveTo('${kind}',${J(item)},null,${J(name)})">${ic('minus',16)}<span class="lb">Take out of ${esc(cf.name)}</span></button>`:''}</div>`:''}`;
 }
 const vMenu=v=>dotsBtn('v:'+v.dir,'More for this video')+cMenu('v:'+v.dir,[['Remove from this list',`hideEdit(${J(v.dir)})`,'minus'],ui.cmenu==='v:'+v.dir&&subMenu('videos',v.dir,v.name),
   v.status==='done'&&v.media&&['Download',`location.href=${J(v.media)}`,'down'],'hr',['Move to Trash',`askTrash(${J(v.dir)})`,'trash']]);
-const sMenu=(c,side,fold=true)=>c.studying?'':dotsBtn('s:'+c.id,'More for this style')+cMenu('s:'+c.id,[['Change image',`pickCover(${J(c.id)})`,'image'],c.cover&&['Remove image',`removeCover(${J(c.id)})`,'minus'],
-  fold&&ui.cmenu==='s:'+c.id&&subMenu('styles',c.id,c.name),'hr',c.id==='mine'?['Reset to default style',`askDel('mine')`,'trash']:['Delete style',`askDel(${J(c.id)})`,'trash']],side);
 // ---- folders (Your videos in the sidebar, My styles on its page): folders.json through /folder/*
 const fd=k=>(L&&L.folders||{})[k]||{folders:[],items:{}};
 const inFold=(k,item)=>{const F=fd(k),f=F.items[item];return F.folders.some(x=>x.id===f)?f:null};
@@ -1674,19 +1920,8 @@ function foldHead(k,label){const f=fd(k).folders.find(x=>x.id===ui.fold[k]);retu
 const mo=k=>ui.cmenu===k?' mopen':'';
 async function hideEdit(dir){const r=await post('/edit/hide',{dir});ui.editmsg=r.ok?null:(r.msg||'That did not work.');await loadLib();render()}
 function askTrash(dir){ui.edittrash=dir;if(rv!=='videos')rgo('videos');else render();setTimeout(()=>{const c=$('.confirm');if(c)c.scrollIntoView({block:'nearest'})},0)}
-function askDel(id){ui.del={id,measured:false};ui.delmsg=null;if(rv==='home')rgo('mystyle');else render();setTimeout(()=>{const c=document.getElementById('sc-'+id);if(c)c.scrollIntoView({block:'nearest'})},0)}
 document.addEventListener('click',()=>{if(ui.cmenu||ui.clipmenu){ui.cmenu=ui.clipmenu=null;render()}});
-addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(ui.create){ui.create=false;render()}else if(ui.cmenu||ui.clipmenu){ui.cmenu=ui.clipmenu=null;render()}});
-function vMyStyle(){
-  if(ui.fold.styles&&!fd('styles').folders.some(f=>f.id===ui.fold.styles))ui.fold.styles=null;
-  const st=L?L.styles:[],picOfId=id=>{const i=st.findIndex(c=>c.id===id);return i<0?null:picOf(st[i],i).url};
-  if(ui.fold.styles){const inside=st.map((c,i)=>[c,i]).filter(([c])=>inFold('styles',c.id)===ui.fold.styles);
-    return `<div class="col grow" style="min-width:0;gap:24px"><div class="col" style="gap:0">${foldHead('styles','All styles')}</div>${ui.newfold?foldRow('styles',picOfId):''}
-      ${inside.length?`<div style="display:flex;flex-wrap:wrap;gap:24px">${inside.map(([c,i])=>styleCard(c,false,i)).join('')}</div>`:'<div class="muted">Nothing in this folder yet. Drag a style onto it, or use ⋯ then Move to folder.</div>'}</div>`}
-  return `<div class="col grow" style="min-width:0;gap:24px"><div><h1>My styles</h1></div>
-    ${foldRow('styles',picOfId)}
-    ${styleGroups(false)}</div>`;
-}
+addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(ui.del){ui.del=null;render()}else if(ui.create){ui.create=false;render()}else if(ui.cmenu||ui.clipmenu){ui.cmenu=ui.clipmenu=null;render()}});
 // ---- Settings: keys (each with its own status), updates, the videos folder, the theme, this computer
 const FINDER=()=>/Mac/.test(navigator.platform)?'Finder':'Explorer';
 const ST_HINT={gemini:'Paste the key. It starts with AIza or AQ.'};
@@ -1780,66 +2015,14 @@ function spDrag(e){
   box.onpointermove=ev=>{box.style.top=at(ev)+'%'};
   box.onpointerup=ev=>{box.onpointermove=box.onpointerup=null;ui.spdrag=0;setCtl('captions.y_pct',at(ev))};
 }
-function spPreview(P){
-  const C=P.presets.captions,pic=picOf(P,0),cl=ui.spclip,t={img:C.big},y=C.y;
-  const inner=cl&&cl.before?`<video id="sp-clip" src="${esc(cl.at==='after'?cl.after:cl.before)}" autoplay playsinline onended="cutEnded(this)" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0C0A09"></video>
-      <span class="extag" id="sp-cliptag">${cl.at==='after'?'After: '+esc(cl.label):'Before'}</span><div class="picbtns" style="opacity:1"><button onclick="ui.spclip=null;render()">Close</button></div>`
-    :`${t.img?`<img src="${esc(t.img)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`:''}
-      <span class="extag">${esc(P.presets.pic)}${t.img?'':' · rendering the preview'}</span>${picBtns(P)}
-      ${C.off?'':`<div class="sp-drag" style="top:${y}%" onpointerdown="spDrag(event)" title="Drag to move the captions" aria-label="Caption height, drag to move"></div>`}`;
-  return `<div class="pic sprev" style="position:relative;width:315px;height:560px;border-radius:20px;overflow:hidden;background:#45403C url('${esc(t.img||pic.url)}') center/cover;flex-shrink:0">${inner}</div>`;
-}
-const spTag=(tag,sec)=>tag==='you changed this'?`<span class="row" style="gap:10px"><button class="hlink" style="font-size:12px" onclick="resetSec('${sec}')">Reset</button><span class="rec" style="color:var(--ink)">you changed this</span></span>`:`<span class="muted" style="font-size:12px">${esc(tag)}</span>`;
-const spSwitch=(on,key)=>`<button class="sp-sw ${on?'on':''}" role="switch" aria-checked="${on}" onclick="setCtl('${key}',${!on})"><i></i></button>`;
 const ZOOMILL={none:'<i class="zb"></i>',smooth:'<i class="zb dash"></i><i class="zf smooth"></i>',punchy:'<i class="zb dash"></i><i class="zf punchy"></i>'};
 const CUTILL={relaxed:[22,16,26,14,18],natural:[24,7,28,6,20],tight:[26,0,30,0,22]};
-function vStylePage(){
-  const P=ui.spage;if(!P)return `<div class="col grow"><div class="empty">Loading the style...</div></div>`;
-  askName(P);
-  const Z=P.presets,C=Z.captions,job=P.job,jr=job&&job.result||{};
-  const jobLine=!job?'':job.state==='queued'?(S.listening?'Claude is picking this up.':`Waiting for Claude. Type ${CMD} in Terminal.`):job.state==='taken'?`Claude: ${esc((job.steps.at(-1)||{}).text||'working on it')}`:job.state==='done'?`Changed: ${esc((jr.changed||[]).join('; ')||'nothing')}`:job.state==='failed'?esc(job.error):'';
-  const size=+((C.tiles.find(x=>x.id===C.sel)||{}).block||{}).size_pct||C.size;
-  const opt=(o,on,ill,key,val)=>`<button class="sp-opt ${on?'on':''}" onclick="setCtl('${key}',${val})"><span class="sp-ill">${ill}</span><span><b>${esc(o.label)}</b><span class="muted">${esc(o.sub)}</span></span></button>`;
-  return `<div class="col" style="width:340px;gap:18px;padding:12px 14px 0"><button class="hlink" style="font-size:14px;color:var(--t2);align-self:flex-start" onclick="rgo('mystyle')">‹ All your styles</button><div><div class="row" style="gap:8px;align-items:center">${ui.edit&&ui.edit.kind==='name'&&ui.edit.id===P.id?'':`<h1 style="white-space:nowrap;font-size:${Math.min(40,Math.floor(560/Math.max(1,P.name.length)))}px;line-height:1.1">${esc(P.name)}</h1>`}${editField('name',P.id,P.name,'font-size:28px;font-weight:700')}</div><p class="lede" style="margin-top:8px">How your videos get edited. Shown on ${Z.pic==='Example photo'?'an example photo':'your own video'}.</p></div>${spPreview(P)}${ui.covermsg&&ui.covermsg.id===P.id?`<div class="msg bad">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
-    ${P.id==='mine'?'':ui.del&&ui.del.id===P.id?delRow(P,P.delete_note):`<button class="hlink" style="align-self:flex-start;font-size:14px" onclick="ui.del={id:${esc(JSON.stringify(P.id))},measured:false};render()">Delete this style</button>`}</div>
-  <div class="panel grow sp-panel">
-    <div class="sp-top"><div class="row" style="gap:10px;align-items:center;min-width:0"><div class="ini">${esc((P.base||'ds').slice(0,2).toUpperCase())}</div><div class="sub">${P.id!=='mine'?`Copied from @${esc(P.base)}'s videos.`:P.base?`Started from @${esc(P.base)}.`:'Started from the default style.'} ${P.changed.length?`You changed ${P.changed.length} thing${P.changed.length>1?'s':''}.`:'Nothing changed yet.'}</div></div>${P.changed.length?`<button class="btn quiet sm" onclick="resetAll()">Reset all</button>`:''}</div>
-    <div class="sp-sec"><div class="between"><span class="h">Captions</span>${spTag(C.tag,'captions')}</div>
-      <div class="sp-caps">${C.tiles.map(t=>`<button class="sp-cap ${t.id===C.sel?'on':''}" onclick="setCtl('captions.preset',${esc(JSON.stringify(t.id))})"><span class="sp-capimg">${t.img?`<img src="${esc(t.img)}" alt="${esc(t.name)} captions" style="object-position:50% ${t.block.y_pct||C.y}%">`:`<span class="muted">${t.err?'No preview':'Rendering...'}</span>`}</span><span class="between" style="padding:0 4px;gap:6px"><b>${esc(t.name)}</b><span class="muted" style="font-size:12px;white-space:nowrap">${esc(t.note)}</span></span></button>`).join('')}</div>
-      <div class="row sp-size"><span style="width:34px;color:var(--t2);font-size:13px">Size</span><span style="color:var(--t4);font-size:12px">A</span><input type="range" min="3" max="8" step="0.2" value="${size}" aria-label="Caption size" onchange="setCtl('captions.size_pct',+this.value)"><span style="color:var(--t4);font-size:16px">A</span><span style="width:56px;font-size:13px">${size<4?'Small':size<5.2?'Medium':'Large'}</span><i class="sp-vr"></i><svg width="14" height="14" viewBox="0 0 14 14" style="flex-shrink:0"><path d="M7 1.5v11M1.5 7h11M7 1.5l-2 2M7 1.5l2 2M7 12.5l-2-2M7 12.5l2-2M1.5 7l2-2M1.5 7l2 2M12.5 7l-2-2M12.5 7l-2 2" fill="none" stroke="var(--t3)" stroke-width="1.3" stroke-linecap="round"/></svg><span style="color:var(--t2);font-size:13px">Drag the caption on your video to move it</span></div></div>
-    <div class="sp-row"><div class="sp-sec"><div class="between"><span class="h">Zooms</span>${spTag(Z.zoom.tag,'zoom')}</div>
-        <div class="sp-opts">${Z.zoom.opts.map(o=>opt(o,o.id===Z.zoom.sel,ZOOMILL[o.id]||'','zoom.preset',JSON.stringify(o.id))).join('')}</div></div>
-      <div class="sp-sec"><div class="between"><span class="h">Cut</span>${spTag(Z.cut.tag,'cut')}</div>
-        <div class="sp-opts">${Z.cut.opts.map(o=>opt(o,o.id===Z.cut.sel,`<span class="cb ${o.id===Z.cut.sel?'on':''}">${CUTILL[o.id].map((w,i)=>`<i style="width:${w}px" class="${i%2?'gap':''}"></i>`).join('')}</span>`,'cut.max_pause',o.value)).join('')}</div>
-        ${Z.cut.clips?`<button class="row hlink" style="gap:8px;align-self:flex-start;text-decoration:none;font-size:13px;color:var(--t2)" onclick="playCut()" ${ui.spclip&&ui.spclip.busy?'disabled':''}><span class="sp-play"><svg width="8" height="8" viewBox="0 0 8 8"><path d="M1.5 1v6l5-3z" fill="currentColor"/></svg></span>${ui.spclip&&ui.spclip.busy?'Making the clips...':'Play 5 s of your video, before and after'}</button>`:''}
-        ${ui.spclip&&ui.spclip.err?`<div class="muted">${esc(ui.spclip.err)}</div>`:''}</div></div>
-    <div class="sp-row"><div class="sp-sec"><div class="between"><span class="h">Cards and graphics</span>${spTag(Z.cards.tag,'cards')}</div>
-        <div class="between"><div><div>Show logos and screenshots</div><div class="muted" style="margin-top:2px;font-size:12px">Beside your head when you name a thing</div></div>${spSwitch(Z.cards.on,'cards.on')}</div>
-        <div class="between" style="${Z.cards.on?'':'opacity:.45;pointer-events:none'}"><span>How often</span><span class="sp-seg">${Z.cards.opts.map(o=>`<button class="${o.id===Z.cards.sel?'on':''}" onclick="setCtl('cards.per_min',${o.value})">${esc(o.label)}</button>`).join('')}</span></div>
-        <label class="between" style="${Z.cards.on?'':'opacity:.45;pointer-events:none'}"><span>Look</span><select class="sp-sel" onchange="setCtl('look.preset',JSON.parse(this.value))">${Z.cards.looks.map(([k,l])=>`<option value='${esc(JSON.stringify(k))}' ${k===Z.cards.look?'selected':''}>${esc(l)}</option>`).join('')}</select></label></div>
-      <div class="sp-sec"><div class="between"><span class="h">Sound and music</span>${spTag(Z.sound.tag,'sound')}</div>
-        <div class="between"><div><div>Sound effects</div><div class="muted" style="margin-top:2px;font-size:12px">A soft whoosh when a card or zoom lands</div></div>${spSwitch(Z.sound.sfx,'sfx')}</div>
-        <div class="between"><div><div>Background music</div><div class="muted" style="margin-top:2px;font-size:12px">${Z.sound.music?'A quiet bed under your voice':'Off, so you can add a trending sound in the app'}</div></div>${spSwitch(Z.sound.music,'music')}</div></div></div>
-    <div class="sp-row sp-more"><div class="sp-sec"><div class="h">Its skill</div><div class="row" style="gap:6px">${ui.edit&&ui.edit.kind==='skill'&&ui.edit.id===P.id?'':`<span style="font:500 16px var(--mono)">${esc(P.skill.name)}</span>`}${editField('skill',P.id,P.skill.name,'font:500 16px var(--mono)')}</div>
-        <div class="row"><button class="btn quiet sm" onclick="post('/style/reveal',{id:ui.sp}).then(loadStyle)">Open the skill file</button>${P.skill.exists?'':'<span class="muted">made on first open</span>'}</div>
-        <div class="muted" style="color:var(--t2);line-height:19px">Say "/${esc(P.skill.name)}" in Claude Code to edit a video in this style.</div>
-        <div><div class="muted">Use it for</div><div class="row" style="gap:6px;margin-top:4px;font-size:14px">${ui.edit&&ui.edit.kind==='use'&&ui.edit.id===P.id?'':`<span style="color:${P.use_for?'var(--ink)':'var(--t3)'}">${esc(P.use_for||'Any video. Say when Claude should pick it.')}</span>`}${editField('use',P.id,P.use_for||'')}</div></div>
-        <div class="h" style="margin-top:6px">Tell it what to change</div>
-        <div class="row" style="align-items:stretch"><textarea id="tell" class="input" style="height:64px;padding:10px 12px;font:14px/20px system-ui,sans-serif;resize:vertical" placeholder="captions a bit bigger, fewer zooms"></textarea><button class="btn dark" style="height:auto" onclick="tellChange()">Send</button></div>
-        ${jobLine?`<div class="muted" style="color:var(--ink)">${jobLine}</div>`:''}</div>
-      <div class="sp-sec"><div class="between"><span class="h">Learned from your feedback</span><span class="muted">${P.rules.length}</span></div>
-        ${P.rules.map(r=>`<div class="row" style="align-items:flex-start;gap:12px"><div class="grow"><div style="font-size:14px;line-height:20px">${esc(r.rule)}</div><div class="muted" style="margin-top:3px">Said ${r.said}x${r.last?` · last ${esc(r.last)}`:''}${r.applied?` · used ${r.applied}x`:''}${r.regressions?` · came back ${r.regressions}x`:''}</div></div><button class="hlink" onclick="forgetRule(${r.id})">Forget</button></div>`).join('')||'<div class="muted" style="line-height:19px">Nothing yet. Changes here, notes on the review page and corrections in the Claude chat land here.</div>'}
-        <div class="muted" style="color:var(--t2)">It copies: ${P.copies.map(esc).join(', ')||'nothing measured yet'}.</div></div></div>
-    <div class="sp-save stick">${CHECK}<span>Saved as you go. Your next videos use this style.</span><span style="color:var(--t4)">Videos already made stay as they are.</span></div>
-  </div>`;
-}
-
 function rrender(){
   if(rv==='settings'&&!ui.disk)loadDisk();
   const h=rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='making'?vMaking():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='settings'?vSettings():vHome();
-  $('#main').classList.toggle('pg',rv==='home'||rv==='videos'||rv==='settings');
+  $('#main').classList.toggle('pg',['home','videos','settings','mystyle','style','stylepage'].includes(rv));
   paint($('#main'),h,rv+'|'+ui.sp);$('#main').classList.toggle('spwrap',rv==='stylepage');fixMenus();
-  const md=ui.create&&(rv==='mystyle'||rv==='style')?createModal():'';paint($('#modal'),md,'m');document.documentElement.style.overflow=md?'hidden':'';$('#main').classList.toggle('hmain',rv==='home');
+  const md=ui.del?delModal():ui.create?createModal():'';paint($('#modal'),md,'m');document.documentElement.style.overflow=md?'hidden':'';$('#main').classList.toggle('hmain',rv==='home');
   if(rv==='mystyle'||rv==='style')flashBuilt();
   const o=$('#order');if(o)o.querySelectorAll('[draggable]').forEach(el=>{
     el.ondragstart=e=>{e.dataTransfer.setData('text/plain',el.dataset.i)};el.ondragover=e=>e.preventDefault();

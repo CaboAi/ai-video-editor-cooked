@@ -51,6 +51,7 @@ import hmac
 import http.client
 import json
 import os
+import platform
 import re
 import secrets
 import shutil
@@ -1338,6 +1339,8 @@ def make_handler(token):
                 d["busy"] = bz and {"id": bz["id"], "name": job_name(bz)}
                 d["profile"] = (home().parent / "profile.json").exists()   # set up before: a returning user
                 d["update"] = update_info()
+                import launcher   # "Make it in a new Claude chat" only where a terminal window can be opened
+                d["new_claude"] = bool(launcher.terminal(d["root"], ["claude"], platform.system()))
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
                 lk = d.get("lookup") or {}
                 if lk.get("handle"):

@@ -386,6 +386,16 @@ def home_url():
     return url
 
 
+def home_jobs():
+    """How many videos the home window is making (its state.json jobs queued or taken): the rail's Making ring."""
+    f = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home" / "state.json"
+    try:
+        jobs = json.loads(f.read_text(encoding="utf-8")).get("jobs") or []
+    except (OSError, ValueError, AttributeError):
+        return 0
+    return sum(1 for j in jobs if isinstance(j, dict) and j.get("type") == "video" and j.get("state") in ("queued", "taken"))
+
+
 def listening(folder):
     try:
         return time.time() - (folder / "review" / ".listening").stat().st_mtime < BEAT_S
@@ -740,6 +750,7 @@ def make_handler(folder, token):
                 d["cutcheck"] = (folder / "cut-check.html").exists()
                 d["rawvideo"] = raw_video(folder, d) is not None   # the transcript editor's preview plays the raw take
                 d["home"] = home_url()   # the Home button: back to the editor's window, or how to start it
+                d["jobs"] = home_jobs() if d["home"] else 0   # the rail's Making ring
                 d["intro"] = intro(folder, d)
                 for x in d.get("activity", [])[-1:]:
                     if x.get("log") and not x.get("done"):
@@ -1080,6 +1091,7 @@ def serve(folder, port=0, open_browser=True):
     except OSError:   # the old port is taken now: a new one, same token
         srv = cls(("127.0.0.1", port), make_handler(folder, token))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
+    last.parent.mkdir(parents=True, exist_ok=True)   # a video made elsewhere has no review/ folder yet
     with os.fdopen(os.open(last, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
         f.write(url)   # private: the token in it lets a page in
     if os.name != "nt":
@@ -1715,6 +1727,12 @@ def demo():
     (tmp / "home" / "home" / ".server").write_text(hurl, encoding="utf-8")
     _HOME["at"] = 0
     assert json.loads(get("/state").read())["home"] == hurl, "the Home button reads home.py's fixed address"
+    hsf = tmp / "home" / "home" / "state.json"
+    keep_hs = hsf.read_text(encoding="utf-8") if hsf.exists() else None
+    hsf.write_text(json.dumps({"jobs": [{"type": "video", "state": "taken"}, {"type": "video", "state": "queued"},
+                                        {"type": "video", "state": "done"}, {"type": "teardown", "state": "taken"}]}), encoding="utf-8")
+    assert json.loads(get("/state").read())["jobs"] == 2, "the rail's Making ring counts the home window's videos being made"
+    hsf.write_text(keep_hs, encoding="utf-8") if keep_hs is not None else hsf.unlink()
     hs.shutdown()
     hs.server_close()
     # the cut's transcript: kept words on the cut's timeline, the cut word struck, the removed pause a chip

@@ -42,7 +42,9 @@ What changed for every user, newest first.
   the like and share rail or the caption block. The band above the head is now 74% of the width (it was
   92%) and starts at 13.1% down (it was 10%). Captions are at most 74% wide. `check.py plan` fails any card
   outside the zone, cards behind the speaker included, and captions that are too wide. Wide videos are
-  unchanged.
+  unchanged. The x-height check on a sticker now measures it the way the renderer draws it (98% of its
+  box, capture padding trimmed), not the older smaller fit, so a readable sticker in the narrower band is
+  no longer refused.
 
 - A sample style ships with the editor: Card edit. It shows in My styles and on Pick a style for every user
   under Sample styles, with no creator to copy first. Real image cards land 0.1 s before the word that names
@@ -52,6 +54,27 @@ What changed for every user, newest first.
   on its style page like any other, and it cannot be deleted. A style.json can now ask for cards behind the
   speaker itself (`"behind": true`). Fixed: a creator's measured entrance longer than the card's lead (about
   0.17 s) hid the card for its whole life in the render.
+- The review page is laid out as the approved editor design. A collapsed rail on the left (the cooked. pan
+  tile, New, Home, Videos, Styles, a Making ring with the number of videos the home window is making,
+  Settings, the theme switch) links to the home window's views; with no home window running those items are
+  hidden. The top bar has "Your videos / name", the two stages (a finished stage ticks green) and Claude's
+  status. The player, transcript card, transport and timeline sit under one stage line; a wide video plays
+  across the top with its transcript under it. The notes panel is a plain 320 px column: notes with Edit and
+  Delete under the words, "Sent" once sent, fixed notes in green with Claude's reply, Claude's steps with
+  green ticks and a spinner, and Send and Approve stacked at the foot. While Claude works no button is
+  black: Stop is outlined. The last approve turns into a green "Approved". Done green is #16A34A
+  (#4ADE80 dark), with #15803D for small green text.
+- A creator shows their own profile picture. When their videos are listed, creator-teardown saves the
+  account picture as `creator-teardowns/<handle>/avatar.jpg`: YouTube's channel avatar from one
+  `yt-dlp -J` call, TikTok's from the profile page. It replaces the frame from their top video on the
+  style cards, Creators you copied, the style page and the copy's progress card (as soon as it is
+  saved). Instagram, private accounts and no network keep the video frame. No new tools or keys.
+- The editor is now called cooked. The home window, page titles, setup messages and docs use the
+  new name. Its logo is a pan with three lines of sizzle: in a small tile beside the name in the home
+  window header, as the browser tab icon of the home window and the review page, and at the top of the
+  README (`docs/logo.svg`). The repo moved to nextwork-projects/ai-video-editor-cooked (old links redirect), and the
+  install lines and update checks point there. Nothing to reinstall: the plugin is still `ai-editor`,
+  the commands, settings folder (`~/.ai-video-editor`) and library folder (`~/Movies/AI Editor`) stay the same.
 - Done is green in the home window, the same green as the review page: the ticks on finished steps and
   videos, "Saved. The key works.", the done step numbers and the Ready to watch / Ready to review dot.
   The current step, buttons and text stay black.

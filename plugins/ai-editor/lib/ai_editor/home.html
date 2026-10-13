@@ -1284,13 +1284,15 @@ function h6(){
     <div class="stick" style="padding:8px 20px 20px;text-align:center"><button class="btn dark wide" ${F&&F.ok&&!running&&toolsReady()?'':'disabled'} onclick="startCut()">${running?(vd.state==='queued'&&!S.listening?'Waiting for Claude':'Cutting...'):'Start the cut'}</button><div class="muted" style="margin-top:12px;font-size:14px">${toolsReady()||running?'or say "edit my video" in Claude Code':`Making a video waits for the tools. ${readyPct()}% ready.`}</div></div>
   </div>`;
 }
-async function startCut(){const r=await queue({type:'video',path:ui.file.path,as:ui.as,aspect:ui.aspect});if(r._ok){nv.making=r.ids;ui.onboard=false;await loadLib();rgo('making')}}
+async function startCut(){const r=await queue({type:'video',path:ui.file.path,as:ui.as,aspect:ui.aspect});if(r._ok){ui.onboard=false;toEditor(r)}}
+// Make my video goes straight to the editor: round 0 plays the clip and lists every step of the cut (home.py videos)
+function toEditor(r){const e=(r.edits||[])[0];if(e){location.href='/review?dir='+encodeURIComponent(e);return}loadLib().then(()=>rgo('videos'))}
 
 // ---------------------------------------------------------------- returning user (Paper "J launcher + pick")
 // New video (pick clips) -> Pick a style -> Making your video; Home (welcome back), Your videos, My style, Settings.
 let L=null, R=null, rv=['home','videos','mystyle','settings','new'].includes(location.hash.slice(1))?location.hash.slice(1):null;   // the review page's rail opens a view: #videos
 if(location.hash)history.replaceState(null,'',location.pathname+location.search);
-const nv={sel:[],clips:{},join:true,aspect:'9:16',style:'mine',filter:'all',making:[],up:[],script:'',scriptName:'',scriptMsg:'',draft:null};
+const nv={sel:[],clips:{},join:true,aspect:'9:16',style:'mine',filter:'all',up:[],script:'',scriptName:'',scriptMsg:'',draft:null};
 const CMD='nextwork-editor';
 const UP='<svg width="22" height="22" viewBox="0 0 22 22"><path d="M11 15V5M7 9l4-4 4 4M4 15v2a1 1 0 001 1h12a1 1 0 001-1v-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const FOLDER='<svg width="14" height="14" viewBox="0 0 14 14"><path d="M1.5 3.5a1 1 0 011-1h3l1.2 1.5h4.8a1 1 0 011 1v5.5a1 1 0 01-1 1h-9a1 1 0 01-1-1z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
@@ -1680,9 +1682,9 @@ function vStyle(){
 }
 async function makeVideo(fresh){
   const r=await queue({type:'video',paths:nv.sel,join:nv.join,as:nv.style,aspect:nv.aspect,script:nv.script});
-  if(!r._ok)return;nv.making=r.ids;nv.sel=[];nv.script='';nv.scriptName='';
-  if(fresh)for(const id of r.ids||[])await openClaude(id);
-  await loadLib();rgo('making');
+  if(!r._ok)return;nv.sel=[];nv.script='';nv.scriptName='';
+  if(fresh)for(const id of r.ids||[])await post('/claude',{id});
+  toEditor(r);
 }
 
 // ---- a style's page (Paper styles-4 / styles-5): the preview on your video, then each part with its options
@@ -1760,18 +1762,9 @@ function vStylePage(){
 function planFor(j){
   const a=j.args,st=a.as==='defaults'?'the default style':a.as.startsWith('@')&&styleName(a.as)===a.as?a.as+"'s style":styleName(a.as);
   const studying=a.as.startsWith('@')&&L&&(L.styles.find(c=>c.id===a.as)||{}).studying;
-  return [...(a.takes?[['Joined your clips in order','']]:[]),['Wrote down every word you said',''],['Cutting out the mistakes',''],
+  return [...(a.takes?[['Joining your clips','']]:[]),['Writing down every word',''],['Finding retakes and pauses',''],['Cutting out the mistakes',''],['Rendering the cut',''],['Checking the cut',''],
     ['You check the cut','The editor opens on your clip and each version lands there. Leave notes or approve.'],
     ['Captions, zooms and sound in '+st,studying?`Waits for the copy of ${a.as}'s style to finish, then starts after you approve the cut.`:'Starts after you approve the cut.']];
-}
-// a queued video the listening Claude cannot take yet (it is making another): a new Claude for it
-function newClaude(j){
-  if(!j||j.type!=='video'||j.state!=='queued'||!(S.listening&&S.busy&&S.busy.id!==j.id))return '';
-  if(ui.nc[j.id]&&ui.nc[j.id].opened&&!(j.reserved&&Date.now()/1000-j.reserved<180))delete ui.nc[j.id];   // RESERVE_S passed and no Claude took it: offer again
-  const r=ui.nc[j.id]||{},stop='event.stopPropagation()';
-  if(r.opened)return `<div class="nclaude" onclick="${stop}">A new Claude is starting in Terminal. It picks up this video.</div>`;
-  if(r.command)return `<div class="nclaude" onclick="${stop}">Run this in a new Terminal window:<div class="codebox"><span>${esc(r.command)}</span><button class="hlink" onclick="copyText(${esc(JSON.stringify(r.command))},this)">Copy</button></div></div>`;
-  return `<div class="nclaude" onclick="${stop}">${S.busy&&S.busy.id!==j.id?`<span>Claude is busy with ${esc(S.busy.name)}.</span>`:''}${r.msg?`<span>${esc(r.msg)}</span>`:''}<button class="btn sm" onclick="openClaude(${esc(JSON.stringify(j.id))})">Open a new Claude for this video</button></div>`;
 }
 // nobody listening: "Connect Claude" opens a new Terminal with a listening Claude (launcher.connect, one at a time);
 // where no terminal can open (S.new_claude false), the old instruction
@@ -1784,42 +1777,15 @@ function connectHTML(lead,old){
   return `<span class="cnx">${l}<button class="btn dark sm" onclick="${stop}connectClaude()">Connect Claude</button></span>`;
 }
 async function connectClaude(){if(ui.connecting)return;ui.connecting=1;try{const r=await post('/connect',{});ui.connect=r.status==='manual'?r:null}finally{ui.connecting=0}await load()}
-async function openClaude(id){const r=await post('/claude',{id});ui.nc[id]=r._ok?r:{msg:r.msg||'That did not work.'};await load()}
-function jobBlock(j){
-  const a=j.args,name=(a.edit||'').split(/[\\/]/).pop(),plan=planFor(j),R2=j.result||{};
-  const steps=j.steps.map(s=>`<div class="row ${s.done?'':'cur'}"><div class="check" style="color:var(--t3);margin-top:3px">${s.done?CHECK:'<div class="spin"></div>'}</div><div class="grow"><div class="t">${esc(s.text)}</div>${!s.done&&(s.detail||s.progress!=null)?`<div class="row" style="margin-top:12px;gap:16px"><div class="prog" style="width:240px"><div style="width:${Math.round((s.progress||0)*100)}%"></div></div><span class="muted" style="color:var(--t2);font-size:14px">${s.progress!=null?Math.round(s.progress*100)+'%':''}${s.detail?(s.progress!=null?' · ':'')+esc(s.detail):''}</span></div>`:''}</div><span class="s" ${s.done?'':`data-since="${s.t}"`}>${s.done?secs(s.secs):secs(Math.max(0,Math.round(Date.now()/1000-s.t)))}</span></div>`).join('')
-    +plan.slice(j.steps.length).map(([t,s])=>`<div class="row later"><div class="check" style="margin-top:5px"><div class="ring"></div></div><div><div class="t">${esc(t)}</div>${s?`<div class="muted" style="margin-top:4px;font-size:14px">${esc(s)}</div>`:''}</div></div>`).join('');
-  const nc=newClaude(j),age=Date.now()/1000-jobStart(j),cx=!nc&&j.state==='queued'&&!S.listening,wait=nc||cx?'':j.state==='queued'?(age<20?'':'Claude is picking this up.'):j.state==='failed'?j.error:j.state==='cancelled'?'Cancelled.':'';
-  return `<div style="display:flex;flex-direction:column;gap:28px">
-    <div class="row" style="gap:28px;align-items:flex-end;flex-wrap:wrap"><div class="row" style="gap:2px">${(a.paths||[a.path]).slice(0,4).map((p,i,arr)=>{const c=clipOf(p);return `<div><div class="jthumb ${arr.length>1?'n':''}" style="width:${arr.length>1?96:130}px;height:${arr.length>1?170:230}px;background:#45403C url('${esc(c.thumb||'/thumb?p='+encodeURIComponent(p))}') center/cover;border-radius:${i===0?'14px 0 0 14px':i===arr.length-1?'0 14px 14px 0':'0'}${arr.length===1?';border-radius:14px':''}"></div><div class="muted" style="margin-top:8px">${i+1}${c.duration?' · '+fmtT(c.duration):''}</div></div>`}).join('')}</div>
-      <div style="padding-bottom:28px"><div style="font-size:17px;font-weight:600">${esc(name)}${(a.paths||[a.path]).every(p=>clipOf(p).duration)?' · '+fmtT((a.paths||[a.path]).reduce((t,p)=>t+clipOf(p).duration,0)):''}</div><div class="sub" style="margin-top:4px">${a.takes?'One video':'Video'} · ${esc(styleName(a.as))} · ${a.aspect==='9:16'?'Tall':'Wide'} ${a.aspect}</div></div></div>
-    ${wait?`<div class="msg ${j.state==='failed'?'bad':''}" style="font-size:14px">${j.state==='failed'?CROSS:''}<span>${esc(wait)}</span></div>`:''}${cx?`<div class="msg" style="font-size:14px">${connectHTML('Waiting for Claude.',`Type ${CMD} in Terminal, or say "open the cooked. home page" in Claude Code.`)}</div>`:''}${nc}
-    ${nc?((ui.nc[j.id]||{}).opened?'':`<div class="muted" style="font-size:14px">Waiting for a Claude to pick this up.</div>`):!R2.review_url&&(j.state==='taken'||j.state==='queued'&&S.listening)?`<div class="starting" style="margin-top:0;max-width:560px"><div class="spin big"></div><div><b>Opening the editor...</b><span><span data-since="${jobStart(j)}">${secs(Math.max(0,Math.round(age)))}</span> · it opens on your clip while Claude cuts it</span></div></div>`:''}
-    <div class="steps2">${steps}</div>
-    ${R2.review_url?`<a class="btn dark" style="align-self:flex-start;height:52px;text-decoration:none;padding:0 28px" href="${esc(R2.review_url)}">Open the review page</a>`:''}
-  </div>`;
-}
-function vMaking(){
-  const js=nv.making.map(id=>S.jobs.find(j=>j.id===id)).filter(Boolean);
-  if(!js.length)return `<div class="col grow"><div class="empty">Nothing is being made. <a href="#" onclick="rgo('new');return false">Make a video</a></div></div>`;
-  const mine=new Set(js.map(j=>j.args.edit));
-  const others=(L?L.videos:[]).filter(v=>!mine.has(v.dir)).slice(0,3);
-  return `<div class="col grow" style="min-width:0;gap:34px"><div><h1>Making your video${js.length>1?'s':''}</h1><p class="lede" style="margin-top:10px">The editor opens as soon as Claude starts.</p></div>${js.map(jobBlock).join('<div style="border-top:1px solid var(--line)"></div>')}</div>
-  <div class="panel rv-side" style="width:420px;flex-shrink:0">
-    <div class="sec"><div class="h" style="font-size:16px">Make another while you wait</div><button class="btn" style="height:44px;border-color:var(--ring)" onclick="rgo('new')">+ Make another</button></div>
-    <div class="sec"><div class="h" style="font-size:16px">Also on your list</div>${others.length?others.map(v=>`<div class="row" style="gap:14px"><div style="width:36px;height:64px;border-radius:6px;flex-shrink:0;background:#45403C ${v.thumb?`url('${esc(v.thumb)}') center/cover`:''}"></div><div class="grow" style="min-width:0"><div style="font-size:15px">${esc(v.name)}</div><div class="muted" style="margin-top:2px;font-size:14px">${STATUS[v.status]} · ${ago(v.updated)}</div></div>${v.review?`<a href="/review?dir=${encodeURIComponent(v.dir)}">Watch</a>`:''}</div>`).join(''):'<div class="muted">Nothing else yet.</div>'}</div>
-    <div class="sec" style="margin-top:auto;background:var(--bg)"><div class="h">You can close this window</div><div class="sub" style="font-size:14px">The video keeps going. Type this in Terminal to come back.</div><div class="codebox"><span>${CMD}</span><button class="hlink" onclick="copyText('${CMD}',this)">Copy</button></div></div>
-  </div>`;
-}
 
 // ---- home (welcome back), your videos, my style, settings
 const STATUS={cutting:'Being made',making:'Being made',ready:'Ready to review',done:'Done'};
 const vJob=v=>{const j=v.job&&S.jobs.find(x=>x.id===v.job);return j&&(j.state==='queued'||j.state==='taken')?j:null};
-// the review page when it exists (round 0 opens as soon as Claude takes the job), else the making view, which jumps there
+// the editor (round 0 opens the moment Make my video is pressed), else Your videos
 function openVideo(dir){
   const v=(L?L.videos:[]).find(x=>x.dir===dir);if(!v)return;
   if(v.review){location.href='/review?dir='+encodeURIComponent(v.dir);return}
-  if(v.job){nv.making=[v.job];try{sessionStorage.removeItem('ave-opened-'+v.job)}catch(e){}rgo('making')}
+  rgo('videos');
 }
 const goAttrs=v=>`role="button" tabindex="0" onclick="openVideo(${esc(JSON.stringify(v.dir))})" onkeydown="if(event.key==='Enter'&&event.target===this)openVideo(${esc(JSON.stringify(v.dir))})"`;
 const EXROW=`<div class="vrow ex"><div class="th" style="background-image:url('/demo/person-2.jpg')"></div><div class="grow" style="min-width:0"><div style="font-size:16px">my-first-video</div><div class="sub" style="margin-top:4px">Example. Your videos show here.</div></div><div class="st"><span class="tagq">Example</span></div></div>`;
@@ -1828,14 +1794,14 @@ function vStat(v){
   const open=`<button class="b1" onclick="event.stopPropagation();openVideo(${J(v.dir)})">Open the editor</button>`,see=`<button class="b2" onclick="event.stopPropagation();openVideo(${J(v.dir)})">See progress</button>`;
   if(v.status==='ready'||v.status==='done'){const w=v.status==='ready'&&v.stage==='cut'?'Cut ready':'Done';return {ok:1,txt:v.duration?`${w}. ${fmtT(Math.round(v.duration))} long`:w,btn:open}}
   const j=vJob(v);
-  if(j){const s=j.steps.filter(x=>!x.done).at(-1),t=s?s.t:jobStart(j),w=s?s.text:j.state==='queued'?(S.listening?'Starting':'Waiting for Claude'):'Starting';
+  if(j){const s=j.steps.filter(x=>!x.done).at(-1),t=s?s.t:jobStart(j),w=s?s.text:j.state==='queued'?((j.claude||{}).opened?'A new Claude is starting':S.listening?(S.busy&&S.busy.id!==j.id?'Waiting for Claude':'Starting'):'Waiting for Claude'):'Starting';
     return {title:w,txt:`${esc(w)} · <span data-since="${t}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-t)))}</span>`,frac:j.state==='queued'?0:jobFrac(j),btn:see}}
   return {txt:v.round?'Fixing your notes':'Being made',frac:null,btn:see};
 }
 function vCard(v){
-  const s=vStat(v),nc=newClaude(vJob(v)),fn=rv==='videos'&&ui.fold.videos?'':(fd('videos').folders.find(f=>f.id===inFold('videos',v.dir))||{}).name,meta=[fn,v.stage==='edit'?'Full edit':'Cut',v.wide?'16:9':v.round?`round ${v.round}`:'',ago(v.updated)].filter(Boolean).join(' · ');
+  const s=vStat(v),fn=rv==='videos'&&ui.fold.videos?'':(fd('videos').folders.find(f=>f.id===inFold('videos',v.dir))||{}).name,meta=[fn,v.stage==='edit'?'Full edit':'Cut',v.wide?'16:9':v.round?`round ${v.round}`:'',ago(v.updated)].filter(Boolean).join(' · ');
   return `<div class="vc" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name,v.thumb)}><div class="vi">${picArea(v)}
-    <div class="tx"><div style="min-width:0"><div class="nm" title="${esc(v.name)}">${esc(v.name)}</div><div class="mt">${meta}</div></div><div class="st">${nc||`<div class="stt ${s.ok?'ok':''}" title="${esc(s.title||'')}">${s.txt}</div>${s.btn}`}</div></div>
+    <div class="tx"><div style="min-width:0"><div class="nm" title="${esc(v.name)}">${esc(v.name)}</div><div class="mt">${meta}</div></div><div class="st"><div class="stt ${s.ok?'ok':''}" title="${esc(s.title||'')}">${s.txt}</div>${s.btn}</div></div>
     <div class="bar ${s.ok?'ok':s.frac==null?'indet':''}">${s.ok?'':`<i style="width:${s.frac==null?40:Math.round(s.frac*100)}%"></i>`}</div></div></div>`;
 }
 // the picture area every video card and tile shares: one height; wide fills it, tall shows whole over a blurred copy
@@ -2282,7 +2248,7 @@ const ZOOMILL={none:'<i class="zb"></i>',smooth:'<i class="zb dash"></i><i class
 const CUTILL={relaxed:[22,16,26,14,18],natural:[24,7,28,6,20],tight:[26,0,30,0,22]};
 function rrender(){
   if(rv==='settings'&&!ui.disk)loadDisk();
-  const h=rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='making'?vMaking():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='settings'?vSettings():vHome();
+  const h=rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='settings'?vSettings():vHome();
   $('#main').classList.toggle('pg',['home','videos','settings','mystyle','style','stylepage'].includes(rv));
   paint($('#main'),h,rv+'|'+ui.sp);$('#main').classList.toggle('spwrap',rv==='stylepage');
   const md=ui.del?delModal():ui.create?createModal():'';paint($('#modal'),md,'m');document.documentElement.style.overflow=md?'hidden':'';$('#main').classList.toggle('hmain',rv==='home');
@@ -2342,7 +2308,7 @@ function render(){
   const keep=document.activeElement&&document.activeElement.id,pos=keep&&document.activeElement.selectionStart,end=keep&&document.activeElement.selectionEnd,val=keep&&document.activeElement.value;
   document.body.classList.toggle('rh',inApp());paintSide();
   if(inApp()){
-    if(!rv)rv=S.jobs.some(j=>j.type==='video'&&(j.state==='queued'||j.state==='taken'))&&!L.videos.some(v=>v.status!=='cutting')?(nv.making=S.jobs.filter(j=>j.type==='video'&&(j.state==='queued'||j.state==='taken')).map(j=>j.id),'making'):L.videos.length||firstRun()?'home':'new';
+    if(!rv||rv==='making')rv=L.videos.length||firstRun()?'home':'new';
     rrender();
   }else{
   $('#main').classList.remove('pg');
@@ -2372,15 +2338,8 @@ async function load(){
   if(a&&a.type==='range'||ui.spdrag||DRAG)return;   // dragging a slider, the caption or a card: do not redraw under the hand   // dragging a slider or the caption: do not redraw under the hand
   if(!L)await loadLib();
   if(rv==='stylepage')await loadStyle();
-  render();openEditor();
+  render();
   if(keepY!=null){window.scrollTo(0,keepY);keepY=null}
-}
-function openEditor(){   // Make my video: the window becomes the editor once Claude has the clip on the review page
-  if(rv!=='making')return;
-  const j=nv.making.map(id=>S.jobs.find(x=>x.id===id)).find(j=>j&&(j.result||{}).review_url&&j.args.edit);
-  if(!j)return;
-  try{if(sessionStorage.getItem('ave-opened-'+j.id))return;sessionStorage.setItem('ave-opened-'+j.id,'1')}catch(e){}
-  location.href='/review?dir='+encodeURIComponent(j.args.edit);
 }
 let PV=null,keepY=null;
 const canReload=()=>{const a=document.activeElement;return !(a&&/^(INPUT|TEXTAREA)$/.test(a.tagName)&&a.value)&&!nv.up.some(u=>!u.bad)&&!ui.edit};

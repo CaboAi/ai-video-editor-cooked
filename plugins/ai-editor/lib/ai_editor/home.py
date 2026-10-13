@@ -1239,6 +1239,25 @@ def getting_started(d):
     return {"setup": setup or video, "style": style or video, "video": video}
 
 
+def claude_for(jid):
+    """A new terminal with a Claude that takes video job jid only ("take job <id>"): reserved first, so the listening
+    Claude leaves it alone. {opened, command} (also kept on the job as "claude", so the page shows it), or None when
+    the job is not queued any more."""
+    def reserve(d):
+        j = next((j for j in d["jobs"] if j["id"] == jid and j["state"] == "queued"), None)
+        if j:
+            j["reserved"] = time.time()
+        return d["root"] if j else None
+    root = update(reserve)
+    if not root:
+        return None
+    import launcher
+    opened, cmd = launcher.open_claude(root, f"/ai-editor:start take job {jid}")
+    r = {"opened": opened, "command": cmd}
+    update(lambda d: [j.__setitem__("claude", r) for j in d["jobs"] if j["id"] == jid])
+    return r
+
+
 def busy_with(d, sid):
     """The video job session sid is making now, or None."""
     return next((j for j in reversed(d["jobs"]) if j["type"] == "video" and j["state"] == "taken"
@@ -1810,17 +1829,8 @@ def make_handler(token):
             self.send(404, {})
 
         def new_claude(self, jid):
-            def reserve(d):
-                j = next((j for j in d["jobs"] if j["id"] == jid and j["state"] == "queued"), None)
-                if j:
-                    j["reserved"] = time.time()
-                return d["root"] if j else None
-            root = update(reserve)
-            if not root:
-                return self.send(409, {"msg": "Claude already has this video."})
-            import launcher
-            opened, cmd = launcher.open_claude(root, f"/ai-editor:start take job {jid}")
-            return self.send(200, {"opened": opened, "command": cmd})
+            r = claude_for(jid)
+            return self.send(200, r) if r else self.send(409, {"msg": "Claude already has this video."})
 
         def lookup(self, text, platform=None):
             parts = text.split()
@@ -1918,7 +1928,7 @@ def make_handler(token):
             if len(script.encode("utf-8")) > SCRIPT_MAX:
                 return self.send(400, {"ok": False, "msg": "That script is over 200 KB. Paste only the lines you film."})
             groups = [ps] if b.get("join") and len(ps) > 1 else [[p] for p in ps]
-            ids = []
+            ids, edits = [], []
 
             def remember(d):
                 d["picked"] = list(dict.fromkeys([p["path"] for p in ps] + (d.get("picked") or [])))[:60]
@@ -1935,7 +1945,15 @@ def make_handler(token):
                     (edit / "script.md").write_text(script + "\n", encoding="utf-8")
                     args["script"] = str(edit / "script.md")
                 ids.append(update(lambda d: queue(d, "video", args))["id"])
-            return self.send(200, {"id": ids[0], "ids": ids})
+                edits.append(str(edit))
+                # the editor opens at once on the clip (round 0, "The cut / your clip"); Claude's cut lands there
+                subprocess.run([sys.executable, str(REVIEW), str(edit), "start", "--raw", "--video", g[0]["path"], "--stage", "cut"],
+                               capture_output=True, timeout=60)
+            lis = listener()   # the listening Claude makes one video at a time: every other one gets a Claude of its own now
+            if lis is not None:
+                for jid in ids if busy_with(read(), lis) else ids[1:]:
+                    claude_for(jid)
+            return self.send(200, {"id": ids[0], "ids": ids, "edits": edits})
 
         def cover(self):
             """A style's preview image: an image or a short clip, streamed to a temp file, then one 720x1280 frame."""
@@ -2415,6 +2433,13 @@ def demo():
     assert ja["state"] == "taken" and ja["owner"] == "sess-A", ja
     (home() / ".listening").write_text("sess-A", encoding="utf-8")   # A listens again while it works: still busy
     assert get("/state")["busy"] == {"id": ja["id"], "name": "team-250k-general"}
+    # Make my video while the listening Claude is busy: a Claude of its own opens for the new one at once (claude_for)
+    jx = post("/job", {"type": "video", "path": str(vid), "aspect": "9:16", "as": "mine"})["id"]
+    jxj = next(j for j in read()["jobs"] if j["id"] == jx)
+    assert opened == [(str(root.resolve()), f"/ai-editor:start take job {jx}")] and jxj["claude"]["opened"] and jxj["reserved"], (opened, jxj)
+    assert not takeable(jxj, "sess-A", read()), "the busy Claude never takes it"
+    update(lambda d: next(j for j in d["jobs"] if j["id"] == jx).update(state="done"))
+    opened.clear()
     (home() / ".listening").unlink()
     post("/ask", {"id": "qa", "questions": qs, "session": "sess-A"})
     assert get("/ask?v=1")["ask"]["about"] == "team-250k-general"

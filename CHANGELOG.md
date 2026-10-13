@@ -4,6 +4,22 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Two videos at once. Make a video while Claude is making another, and a second Claude opens in its own
+  Terminal window for it straight away, so both are made at the same time. The card says so. Before, the
+  second video waited behind a button most people never saw.
+
+- The stills open in the editor. After you approve the cut, the stills come back on the same page as the
+  cut: one frame for each card, captions and zooms, over your sound, with notes and "Approve and render".
+  Before, they were shown in the terminal and offered a raw plan page first. That page (the live preview) is
+  now only for moving cards by hand when you ask for it.
+
+- Make my video opens the editor straight away, on your clip, with every step of the cut beside it: done
+  steps ticked, the one now with a spinner, the rest waiting, from what the scripts really report. The
+  in-between "Making your video" screen is gone. The editor then carries on into the stills and the edit.
+
+- A plan with no cards in a style that uses cards now stops at the plan check, with what to fix, instead of
+  reaching you as an edit with nothing on screen.
+
 ## ai-editor 2.6.4 (2026-10-13)
 
 - Pick a style: the cards are wide enough for their names ("My style" no longer wraps one letter per line)

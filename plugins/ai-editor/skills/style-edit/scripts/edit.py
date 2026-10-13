@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Stills, estimates and renders for a plan.json. Stdlib only.
 
-    python3 edit.py stills   edits/NAME [--plan plan.json] [--no-check]   runs check.py plan, then PNGs into edits/NAME/stills/
+    python3 edit.py stills   edits/NAME [--plan plan.json] [--no-check]   runs check.py plan, then PNGs into edits/NAME/stills/,
+                             the sheet, and stills/stills.mp4 (each still over the cut's sound) for the review page
     python3 edit.py estimate edits/NAME [--plan plan.json]   Laptop, Modal, then GitHub Actions and Lambda: time + cost
     python3 edit.py render   edits/NAME [--plan plan.json] [--modal | --lambda]   -> edits/NAME/render.mp4
     python3 edit.py render   edits/NAME [--plan plan.json] --draft   laptop, 2/3 size -> edits/NAME/render-draft.mp4
@@ -167,6 +168,35 @@ def still_frames(plan):
             if prev and 0 <= c["start"] - prev[-1]["end"] < 1.2:
                 frames[f"{4 + i}-swap"] = c["start"] + 0.12
     return {k: min(last, round(t * fps)) for k, t in frames.items()}
+
+
+def storyboard(edit, plan, folder, frames):
+    """stills.mp4 beside the stills: each still held until the next one's frame, over the cut's own sound, half size.
+    The review page plays it as the stills round (review.py round --stills), so the user approves the plan where
+    they approve the cut and the edit, notes at a moment and all. Seconds to make; no renderer."""
+    fps, dur = plan["fps"], plan["durationInFrames"] / plan["fps"]
+    shots = sorted(((f, folder / f"{n}.png") for n, f in frames.items() if (folder / f"{n}.png").is_file()), key=lambda x: x[0])
+    if not shots:
+        return None
+    lines = []
+    for i, (f, png) in enumerate(shots):
+        start = 0 if i == 0 else f / fps
+        end = shots[i + 1][0] / fps if i + 1 < len(shots) else dur
+        lines += [f"file '{png.as_posix()}'", f"duration {max(0.04, end - start):.3f}"]
+    lines.append(f"file '{shots[-1][1].as_posix()}'")   # the concat demuxer reads the last duration only with a file after it
+    lst, out = folder / "stills.txt", folder / "stills.mp4"
+    lst.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    cut = edit / plan["video"]
+    r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst),
+                        *(["-i", str(cut), "-map", "0:v", "-map", "1:a?", "-c:a", "aac", "-b:a", "128k"] if cut.is_file() else []),
+                        "-vf", f"scale=-2:{min(960, plan['height'])},fps=15,format=yuv420p", "-c:v", "libx264", "-preset", "veryfast",
+                        "-crf", "28", "-t", f"{dur:.3f}", "-movflags", "+faststart", str(out)], capture_output=True, text=True)
+    lst.unlink(missing_ok=True)
+    if r.returncode:
+        print(f"note: no stills.mp4 ({(r.stderr.strip().splitlines() or ['ffmpeg failed'])[-1]})")
+        return None
+    print(f"STILLS VIDEO: {out}")
+    return out
 
 
 def aws_env():
@@ -1058,9 +1088,30 @@ def demo_patch():
         assert len(asked) == 1
 
 
+def demo_storyboard():
+    """stills.mp4: each still held until the next, the cut's sound under it, as long as the plan."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        e, st = Path(d), Path(d) / "stills"
+        st.mkdir()
+        for n, c in (("1-opening", "red"), ("4-card", "blue")):
+            subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", f"color=c={c}:s=64x112", "-frames:v", "1", str(st / f"{n}.png")], check=True)
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=s=64x112:r=30:d=3", "-f", "lavfi", "-i",
+                        "sine=d=3", "-shortest", "-pix_fmt", "yuv420p", str(e / "cut.mp4")], check=True)
+        out = storyboard(e, {"fps": 30, "durationInFrames": 90, "height": 112, "video": "cut.mp4"}, st,
+                         {"1-opening": 15, "4-card": 45, "5-card": 60})   # 5-card was never drawn: left out
+        dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(out)],
+                                   capture_output=True, text=True).stdout)
+        streams = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(out)],
+                                 capture_output=True, text=True).stdout.split()
+        assert abs(dur - 3) < 0.2 and sorted(streams) == ["audio", "video"] and not (st / "stills.txt").exists(), (dur, streams)
+        assert storyboard(e, {"fps": 30, "durationInFrames": 90, "height": 112, "video": "cut.mp4"}, st, {"x": 1}) is None
+
+
 def demo():
     import tempfile
     demo_patch()
+    demo_storyboard()
     # the laptop estimate: Chrome's start-up once, then every frame; every cloud line says when it is not set up
     assert laptop_s({"s_per_frame": 0.05, "bundle_s": 3.0, "start_s": 2.0}, 1000) == 55.0
     assert laptop_s({"s_per_frame": 0.05, "bundle_s": 3.0}, 1000) == 53.0
@@ -1273,6 +1324,8 @@ def main():
             frames, folder = still_frames(plan), edit / f"stills{tag}"
         node("stills", pub, plan_path, folder, *[f"{k}={v}" for k, v in frames.items()])
         contact_sheet(edit, a.plan, folder.name if a.at else None)
+        if not a.at:   # the stills round on the review page (SKILL.md step 5)
+            storyboard(edit, plan, folder, frames)
     elif a.cmd == "estimate":
         estimate(plan_path, pub)
     elif a.cmd == "patch":

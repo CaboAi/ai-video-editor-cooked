@@ -3,15 +3,6 @@
 Moved out of SKILL.md step 5. Say each key's "What for" and "Cost" lines to the user before its
 click path. Every key is optional.
 
-## TypeSafe (recommended): decides the cut
-
-- **What for:** finding retakes and false starts. Without it Claude reads the whole transcript and
-  decides every cut itself, which uses several times more of the user's Claude usage per video.
-- **Cost:** pay as you go, $0.042 per million tokens (pieces of words) it reads. A 3-minute video
-  is about 5,000 tokens, well under one cent.
-- **Get it:** https://console.typesafe.ai/keys : sign up or log in, create a key, copy it.
-- **Save:** `setkey typesafe`.
-
 ## Gemini (recommended): reads a creator's look
 
 - **What for:** creator-teardown sends a few frames of each video to Google's Gemini to name the

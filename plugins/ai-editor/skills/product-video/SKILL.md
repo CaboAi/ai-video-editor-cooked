@@ -98,8 +98,7 @@ headless browser; say so and offer another URL.
 python3 "$S/product.py" pages product/<name>
 ```
 
-Writes `pages.md`: every page compact (never raw HTML), the brief on top; with a TypeSafe key Jev also
-ranks the headings that read as jobs (about $0.0001). Read it and write `use-cases.md`: who it is for and
+Writes `pages.md`: every page compact (never raw HTML), the brief on top. Read it and write `use-cases.md`: who it is for and
 3-4 jobs ranked, each with the site's own words quoted, the source URL, and the flow that would show it.
 Brief items first, marked **[brief]**. Ask in the question box which 2-3 to feature (recommended first).
 

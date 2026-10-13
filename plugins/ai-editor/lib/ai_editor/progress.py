@@ -7,7 +7,7 @@ Stdlib only. creator-teardown keeps a byte-identical copy as scripts/_progress.p
 Only when the page has a job of that type taken by Claude ($AI_EDITOR_HOME/home/state.json): then it is
 one `home.py status <job> --if-active --step ...` call, the same write Claude makes, so a step Claude also
 reports (same text as the newest step) is updated in place, never listed twice. A script never takes a
-queued job: only Claude's `wait` or its own `status` does. `key` names the job (a video's edit folder, a
+queued job: only Claude's `wait` does. `key` names the job (a video's edit folder, a
 teardown's handle) so separate videos each get their own steps; with no key, only a lone taken job gets
 them. No page, no job, a broken state file or a slow lock: nothing happens, and the script never stops
 or waits more than a few seconds for it.
@@ -24,10 +24,15 @@ def state_file():
 
 
 def step(text, detail=None, progress=None, job="teardown", key=None, timeout=5):
-    """True when the page's taken `job` (the one `key` names) got the step. Never raises."""
+    """True when the page's taken `job` (the one `key` names) got the step. Never raises.
+    AI_EDITOR_NO_PROGRESS=1: a no-op (format_check.py's re-merges, which are not new steps)."""
+    if os.environ.get("AI_EDITOR_NO_PROGRESS"):
+        return False
     try:
         d = json.loads(state_file().read_text(encoding="utf-8"))
-        if not any(j.get("type") == job and j.get("state") == "taken" for j in d.get("jobs", [])):
+        sid = os.environ.get("CLAUDE_CODE_SESSION_ID", "").strip()
+        if not any(j.get("type") == job and j.get("state") == "taken" and (not sid or j.get("owner") in (None, sid))
+                   for j in d.get("jobs", [])):   # another Claude session's job: not ours to report on
             return False
         home_py = Path(__file__).with_name("home.py")   # ai-editor: the home.py beside this file
         if not home_py.is_file():   # creator-teardown's copy: the path home.py writes into state.json
@@ -50,6 +55,7 @@ def ticker(text, n, job="teardown", key=None):
 def demo():
     import tempfile
     with tempfile.TemporaryDirectory() as tmp:
+        os.environ.pop("CLAUDE_CODE_SESSION_ID", None)   # run from inside Claude Code: not that session
         os.environ["AI_EDITOR_HOME"], os.environ["AI_EDITOR_SKILLS"] = tmp, os.path.join(tmp, "skills")
         f = state_file()
         assert step("Listed their videos") is False   # no state file: a no-op
@@ -68,6 +74,9 @@ def demo():
         assert json.loads(f.read_text(encoding="utf-8"))["jobs"][0]["state"] == "queued", "wait still hands it out"
         job["state"] = "taken"
         f.write_text(json.dumps({"root": tmp, "jobs": [job], "home_py": home_py.as_posix()}), encoding="utf-8")
+        os.environ["AI_EDITOR_NO_PROGRESS"] = "1"
+        assert step("Listed their videos", key="x") is False   # format_check.py's re-merge: no new step
+        del os.environ["AI_EDITOR_NO_PROGRESS"]
         assert step("Listed their videos", key="@Other") is False   # another creator's key: skipped
         assert step("Listed their videos", key="@X") and ticker("Transcribed every word", 7, key="x")(3)
         assert ticker("Transcribed every word", 7)(4) and step("Transcribed every word")   # keyless, lone job; in place
@@ -76,6 +85,15 @@ def demo():
         assert j["state"] == "taken" and d["claude_seen"]
         assert [s["text"] for s in j["steps"]] == ["Listed their videos", "Transcribed every word"], j["steps"]
         assert j["steps"][0]["done"] and j["steps"][1]["detail"] == "video 4 of 7" and abs(j["steps"][1]["progress"] - 4 / 7) < 0.01
+        j["owner"] = "sess-A"   # another Claude session's job: a script in session B leaves it alone
+        f.write_text(json.dumps(d), encoding="utf-8")
+        os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"
+        assert step("Writing the style") is False and len(json.loads(f.read_text(encoding="utf-8"))["jobs"][0]["steps"]) == 2
+        os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-A"
+        assert step("Transcribed every word")   # its own session: lands (same text, in place)
+        os.environ.pop("CLAUDE_CODE_SESSION_ID")
+        d = json.loads(f.read_text(encoding="utf-8"))
+        j = d["jobs"][0]
         # separate videos: two taken video jobs, each script's report lands on its own edit folder
         ed = [Path(tmp) / "edits" / n for n in ("a", "b")]
         vids = [{"id": f"video-{i + 1}", "type": "video", "args": {"edit": e.as_posix()}, "state": "taken", "at": "",
@@ -90,6 +108,17 @@ def demo():
         assert step("Cutting out the mistakes", job="video", key=Path(tmp) / "edits" / "c") is False   # no match: skip
         v = json.loads(f.read_text(encoding="utf-8"))["jobs"][1:]
         assert [[s["text"] for s in x["steps"]] for x in v] == [["Wrote down every word you said"], ["Cutting out the mistakes"]], v
+        # key and session must both hold: video-2 is session A's, so B's script naming its folder is skipped
+        d = json.loads(f.read_text(encoding="utf-8"))
+        d["jobs"][2]["owner"] = "sess-A"
+        f.write_text(json.dumps(d), encoding="utf-8")
+        os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"
+        assert step("Rendering", job="video", key=ed[1]) is False
+        assert step("Cutting out the mistakes", job="video") and len(json.loads(f.read_text(encoding="utf-8"))["jobs"][1]["steps"]) == 2, \
+            "no key: B's only writable job (video-1, nobody's) gets it"
+        os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-A"
+        assert step("Rendering", job="video", key=ed[1])
+        os.environ.pop("CLAUDE_CODE_SESSION_ID")
     print("progress demo ok")
 
 

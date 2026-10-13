@@ -281,13 +281,16 @@ def body(style_path=None, fmt=None):
         parts = copies(style)
         mix = list((style.get("blend") or {}).get("weights") or [])
         who, said = (f"the {h} blend of " + " and ".join("@" + x for x in mix), h) if len(mix) > 1 else (f"@{h}'s style", "@" + h)
-        desc = describe(sp, f"{who}, measured from their videos" + (f" ({', '.join(p.split(' (')[0] for p in parts)})" if parts else ""),
+        one = style.get("format") if len(mix) <= 1 else None   # creator-teardown's format check: the one format it copies
+        desc = describe(sp, (f"{who}, copying their {one}" if one else f"{who}, measured from their videos")
+                        + (f" ({', '.join(p.split(' (')[0] for p in parts)})" if parts else ""),
                         [f"edit my video like {said}", f"in {said}'s style", f"make it look like {h}'s videos"],
                         "videos meant to look like that creator's, with the corrections given on this style")
         h = said.lstrip("@") if len(mix) > 1 else h
         head = (f"# Edit like {said}\n\nEdits the user's video in {who} (measured) with the ai-editor plugin.\n\n"
                 f"- Style: `{sp}` (measured by creator-teardown; never edit it by hand)\n"
                 f"- Corrections: `{overrides_path(sp)}` (laid over the style; a re-study keeps them)\n"
+                + (f"- Format: their {one} (videos of other formats were left out)\n" if one else "")
                 + (f"- Copies: {'; '.join(parts)}\n" if parts else "")
                 + (f"- Script format: the `{fmt}` skill (it writes the script; this one edits the footage)\n" if fmt else "")
                 + "\n## Run\n\n"
@@ -295,6 +298,8 @@ def body(style_path=None, fmt=None):
                 "   instead of the profile's creators (`$P` is the plugin's `lib/ai_editor/profile.py`):\n"
                 f"   `python3 \"$P\" style edits/<name> --from \"{sp}\"`\n"
                 "2. Then cut and style-edit as start says. plan.py and the cut lay the corrections over the style themselves.\n"
+                "   Cards come at this creator's rate, kinds and place (route.py marks the `want` lines); fix every `style:`\n"
+                "   line plan.py's style check prints before the stills.\n"
                 f"3. Review notes that are preferences: ask the scope with `This style (@{h}) (Recommended)` first, then\n"
                 "   `review.py edits/<name> learn --scope this-style ...`. They land in the section below.\n\n"
                 "Follow every rule in \"Learned from your feedback\". Where one disagrees with the user's general taste,\n"
@@ -369,6 +374,10 @@ def demo():
         assert t.startswith("---\nname: edit-like-some-creator\ndescription: ") and "edit my video like @some.creator" in t
         assert "6.0% tall, 3 words a caption" in t and f"--from \"{sp.resolve()}\"" in t and "Nothing yet" in t, t
         assert len(t.split("description: ")[1].split("\n")[0]) <= 1024
+        sp.write_text(json.dumps({**measured, "format": "talking-head videos with word captions"}), encoding="utf-8")
+        t = write(sp).read_text(encoding="utf-8")
+        assert "@some.creator's style, copying their talking-head videos with word captions" in t.split("\n")[2], t[:400]
+        sp.write_text(json.dumps(measured), encoding="utf-8")
         # an edit made with it records the source; the overrides apply over the measured style
         ed = d / "edits" / "vid"
         ed.mkdir(parents=True)

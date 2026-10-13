@@ -85,7 +85,7 @@ def default_cut(raw):
     with the usual answer (last take wins). Soft fillers and unfinished lines are a judgement call: left out."""
     out = []
     for c in retakes.find(raw):
-        hard = c["kind"] in ("filler", "audio_event") and not c["questions"]
+        hard = c["kind"] in ("filler", "audio_event") and not c["check"]
         if hard or c["kind"] == "alt_hook" or "keeper_at" in c:
             out.append(c)
     return out
@@ -156,8 +156,8 @@ def measure(raw, pub, sil_raw=None, sil_pub=None):
         rt[{(False, True): "last", (True, False): "first", (True, True): "both"}.get((first, second), "neither")] += 1
     m["retakes"] = rt
 
-    hard = [c for c in cands if c["kind"] == "filler" and not c["questions"]]
-    soft = [c for c in cands if c["kind"] == "filler" and c["questions"]]
+    hard = [c for c in cands if c["kind"] == "filler" and not c["check"]]
+    soft = [c for c in cands if c["kind"] == "filler" and c["check"]]
     m["fillers"] = {"hard": {"count": len(hard), "kept": sum(share(*c["cut"]) >= 0.5 for c in hard)},
                     "soft": {"count": len(soft), "kept": sum(share(*c["cut"]) >= 0.5 for c in soft)}}
 

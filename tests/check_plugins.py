@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 PATHS_LINE = "Paths: `${CLAUDE_SKILL_DIR}` means the folder containing this SKILL.md"
 errors = []
-KEY_URLS = ("https://console.typesafe.ai/keys", "https://aistudio.google.com/apikey",
+KEY_URLS = ("https://aistudio.google.com/apikey",
             "https://elevenlabs.io/app/settings/api-keys", "https://modal.com/signup")
 EVALS = [("plugins/ai-editor/evals/setup-window-first", "home.py serve"),
          ("plugins/ai-editor/evals/setup-window-first", "install-all --report"),

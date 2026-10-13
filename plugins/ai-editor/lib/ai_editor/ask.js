@@ -46,7 +46,7 @@ function next(v){ans[i]=v;i++;sel=new Set();el.innerHTML='';if(i<A.questions.len
 function draw(){
   const q=A.questions[i],n=A.questions.length,multi=!!q.multiSelect,opts=Array.isArray(q.options)?q.options:[];
   const own=el.querySelector('#asko')?.value||'';
-  el.innerHTML=`<div class="aq-card"><div class="aq-top"><span>Claude has a question</span><span>${n>1?`Question ${i+1} of ${n}`:''}</span></div>
+  el.innerHTML=`<div class="aq-card"><div class="aq-top"><span>${A.about?`Claude (${esc(A.about)}) asks`:'Claude has a question'}</span><span>${n>1?`Question ${i+1} of ${n}`:''}</span></div>
   ${q.header?`<div class="aq-hd">${esc(q.header)}</div>`:''}<h2${q.header?'':' style="margin-top:14px"'}>${esc(q.question)}</h2>
   <div class="aq-opts">${opts.map((o,k)=>`<button class="aq-opt${sel.has(k)?' aq-sel':''}" data-k="${k}"${multi?` aria-pressed="${sel.has(k)}"`:''}>${multi?`<i class="aq-box">${sel.has(k)?TICK:''}</i>`:''}<div><b>${esc(o.label)}</b>${o.description?`<span>${esc(o.description)}</span>`:''}</div></button>`).join('')}</div>
   <div class="aq-other"><input id="asko" placeholder="${multi?'Other: add your own words':'Other: type your own answer'}" aria-label="Other answer">${multi?'':'<button class="aq-send" id="asks" disabled>Send</button>'}</div>
@@ -73,4 +73,5 @@ async function poll(){
   A=a;i=0;ans=[];sel=new Set();el.innerHTML='';draw();chime();
 }
 poll();setInterval(poll,1000);document.addEventListener('visibilitychange',poll);
+addEventListener('pagehide',()=>{try{navigator.sendBeacon('/ask/gone')}catch(e){}});   // a closed tab: Claude's next question goes to the terminal at once
 })();

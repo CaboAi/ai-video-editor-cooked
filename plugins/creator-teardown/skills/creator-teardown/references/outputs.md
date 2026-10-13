@@ -16,6 +16,8 @@ creator-teardowns/<handle>/
   video/<id>.look-ai.json     the look pass's words per video (Gemini or fallback)
   video/<id>.graphics.json    every graphic: box, kind, entrance, exit, hold, motion
   video/<id>.sound.json       sound effects and music
+  video/left-out/             every file of the videos the format check left out
+  format.json                 the format check: groups, kept, left out and why (format_check.py)
   graphics/                   one crop per graphic + heatmap.png
   sheets/<id>.jpg             one 3 x 3 sheet per video, read only in the fallback
   style.json                  every measured number, for editing in this style

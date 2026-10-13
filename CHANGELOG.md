@@ -4,6 +4,118 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.4.0, creator-teardown 2.6.0 (2026-10-12)
+
+- The review page teaches the style from each finished video. On round 1 of the cut and of the edit of
+  the user's first 3 videos, one line says "Your first videos teach it your style. Leave notes on
+  anything that is off: each video comes out closer." Got it hides it for good (`ui.json`, which the
+  theme switch now merges into instead of overwriting). On the final approve (the edit, or a cut
+  marked `final`) the panel shows "Teach <style> from this video": `wait` prints a LEARN block with
+  every note of the session and its reply, Claude posts one-line rules with `review.py learn
+  --propose`, the page lists them with checkboxes, Update my style or Not now goes back through `wait`,
+  and `learn --done` saves the ticked rules with `styleskill.learn` into the style the edit used (or
+  My style): "Saved to <style>. Next video uses it." No notes all session: "No notes this time. Your
+  style stays as it is." Style cards on the home window add "Learned from N videos". Test: `review.py
+  demo` (propose, pick, done, no notes, the notice count) and headless screenshots, light and dark.
+
+- The review page shows the move from the cut to the edit. A tester approved the cut and nothing on the
+  page changed while Claude spent minutes on captions, zooms and sound. Now a quiet line over the cut
+  says "This is the cut. Captions, zooms and sound come next, once you approve it." and the button reads
+  "Approve the cut and add captions". On Approve the button turns green ("Cut approved") at once, the
+  stepper ticks The cut and makes The edit current, and the dimmed cut carries a "Making the edit" card:
+  the style's name, a bar, the current step, a clock and, while rendering, minutes left. The panel lists
+  the same four steps. The bar moves only on real reports: `review.py status --step
+  captions|visuals|plan|render`, which `retakes.py captions`, `route.py beats`, `plan.py`, `edit.py stills`
+  and `edit.py render` now post themselves (render with its log's percent) through `review.step()`, a
+  no-op when no page waits on the edit. When the edit round lands the bar fills green and the page
+  switches to it with "The edit is ready". Stop still works and takes the approve back (`round --stage
+  edit` then exits 3). With no word from Claude for 15 minutes and no render log moving, the card says so
+  instead of showing a bar. `review.py final` marks the cut as the finished video ("just the cut"), so
+  Approve reads "Approve the cut" and no edit is waited for. review.json takes a cross-process lock file,
+  since the style-edit scripts now write it too. Green marks only what is done,
+  in light and dark. Test: `review.py demo` (steps in place, no-ops, Stop on the approve) and headless
+  screenshots at 1440x900, 1280x720, 1920x1080 and 390x844.
+
+- Two Claude sessions no longer mix up the window. A tester had one session editing and started a second
+  in another terminal: the second session's questions showed up on her edit's page. Now each page and job
+  knows its Claude Code session (`CLAUDE_CODE_SESSION_ID`, and the hook's `session_id`). A question goes
+  only to pages its session works on, and the card names the job ("Claude (team-250k-general) asks"); no
+  match, and the terminal box shows. A job remembers who took it: `status` and the scripts' self-reports
+  from another session never write to it, and each session makes one video at a time. Make my video while
+  Claude is busy offers "Claude is busy with <name>. Open a new Claude for this video", which opens a new
+  Terminal running Claude Code on that one job (`home.py wait --job <id>`; Windows `cmd`, Linux
+  `x-terminal-emulator`, else a command to copy). Your videos offers the same for a queued video no Claude
+  is taking; when no window opened, the page shows the command to copy. A taken job with no report for
+  15 minutes (its session stopped) is adopted by the next session that reports on it. A Claude Code
+  without `CLAUDE_CODE_SESSION_ID` keeps the old behaviour: every question reaches the page. Closing a tab
+  tells its server at once, so a question never waits on a closed tab, and the window's POSTs refuse
+  other sites' pages (Origin check). Also, starting an edit no longer opens a second browser tab:
+  `review.py serve` skips it when the home window holds that edit's job and goes there in its own tab. Test:
+  `askhook.py demo` (two sessions, two pages), `home.py demo`, `review.py demo`, `progress.py demo`,
+  `launcher.py demo` (the terminal command per OS, recorded, never run).
+- A copied creator's style now reaches the edit. A tester copied @alexhormozi, made a video, and the edit
+  looked nothing like him: no images where he puts them, captions boxed for contrast, a 2x punch zoom held
+  16 s. Fixes: `profile.py style` uses the parts the user ticked (`<handle>-mine`, the same file the
+  `edit-like-<handle>` skill and its corrections use) and keeps camera, face, hook and sound, which the
+  blend dropped; it prints the style's skill, and start now reads its learned rules. The home page's
+  "graphics" box also copies her entrance motion and layout (an older `-mine` gets them back from the study).
+  `route.py beats` prints her cards a minute (under the user's own Cards cap, if they picked one; the default
+  style's 4 a minute never caps a creator), kinds and place, and marks that many sentences `want`;
+  style-edit gives each a real card there (the user's photo, a capture, their own clip). A creator with plain
+  captions keeps a shadow or glow before any stroke or backing. Her punch zoom comes back out after about
+  one of her shots. Vertical cards go in the centred band above the head, the only place `check.py plan`
+  passes. New `style_check.py`, run at the end of every plan: one `style:` line per way the plan differs
+  from her (caption size, place, words, case, font and plain look; zooms, cards, kinds and zone; sound cues
+  and pans a minute), against her style with the style page's presets and the user's own changes laid over (user > creator > default). `sfx.py` no longer stops a
+  plan on a loud take (the cues stay under -1 dBFS).
+
+- Jev is gone: the editor no longer uses TypeSafe or asks for its key. On a real skit Jev marked
+  0.44-99.8 s (85% of the video) as one retake, because skits repeat lines on purpose. `retakes.py
+  propose` now writes `transcript.txt` and `candidates.md` (what code flagged) and Claude writes
+  `spans.json` from them, as it did without a key; no `review.md`, `jev-usage.jsonl` or exit 4/5.
+  `clips.py candidates` ranks by the measured features and Claude judges the shortlist. `route.py beats`
+  leaves every pick null for Claude, and `route.py highlight` prints the page's sentences closest first.
+  `product.py copy` and `pages` list without ranking. The TypeSafe row is gone from setup, the window's
+  key rows, `keys.py`, README and the docs. A saved `TYPESAFE_API_KEY` line stays in the key file
+  untouched and is never read; an old "typesafe" in later.json is ignored. Test: `test_retakes.py`,
+  `clips.py demo`, `route.py demo`, `keys.py`, `setup.py demo`, `home.py demo`.
+- The cut renders about 2.5x faster on a Mac and no longer crashes on iPhone footage. With FFmpeg 8 and 9,
+  ffprobe prints a frame count as `16,` when the stream carries an ICC profile (every iPhone take, copied
+  into each segment), and `render.py` failed on `int()`; it now reads the first number. The two whole-file
+  frame counts decode on every core (`-threads 0`). A Mac that already decodes with VideoToolbox now
+  encodes with it too (`h264_videotoolbox -q:v 65`, 4 spans at a time); if any step of that render fails
+  (a span, the join, the frame check), the whole render is redone with x264, which Windows, Linux and
+  `--no-hw` still use. A failed render no longer leaves its `cut_render_*` temp folder
+  (24-66 MB) behind. The review page's copy of each round's cut is an APFS clone on a Mac (`cp -c`), not a
+  full copy. `clips.py` reads ffprobe's `width,height` the same tolerant way. Measured on a 60 s iPhone
+  clip cut to 42 s: 21.3 s and 68 MB before (with the parse fix alone), 8.7 s and 40 MB after, 44.9 dB
+  PSNR between them. Test: `test_media.py` (the parse, a VideoToolbox render on a Mac, and a failed
+  render cleaning up).
+- Settings is two columns that fit the window, with no "Settings" heading. Each key shows its status
+  (Verified, Saved but not checked, Failed with the reason, or Not set) and only its last 4 characters,
+  with Check again, Replace and Remove. ElevenLabs shows the permissions to pick when you create the key
+  (Speech to Text on, everything else No access, a credit quota) next to the link. Updates shows the
+  installed and latest version, what changed and a Check now button. The videos folder has Show in Finder
+  and Change. Light, Dark or System is on the page too. New routes `/key/check`, `/key/remove` and
+  `/update/check`; key checks are kept by the key's last 4 characters, never the key.
+- A review page keeps its address when its server restarts (same port when free, same token), so an open tab or a
+  saved link keeps working. Before, every restart gave a new port and token and the open tab went dead.
+- Add your script. New video in the home window has an optional "Add your script": paste it, or choose or
+  drop a .txt, .md, .docx or .pdf (docx and simple PDFs are read to text with the standard library; a PDF
+  whose words do not come out asks for a paste). A preview shows the first lines and the line count, with
+  Remove. The PDF and docx readers are bounded (20 MB unpacked, no XML entities, linear tokenizing).
+  Only the text is kept: `POST /script` (token, 1 MB file, 200 KB text) sends it back, and making
+  the video writes it to `edits/<name>/script.md` and adds `script=` to the job line. The cut passes it to
+  `transcribe.py --script` and runs the new `cut/scripts/script_match.py`, which lines the transcript up
+  with the script and writes `script-match.md`: every take of each line, the last complete one marked
+  keeper, and lines the script says twice (a Manager vs Intern skit with one actor and one voice) marked
+  say-twice so both are kept; with more takes than copies, the ones between are marked ambiguous for Claude
+  to place by order or voice, never cut as retakes. Off-script words are listed, never cut for that. It never writes
+  `spans.json`. Rules in `cut/references/script.md`. Test: `script_match.py demo`, `home.py demo`.
+
+  `/update/check` (at most one GitHub check a minute); key checks are kept by the key's last 4 characters,
+  never the key. Saving or removing a key now takes a lock and writes a 0600 temp file that replaces the
+  old one, so two saves at once no longer lose a key and a reader never sees half a file.
 - The home window shows progress on its own. A tester pressed Copy and the window sat blank while Claude
   installed and ran the teardown, because steps only reached it when Claude ran `home.py status`. Now the
   long scripts report themselves while Claude has that job taken (a script never takes a queued job, so
@@ -40,6 +152,80 @@ What changed for every user, newest first.
   word "review" and shows the video name in full beside Home, centred. Fixed: "to Nonex" in a zoom line
   with no measured scale, Done tiles breaking "today" letter by letter, and a style page heading
   breaking a handle mid-word.
+- Review page: change the cut from its transcript, like Tella, right in the transcript beside the player.
+  Cut words are struck and removed pauses marked. While the video plays the transcript follows it: the word
+  said now has a soft highlight, played words are a step stronger, and the list keeps the word in view
+  (it waits 3 s after the user scrolls by hand), on the cut and in Preview. A round's data file from before
+  words carried raw times is rebuilt when the page asks for it (every word looked untimed, underlined
+  and could not be edited). Each cut is flagged inline with its reason (a soft red
+  band: Filler, Retake, False start, Your cut, Cut with a pause, Pause 1.2s): the tick keeps it, the cross
+  brings it back. Selecting words shows one dark pill: Restore, Copy (to the clipboard), Cut; Backspace or
+  Delete cuts, Cmd/Ctrl+Z undoes the last change. Changes wait, highlighted, until Apply. Preview plays the
+  raw take skipping every cut range plus the pending changes (checked each frame), so the result is heard
+  before any render. Apply rewrites `spans.json` (restored words leave their span; cut words get a `manual`
+  span, merged with any span they overlap) and `wait` prints `EDITS ...` so Claude rebuilds, renders,
+  verifies and opens the next round. Words the pause trim took can be restored now, and a removed pause put
+  back: they go into a new `keep.json` that `build_timeline.py` leaves in. Every change is checked with
+  `build_timeline.py`'s own span check before it is written (atomic, one Apply at a time); a hidden `(cough)`
+  span is never swept in; untimed words count the same as in the build. Stop puts the old files back only
+  over what Apply wrote; `round` refuses while stopped, and send and approve wait until Claude has the
+  changes. Read only on the edit stage. Notes Claude resolved now show green ("Done in round N"),
+  left-as-is notes grey, and the Notes tab counts "2 done · 1 open". Test: `review.py demo`,
+  `test_build_timeline.py`.
+
+- A creator's style now copies one editing format, not a blend of everything they post. After the
+  visual and look passes, `format_check.py check <handle>` gives each video a few measured features
+  (frame: full, letterbox, split or 16:9; talking head, two people, screen recording or b-roll; words a
+  caption, caption height, size and case; median shot length; length), groups the videos that match,
+  keeps the largest group (a tie: the higher median view multiple) and writes `format.json` with each
+  differing video and why. When the kept group is 3 or more and a majority, the others move to
+  `video/left-out/`, so style.json, look.md, graphics, sound and the page come from the kept format only;
+  style.json records `format` and the style's skill says it ("copying their talking-head videos with word
+  captions"). With 1-2 videos or no majority nothing moves and the user is asked for more videos of one
+  kind. A profile run picks videos of the creator's usual length (within 2x of the median) and measures 2
+  spares when the profile is big enough, about 1 min more at worst; pasted links are all measured and the
+  user is told "Using 4 of 6: 2 look like a different format". `visual.py measure` keeps each video's
+  measure until the video or the measuring code changes (`--force` measures again). Without a face
+  detector the face share is recorded as not measured instead of 0. On 5 public Shorts (3 Ali Abdaal
+  talking heads, 2 Fireship), the check put the 2 Fireship videos in their own groups and split off one
+  talking head with top-of-frame sentence captions; 2 of 5 is no majority, so nothing moved. Test:
+  `format_check.py demo`, `report.py demo`, `fetch.py demo`, `visual.py demo`.
+- The first edit is as fast as the ones after it. Setup now pays the one-time costs the first edit used to:
+  `install-all` adds "Warming up the editor" (the first load of OpenCV, onnxruntime and faster-whisper, and
+  one test frame through the renderer, which builds its cache and starts the render browser once) and
+  downloads the 15 MB cutout model for cards behind you. On a fresh install with a 20 s 4K take, the first
+  edit took about 110 s against 88 s for the second before (face finder 16.6 s against 2.0 s, stills
+  17-31 s against 14 s, verify 12.2 s against 9.6 s); now 66 s against 71 s. Both new steps are optional:
+  if one fails, setup still says Ready and the first edit does that work as before. A model that still
+  downloads during an edit (a transcription size picked later, the cutout model if setup could not fetch
+  it, the renderer after an update) shows on the window's video job as "Downloading the cutout model,
+  first time only" with "12 of 15 MB", and on the review page's Claude panel. `setup.py warm` runs the
+  warm-up alone. Test: `setup.py demo`, `models.py`.
+- The style page has ready-made presets, laid out as in the I4 design and fitted to the window. Captions:
+  Plain (white TikTok Sans, the default), Bold, Karaoke and Minimal, plus every file in
+  `<library>/custom/captions/` and a copied creator's own captions ("Theirs"). Each tile is a real still from
+  the StyleEdit composition on a frame of the user's newest raw take with five words from their own
+  transcript (a demo photo and "I will push these changes" when there are none), rendered in one bundle in
+  the background and cached by everything that changes the picture (at most 60 files, none older than 7
+  days). The big preview shows the picked one; drag its dashed box to move the captions (only the big
+  preview renders again), and a size slider sits under the tiles. Custom caption files are checked: a key
+  that is not a caption setting, or a bad value, is dropped with a warning. Zooms: None, Smooth (0.8 s push
+  at 1.18x, a zoom change at least every 5 s) and Punchy (1.15x snap, about 6 a minute). Cut: Relaxed / Natural /
+  Tight (0.25 / 0.15 / 0.12 s pauses) with "Play 5 s of your video, before and after", cut from the newest
+  edit's raw take with that pause rule. Cards and graphics: on/off, Rarely / Sometimes / Often (at most 2 /
+  4 / 8 cards a minute; the default style is Sometimes, a copied creator's style has no cap until the user
+  picks one; plan.py names every card it leaves out) and the card look. Sound: effects and background music.
+  Each section says "you changed this" or "from @creator" and has its own Reset. Every pick is saved as a
+  correction through the style's skill (`captions.preset`, `zoom.preset`, `cut.max_pause`, `cards.on`,
+  `cards.per_min`, `look.preset`, `sfx`, `music`), and plan.py applies each one (`presets.py`; a demo check
+  per preset in `plan.py demo`). Caption presets are JSON files in `plugins/ai-editor/presets/captions/`;
+  the onboarding caption answers use the same files.
+  Changed for existing users: the default style's zoom block is now the Smooth preset (`per_min` 3 instead
+  of 9.5, with the same 5 s longest hold, push, 0.8 s and 1.18x). On most takes the hold rule still lands a
+  zoom change every 5 s, so edits look the same; long sentence-free stretches no longer get the extra
+  changes the old rate added. The default style now lands at most 4 cards a minute ("Sometimes"); plan.py
+  names each card it leaves out. A caption answer from onboarding (bold, karaoke, minimal) is now the whole
+  preset, so its size and TikTok Sans replace a copied creator's measured caption size and font.
 
 ## ai-editor 2.3.0, creator-teardown 2.5.0 (2026-10-12)
 

@@ -93,6 +93,7 @@ Existing keys (card events, from `editplan.py style`) stay. The visual pass adds
 - Newer fields (`captions.lines/x_pct/stroke_color/box_color/entrance/ease_s/source`, `face`, `graphics`, `motion`, `look`, `blend`): see creator-teardown `references/look-pass.md`.
   `case`: `lower` | `upper` | `sentence`. `animation`: `pop` | `none` | `slide` | `word_highlight`.
 - `max_pause_s`: the longest silence the creator leaves between phrases. The cut uses it as its pause target.
+- `format`: the one format the style copies, in plain words ("talking-head videos with word captions"). Every number comes from the videos of that format; the others are left out (creator-teardown `format.json`).
 - `sfx` (optional, default true): `false` turns off the sound cues plan.py adds.
 - Teardown fields (all measured by code; only `graphics.entrances[].kind` names and `graphics.kinds` labels can come from a model, the numbers never do). Full detail: creator-teardown `references/teardown-page.md`.
   - `pace.cut_kinds`: % of cuts per kind, `hard` | `jump` | `zoom-punch` | `whip` | `match` | `mask` | `dissolve`. `zoom.ease`: the GSAP ease fitted to the zoom (`none` for a punch).
@@ -168,12 +169,11 @@ part by part from the profile's creators. `blend` records which creator each par
 
 ```json
 [{"i": 1, "text": "It is 40 times faster than Claude.", "start": 2.4, "end": 4.1,
-  "names": ["Claude"], "pick": "capture:sticker", "p": 0.7}]
+  "names": ["Claude"], "pick": null}]
 ```
 
 - `i`: sentence index. `start`, `end`: seconds on cut.mp4. `names`: the profile's `names` said in the sentence.
-- `pick`: `none` | `capture:shot|browser|sticker` | `post` | `logo` | `logo_cluster` | `chat` | `terminal` | `toasts` | `side_by_side` | `video_card`,
-  or `null` with no TypeSafe key (Claude routes). `p`: the pick's probability, or `null`.
+- `pick`: `null`. Claude routes each sentence: `none` | `capture:shot|browser|sticker` | `post` | `logo` | `logo_cluster` | `chat` | `terminal` | `toasts` | `side_by_side` | `video_card`.
 
 ## visuals.json (Claude -> capture.mjs + plan.py)
 

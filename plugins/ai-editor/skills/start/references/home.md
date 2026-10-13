@@ -28,13 +28,29 @@ Then wait for `wait` to finish. Each time it prints a job, start a new `wait` in
 straight away (so Cancel and the next job reach you), then do the job. `ALREADY` means a `wait` is
 running: leave it.
 
+### One page, several Claude sessions
+
+Every job remembers the session that took it (`CLAUDE_CODE_SESSION_ID`). `status` from another session
+never writes to it, `status` never takes a queued job (only `wait` does), and each session makes one
+video at a time. A taken job with no report for 15 minutes belonged to a session that stopped: the next
+`status` or `wait --job` from another session adopts it and prints `adopted <id>`. When the user presses Make my video while
+this session is making another, the page offers "Open a new Claude for this video": a new Terminal window
+starts Claude Code in the library with the prompt `/ai-editor:start take job <id>`. On that prompt run
+`python3 "$H" serve --no-open` and `python3 "$H" wait --job <id>` (both in the background): it prints that
+job's line (or `GONE` when it is done or another session has it), then do the job as below. Do not start a
+plain `wait` afterwards unless the user asks for more.
+
 ## Questions
 
 Ask with AskUserQuestion as usual. When the home page or a review page is open and showing, a hook
 (`lib/ai_editor/askhook.py`) puts the question on that page: the options, an Other box, and "Answer in
 Claude Code instead". The answer comes back as the tool's result, the same as a terminal answer. No page
 showing, "Answer in Claude Code instead", or 10 minutes with no answer: the terminal box shows. Never ask
-a question in plain chat text when AskUserQuestion fits: only the tool reaches the page. Permission
+a question in plain chat text when AskUserQuestion fits: only the tool reaches the page. A question only
+reaches pages this session works on (the home page while it holds a job there or listens, the review page
+of an edit it ran `review.py` on), with the job's name on the card. Another session's questions stay in its
+own terminal. A Claude Code without `CLAUDE_CODE_SESSION_ID` records no session, and then every question
+reaches the page, as before. Permission
 prompts (Allow or Deny for a command) stay in the terminal; a hook cannot answer them.
 
 ## Keys
@@ -45,8 +61,8 @@ ask for a key in the chat, and never read the key file. "Skip, add later" runs `
 
 ## The jobs
 
-Progress is automatic: once you have taken a job (your `wait` or your own `status`; a script never takes
-a queued one), the long scripts (creator-teardown's, the cut's transcribe, join, build and render,
+Progress is automatic: once your `wait` has taken a job (inside Claude Code only `wait` takes a queued
+one), the long scripts (creator-teardown's, the cut's transcribe, join, build and render,
 setup's install-all) post their own steps with a count ("video 3 of 7") onto the job their edit folder
 or handle names, and the page shows a live strip with a clock, so it never looks stopped. You still
 report the steps you own (the result, `--done`, `--failed`, steps no script covers) with `status`. The
@@ -71,7 +87,8 @@ The scripts report these steps themselves; use these words if you report one (th
 2. `Downloaded the top 5 and 2 median` (visual.py download --top 5)
 3. `Transcribed every word` (fetch.py transcribe --top 5)
 4. `Measured cuts, zooms and camera moves` (visual.py measure)
-5. `Reading captions and faces` (look.py measure; `--detail "video N of 7"` as it goes)
+5. `Reading captions and faces` (look.py measure; `--detail "video N of 9"` as it goes; then format_check.py
+   check, and when it leaves videos out its first line as `--detail`)
 6. `Naming graphics` (graphics.py measure, gemini.py kinds)
 7. `Sound effects and music` (sound.py measure)
 8. `Writing the style` (report.py build)
@@ -89,8 +106,8 @@ A step that stops: say why with `--failed`, in the words of the skill's "If a sc
 The user ticked what to copy and pressed "Build my skill".
 
 1. `--step "Saving your style"`: `profile.py set 'creators=[{"handle":"<h>","take":[...]}]'`, the
-   parts mapped `captions`->captions, `pace`->pace, `graphics`->visuals, `sound` kept for the
-   sound answer (`sound.sfx=true`). Then creator-teardown's
+   parts mapped `captions`->captions, `pace`->pace, `graphics` (with `entrances` and `layout`)->visuals,
+   `sound` kept for the sound answer (`sound.sfx=true`). Then creator-teardown's
    `editplan.py blend <h>-mine --from <h> --take <parts>`: it refreshes the style's skill
    `edit-like-<h>` on the ticked parts and prints its name.
 2. `--step "Checking whether it is a format of its own"`: creator-teardown's
@@ -115,6 +132,7 @@ Five prompts, each one the user can paste into Claude Code as it is. Every numbe
 
 ### `JOB video <path> as=<mine|@handle|defaults> aspect=<9:16|16:9> edit=<dir> root=<dir>`
 ### `JOB video takes=<dir>/takes.txt as=... aspect=... edit=<dir> root=<dir>`
+### either one with ` script=<edit>/script.md` before `root=`
 
 The user picked clips and a style and pressed "Make my video" (or "Start the cut" on a first run).
 `edit=` is the edit folder the page already made and listed in the library: use it, never make
@@ -127,6 +145,9 @@ no question: the page asked it). "Separate videos" arrives as one JOB per clip; 
 `creator-teardowns/<h>/style.json` is not there yet, that creator is still being copied: cut now
 (the cut needs no style) and start the styled pass once the teardown job is done.
 `aspect`: `profile.py set aspect=<a>`.
+`script=`: the user added their script on the page. The page wrote it to `<edit>/script.md` (copy it
+there if the path is elsewhere). Pass `--script <edit>/script.md` to `transcribe.py`; the cut then runs
+`script_match.py` before deciding spans (cut skill step 2).
 
 The window turns into the review page as soon as it has a URL, so open it FIRST, on the raw clip
 (after the join for `takes=`), before transcribing:
@@ -138,13 +159,18 @@ python3 "$R" <edit> serve --no-open                                            #
 python3 "$H" status video --result '{"review_url": "<that URL>"}'
 ```
 
-Round 0 has no Approve; notes left on it wait for the cut. Then the start skill from step 2 on, with
+`serve` opens no browser tab while the home window is showing this job: the home window goes to the
+review page in its own tab. Otherwise (no home window, or Claude Code alone) it opens a tab. Round 0 has no Approve; notes left on it wait for the cut. Then the start skill from step 2 on, with
 this file (or joined.mp4) as the video. The steps
 `Joined your clips in order` (takes only), `Wrote down every word you said`, `Cutting out the mistakes`
 reach the home page by themselves (join.py, transcribe.py, build_timeline.py, render.py); put each on the
-review page with `python3 "$R" <edit> status "<step>"`. The cut's
+review page with `python3 "$R" <edit> status "<step>"`. After the cut's approve the style-edit scripts
+put their own `--step` on the page's Making the edit card (style-edit `references/review.md`). The cut's
 own `start` (cut skill step 6) then opens round 1 on the same page, with the round 0 notes moved onto
-the cut: run `wait` and carry on there. `status video --done` once round 1 is up.
+the cut: run `wait` and carry on there. `status video --done` once round 1 is up. When that `wait` prints
+`EDITS <n> transcript edits applied to spans.json`, the user restored or cut words in the transcript beside the player:
+run `build_timeline.py`, `render.py`, `verify_cut.py`, then `review.py <edit> round --video <edit>/cut.mp4`
+(`../../style-edit/references/review.md`, Transcript edits).
 
 ### `JOB style-change <my-style|@handle> [style=<style.json>] text=<the user's words>`
 
@@ -156,6 +182,8 @@ and the `my-style` skill). A wish no setting covers is a word rule at the same s
 scope question: the page named the style. Report what was saved, in plain words:
 `status style-change --step "Saved: captions 6% tall" --result '{"changed": ["Captions 6% tall", "About 3 zooms a minute"]}' --done`.
 The page shows `changed` and reloads the style's settings and its "Learned from your feedback" list.
+A style card adds "Learned from N videos" once its rules came from N edits (review notes saved at
+the final approve's "Teach <style>" panel, `review.py learn --done`).
 The same change said in the chat goes through the same `taste.py add`, so both land in one skill.
 The page's own controls (sliders, zooms, cut, sound effects) save through `styleskill.learn` directly
 and need no job.

@@ -1,0 +1,16 @@
+{
+ "style": "bold",
+ "font_match": "TikTok Sans",
+ "size_pct": 5.6,
+ "weight": 800,
+ "case": "lower",
+ "words_per_caption": 2,
+ "color": "#FFFFFF",
+ "highlight_color": "#FFFFFF",
+ "emphasis_color": "#FFFFFF",
+ "stroke": false,
+ "box": false,
+ "shadow": false,
+ "effect": "pop",
+ "animation": "pop"
+}

@@ -9,14 +9,16 @@
   python3 setup.py venv       create ~/.ai-video-editor/venv and install requirements/requirements.lock
   python3 setup.py model      download the free transcription model (about 500 MB, once, sha256 checked)
   python3 setup.py remotion   copy the renderer to ~/.ai-video-editor/remotion and npm ci it
-  python3 setup.py install-all [--report]   venv, model, remotion in order, never asking; a failed step is
-                              said with its fix and the steps that do not need it still run. --report shows
-                              each step and its progress on the home page (home.py status setup)
+  python3 setup.py warm       pay the first edit's one-time costs now: first load of the Python libraries,
+                              one test frame through the renderer (webpack's cache, the render browser's first start)
+  python3 setup.py install-all [--report]   venv, model, remotion, warm, then the cutout model, never asking; a
+                              failed step is said with its fix and the steps that do not need it still run. --report
+                              shows each step and its progress on the home page (home.py status setup)
 
 Pins: Python packages in plugins/ai-editor/requirements/requirements.lock (hashed, every OS);
 Node packages in remotion/package-lock.json; models in lib/ai_editor/models.py (URL + sha256).
 What got installed is recorded in ~/.ai-video-editor/env.json. AI_EDITOR_HOME moves the folder.
-  python3 setup.py setkey typesafe|gemini|elevenlabs   save an API key (asks, hides what you type),
+  python3 setup.py setkey gemini|elevenlabs   save an API key (asks, hides what you type),
                               after one free test request proves it works
   python3 setup.py keys       test every saved key (one free request each)
   python3 setup.py certs      let Python check secure websites ("fix my certificates"): certifi into the venv,
@@ -27,7 +29,7 @@ What got installed is recorded in ~/.ai-video-editor/env.json. AI_EDITOR_HOME mo
   python3 setup.py modal      install Modal (cloud renders) in the venv, then say how to log in
   python3 setup.py modal-check   one tiny function on Modal: proves the login works
   python3 setup.py matte      download the person-matting model (15 MB) for cards behind the speaker
-  python3 setup.py later <step>   save an optional step for later (typesafe gemini elevenlabs style modal matte)
+  python3 setup.py later <step>   save an optional step for later (gemini elevenlabs style modal matte)
   python3 setup.py todo       every optional step not done yet ("finish setup")
   python3 setup.py install-launcher     put the `nextwork-editor` command on the PATH (a user folder, no sudo;
                               idempotent). It opens the editor's window with Claude Code behind it.
@@ -311,7 +313,7 @@ def certs_row(online=True):
     fix_cmd = (f'open "{cmd}"' if cmd else
                f'{"py" if OS == "Windows" else "python3"} "{Path(__file__).resolve()}" certs')
     return ok, (f"{n} trusted certificates" if ok else "this Python can't check secure websites "
-                "(key checks and ElevenLabs, TypeSafe, Gemini calls fail)"), fix_cmd
+                "(key checks and ElevenLabs, Gemini calls fail)"), fix_cmd
 
 
 def step_certs():
@@ -408,14 +410,12 @@ def login_line(domain, days):
 
 
 KEY_ROWS = [  # name, what it gives, what happens without it
-    ("typesafe", "found: Jev decides the cut, far fewer Claude tokens",
-     "Recommended: without it Claude reads the whole transcript to decide the cut"),
     ("gemini", "found: the teardown reads a creator's look from video frames",
      "Recommended: without it the teardown look pass uses one frame sheet per video"),
     ("elevenlabs", "found: Scribe transcripts keep every filler",
      "Optional: without it transcripts are free and local"),
 ]
-KEY_HELP = {"typesafe": "https://console.typesafe.ai/keys", "gemini": "https://aistudio.google.com/apikey",
+KEY_HELP = {"gemini": "https://aistudio.google.com/apikey",
             "elevenlabs": "https://elevenlabs.io/app/settings/api-keys"}
 LATER = HOME / "later.json"   # steps the user chose to do later; doctor reminds, "finish setup" resumes
 
@@ -454,9 +454,9 @@ def later(name):
 
 
 def still_later():
-    """Skipped steps that are still not done."""
+    """Skipped steps that are still not done. A step this version no longer has (an old "typesafe") is ignored."""
     done = step_done()
-    return [x for x in later_load() if not (x in done and done[x]())]
+    return [x for x in later_load() if x in done and not done[x]()]
 
 
 def todo(done=None):
@@ -627,17 +627,42 @@ def sync_tree(src, dst):
             shutil.copy2(f, to)
 
 
-def quiet(cmd, cwd, what, on_line=None):
+def kill_tree(p):
+    """Stop a process and everything it started (edit.py's node and its render browser)."""
+    if OS == "Windows":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], capture_output=True)
+    else:
+        import signal
+        try:
+            os.killpg(p.pid, signal.SIGKILL)   # its own group: start_new_session below
+        except OSError:
+            p.kill()
+
+
+def quiet(cmd, cwd, what, on_line=None, timeout=None, env=None):
     """A tool's own chatter ("added 369 packages in 3s", "Has browser at /private/...") kept back; shown
-    only when the step fails, then a one-line reason. on_line(line) sees each line as it comes (progress)."""
+    only when the step fails, then a one-line reason. on_line(line) sees each line as it comes (progress).
+    timeout: seconds before the tool and everything it started are stopped, said as a failure."""
     p = subprocess.Popen([str(c) for c in cmd], cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                         text=True, encoding="utf-8", errors="replace")
+                         text=True, encoding="utf-8", errors="replace", env=env,
+                         start_new_session=bool(timeout) and OS != "Windows")
+    timer = threading.Timer(timeout, kill_tree, [p]) if timeout else None
+    if timer:
+        timer.daemon = True
+        timer.start()
     tail = []
-    for line in p.stdout:
-        tail = (tail + [line])[-80:]
-        if on_line:
-            on_line(line)
-    if p.wait():
+    try:
+        for line in p.stdout:
+            tail = (tail + [line])[-80:]
+            if on_line:
+                on_line(line)
+        code = p.wait()
+    finally:
+        if timer:
+            timer.cancel()
+    if timer and timer.finished.is_set() and code:
+        sys.exit(f"ERROR: {what} took over {timeout} s and was stopped.")
+    if code:
         print("".join(tail).strip()[-3000:])
         sys.exit(f"ERROR: {what} failed (exit {p.returncode}); its output is above.")
 
@@ -678,6 +703,73 @@ def step_remotion(force=False, tick=None):
     return done
 
 
+WARM_IMPORTS = "import cv2, numpy, onnxruntime, faster_whisper, PIL.Image"
+WARM_S = 600   # each warm-up command; a stuck one is stopped and the step says skipped
+
+
+def step_warm(force=False, tick=None):
+    """The first edit's one-time costs, paid during setup so the first edit is as fast as the second: the first
+    load of OpenCV, onnxruntime and faster-whisper (a new library is slow to load once; face.py took 16.6 s on its
+    first run, 2.0 s after), and one test frame through the real renderer, which builds webpack's cache
+    (<renderer>/node_modules/.cache, about 640 MB) and starts the render browser for the first time. Optional:
+    a failure is said and left to the first edit, which then pays these costs as before."""
+    import tempfile
+    stamp = f"{env_load().get('node_lock')}|{VPY.exists()}"   # redo only when the renderer or the venv changes
+    if not force and env_load().get("warm") == stamp and (REMOTION_HOME / "node_modules" / ".cache").is_dir():
+        print("warm-up: up to date")
+        return "up to date"
+    py = VPY if VPY.exists() else Path(sys.executable)
+    sk = PLUGIN / "skills" / "style-edit" / "scripts"
+    t = Path(tempfile.mkdtemp(prefix="ave-warm-"))
+    # Every temp file the renderer makes (its bundle, the browser profile, frames) goes inside t, so nothing is left
+    # behind even when the warm-up is stopped. The webpack cache (about 640 MB) stays: it is the point.
+    env = dict(os.environ, TMPDIR=str(t), TEMP=str(t), TMP=str(t))
+    try:
+        if VPY.exists():
+            if tick:
+                tick(0.05, "the Python libraries")
+            quiet([VPY, "-c", WARM_IMPORTS], None, "loading the Python libraries", timeout=WARM_S)
+        if tick:
+            tick(0.3, "a test frame")
+        edit = t / "warm"
+        edit.mkdir()
+        quiet(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=540x960:r=30:d=2", "-f", "lavfi",
+               "-i", "sine=f=220:d=2", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+               edit / "cut.mp4"], t, "making a test clip", timeout=WARM_S)
+        words = [{"text": w, "start": 0.2 + i * 0.4, "end": 0.5 + i * 0.4, "type": "word"}
+                 for i, w in enumerate("getting your computer ready".split())]
+        (edit / "captions.json").write_text(json.dumps(words), encoding="utf-8")
+        quiet([py, sk / "plan.py", edit / "style.json", edit / "captions.json", "--no-sfx"], t, "planning a test frame",
+              timeout=WARM_S, env=env)
+        quiet([py, sk / "edit.py", "stills", edit, "--at", "1", "--no-check"], t, "drawing a test frame",
+              timeout=WARM_S, env=env)
+    except (SystemExit, Exception) as e:   # noqa: BLE001  optional: a full disk or a stuck browser never fails setup
+        print(f"warm-up skipped, the first edit does it instead. {plain(e)}")
+        return "skipped"
+    finally:
+        shutil.rmtree(t, ignore_errors=True)
+    env_save(warm=stamp)
+    print("warmed up: the first edit pays no one-time costs")
+    return "done"
+
+
+def step_cutout(force=False, tick=None):
+    """The cutout model (15 MB) for cards behind the speaker, fetched with everything else so turning that on later
+    downloads nothing. Optional: a failed download is said and left to first use (shown on the page then)."""
+    fresh = not (models.DIR / MATTE).exists()
+
+    def hook(blocks, size, total):
+        if tick and total > 0:
+            tick(min(1, blocks * size / total), f"{min(blocks * size, total) // 10**6} of {total // 10**6} MB")
+    try:
+        models.fetch(MATTE, force, hook)
+    except (SystemExit, Exception) as e:   # noqa: BLE001
+        print(f"cutout model not downloaded, it downloads the first time cards go behind you. {plain(e)}")
+        return "left for first use"
+    env_save(models={**env_load().get("models", {}), MATTE: models.PINS[MATTE][1]})
+    return "installed" if fresh or force else "up to date"
+
+
 def bootstrap(force=False, matte=False):
     """Everything, in order, safe to re-run: a second run downloads nothing and changes nothing."""
     rows = checks()[:4]
@@ -688,7 +780,8 @@ def bootstrap(force=False, matte=False):
         print("Install the tools above first (they ask for a password or need a new terminal), "
               "then run this again.")
         return 1
-    steps = [("python packages", step_venv), ("transcription model", step_model), ("renderer", step_remotion)]
+    steps = [("python packages", step_venv), ("transcription model", step_model), ("renderer", step_remotion),
+             ("warm-up", step_warm)]
     if matte:
         steps.append(("matting model", step_matte))
     for i, (name, fn) in enumerate(steps, 1):
@@ -701,9 +794,11 @@ def bootstrap(force=False, matte=False):
 
 
 INSTALL_STEPS = [  # (doctor row, what the page says, step, share of the bar, the row it needs)
-    ("python packages", "Installing the Python packages", step_venv, 0.25, None),
+    ("python packages", "Installing the Python packages", step_venv, 0.15, None),
     ("transcription model", "Downloading the transcription model", step_model, 0.35, "python packages"),
-    ("renderer", "Installing the renderer", step_remotion, 0.40, None),
+    ("renderer", "Installing the renderer", step_remotion, 0.15, None),
+    ("warm-up", "Warming up the editor, so your first video is as fast as the rest", step_warm, 0.30, "renderer"),
+    ("cutout model", "Downloading the cutout model, for cards behind you", step_cutout, 0.05, None),
 ]
 _said = {"t": 0.0, "p": -1.0}
 
@@ -980,6 +1075,14 @@ def demo():
             raise AssertionError("no exit")
         except SystemExit as e:
             assert "npm ci failed" in str(e.code) and "E404" in out.getvalue(), (e.code, out.getvalue())
+    # a stuck tool is stopped with everything it started (a child holding the pipe), and said as a failure
+    t0 = time.time()
+    try:
+        quiet([sys.executable, "-c", "import subprocess, sys, time; subprocess.Popen([sys.executable, '-c', "
+               "'import time; time.sleep(60)']); time.sleep(60)"], ".", "a stuck tool", timeout=1)
+        raise AssertionError("no exit")
+    except SystemExit as e:
+        assert "took over 1 s" in str(e.code) and time.time() - t0 < 30, (e.code, time.time() - t0)
     miss = key_line("gemini", "x", "no look pass", None)
     assert "add my gemini key" in miss and "clipboard" in miss and "terminal" not in miss, miss
     assert key_line("gemini", "looks", "x", "the GEMINI_API_KEY variable").startswith("ok "), "found key row"
@@ -1016,10 +1119,13 @@ def demo():
         profile.HOME = Path(d)       # a home whose profile has every style answer marks style done
         later("style"); later("style")
         assert later_load() == ["style"] and "style" in still_later()
+        LATER.write_text('["typesafe", "style"]', encoding="utf-8")   # saved by an older version
+        assert "typesafe" not in still_later() and "typesafe" not in todo()
+        LATER.write_text('["style"]', encoding="utf-8")
         assert later("bogus") == 2 and later_load() == ["style"]   # an unknown step is refused, not saved
     # finish setup after a bare bootstrap: every optional step is listed, none saved for later
     assert todo({x: (lambda: False) for x in STEPS}) == list(STEPS) == [
-        "typesafe", "gemini", "elevenlabs", "style", "modal", "matte"]
+        "gemini", "elevenlabs", "style", "modal", "matte"]
     assert todo({x: (lambda x=x: x != "gemini") for x in STEPS}) == ["gemini"]
     assert set(step_done()) == set(STEPS)
     HOME, LATER, profile.HOME = keep
@@ -1137,12 +1243,39 @@ def demo_install_all():
         job = [j for j in st["jobs"] if j["type"] == "setup"][-1]
         assert job["state"] == "done" and [s["text"] for s in job["steps"]] == ["Doing A"], job
         assert job["steps"][0]["progress"] == 1.0 and "rows" in st.get("doctor", {}), job
+    # The real steps: one bar (shares add to 1), warming waits for the renderer, the optional two never fail the install
+    assert abs(sum(x[3] for x in INSTALL_STEPS) - 1) < 1e-9 and [x[0] for x in INSTALL_STEPS] == [
+        "python packages", "transcription model", "renderer", "warm-up", "cutout model"], INSTALL_STEPS
+    assert dict((x[0], x[4]) for x in INSTALL_STEPS)["warm-up"] == "renderer"
+    global quiet
+    real_quiet, real_fetch = quiet, models.fetch
+    try:
+        def no_renderer(*a, **k):
+            sys.exit("ERROR: drawing a test frame failed (exit 1); its output is above.")
+        quiet = no_renderer
+        assert step_warm() == "skipped"
+
+        def disk_full(*a, **k):
+            raise OSError(28, "No space left on device")
+        quiet = disk_full
+        import glob as g
+        before = set(g.glob(os.path.join(tempfile.gettempdir(), "ave-warm-*")))
+        assert step_warm() == "skipped" and set(g.glob(os.path.join(tempfile.gettempdir(), "ave-warm-*"))) == before
+        models.fetch = lambda *a, **k: sys.exit("ERROR: no connection")
+        with tempfile.TemporaryDirectory() as d:
+            keep_dir, models.DIR = models.DIR, Path(d)
+            try:
+                assert step_cutout() == "left for first use"
+            finally:
+                models.DIR = keep_dir
+    finally:
+        quiet, models.fetch = real_quiet, real_fetch
 
 
 if __name__ == "__main__":
     cmds = {"doctor": doctor, "venv": step_venv, "model": step_model, "remotion": step_remotion,
             "bootstrap": bootstrap, "repair": repair, "awskey": save_aws_key,
-            "lambda": check_lambda, "modal": install_modal, "modal-check": check_modal, "matte": step_matte,
+            "lambda": check_lambda, "modal": install_modal, "modal-check": check_modal, "matte": step_matte, "warm": step_warm,
             "demo": demo, "keys": test_keys, "certs": step_certs, "todo": todo, "crisper": install_crisper,
             "install-launcher": install_launcher, "uninstall-launcher": uninstall_launcher}
     if sys.argv[1:] == ["doctor", "--quiet"]:

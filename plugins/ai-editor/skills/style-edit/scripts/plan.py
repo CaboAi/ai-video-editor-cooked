@@ -27,8 +27,10 @@ the first image in images.json beside the head over the opening line; nothing el
 Also writes "look" (profile brand kit > creator style.json > editorial; references/motion.md) and
 "motion" (the personality, from the creator's pace). The anti-generic rules (visuals.md) run first.
 The user's profile (~/.ai-video-editor/profile.json, the start skill) supplies brand, avoid and sound.
-The user's own layer (<library>/custom/, custom.py): captions.preset names a caption style in custom/captions/,
-and custom/templates/<type>.json holds default props for that motion template.
+The style page's presets (lib/ai_editor/presets.py): captions.preset names a caption style (custom/captions/ or the
+built-in presets/captions/), zoom.preset none | smooth | punchy, "cards": {"on", "per_min"} how many cards may land,
+"look": {"preset"} the card look, "music": false drops the bed. custom/templates/<type>.json holds default props
+for that motion template (<library>/custom/, custom.py).
 Shapes: references/contracts.md, references/motion.md. Stdlib only, deterministic.
 """
 import argparse
@@ -240,9 +242,11 @@ def card_gaps(cards, duration):
     return out
 
 
-def place_zooms(zoom, words, duration, cuts, cut_kinds=None, quiet=()):
+def place_zooms(zoom, words, duration, cuts, cut_kinds=None, quiet=(), shot_s=None):
     """quiet: stretches with no card longer than card_gap_s; inside them a zoom change comes at least every
-    QUIET_HOLD_S, so the frame keeps changing while the speaker carries the line."""
+    QUIET_HOLD_S, so the frame keeps changing while the speaker carries the line.
+    shot_s (pace.median_shot_s): a punch holds about one of her shots, then goes back to 1x, as a punch on a cut
+    does in hers; without it, until the next zoom change (a 2x punch once held 16 s)."""
     per_min = zoom.get("per_min") or 0
     if not per_min or not words:
         return []
@@ -274,9 +278,12 @@ def place_zooms(zoom, words, duration, cuts, cut_kinds=None, quiet=()):
     # Alternate in / out so the frame never creeps tighter: every other change goes back to 1x.
     ends = picked[1:] + [duration]
     named = {"ease": zoom["ease"]} if kind != "punch" and zoom.get("ease") not in (None, "none") else {}
+    capped = kind == "punch" and shot_s
+    if capped:   # every change is a punch in that comes back out by itself
+        ends = [min(e, s + max(1.0, shot_s)) for s, e in zip(picked, ends)]
     return [{"start": round(s, 3), "end": round(e, 3), "scale": zoom.get("scale", 1.15),
              "kind": kind, "ease_s": ease, **named}
-            for i, (s, e) in enumerate(zip(picked, ends)) if i % 2 == 0 and e > s]
+            for i, (s, e) in enumerate(zip(picked, ends)) if (capped or i % 2 == 0) and e > s]
 
 
 ENTER_S = (0.15, 0.75)   # a card's entrance window: from just before its start to when it has settled
@@ -530,19 +537,47 @@ def type_only(v):
     return v.get("type") in TYPE_ONLY
 
 
-def with_caption_preset(style, mine):
-    """The user's caption style (<library>/custom/captions/<name>.json, custom.py) laid over the creator's
-    captions, when taste.json (mine) or style.json names it in captions.preset. taste.json's own caption keys
-    still win (they are merged after this)."""
-    name = ((mine.get("captions") or {}).get("preset") or (style.get("captions") or {}).get("preset"))
-    if not name:
-        return style
-    from ai_editor import custom
-    preset = custom.load_json("captions", name)
-    if not preset:
-        print(f"warning: captions.preset {name!r}: no {custom.path(False) / 'captions' / (name + '.json')}; "
-              f"using the style's captions", file=sys.stderr)
-    return {**style, "captions": {**(style.get("captions") or {}), **preset}}
+def with_presets(style, mine):
+    """The style page's presets (lib/ai_editor/presets.py): captions.preset names a caption style (the user's
+    <library>/custom/captions/<name>.json, else a built-in plugins/ai-editor/presets/captions/<name>.json) laid
+    over the creator's captions; zoom.preset (none | smooth | punchy) over the creator's zooms. taste.json's own
+    keys still win (they are merged after this)."""
+    from ai_editor import presets
+    return presets.apply(style, mine)
+
+
+def card_rate(style):
+    """Cards a minute the edit aims at: the copied creator's measured graphics.per_min (when the blend took it), held
+    under the user's own cards.per_min, or 0 with cards.on false (the style page's Cards, saved to taste.json; a
+    creator's style has no "cards" until the user picks one). The default style's 4 a minute is a cap, not a rate:
+    with no creator rate this is None. route.py want() and style_check.py read it."""
+    pm = graphics(style, "graphics").get("per_min")
+    cfg = style.get("cards") or {}
+    if not pm:
+        return None
+    if cfg.get("on") is False:
+        return 0
+    return min(pm, cfg["per_min"]) if cfg.get("per_min") is not None else pm
+
+
+def thin_cards(cards, duration, cards_cfg):
+    """style.json "cards" (the style page's Cards and graphics; the default style has per_min 4): on=false plans none;
+    per_min keeps at most that many cards a minute, spread through the video in spoken order (0: none). Unset (a
+    creator's style the user has not changed): every card stays. Each card left out is named on stderr."""
+    cfg = cards_cfg or {}
+    pm = cfg.get("per_min")
+    cap = 0 if cfg.get("on") is False else None if pm is None else max(0, math.ceil(duration / 60 * pm)) if pm > 0 else 0
+    if cap is None or len(cards) <= cap:
+        return cards
+    # ponytail: an even pick by order; rank by beat strength if a weak card wins a slot
+    order = sorted(cards, key=lambda c: c["start"])
+    keep = set() if cap == 0 else {id(order[round(i * (len(order) - 1) / max(1, cap - 1))]) for i in range(cap)} if cap > 1 else {id(order[0])}
+    gone = [c for c in order if id(c) not in keep]
+    why = "cards are off" if cfg.get("on") is False else f"at most {pm:g} cards a minute"
+    print(f"note: {len(gone)} card{'s' if len(gone) != 1 else ''} left out ({why}; the style page's Cards and graphics): " +
+          ", ".join(f"{c.get('trigger_word') or (c.get('anim') or {}).get('type') or c.get('src')}@{c['start']:.1f}s" for c in gone),
+          file=sys.stderr)
+    return [c for c in cards if id(c) in keep]
 
 
 def template_props(kind, props):
@@ -1018,6 +1053,8 @@ def place_overlays(cards, face, cap_y, aspect, prefer=None):
             a = min(bw, bh * ar) * min(bh, bw / ar)
             return a * (HEAT_FLOOR + heat(prefer, bx)) if prefer else a
         regions = free_regions(hd, cap_y, aspect)
+        if aspect == "9:16":   # check.py plan FAILs a vertical card off centre: the band above the head first
+            regions = [r for r in regions if abs(r[0] + r[2] / 2 - 50) <= 1.5] or regions
         if not regions:
             print(f"warning: no room around the head for the '{c['trigger_word']}' card, dropped", file=sys.stderr)
             continue
@@ -1610,15 +1647,16 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
     _, wants_split = lay_out(probe_cards, aspect, face, style, split_ok)
     split_now = split_now or wants_split
     logo_y = split_y if split_now else cap["y_pct"]
-    cards = place_cards(list(images) + anim_items(visuals, edit_dir, style) + logo_items(visuals, edit_dir, logo_y, aspect),
-                        words, duration, style, aspect)
+    cards = thin_cards(place_cards(list(images) + anim_items(visuals, edit_dir, style) + logo_items(visuals, edit_dir, logo_y, aspect),
+                                   words, duration, style, aspect), duration, style.get("cards"))
     cards, _ = lay_out(cards, aspect, face, style, split_ok)
     gap = card_gap_s(style)
     quiet = [g for g in card_gaps(cards, duration) if g[1] - g[0] > gap]
     cover = audio_cover(edit_dir, words)
     if cover:   # the cover's own push replaces the zooms: two moves at once compete for the eye
         quiet = []
-    zooms = [] if cover else place_zooms(style.get("zoom") or {}, words, duration, list(cuts), pace.get("cut_kinds"), quiet)
+    zooms = [] if cover else place_zooms(style.get("zoom") or {}, words, duration, list(cuts), pace.get("cut_kinds"), quiet,
+                                         pace.get("median_shot_s"))
     for z in zooms if face else []:
         # grow from the top of the head, centred on it: the face holds its place and the hair never rises
         # into a card placed above the head (a zoom about the face's middle pushed the hair up into it)
@@ -1778,7 +1816,8 @@ def pick_treat(pixels, style):
         got = treat_for(pixels, fill, 0.0, tc)
     if got >= CONTRAST_TARGET:
         return None, hexc, got
-    plain = style.get("style") == "plain"
+    # a creator measured with no stroke and no box (plain white over the footage) keeps that look first too
+    plain = style.get("style") == "plain" or (style.get("stroke") is False and style.get("box") is False)
     for t in PLAIN_TREATS + TREATS[1:] if plain else TREATS:
         if plain and t == "stroke" and got >= PLAIN_MIN:
             return "glow", hexc, got
@@ -1921,7 +1960,19 @@ def cut_points(edit_dir):
     return out
 
 
+def demo_punch():
+    her = {"graphics": {"per_min": 10.3}}
+    assert card_rate(her) == 10.3 and card_rate({**her, "cards": {"per_min": 2}}) == 2   # her rate; the user's cap wins
+    assert card_rate({**her, "cards": {"on": False}}) == 0 and card_rate({"cards": {"per_min": 4}}) is None
+    assert card_rate({**her, "blend": {"take": ["captions"]}}) is None
+    ws = [{"text": "Go.", "start": t, "end": t + 0.3} for t in (0.0, 10.0, 20.0, 30.0)]
+    z = place_zooms({"per_min": 6, "kind": "punch", "scale": 1.4, "on": "sentence_start"}, ws, 40.0, [], shot_s=2.4)
+    assert [(x["start"], x["end"]) for x in z] == [(0.0, 2.4), (10.0, 12.4), (20.0, 22.4), (30.0, 32.4)], z
+    assert len(place_zooms({"per_min": 6, "kind": "punch", "on": "sentence_start"}, ws, 40.0, [])) == 2
+
+
 def demo():
+    demo_punch()
     hy = [{"text": t, "start": i * 0.3, "end": i * 0.3 + 0.25} for i, t in enumerate(["one", "-for", "-one", "deal"])]
     got = [c["text"] for c in chunk_captions(hy, 3, "sentence")]
     assert got == ["one-for-one deal"], got
@@ -2090,14 +2141,15 @@ def demo():
     sp2 = build(style, words, vm, [{"src": "images/c.png", "word": "every", "nth": 1}], visuals=tv[:1])
     assert "layout" not in sp2 and [c["layout"] for c in sp2["cards"]] == ["box", "scene"], sp2["cards"]
     assert build(style, words, vm, visuals=[{"word": "zooms", "kind": "anim", "type": "counter", "opt_in": True, "props": {"to": 3}}])["cards"] == []
-    # an overlay goes to the free region its picture fills best: a wide shot above the head, a tall one beside it
+    # an overlay goes to the free region its picture fills best; on vertical only the band above the head is centred
+    # (check.py plan FAILs a card beside the head), so a tall one goes there too
     hd_face = {"step_s": 0.5, "heads": [{"t": float(i) / 2, "box": [32, 34, 28, 23]} for i in range(30)]}
     wide = {"src": "images/w.png", "size": [1800, 600], "start": 0.0, "end": 2.0, "trigger_word": "w", "box": [1, 1, 1, 1]}
     tall = {"src": "images/t.png", "size": [600, 1400], "start": 0.0, "end": 2.0, "trigger_word": "t", "box": [1, 1, 1, 1]}
     lc = {"anim": {"type": "logo_cluster", "props": {}}, "start": 0.0, "end": 2.0, "trigger_word": "l", "box": [1, 1, 1, 1]}
     pw, pt, pl = place_overlays([wide, tall, lc], hd_face, 68, "9:16")
     assert pw["box"][1] == 10 and pw["box"][1] + pw["box"][3] <= 34 - HEAD_GAP + 1e-6, pw["box"]
-    assert pt["box"][1] == 34 and (pt["box"][0] + pt["box"][2] <= 32 or pt["box"][0] >= 60), pt["box"]
+    assert pt["box"] == pw["box"], pt["box"]
     assert pl["box"] == [0, 0, 100, 100] and pl["anim"]["props"]["head"] == [32, 34, 28, 23], pl
     assert pl["anim"]["props"]["band"] == list(LOGO_BAND) and pl["anim"]["props"]["size"] == LOGO_SIZE, pl   # big, centred
     # a logo in passing leaves when its sentence ends, not 1.2 s later over the next one
@@ -2156,7 +2208,7 @@ def demo():
     no = build({**her, "blend": {"take": ["captions"]}}, words, vm, caps)   # parts not taken: the defaults
     assert all("enter" not in (c.get("props") or {}) for c in no["cards"]) and "targets" not in no and "pans" not in no
     assert [c["entrance"] for c in no["cards"]] == [c["entrance"] for c in build(style, words, vm, caps)["cards"]]
-    # her layout leans a tall card to the top band, still clear of the head; without it, beside the head
+    # her layout leans a tall card to the top band, still clear of the head
     pt2 = place_overlays([dict(tall)], hd_face, 68, "9:16", {"zones_pct": {"top": 90, "middle": 10}})[0]
     assert pt2["box"][1] == 10 and pt2["box"][1] + pt2["box"][3] <= 34 - HEAD_GAP + 1e-6, pt2["box"]
     assert heat({"grid": [[100, 0], [0, 0]]}, [0, 0, 50, 50]) == 1 and heat({"zones_pct": {"top": 40}}, [0, 10, 90, 20]) == 0.4
@@ -2185,6 +2237,27 @@ def demo():
     moves = sorted([x["start"] for x in z] + [x["end"] for x in z if x["end"] < t])
     assert len(z) >= t / 10 and max(b - a for a, b in zip([0.0] + moves, moves + [t])) <= 5.0 + 1e-6, (t, moves)
     assert place_zooms({}, words, t, []) == []
+    # every style page preset shows up in the plan (lib/ai_editor/presets.py)
+    from ai_editor import presets
+    pv = {**vm, "duration": t}
+    for name, p in presets.ZOOM.items():
+        zs = build(with_presets(DEFAULT_STYLE, {"zoom": {"preset": name}}), words, pv)["zooms"]
+        assert (not zs) if name == "none" else zs and {(z["kind"], z["scale"]) for z in zs} == {(p["zoom"]["kind"], p["zoom"]["scale"])}, (name, zs[:2])
+    for name, block in presets.captions().items():
+        cs = build(with_presets(DEFAULT_STYLE, {"captions": {"preset": name}}), words, pv)["captions"]
+        assert cs["style"]["effect"] == block["effect"] and cs["style"]["size_pct"] == block["size_pct"], (name, cs["style"])
+        assert all(len(c["words"]) <= block.get("words_per_caption", 3) for c in cs["chunks"]), name
+    many = [{"src": f"images/{i}.png", "word": "word", "nth": 4 * i + 1} for i in range(12)]
+    for name, p in presets.CARDS.items():
+        n = len(build({**DEFAULT_STYLE, "cards": {"per_min": p["per_min"]}}, words, pv, many)["cards"])
+        assert n <= math.ceil(t / 60 * p["per_min"]), (name, n)
+    assert len(build({**DEFAULT_STYLE, "cards": {"per_min": 99}}, words, pv, many)["cards"]) == 12
+    assert build({**DEFAULT_STYLE, "cards": {"on": False}}, words, pv, many)["cards"] == []
+    assert build({**DEFAULT_STYLE, "cards": {"per_min": 0}}, words, pv, many)["cards"] == [], "0 a minute is none, not unlimited"
+    assert len(build(DEFAULT_STYLE, words, pv, many)["cards"]) <= math.ceil(t / 60 * 4), "the default style lands cards Sometimes"
+    assert len(build({k: v for k, v in DEFAULT_STYLE.items() if k != "cards"}, words, pv, many)["cards"]) == 12, "no cap when none is set"
+    for name in presets.LOOKS:
+        assert build({**DEFAULT_STYLE, "look": {"preset": name}}, words, pv)["look"]["preset"] == name, name
     # the sample's punch at 28.05 s, 0.15 s before a flow scene at 28.2 s, snapped: a zoom change in a scene's
     # entrance goes under the scene (hidden); before a box card it finishes before the card starts; two zooms
     # closer than a punch's travel join (the out move would be cut short)
@@ -2496,6 +2569,23 @@ def beat_cmd(argv):
         print("next: a new or changed capture, logo or post needs capture.mjs first; then plan.py again (style-edit step 4)")
 
 
+def effective_style(sp, prof, edit_dir, count=True):
+    """style.json as the plan uses it: the measured style (the default style when missing), the style page's presets
+    over it, then the user's taste.json, the corrections saved on this style and this video's own settings. So the
+    user's choice > the creator > the default."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
+    from ai_editor import taste, profile
+    sp = Path(sp)
+    style = json.loads(sp.read_text(encoding="utf-8") or "{}") if sp.is_file() else None
+    if not style:
+        print(f"note: {sp} {'is empty' if style == {} else 'not found'}; planning with the default style. To keep it "
+              f"with the edit: python3 {Path(profile.__file__)} style {edit_dir}", file=sys.stderr)
+        style = profile.default_style(prof)
+    mine = taste.load_json(edit_dir, count=count, style=sp)
+    return profile.fill_transitions(taste.merge(with_presets(style, mine), mine),
+                                    lambda m: print(f"note: {m}", file=sys.stderr))
+
+
 def main():
     if sys.argv[1:] == ["demo"]:
         import os
@@ -2526,17 +2616,11 @@ def main():
     # The user's own settings (taste skill) win over the creator's measured style; corrections saved on this
     # style (its style.overrides.json) win over the every-video ones (taste.load_json, styleskill.py).
     sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
-    from ai_editor import taste, profile
+    from ai_editor import taste, profile, review
+    review.step(edit_dir, "plan")   # the review page's "Making the edit" bar, when it waits on this edit
     prof = profile.load()   # the start skill's answers: brand kit, what to avoid, sound
     sp = Path(a.style)
-    style = json.loads(sp.read_text(encoding="utf-8") or "{}") if sp.is_file() else None
-    if not style:
-        print(f"note: {sp} {'is empty' if style == {} else 'not found'}; planning with the default style. To keep it "
-              f"with the edit: python3 {Path(profile.__file__)} style {edit_dir}", file=sys.stderr)
-        style = profile.default_style(prof)
-    mine = taste.load_json(style=sp)
-    style = profile.fill_transitions(taste.merge(with_caption_preset(style, mine), mine),
-                                     lambda m: print(f"note: {m}", file=sys.stderr))
+    style = effective_style(sp, prof, edit_dir)
     plan = build(style, json.loads(Path(a.words).read_text(encoding="utf-8")),
                  probe(video), images, a.aspect, cut_points(edit_dir), visuals, edit_dir,
                  {k: v for k, v in (("mode", a.layout), ("title", a.title)) if v} or None, prof, None if a.behind is None else a.behind == "on")
@@ -2547,7 +2631,8 @@ def main():
         print(line, file=sys.stderr)
     if a.no_sfx or (prof.get("sound") or {}).get("sfx") is False:
         plan["sfx"] = []
-    if (edit_dir / ".sfx" / "music.wav").exists() and (prof.get("sound") or {}).get("music") is not False:
+    want_music = style["music"] if "music" in style else (prof.get("sound") or {}).get("music")   # the style page's switch wins
+    if (edit_dir / ".sfx" / "music.wav").exists() and want_music is not False:
         plan["music"] = {"src": ".sfx/music.wav"}   # sfx.py music: the bed, ducked under the speech
     music = ((style.get("sound") or {}).get("music") or {}) if took(style, "sound") else {}
     if music.get("present_pct") and "music" not in plan:   # guidance only: the renderer lays no music (references/visuals.md "From the teardown")
@@ -2568,6 +2653,8 @@ def main():
         print(f"{'error' if f['level'] == 'BAN' else 'warning'}: AI tell '{f['tell']}': {f['where']} -> {f['fix']}", file=sys.stderr)
     print(f"{out}: {plan['width']}x{plan['height']}, {plan['durationInFrames'] / plan['fps']:.1f} s, "
           f"{len(plan['captions']['chunks'])} captions, {len(plan['zooms'])} zooms, {len(plan['cards'])} cards")
+    from style_check import check as style_check, report   # the plan against the copied style (style_check.py)
+    print(report(style_check(plan, style), style), file=sys.stderr)
 
 
 if __name__ == "__main__":

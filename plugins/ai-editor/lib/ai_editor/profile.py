@@ -44,6 +44,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import presets  # noqa: E402
+
 HOME = Path(os.environ.get("AI_EDITOR_HOME", Path.home() / ".ai-video-editor"))
 # Style questions are asked once, at setup. Video questions belong to each video, asked by start.
 STYLE_QUESTIONS = ("platform", "creators", "liked_videos", "brand", "assets_dir", "avoid", "captions", "sound", "behind",
@@ -62,18 +65,12 @@ GENERIC_FONTS = {"inter", "roboto", "poppins", "montserrat", "open sans", "arial
                  "manrope", "dm sans", "plus jakarta sans", "outfit", "space grotesk", "satoshi", "general sans", "sora", "urbanist"}
 # Flat saturated colour grounds read as AI-made: only the user's own brand kit may name one.
 FLAT_GROUND_PRESETS = ("poster-red", "poster-green", "poster-blue")
+# The caption answers are the built-in caption presets (plugins/ai-editor/presets/captions/*.json, presets.py).
 # plain: the no-creator default and an answer of its own. White TikTok Sans (SIL OFL, on Google Fonts) at 4.2% of the
 # long side, weight 600, as spoken (no forced case), no stroke, box, shadow, highlight or animation: each page cuts on.
 # plan.py's contrast ladder adds a soft shadow first, and more only where the footage behind a page needs it.
-PLAIN_CAPTIONS = {"style": "plain", "font_match": "TikTok Sans", "size_pct": 4.2, "weight": 600, "case": "as_is",
-                  "color": "#FFFFFF", "highlight_color": "#FFFFFF", "emphasis_color": "#FFFFFF", "stroke": False,
-                  "box": False, "shadow": False, "effect": "none", "animation": "none"}
-CAPTION_STYLES = {
-    "plain": PLAIN_CAPTIONS,
-    "bold": {"effect": "pop", "weight": 800, "case": "lower", "words_per_caption": 2},
-    "karaoke": {"effect": "karaoke", "weight": 800, "words_per_caption": 4, "max_lines": 2},
-    "minimal": {"effect": "reveal", "weight": 600, "case": "lower", "words_per_caption": 3, "stroke": False},
-}
+CAPTION_STYLES = {k: v for k, v in presets.built_in().items() if k in presets.ORDER}   # never the user's files
+PLAIN_CAPTIONS = CAPTION_STYLES["plain"]
 
 
 def path():
@@ -161,7 +158,7 @@ def creator_look(style):
     if sat and "accent" not in out:
         out["accent"] = sat[0]
     font = ((style.get("captions") or {}).get("font_match") or "").strip()
-    if font and (style.get("captions") or {}).get("style") != "plain" and font.lower() not in GENERIC_FONTS and "font" not in out:
+    if font and (style.get("captions") or {}).get("style") not in presets.captions() and font.lower() not in GENERIC_FONTS and "font" not in out:
         out["font"] = font
     return out
 
@@ -231,14 +228,16 @@ def resolve_look(style, prof=None, warn=print):
 # creator teardown): scale 1.18 / 1.18 / 1.2, 6 / 9.5 / 10 zooms a minute; median shot 2.4 / 2.4 / 3.98 s;
 # 1 / 3 / 3 words a caption, 4.7 / 5.5 / 6.5% type, y 62 / 66 / 75%, lower case in all three. Captions are the owner's
 # plain look (PLAIN_CAPTIONS), smaller than the measured median; words a page and y stay measured. The three measured
-# punch zooms; the default pushes, because check.py render judges a punch by its one-frame travel.
+# punch zooms; the default pushes, because check.py render judges a punch by its one-frame travel. The zoom is the
+# style page's Smooth preset (presets.py: a 0.8 s push at scale 1.18, a change at least every 5 s); cards land "Sometimes" (at most 4 a minute, plan.py thin_cards).
 # max_hold_s: a sentence longer than this still gets a zoom change (plan.py place_zooms), so nothing holds still
 # past check.py's 6 s.
 DEFAULT_STYLE = {
     "handle": "default",
     "pace": {"median_shot_s": 2.4, "max_pause_s": 0.25},
     "motion": "smooth",
-    "zoom": {"per_min": 9.5, "kind": "push", "scale": 1.18, "duration_s": 0.8, "on": "sentence_start", "max_hold_s": 5.0},
+    "zoom": dict(presets.ZOOM["smooth"]["zoom"]),
+    "cards": {"per_min": presets.CARDS["sometimes"]["per_min"]},
     "captions": {"present": True, "words_per_caption": 3, "y_pct": 66, **PLAIN_CAPTIONS},
 }
 
@@ -270,8 +269,43 @@ def fill_transitions(style, warn=print):
 
 
 # ---------- blending creators ----------
-PARTS = {"captions": ("captions",), "pace": ("pace", "zoom", "cuts", "motion", "transitions"),
-         "visuals": ("graphics", "look", "layout", "cats", "events")}
+# The same keys as creator-teardown editplan.py PARTS: camera goes with pace, face and hook with visuals, and sound
+# is its own part (claimed by nobody in the profile, so it comes from the first creator, as every unclaimed part does).
+PARTS = {"captions": ("captions",), "pace": ("pace", "zoom", "cuts", "motion", "transitions", "camera"),
+         "visuals": ("graphics", "look", "layout", "cats", "events", "face", "hook", "per_min", "first_in_s", "gap_s"),
+         "sound": ("sound", "sfx")}
+HOME_TAKE = {"captions", "pace", "graphics", "sound"}   # the home page's four boxes (home.py TAKE)
+
+
+def heal(style, path=None):
+    """A <h>-mine the home page wrote before its "graphics" box also sent entrance motion and layout: those come
+    back from the measured creator-teardowns/<h>/style.json beside it, so the cards land where and how she lands them.
+    ponytail: told apart by its take alone (only home boxes, graphics without entrances/layout); a quick-mode pick of
+    exactly those parts gets them too. Stamp the source on the take if that ever matters."""
+    take = (style.get("blend") or {}).get("take")
+    p = path and Path(path).resolve()
+    if not (p and take and "graphics" in take and set(take) <= HOME_TAKE and p.parent.name.endswith("-mine")):
+        return style
+    full = p.parent.with_name(p.parent.name[:-5]) / "style.json"
+    if not full.is_file():
+        return style
+    m = json.loads(full.read_text(encoding="utf-8"))
+    g = m.get("graphics") or {}
+    style["graphics"] = {**(style.get("graphics") or {}),
+                         **{k: g[k] for k in ("entrances", "exits", "secondary_motion", "ease_in_s", "layout") if k in g}}
+    style.update({k: m[k] for k in ("face", "layout") if k in m})
+    style["blend"] = {**style["blend"], "take": list(take) + ["entrances", "layout"]}
+    return style
+
+
+def creator_style(root, handle):
+    """(style, path) for one profile creator: the parts the user ticked (<h>-mine, the same file its edit-like skill
+    and its corrections use) when there is one, else the whole measured <h>/style.json. (None, path) when neither."""
+    d = Path(root) / "creator-teardowns"
+    for p in (d / f"{handle}-mine" / "style.json", d / handle / "style.json"):
+        if p.is_file():
+            return heal(json.loads(p.read_text(encoding="utf-8")), p), p
+    return None, d / handle / "style.json"
 
 
 def blend(styles, creators, prof=None):
@@ -311,16 +345,16 @@ def write_style(edit_dir, root=Path("."), out=None, src=None):
     prof = load()
     styles, paths = {}, []
     for c in [] if src else prof.get("creators") or []:
-        p = Path(root) / "creator-teardowns" / c["handle"] / "style.json"
-        if p.exists():
-            styles[c["handle"]] = json.loads(p.read_text(encoding="utf-8"))
+        st, p = creator_style(root, c["handle"])
+        if st is not None:
+            styles[c["handle"]] = st
             paths.append(str(p.resolve()))
         else:
             print(f"warning: no {p}; run creator-teardown on @{c['handle']} first", file=sys.stderr)
     if src:
         if not Path(src).is_file():
             sys.exit(f"ERROR: no {src}")
-        style, paths = answers(json.loads(Path(src).read_text(encoding="utf-8")), prof), [str(Path(src).resolve())]
+        style, paths = answers(heal(json.loads(Path(src).read_text(encoding="utf-8")), src), prof), [str(Path(src).resolve())]
         style.setdefault("handle", Path(src).resolve().parent.name)
     elif not prof.get("creators"):
         style = default_style(prof)
@@ -370,7 +404,7 @@ def demo():
         # no creators (the recommended answer): the default style is written, never an exit
         save({"creators": [], "captions": {"style": "karaoke"}})
         out, st = write_style(d, out=Path(d) / "style.json")
-        assert out.exists() and st["zoom"]["per_min"] >= 6 and st["captions"]["effect"] == "karaoke", st
+        assert out.exists() and st["zoom"]["per_min"] == presets.ZOOM["smooth"]["zoom"]["per_min"] and st["captions"]["effect"] == "karaoke", st
         assert json.loads(out.read_text(encoding="utf-8"))["handle"] == "default"
         save({"creators": [], "captions": {"on": True, "style": "creator"}})   # the recommended answer: plain white TikTok Sans
         cap = write_style(d, out=Path(d) / "style.json")[1]["captions"]
@@ -380,6 +414,7 @@ def demo():
         # the recommended path passes the editor's own smoothness check: a push eased at least 0.8 s (check.py
         # PUSH_MIN_S), never a punch of 0.0 s that the render check reads as a one-frame snap
         assert st["zoom"]["kind"] == "push" and st["zoom"]["duration_s"] >= 0.8, st["zoom"]
+        assert st["cards"] == {"per_min": 4}, "a new user's cards land Sometimes"
         # captions off in the profile, but an audio-only podcast clip keeps them: its words are the picture
         save({"captions": {"on": False}})
         (Path(d) / "clip.json").write_text(json.dumps({"audio_only": True}), encoding="utf-8")
@@ -395,8 +430,9 @@ def demo():
               "b": {"captions": {"size_pct": 7, "font_match": "Inter"}, "pace": {"median_shot_s": 1.2}, "transitions": []}}
     s = blend(styles, [{"handle": "a", "take": ["visuals"]}, {"handle": "b", "take": ["captions", "pace"]}],
               {"captions": {"style": "karaoke"}, "sound": {"sfx": False}})
-    assert s["captions"]["size_pct"] == 7 and s["captions"]["effect"] == "karaoke" and s["sfx"] is False, s
-    assert s["blend"] == {"captions": "b", "pace": "b", "visuals": "a"} and s["pace"]["median_shot_s"] == 1.2
+    # a caption answer is a whole preset (presets.py): its type and size replace the creator's
+    assert s["captions"] == {**styles["b"]["captions"], **CAPTION_STYLES["karaoke"]} and s["sfx"] is False, s
+    assert s["blend"] == {"captions": "b", "pace": "b", "visuals": "a", "sound": "a"} and s["pace"]["median_shot_s"] == 1.2
     # a creator's measured captions stand unless the user picks plain; plain over a creator keeps its words a page
     assert blend(styles, [{"handle": "b"}], {})["captions"] == {"size_pct": 7, "font_match": "Inter"}
     pl = blend(styles, [{"handle": "b"}], {"captions": {"style": "plain"}})["captions"]
@@ -448,6 +484,21 @@ def demo():
         st = json.loads((Path(d) / "edits" / "v" / "style.json").read_text(encoding="utf-8"))
         assert r.returncode == 0 and st["source"] == [str(cs.resolve())] and st["captions"]["size_pct"] == 6, (r.stderr, st)
         assert st["handle"] == "alice" and f"from {cs.resolve()}" in r.stdout, r.stdout
+    # the parts the user ticked (<h>-mine) win over the whole study; an old home-page -mine gets her card motion and
+    # layout back; camera, face, hook and sound reach the blend (they were dropped before)
+    with tempfile.TemporaryDirectory() as d:
+        full = {"handle": "h", "camera": {"pan_per_min": 4}, "face": {"y_pct": 28}, "sound": {"sfx_per_min": 2},
+                "graphics": {"per_min": 5, "layout": {"zones_pct": {"top": 84}}, "entrances": [{"kind": "cut"}]}}
+        for name, st in (("h", full), ("h-mine", {**full, "graphics": {"per_min": 5}, "face": None,
+                                                    "blend": {"take": ["captions", "pace", "graphics", "sound"]}})):
+            (Path(d) / "creator-teardowns" / name).mkdir(parents=True)
+            (Path(d) / "creator-teardowns" / name / "style.json").write_text(json.dumps(st), encoding="utf-8")
+        st, p = creator_style(d, "h")
+        assert p.parent.name == "h-mine" and st["graphics"]["layout"]["zones_pct"]["top"] == 84, st
+        assert st["face"] == {"y_pct": 28} and "entrances" in st["blend"]["take"], st
+        b = blend({"h": st}, [{"handle": "h", "take": ["captions", "pace", "visuals"]}], {})
+        assert b["camera"]["pan_per_min"] == 4 and b["sound"]["sfx_per_min"] == 2 and b["graphics"]["entrances"], b
+        assert creator_style(d, "nobody")[0] is None
     print("profile ok")
 
 
@@ -488,6 +539,12 @@ def main():
         print(f"{out}: {style['handle']}, " + (f"from {style['source'][0]}" if flag("--from") else
                                               f"parts from {style['blend']}" if style.get("blend") else
                                               "no creator: the default style (smooth zooms, a move at least every 5 s, 3-word captions)"))
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from ai_editor import styleskill
+        for sp in style.get("source") or []:   # the copied style's skill: its learned rules hold for this edit too
+            md = styleskill.skills_dir() / styleskill.name(sp) / "SKILL.md"
+            if md.is_file():
+                print(f"skill: {styleskill.name(sp)} -> {md} (follow its \"Learned from your feedback\" in this edit)")
     else:
         print(__doc__)
         sys.exit(2)

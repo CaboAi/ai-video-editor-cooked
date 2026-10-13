@@ -172,7 +172,7 @@ def test_hidden_repeat_is_listed_and_shown():
         assert kept[1]["unheard_s"] > 1.0 and "unheard_s" not in kept[3], kept
         view = R.text_view(kept)
         assert "content [1.3s of speech not transcribed]" in view, view
-        assert "not transcribed" not in R.say(kept, 0, 3)    # Jev's questions and spans see the plain words
+        assert "not transcribed" not in R.say(kept, 0, 3)    # spans see the plain words
         one = T.recheck("a.wav", T.with_spacing([dict(w) for w in words]),
                         lambda s, e: [{"text": "content", "start": 117.7, "end": 119.4, "type": "word"}])
         assert not any(w.get("unheard_s") for w in one), one    # heard again as one word: drawn out
@@ -193,6 +193,28 @@ def test_splice_never_reaches_a_removed_word():
     assert B.fix_splices(got, 30, lvl, -40.0, 90)[1:] == ([], [])      # a second pass finds nothing
 
 
+def test_keep_ranges_survive_the_pause_trim():
+    """A quiet "um" at 1.0-1.3 s sits inside measured silence 0.5-2.0 s, so the pause trim takes it. The user put it
+    back on the review page: keep.json holds 1.0-1.3, and the cut over it splits around it (padded), so it plays."""
+    import json
+    import tempfile
+    ws = [{"text": "so", "start": 0.0, "end": 0.4, "type": "word"},
+          {"text": "um", "start": 1.0, "end": 1.3, "type": "word"},
+          {"text": "yes", "start": 2.0, "end": 2.4, "type": "word"}]
+    cuts = B.merge(B.silence_cuts(ws, 0.15, 0.1, [(0.5, 2.0)]))
+    assert not B.is_kept(ws[1], [{"start": a / 30, "end": b / 30} for a, b in B.kept_frames(cuts, 30, 2.5)])   # trimmed
+    with tempfile.TemporaryDirectory() as d:
+        assert B.keep_ranges(d) == []
+        (Path(d) / "keep.json").write_text(json.dumps([{"start": 1.0, "end": 1.3}]), encoding="utf-8")
+        keeps = B.keep_ranges(d)
+    got = B.carve(cuts, keeps)
+    assert [(round(c["start"], 2), round(c["end"], 2)) for c in got] == [(0.55, 0.95), (1.35, 1.95)], got
+    spans = [{"start": a / 30, "end": b / 30} for a, b in B.kept_frames(got, 30, 2.5, words=ws)]
+    assert all(B.is_kept(w, spans) for w in ws), spans
+    # a keep range over a whole gap (a pause put back) removes the cut there; one outside every cut changes nothing
+    assert B.carve(cuts, [(0.4, 2.0)]) == [] and B.carve(cuts, [(3.0, 3.2)]) == cuts
+
+
 if __name__ == "__main__":
     test_derive()
     test_audible_end()
@@ -205,4 +227,5 @@ if __name__ == "__main__":
     test_short_word_span_is_kept()
     test_hidden_repeat_is_listed_and_shown()
     test_splice_never_reaches_a_removed_word()
+    test_keep_ranges_survive_the_pause_trim()
     print("all ok")

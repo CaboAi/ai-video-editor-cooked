@@ -7,18 +7,21 @@ for it, and reports back with `status`:
 
     python3 home.py serve [--root DIR] [--no-open]   serve the page and open it (run in the background);
                                                  DIR defaults to the library (library.py), wherever this runs
-    python3 home.py wait                         block until the page queues a job, print it as one line,
-                                                 exit (run in the background, again after each job):
+    python3 home.py wait [--job ID]              block until the page queues a job, print it as one line,
+                                                 exit (run in the background, again after each job).
+                                                 --job: take that one job (a Claude the page opened for it)
         JOB teardown @handle platform=tiktok take=captions,pace root=DIR
         JOB teardown @name urls=DIR/creator-teardowns/name/picks.txt take= root=DIR
-        JOB skill @handle take=captions,pace,graphics root=DIR
+        JOB skill @handle take=captions,pace,graphics,entrances,layout root=DIR
         JOB video /path/take.mov as=@handle aspect=9:16 edit=DIR/edits/take root=DIR
                                                  (as=mine: the saved style; as=defaults: no creator)
         JOB video takes=DIR/edits/a/takes.txt as=mine aspect=9:16 edit=DIR/edits/a root=DIR
                                                  (several clips as one video: join them in the listed order)
+                                                 (either may end with script=DIR/edits/a/script.md before root=)
         JOB modal                                 the user pressed "Log in with your browser"
         JOB cancel teardown                       the user pressed Cancel
         ALREADY ...                               another wait is running: nothing to do
+        GONE ...                                  (--job) that job is done, cancelled or another Claude's
     python3 home.py status <job> [--step "..."] [--detail "video 6 of 10"] [--progress 0.6]
                                  [--result '<json>' | --result @file.json] [--done] [--failed "..."]
                                  <job> is teardown, skill, video or setup: its latest job
@@ -36,6 +39,11 @@ The server listens on 127.0.0.1 only and every request needs the token in the UR
 SameSite cookie), as review.py does. The address stays the same: port 47821 (the next free one if that is
 taken, remembered in state.json) and one random token per install ($AI_EDITOR_HOME/home/token, 0600), so
 the launcher and a bookmark always open the same page.
+
+Sessions: the window is shared by every Claude Code session on the computer, so each job remembers the
+session that took it (`owner`, from CLAUDE_CODE_SESSION_ID). `status` from another session never writes
+to it, `wait` never takes a job reserved for a new Claude ("Open a new Claude for this video"), and a
+question (askhook.py) reaches this page only from a session holding one of its jobs or listening for one.
 """
 import argparse
 import glob
@@ -46,6 +54,7 @@ import os
 import re
 import secrets
 import shutil
+import statistics
 import subprocess
 import sys
 import threading
@@ -66,6 +75,7 @@ import keys  # noqa: E402
 import library  # noqa: E402
 import links  # noqa: E402
 import live  # noqa: E402
+import presets  # noqa: E402
 from review import load, now, save, set_theme, theme, themed  # noqa: E402  (atomic write; review.py's server owns the rest)
 
 HTML = Path(__file__).with_name("home.html")
@@ -73,13 +83,15 @@ SETUP = Path(__file__).resolve().parents[2] / "skills" / "setup" / "scripts" / "
 BEAT_S = 6
 JOBS = ("teardown", "skill", "video", "modal", "setup", "style-change", "update")
 TAKE = ("captions", "pace", "graphics", "sound")          # the page's parts; editplan.py --take names
+# The page's "graphics" box is her visuals as a whole: what she shows, how it moves in and where it sits.
+EDITPLAN_PARTS = {"graphics": ("graphics", "entrances", "layout")}
 KEY_NAMES = tuple(keys.VARS)
 TOOLS = {"python": ("Python", "runs the editor"), "ffmpeg": ("ffmpeg", "cuts and joins video"),
          "node": ("Node", "draws captions and zooms"), "git": ("git", "for the installers"),
          "python packages": ("Python packages", "pinned versions"),
          "transcription model": ("Transcription model", "500 MB, runs offline"),
          "renderer": ("The renderer", "700 MB"), "free disk": ("Free disk", "3 GB or more")}
-TOP, CONTROL = 5, 2       # creator-teardown quick mode: 5 most viewed + 2 closest to the median
+TOP, CONTROL, SPARE = 5, 2, 2   # creator-teardown quick mode: 5 most viewed + 2 closest to the median + 2 spares
 PORT = 47821              # the fixed address; the next free one up to PORT + 19 when it is taken
 REVIEW = Path(__file__).with_name("review.py")
 DEMO = Path(__file__).with_name("demo")   # stock photos for empty previews (demo/CREDITS.md)
@@ -87,6 +99,89 @@ HANDLE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 PLUGIN_JSON = Path(__file__).resolve().parents[2] / ".claude-plugin" / "plugin.json"
 RAW = "https://raw.githubusercontent.com/nextwork-projects/ai-video-editor/main/"
 COVER_MAX = 50 << 20   # a style's chosen image, or a short clip to take a frame from
+SCRIPT_MAX = 200_000   # a script's text, in bytes; the file it came from may be up to 1 MB (a .docx with a logo)
+SCRIPT_EXT = (".txt", ".md", ".docx", ".pdf")
+
+
+SCRIPT_UNPACK = 20 << 20   # what a .pdf's streams or a .docx's document.xml may unpack to; more is refused
+PDF_TOKEN = re.compile(rb"\((?:\\.|[^\\()])*\)|/[^\s/\[\]()<>{}%]*|<[^<>]*>|[\[\]]|[-+]?(?:\d+\.?\d*|\.\d+)|[A-Za-z*'\"]+")
+
+
+def pdf_text(data):
+    """The words of a simple PDF: literal strings shown by Tj, TJ, ' and \" in its content streams (plain or
+    Flate). '' when they do not come out as words, or the streams unpack past SCRIPT_UNPACK."""
+    # ponytail: no font maps, so hex strings and custom encodings (most Word exports) read as nothing and the
+    # page asks for a paste; a real PDF parser is the upgrade if pasting turns out to be a chore
+    import zlib
+    esc = {b"n": b"\n", b"r": b"", b"t": b" ", b"(": b"(", b")": b")", b"\\": b"\\"}
+    lit = lambda b: re.sub(rb"\\([0-7]{1,3}|.)", lambda m: bytes([int(m.group(1), 8) & 255]) if m.group(1)[:1].isdigit()
+                           else esc.get(m.group(1), m.group(1)), b[1:-1], flags=re.S)
+    out, left = [], SCRIPT_UNPACK
+    for m in re.finditer(rb"stream\r?\n(.*?)\r?\nendstream", data, re.S):
+        s = m.group(1)
+        try:
+            d = zlib.decompressobj()
+            s = d.decompress(s, left + 1)
+            if d.unconsumed_tail:
+                return ""
+        except zlib.error:
+            pass
+        left -= len(s)
+        if left < 0:
+            return ""
+        line, args = [], []
+        for t in PDF_TOKEN.findall(s):   # one pass over tokens: strings never split on an apostrophe inside them
+            if t[:1] in b"(/<[]0123456789+-.":
+                args.append(t)
+                continue
+            if t in (b"Tj", b"TJ"):
+                for a in (args[args.index(b"["):] if t == b"TJ" and b"[" in args else args[-1:]):
+                    if a[:1] == b"(":
+                        line.append(lit(a))
+                    elif a[:1] not in b"[]</" and float(a) < -200:
+                        line.append(b" ")
+            elif t in (b"'", b'"', b"Td", b"TD", b"T*", b"Tm", b"BT", b"ET"):
+                out.append(b"".join(line).decode("latin-1").strip())
+                line = [lit(args[-1])] if t in (b"'", b'"') and args and args[-1][:1] == b"(" else []
+            args = []
+        out.append(b"".join(line).decode("latin-1").strip())
+    text = "\n".join(x for x in out if x)
+    ok = sum(c.isalpha() or c.isspace() or c in ".,!?'\"-:;" for c in text)
+    return text if len(text.split()) >= 3 and ok >= 0.85 * len(text) else ""
+
+
+def body_len(headers):
+    """Content-Length as an int; -1 when it is not a number (the caller answers 400)."""
+    try:
+        return int(headers.get("Content-Length") or 0)
+    except ValueError:
+        return -1
+
+
+def script_text(name, data):
+    """A script file's words as plain text: .txt and .md as they are, .docx from its paragraphs, a simple .pdf
+    from its text. '' when nothing readable comes out."""
+    import io
+    import zipfile
+    from xml.etree import ElementTree as ET
+    ext = Path(name).suffix.lower()
+    try:
+        if ext == ".docx":
+            W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+            with zipfile.ZipFile(io.BytesIO(data)) as z, z.open("word/document.xml") as f:
+                xml = f.read(SCRIPT_UNPACK + 1)   # the zip's declared size can lie: read at most the limit
+            if len(xml) > SCRIPT_UNPACK or b"<!DOCTYPE" in xml or b"<!ENTITY" in xml:   # old expat expands entities
+                return ""
+            root = ET.fromstring(xml)
+            text = "\n".join("".join(e.text or "" if e.tag == W + "t" else " " if e.tag == W + "tab" else "\n"
+                                      for e in p.iter() if e.tag in (W + "t", W + "tab", W + "br")) for p in root.iter(W + "p"))
+        elif ext == ".pdf":
+            text = pdf_text(data)
+        else:
+            text = data.decode("utf-8-sig")
+    except (zipfile.BadZipFile, KeyError, ET.ParseError, UnicodeDecodeError, ValueError, OSError, EOFError):
+        return ""
+    return re.sub(r"\n{3,}", "\n\n", text.replace("\r\n", "\n").replace("\x00", "")).strip()
 
 
 def home():
@@ -156,11 +251,70 @@ def latest(d, kind):
     return next((j for j in reversed(d["jobs"]) if j["type"] == kind), None)
 
 
+RESERVE_S = 180   # a job the page opened a new Claude for: other waits leave it alone this long (home.html too)
+STALE_S = 900     # a taken job nobody reported on this long: its session stopped, another may adopt it
+
+
+def job_name(j):
+    """What a job is about, in a few words: the video's edit folder name, the creator, the style."""
+    a = j.get("args") or {}
+    if a.get("edit"):
+        return Path(a["edit"]).name
+    if a.get("handle"):
+        return "@" + a["handle"]
+    return {"style-change": "your style", "modal": "cloud renders"}.get(j["type"], j["type"])
+
+
+def stale(j):
+    """A taken job whose session stopped reporting STALE_S ago."""
+    return j["state"] == "taken" and time.time() - (j.get("u") or 0) > STALE_S
+
+
+def may_write(j, sid):
+    """True when session sid may write to job j: it took it, nobody did, sid is unknown (outside Claude), or
+    its session stopped (stale: sid adopts it)."""
+    return not sid or not j.get("owner") or j["owner"] == sid or stale(j)
+
+
+def adopt(j, sid):
+    """sid takes over a stale job of a stopped session. A line to print, or None."""
+    if sid and j.get("owner") and j["owner"] != sid:
+        j["owner"] = sid
+        return f"adopted {j['id']}: the Claude session that had it stopped reporting {STALE_S // 60} minutes ago"
+    return None
+
+
+def asks_for(sid):
+    """askhook's owner rule for the home page: the job sid is working on, "" when it only listens, else None.
+    With no session known at all (Claude Code without CLAUDE_CODE_SESSION_ID): any question, as before."""
+    d = read()
+    taken = [j for j in reversed(d["jobs"]) if j["state"] == "taken"]
+    j = next((j for j in taken if sid and j.get("owner") == sid), None)
+    if j:
+        return job_name(j)
+    lis = listener()
+    if sid and sid == lis:
+        return ""
+    if not lis and not any(j.get("owner") for j in taken):
+        return job_name(taken[0]) if taken else ""
+    return None
+
+
 def listening():
     try:
         return time.time() - (home() / ".listening").stat().st_mtime < BEAT_S
     except OSError:
         return False
+
+
+def listener():
+    """The session of the `wait` that is listening now ("" when it has none, None when nobody listens)."""
+    if not listening():
+        return None
+    try:
+        return (home() / ".listening").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
 
 
 # ---------------------------------------------------------------- creator: listing and measured numbers
@@ -177,12 +331,23 @@ def reach(v):
     return v.get("view_count") or v.get("like_count") or 0
 
 
-def picks(vids, median):
-    """What quick mode studies, as fetch.py pick: the TOP most viewed, then the CONTROL closest to the median."""
+def picks(vids, median, pasted=False):
+    """What quick mode studies, as fetch.py pick: the TOP most viewed, SPARE more for its format check, then the
+    CONTROL closest to the median, all of the creator's usual length (within 2x of the median) when enough are.
+    Pasted links: every one."""
+    ds = [v["duration"] for v in vids if v.get("duration")]
+    if not pasted and len(ds) >= max(3, len(vids) / 2):
+        m = statistics.median(ds)
+        usual = [v for v in vids if v.get("duration") and m / 2 <= v["duration"] <= m * 2]
+        vids = usual if len(usual) >= TOP + CONTROL + SPARE else vids
     ranked = sorted(vids, key=reach, reverse=True)
-    rest = sorted((v for v in ranked[TOP:] if reach(v)), key=lambda v: abs(reach(v) - median))
+    if pasted:
+        return [dict(v, role=f"Top {i + 1}") for i, v in enumerate(ranked)]
+    ctrl = sorted((v for v in ranked[TOP:] if reach(v)), key=lambda v: abs(reach(v) - median))[:CONTROL]
+    spare = [v for v in ranked[TOP:] if v not in ctrl][:SPARE]   # the control first: spares give way on a small profile
     return [dict(v, role=f"Top {i + 1}") for i, v in enumerate(ranked[:TOP])] + \
-        [dict(v, role="Control, median") for v in rest[:CONTROL]]
+        [dict(v, role=f"Top {TOP + i + 1}, spare") for i, v in enumerate(spare)] + \
+        [dict(v, role="Control, median") for v in ctrl]
 
 
 def listing(root, handle):
@@ -194,7 +359,7 @@ def listing(root, handle):
     keep = ("id", "title", "duration", "view_count", "like_count", "vs_median", "thumbnail", "webpage_url")
     return {"handle": d.get("handle"), "platform": d.get("platform"), "count": d.get("count"),
             "median": d.get("median_views"), "ranked_by": d.get("ranked_by"),
-            "videos": [{k: v.get(k) for k in keep + ("role",)} for v in picks(d.get("videos") or [], d.get("median_views") or 0)]}
+            "videos": [{k: v.get(k) for k in keep + ("role",)} for v in picks(d.get("videos") or [], d.get("median_views") or 0, d.get("pasted"))]}
 
 
 def run_listing(root, handle, platform):
@@ -361,7 +526,9 @@ def style_cards(root):
         except (KeyError, OSError, ValueError):
             continue
         sc = ss.scope(sp)
-        n = sum(1 for r in taste.load_rules() if r["scope"] == sc) if taste.rules_path().exists() else 0
+        mine = [r for r in taste.load_rules() if r["scope"] == sc] if taste.rules_path().exists() else []
+        n = len(mine)
+        vids = len({c["edit"] for r in mine for c in r["corrections"] if c.get("edit")})   # edits it learned from
         if sid == "mine":
             line = (f"Your saved style. Started from @{base}." if base else "The default style.") + \
                 (f" {n} change{'s' if n != 1 else ''} from your feedback." if n else " Change it any time.")
@@ -372,27 +539,131 @@ def style_cards(root):
         made = next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None) if sp else None
         changed = taste.rules_path().stat().st_mtime if n and taste.rules_path().exists() else None
         out.append({"id": sid, "name": ss.display(sp), "facts": facts(st), "look": look(st), "base": base,
-                    "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "made": made, "changed": changed, "cover": cover_of(root, sid), "face": face_of(root, base),
+                    "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "learned_from": vids, "made": made, "changed": changed, "cover": cover_of(root, sid), "face": face_of(root, base),
                     "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False})
     return out
 
 
 # The style page's controls: the settings the scripts read (taste skill's table), never a look of their own.
+# (section, type, low, high); "choice" keys take one of the names presets.py lists.
 CONTROLS = {"captions.size_pct": ("captions", float, 2.5, 9), "captions.words_per_caption": ("captions", int, 1, 6),
-            "captions.y_pct": ("captions", float, 40, 85), "zoom.per_min": ("visuals", float, 0, 20),
-            "cut.max_pause": ("cut", float, 0.05, 0.6), "sfx": ("sound", bool, None, None)}
+            "captions.y_pct": ("captions", float, 40, 85), "captions.preset": ("captions", "choice", None, None),
+            "zoom.per_min": ("visuals", float, 0, 20), "zoom.preset": ("visuals", "choice", None, None),
+            "cut.max_pause": ("cut", float, 0.05, 0.6), "cards.on": ("visuals", bool, None, None),
+            "cards.per_min": ("visuals", float, 1, 20), "look.preset": ("visuals", "choice", None, None),
+            "sfx": ("sound", bool, None, None), "music": ("sound", bool, None, None)}
+# Reset per section: every setting under these prefixes goes back to the style's own (or the default).
+SECTIONS = {"captions": ("captions.",), "zoom": ("zoom.",), "cut": ("cut.",), "cards": ("cards.", "look."), "sound": ("sfx", "music")}
+
+
+def choices(key):
+    return {"captions.preset": [""] + list(presets.captions()), "zoom.preset": list(presets.ZOOM),
+            "look.preset": list(presets.LOOKS)}[key]
 
 
 def control_rule(key, v):
-    return {"captions.size_pct": f"Captions {v:g}% of the frame tall", "captions.words_per_caption": f"{v} word{'s' if v != 1 else ''} a caption",
-            "captions.y_pct": f"Captions {v:g}% down the frame", "zoom.per_min": "No zooms" if not v else f"About {v:g} zooms a minute",
-            "cut.max_pause": f"Pauses cut down to {v:g} s", "sfx": "Sound effects on" if v else "No sound effects"}[key] + " (set on the style page)"
+    if key == "captions.preset":
+        r = f"Captions: the {presets.label(v)} preset" if v else "Captions: the creator's own"
+    elif key == "zoom.preset":
+        r = f"Zooms: {presets.ZOOM[v]['label']} ({presets.ZOOM[v]['sub'].lower()})"
+    elif key == "cards.per_min":
+        r = f"Cards {presets.CARDS[presets.nearest(presets.CARDS, 'per_min', v)]['label'].lower()}, at most {v:g} a minute"
+    else:
+        r = {"captions.size_pct": lambda: f"Captions {v:g}% of the frame tall",
+             "captions.words_per_caption": lambda: f"{v} word{'s' if v != 1 else ''} a caption",
+             "captions.y_pct": lambda: f"Captions {v:g}% down the frame",
+             "zoom.per_min": lambda: "No zooms" if not v else f"About {v:g} zooms a minute",
+             "cut.max_pause": lambda: f"Pauses cut down to {v:g} s", "sfx": lambda: "Sound effects on" if v else "No sound effects",
+             "cards.on": lambda: "Logos and screenshots on" if v else "No logos or screenshots",
+             "look.preset": lambda: f"Card look: {presets.LOOKS.get(v, v)}",
+             "music": lambda: "Background music on" if v else "No background music"}[key]()
+    return r + " (set on the style page)"
 
 
 def dig(d, key):
     for k in key.split("."):
         d = d.get(k) if isinstance(d, dict) else None
     return d
+
+
+def newest_edit(need=("words.json",), entries=None):
+    """The newest edit folder in the library holding all of `need`, else None."""
+    return next((Path(e["dir"]) for e in (library.entries() if entries is None else entries)
+                 if all((Path(e["dir"]) / f).is_file() for f in need)), None)
+
+
+def preview_source(root, sid):
+    """(picture for the previews, what it is): the style's chosen image, else the user's newest raw take (a video, never
+    a finished render or an audio file), else a demo photo."""
+    d = style_dir(root, sid)
+    if d and (d / "cover.jpg").is_file():
+        return d / "cover.jpg", "Your image"
+    eds = [Path(e).resolve() for e in library.edit_dirs()]
+    raw = next((Path(r["path"]) for r in recent_list(read()) if Path(r["path"]).suffix.lower() in links.VIDEO_EXT
+                and Path(r["path"]).is_file() and not is_output(Path(r["path"]).resolve(), eds)), None)
+    return (raw, "Your video") if raw else (DEMO / "person-1.jpg", "Example photo")
+
+
+def preset_state(root, sid, st, base, changed):
+    """The style page's preset sections: which tile is on in each, where it came from, and the caption stills
+    (real renders, made in the background on the first ask). The tiles are rendered at each preset's own height, so
+    dragging the caption re-renders only the big preview."""
+    prof = _profile()
+    tag = lambda prefixes, measured: "you changed this" if any(k.startswith(prefixes) and dig(changed, k) is not None for k in CONTROLS) \
+        else f"from @{base}" if base and measured else "default"
+    creator = {}
+    if base:
+        try:
+            creator = json.loads((Path(root) / "creator-teardowns" / base / "style.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            creator = {}
+    from ai_editor.profile import DEFAULT_STYLE
+    caps = {k: v for k, v in (st.get("captions") or {}).items() if k != "preset"}
+    own_y = (creator.get("captions") or DEFAULT_STYLE["captions"]).get("y_pct") or 66   # the style's height, before the user's
+    size = dig(changed, "captions.size_pct")
+    user_y = dig(changed, "captions.y_pct")
+    src, what = preview_source(root, sid)
+    entries = library.entries()
+    ws, real = presets.phrase(newest_edit(entries=entries))
+    blocks = [(name, presets.label(name), {**caps, **block}) for name, block in presets.captions().items()]
+    if base and (creator.get("captions") or {}).get("present") is not False and creator.get("captions"):
+        blocks.insert(0, ("", "Theirs" if sid != "mine" else f"@{base}'s", dict(caps)))
+    tiles = []
+    for tid, name, full in blocks:
+        full = {**full, "y_pct": full.get("y_pct") if tid else own_y, **({"size_pct": size} if size is not None else {}), "present": True}
+        if tid and "y_pct" not in presets.caption(tid):
+            full["y_pct"] = own_y
+        _, img, err = presets.tile(full, ws, real, src)
+        tiles.append({"id": tid, "name": name, "note": presets.note(full, caps.get("words_per_caption")), "img": img,
+                      "err": bool(err), "block": {k: full.get(k) for k in ("size_pct", "y_pct")}, "_full": full})
+    ids = [t["id"] for t in tiles]
+    cp = dig(changed, "captions.preset")
+    answer = (prof.get("captions") or {}).get("style")
+    sel = cp if cp in ids else answer if sid == "mine" and answer in ids and answer != "creator" else "" if "" in ids else "plain"
+    pick = next(t for t in tiles if t["id"] == sel)
+    y = user_y or pick["block"]["y_pct"] or 66
+    _, big, big_err = presets.tile({**pick["_full"], "y_pct": y}, ws, real, src) if user_y else (None, pick["img"], pick["err"])
+    for t in tiles:
+        t.pop("_full")
+    zp = dig(changed, "zoom.preset")
+    zsel = zp if zp in presets.ZOOM else presets.closest_zoom(st.get("zoom"))
+    cut = dig(st, "cut.max_pause") or 0.15
+    cpm = dig(st, "cards.per_min")   # what caps the cards (plan.py thin_cards): the user's pick, or the default style's 4
+    sfx = (prof.get("sound") or {}).get("sfx", True) if sid == "mine" and st.get("sfx") is None else st.get("sfx", True)
+    music = st["music"] if "music" in st else bool((prof.get("sound") or {}).get("music"))
+    clips = newest_edit(("report.json", "words.raw.json"), entries)
+    return {"pic": what,
+            "captions": {"tiles": tiles, "sel": sel, "tag": tag(("captions.",), sel == ""), "size": pick["block"]["size_pct"] or 4.2,
+                         "y": y, "big": big, "big_err": bool(big_err), "off": caps.get("present") is False},
+            "zoom": {"opts": [{"id": k, "label": v["label"], "sub": v["sub"]} for k, v in presets.ZOOM.items()], "sel": zsel,
+                     "tag": tag(("zoom.",), bool(creator.get("zoom")))},
+            "cut": {"opts": [{"id": k, "label": v["label"], "sub": v["sub"], "value": v["max_pause"]} for k, v in presets.CUT.items()],
+                    "sel": presets.nearest(presets.CUT, "max_pause", cut), "value": cut, "tag": tag(("cut.",), False),
+                    "clips": bool(clips)},
+            "cards": {"on": dig(st, "cards.on") is not False, "opts": [{"id": k, "label": v["label"], "value": v["per_min"]} for k, v in presets.CARDS.items()],
+                      "sel": presets.nearest(presets.CARDS, "per_min", cpm) if cpm is not None else "", "look": dig(st, "look.preset") or "neutral",
+                      "looks": [[k, v] for k, v in presets.LOOKS.items()], "tag": tag(("cards.", "look."), False)},
+            "sound": {"sfx": bool(sfx), "music": bool(music), "tag": tag(("sfx", "music"), False)}}
 
 
 def style_page(root, sid):
@@ -417,9 +688,17 @@ def style_page(root, sid):
     job = next((j for j in reversed(read()["jobs"]) if j["type"] == "style-change" and j["args"].get("style") == sid), None)
     return {"id": sid, "name": ss.display(sp), "use_for": ss.use_for(sp), "base": base, "values": vals,
             "changed": [k for k in CONTROLS if dig(changed, k) is not None], "look": look(st), "facts": facts(st),
-            "copies": copies, "rules": rules, "style_path": str(sp) if sp else None,
+            "copies": copies, "rules": rules, "style_path": str(sp) if sp else None, "presets": preset_state(root, sid, st, base, changed),
             "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid), "face": face_of(root, base),
             "delete_note": f"My style started from @{base}. It goes back to the default style." if sp and base and style_of(root, "mine")[2] == base else None}
+
+
+def forget_where(sp, keep):
+    """Forget every setting rule at this style's scope whose setting `keep` rejects (taste.forget unsets it too)."""
+    taste, ss = _taste()
+    if taste.rules_path().exists():
+        for r in [r for r in taste.load_rules() if r["scope"] == ss.scope(sp) and r.get("setting") and not keep(r["setting"])]:
+            taste.forget(r["id"])
 
 
 def set_control(root, sid, key, value):
@@ -428,10 +707,35 @@ def set_control(root, sid, key, value):
     taste, ss = _taste()
     sp, _, _ = style_of(root, sid)
     section, typ, lo, hi = CONTROLS[key]
-    v = bool(value) if typ is bool else typ(value)
+    if typ == "choice":
+        v = str(value if value is not None else "")
+        if v not in choices(key):
+            raise ValueError(f"{key} must be one of {', '.join(c or '(the creator own)' for c in choices(key))}")
+    else:
+        v = bool(value) if typ is bool else typ(value)
     if lo is not None and not lo <= v <= hi:
         raise ValueError(f"{key} must be between {lo} and {hi}")
+    # a preset replaces the older single settings it covers, so they cannot quietly win over it
+    if key == "zoom.preset":
+        forget_where(sp, lambda k: not (k.startswith("zoom.") and k != "zoom.preset"))
+    if key == "captions.preset":
+        forget_where(sp, lambda k: k != "captions.words_per_caption")
     return ss.learn(sp, section, control_rule(key, v), key, v)
+
+
+def reset_section(root, sid, section):
+    """Every setting of one section back to the style's own: its rules forgotten, any loose key unset."""
+    taste, ss = _taste()
+    sp, _, _ = style_of(root, sid)
+    pre = SECTIONS[section]
+    forget_where(sp, lambda k: not k.startswith(pre))
+    for k in CONTROLS:
+        if k.startswith(pre):
+            if sp:
+                ss.set_override(sp, k, drop=True)
+            else:
+                taste.save_json(taste.unset_key(taste.read_json(), k))
+    ss.write(str(sp) if sp else None)
 
 
 _UPD = {"at": 0.0, "latest": None, "notes": [], "busy": False}
@@ -469,7 +773,8 @@ def update_info():
     except (OSError, ValueError, KeyError):
         mine = None
     newer = bool(mine and _UPD["latest"] and vtuple(_UPD["latest"]) > vtuple(mine))
-    return {"installed": mine, "latest": _UPD["latest"], "newer": newer, "notes": _UPD["notes"] if newer else []}
+    return {"installed": mine, "latest": _UPD["latest"], "newer": newer, "notes": _UPD["notes"] if newer else [],
+            "checking": _UPD["busy"], "checked": _UPD["at"] or None}
 
 
 def trash(p):
@@ -622,12 +927,34 @@ def run_doctor():
     update(lambda d: d.__setitem__("doctor", {"rows": rows, "at": now()}))
 
 
-def key_rows():
+def key_rows(d=None):
+    """Per key: set, from the environment, its last 4 characters and the last check of that same key.
+    Never the key itself."""
+    checks = (d if d is not None else read()).get("keychecks") or {}
     out = {}
     for n in KEY_NAMES:
         k, where = keys.get(n)
-        out[n] = {"set": bool(k), "env": bool(k) and not str(where).endswith(".env")}
+        c = checks.get(n) or {}
+        out[n] = {"set": bool(k), "env": bool(k) and not str(where).endswith(".env"),
+                  "last4": k[-4:] if k and len(k) >= 12 else None,
+                  "check": {x: c[x] for x in ("ok", "msg", "at")} if k and c.get("last4") == k[-4:] else None}
     return out
+
+
+def note_check(name, key, ok, msg):
+    """Remember a key check by the key's last 4 characters, so a key changed elsewhere shows as not checked."""
+    update(lambda d: d.setdefault("keychecks", {}).__setitem__(name, {"ok": ok, "msg": msg, "at": now(), "last4": key[-4:]}))
+
+
+def remove_key(name):
+    """Drop VAR= from the key file, keeping every other line. False when the key comes from the environment."""
+    k, where = keys.get(name)
+    if k and not str(where).endswith(".env"):
+        return False
+    if keys.key_file().exists():
+        keys.remove(name)
+    update(lambda d: (d.get("keychecks") or {}).pop(name, None))
+    return True
 
 
 # ---------------------------------------------------------------- queueing jobs
@@ -645,28 +972,51 @@ def job_line(j, root):
         src = f"urls={a['urls']}" if a.get("urls") else f"platform={a['platform']}"
         return f"JOB teardown @{a['handle']} {src} take={','.join(a.get('take') or [])} root={root}"
     if j["type"] == "skill":
-        return f"JOB skill @{a['handle']} take={','.join(a.get('take') or [])} root={root}"
+        return f"JOB skill @{a['handle']} take={','.join(x for t in a.get('take') or [] for x in EDITPLAN_PARTS.get(t, (t,)))} root={root}"
     if j["type"] == "video":
         src = f"takes={a['takes']}" if a.get("takes") else a["path"]
-        return f"JOB video {src} as={a['as']} aspect={a['aspect']}" + (f" edit={a['edit']}" if a.get("edit") else "") + f" root={root}"
+        return f"JOB video {src} as={a['as']} aspect={a['aspect']}" + (f" edit={a['edit']}" if a.get("edit") else "") + \
+            (f" script={a['script']}" if a.get("script") else "") + f" root={root}"
     if j["type"] == "style-change":
         return f"JOB style-change {'my-style' if a['style'] == 'mine' else a['style']}" + \
             (f" style={a['path']}" if a.get("path") else "") + f" text={a['text']}"
     return f"JOB {j['type']}"
 
 
-def cmd_wait(poll=1.0):
+def busy_with(d, sid):
+    """The video job session sid is making now, or None."""
+    return next((j for j in reversed(d["jobs"]) if j["type"] == "video" and j["state"] == "taken"
+                 and sid and j.get("owner") == sid), None)
+
+
+def takeable(j, sid, d, job=None):
+    """A queued job this wait may take: --job names it, else one not reserved for a new Claude. One video at
+    a time per session: the next one waits for it, and meanwhile the page offers a new Claude for it."""
+    if j["state"] != "queued":
+        return False
+    if job:
+        return j["id"] == job
+    if j.get("reserved") and time.time() - j["reserved"] < RESERVE_S:
+        return False
+    return not (j["type"] == "video" and busy_with(d, sid))
+
+
+def cmd_wait(poll=1.0, job=None):
+    sid = askhook.session()
+    if job:   # the Claude the page opened for this job: it takes that job and nothing else
+        return _take_one(job, sid, poll)
     beat = home() / ".listening"
     beat.parent.mkdir(parents=True, exist_ok=True)
     if listening():   # one waiter at a time, so each job reaches exactly one background task
         print("ALREADY: another `home.py wait` is running; the next job comes out of that one.", flush=True)
         return "ALREADY"
     update(lambda d: d.update(claude_seen=time.time()))
+    beat.write_text(sid, encoding="utf-8")   # who listens: the page's "busy" and askhook read it
     try:
         while True:
             beat.touch()
             d = read()
-            if any(j["state"] == "queued" or (j.get("cancel") and not j.get("cancel_sent")) for j in d["jobs"]):
+            if any(takeable(j, sid, d) or (j.get("cancel") and not j.get("cancel_sent") and may_write(j, sid)) for j in d["jobs"]):
                 break
             time.sleep(poll)
     finally:
@@ -674,14 +1024,47 @@ def cmd_wait(poll=1.0):
 
     def take(d):
         for j in d["jobs"]:
-            if j.get("cancel") and not j.get("cancel_sent"):
+            if j.get("cancel") and not j.get("cancel_sent") and may_write(j, sid):
                 j["cancel_sent"] = True
                 return f"JOB cancel {j['type']}"
-        j = next(j for j in d["jobs"] if j["state"] == "queued")
+        j = next((j for j in d["jobs"] if takeable(j, sid, d)), None)
+        if not j:   # a --job Claude took it between the read and the lock: wait again
+            return None
         j["state"], j["u"] = "taken", time.time()
+        if sid:
+            j["owner"] = sid
         d["claude_seen"] = j["u"]
         return job_line(j, d["root"])
     line = update(take)
+    if line is None:
+        return cmd_wait(poll)
+    print(line, flush=True)
+    return line
+
+
+def _take_one(job, sid, poll):
+    for _ in range(int(60 / poll) + 1):   # the job is there by the time the new Claude starts; a minute at most
+        def take(d):
+            j = next((j for j in d["jobs"] if j["id"] == job), None)
+            if not j or j["state"] in ("done", "failed", "cancelled") or not may_write(j, sid):
+                return "GONE"
+            if j["state"] == "taken" and (j.get("owner") == sid or stale(j)):
+                note = adopt(j, sid)
+                j["u"] = time.time()
+                return (note + "\n" if note else "") + job_line(j, d["root"])   # asked twice: the same job again
+            if not takeable(j, sid, d, job):
+                return "GONE"
+            j["state"], j["u"] = "taken", time.time()
+            if sid:
+                j["owner"] = sid
+            d["claude_seen"] = j["u"]
+            return job_line(j, d["root"])
+        line = update(take)
+        if line != "GONE" or any(j["id"] == job for j in read()["jobs"]):
+            break
+        time.sleep(poll)
+    if line == "GONE":
+        line = f"GONE: {job} is finished, cancelled or another Claude has it. Nothing to do."
     print(line, flush=True)
     return line
 
@@ -699,9 +1082,10 @@ def same_key(j, key):
         return False
 
 
-def mine(d, kind, key=None):
-    """The taken job a script's report belongs to: the one its key names; with no key, the only taken one."""
-    taken = [j for j in d["jobs"] if j["type"] == kind and j["state"] == "taken"]
+def mine(d, kind, key=None, sid=""):
+    """The taken job a script's report belongs to: of the ones its session may write to (may_write), the one its
+    key names; with no key, the only one. Key and session must both hold."""
+    taken = [j for j in d["jobs"] if j["type"] == kind and j["state"] == "taken" and may_write(j, sid)]
     if key:
         return next((j for j in reversed(taken) if same_key(j, key)), None)
     return taken[0] if len(taken) == 1 else None
@@ -711,18 +1095,31 @@ def cmd_status(a):
     def f(d):
         t = time.time()
         d["claude_seen"] = t   # the page's heartbeat: Claude (or a script it runs) is still at work
-        if if_active:   # a script's own report (progress.py): only onto a taken job, never makes or takes one
-            j = mine(d, a.job, getattr(a, "key", None))
+        sid = askhook.session()
+        if if_active:   # a script's own report (progress.py): only onto a taken job of this session, never makes or takes one
+            j = mine(d, a.job, getattr(a, "key", None), sid)
             if not j:
                 return None
-        else:   # the job being worked on: the newest taken one (separate videos queue several), else the newest queued
-            act = [j for j in d["jobs"] if j["type"] == a.job and j["state"] in ("queued", "taken")]
-            j = next((j for j in reversed(act) if j["state"] == "taken"), act[-1] if act else None)
-        j = j or latest(d, a.job)
+        else:   # this session's own taken job first, then one nobody owns, then a stopped session's (adopted)
+            every = [j for j in d["jobs"] if j["type"] == a.job and j["state"] in ("queued", "taken")]
+            taken = [j for j in reversed(every) if j["state"] == "taken"]
+            j = next((j for j in taken if sid and j.get("owner") == sid), None) or next((j for j in taken if may_write(j, sid)), None)
+            if not j and not sid:   # outside Claude only: inside, `wait` hands queued jobs out
+                j = next((j for j in reversed(every) if j["state"] == "queued"), None)
+            if not j and every:
+                return None
+            j = j or next((j for j in reversed(d["jobs"]) if j["type"] == a.job and may_write(j, sid)), None)
+            if not j and a.job != "setup" and any(x["type"] == a.job for x in d["jobs"]):   # only another session's
+                return None
         if not j or (a.job == "setup" and j["state"] in ("done", "failed")):
             j = queue(d, a.job, {})
         if j["state"] == "queued":   # the first step takes the job
             j["state"] = "taken"
+            if sid:
+                j["owner"] = sid
+        note = adopt(j, sid) if j["state"] == "taken" else None
+        if note:
+            print(note)
         j["u"] = t
         same = j["steps"][-1] if a.step and j["steps"] and j["steps"][-1]["text"] == a.step else None   # only the newest
         if a.step and not same:
@@ -752,7 +1149,7 @@ def cmd_status(a):
             raise
         j = None
     if j is None:
-        print(f"no {a.job} job on the page")
+        print(f"no {a.job} job on the page" + (" for this Claude session" if askhook.session() else ""))
         return 1   # progress.py reads the exit code: nothing was written
     if a.job == "setup" and (a.step or a.done or a.failed):   # a step finished: the tool rows tick as it goes
         run_doctor()
@@ -805,7 +1202,10 @@ def make_handler(token):
                 return self.send(200, themed(HTML.read_bytes()), "text/html; charset=utf-8", cookie=True)
             if path == "/state":
                 d = read()
-                d["listening"], d["keys"], d["theme"] = listening(), key_rows(), theme()
+                d["listening"], d["keys"], d["theme"] = listening(), key_rows(d), theme()
+                d.pop("keychecks", None)
+                bz = busy_with(d, listener())   # the listening Claude is making a video: the next one can get its own
+                d["busy"] = bz and {"id": bz["id"], "name": job_name(bz)}
                 d["profile"] = (home().parent / "profile.json").exists()   # set up before: a returning user
                 d["update"] = update_info()
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
@@ -873,6 +1273,13 @@ def make_handler(token):
                 d = style_dir(read()["root"], q.get("id", [""])[0])
                 f = d / ("face.jpg" if path.endswith("face") else "cover.jpg") if d else None
                 return self.send(200, f.read_bytes(), "image/jpeg", cache="private, max-age=86400") if f and f.is_file() else self.send(404, {})
+            if path in ("/style/tile", "/style/clip"):   # a preset's rendered still, a cut preview clip (presets.py cache)
+                k = q.get("k", [""])[0]
+                ok = re.fullmatch(r"[0-9a-f]{20}", k) if path == "/style/tile" else re.fullmatch(r"[0-9a-f]{20}-(before|[0-9.]+)\.mp4", k)
+                f = presets.cache_dir() / (k + ".jpg" if path == "/style/tile" else k) if ok else None
+                if not f or not f.is_file():
+                    return self.send(404, {})
+                return self.send(200, f.read_bytes(), "image/jpeg" if path == "/style/tile" else "video/mp4", cache="private, max-age=86400")
             if path == "/style":
                 try:
                     return self.send(200, style_page(read()["root"], q.get("id", ["mine"])[0]))
@@ -905,7 +1312,11 @@ def make_handler(token):
         def do_POST(self):
             if not self.authorized():
                 return self.send(403, {"error": "open the page with the URL home.py printed"})
+            if not askhook.same_origin(self):   # a POST from another site's page, even with the cookie
+                return self.send(403, {"error": "not from this page"})
             path = urlsplit(self.path).path
+            if path == "/script":
+                return self.script()
             if path in ("/upload", "/style/cover"):
                 with live.busy():   # no live-reload restart under an upload
                     return self.upload() if path == "/upload" else self.cover()
@@ -928,7 +1339,25 @@ def make_handler(token):
                 ok, msg = keys.verify(name, val)
                 if ok:
                     keys.save(name, val)
+                    note_check(name, val, True, msg)
                 return self.send(200, {"ok": ok, "msg": "Verified. The key works." if ok else f"Not saved. {msg[0].upper()}{msg[1:]}"})
+            if path in ("/key/check", "/key/remove"):   # Settings: test the saved key again, or delete it
+                name = body.get("name")
+                if name not in KEY_NAMES:
+                    return self.send(400, {"msg": "no such key"})
+                if path == "/key/remove":
+                    return self.send(200, {}) if remove_key(name) else self.send(409, {"msg": "This key comes from an environment variable. Remove it there."})
+                k = keys.get(name)[0]
+                if not k:
+                    return self.send(404, {"msg": "No key saved."})
+                ok, msg = keys.verify(name, k)
+                note_check(name, k, ok, msg)
+                return self.send(200, {"ok": ok, "msg": msg})
+            if path == "/update/check":   # Settings: ask GitHub now instead of within the hour
+                if not _UPD["busy"] and time.time() - _UPD["at"] > 60:   # a minute between checks, however often it is pressed
+                    _UPD["at"] = 0.0
+                update_info()
+                return self.send(200, {})
             if path == "/later":
                 for n in body.get("names") or []:
                     if n in KEY_NAMES + ("modal",):
@@ -968,11 +1397,22 @@ def make_handler(token):
                     return self.send(404, {"error": "No such style."})
                 except (ValueError, OSError) as e:
                     return self.send(400, {"error": str(e)})
-            if path in ("/style/set", "/style/forget", "/style/reveal"):
+            if path == "/style/cutclips":   # the Cut section's "Play 5 s of your video, before and after"
+                c = presets.CUT.get(str(body.get("preset")))
+                ed = newest_edit(("report.json", "words.raw.json"))
+                got = c and ed and presets.cut_clips(ed, c["max_pause"])
+                if not got:
+                    return self.send(404, {"error": "No cut to play yet. Make a video first."})
+                return self.send(200, {"before": f"/style/clip?k={got[0].name}", "after": f"/style/clip?k={got[1].name}"})
+            if path in ("/style/set", "/style/forget", "/style/reveal", "/style/reset"):
                 root = read()["root"]
                 try:
                     sid = str(body.get("id") or "mine")
-                    if path == "/style/set":
+                    if path == "/style/reset":
+                        if body.get("section") not in SECTIONS:
+                            return self.send(400, {"error": "not a section"})
+                        reset_section(root, sid, body["section"])
+                    elif path == "/style/set":
                         if body.get("key") not in CONTROLS:
                             return self.send(400, {"error": "not a setting"})
                         set_control(root, sid, body["key"], body.get("value"))
@@ -1037,6 +1477,8 @@ def make_handler(token):
                     return self.send(400, {"msg": f"Could not use that folder: {e.strerror or e}"})
                 update(lambda d: d.__setitem__("root", str(p)))
                 return self.send(200, {"path": str(p)})
+            if path == "/claude":   # "Open a new Claude for this video": a new terminal that takes this one job
+                return self.new_claude(str(body.get("id") or ""))
             if path == "/cancel":
                 def c(d):
                     j = latest(d, body.get("type") or "teardown")
@@ -1045,6 +1487,19 @@ def make_handler(token):
                 update(c)
                 return self.send(200, {})
             self.send(404, {})
+
+        def new_claude(self, jid):
+            def reserve(d):
+                j = next((j for j in d["jobs"] if j["id"] == jid and j["state"] == "queued"), None)
+                if j:
+                    j["reserved"] = time.time()
+                return d["root"] if j else None
+            root = update(reserve)
+            if not root:
+                return self.send(409, {"msg": "Claude already has this video."})
+            import launcher
+            opened, cmd = launcher.open_claude(root, f"/ai-editor:start take job {jid}")
+            return self.send(200, {"opened": opened, "command": cmd})
 
         def lookup(self, text, platform=None):
             parts = text.split()
@@ -1131,6 +1586,9 @@ def make_handler(token):
             else:   # the first-run page: its creator once the study is done
                 style = f"@{td['args']['handle']}" if td and td["state"] == "done" else "defaults"
             aspect = "16:9" if b.get("aspect") == "16:9" else "9:16"
+            script = str(b.get("script") or "").strip()
+            if len(script.encode("utf-8")) > SCRIPT_MAX:
+                return self.send(400, {"ok": False, "msg": "That script is over 200 KB. Paste only the lines you film."})
             groups = [ps] if b.get("join") and len(ps) > 1 else [[p] for p in ps]
             ids = []
 
@@ -1144,13 +1602,16 @@ def make_handler(token):
                     t = edit / "takes.txt"
                     t.write_text("\n".join(p["path"] for p in g) + "\n", encoding="utf-8")
                     args["takes"] = str(t)
+                if script:   # the text only, in the edit folder; the cut's script_match.py reads it there
+                    (edit / "script.md").write_text(script + "\n", encoding="utf-8")
+                    args["script"] = str(edit / "script.md")
                 ids.append(update(lambda d: queue(d, "video", args))["id"])
             return self.send(200, {"id": ids[0], "ids": ids})
 
         def cover(self):
             """A style's preview image: an image or a short clip, streamed to a temp file, then one 720x1280 frame."""
             sid = parse_qs(urlsplit(self.path).query).get("id", [""])[0]
-            n = int(self.headers.get("Content-Length") or 0)
+            n = body_len(self.headers)
             kind = (self.headers.get("Content-Type") or "").split("/")[0]
             if kind not in ("image", "video") or not 0 < n <= COVER_MAX:
                 return self.send(400, {"ok": False, "msg": "Pick an image or a short video under 50 MB."})
@@ -1173,10 +1634,28 @@ def make_handler(token):
             finally:
                 tmp.unlink(missing_ok=True)
 
+        def script(self):
+            """A chosen script file: read in memory (1 MB at most), only its text goes back. Nothing is saved until
+            the video is made."""
+            name = Path(unquote(parse_qs(urlsplit(self.path).query).get("name", [""])[0])).name
+            n = body_len(self.headers)
+            if not name.lower().endswith(SCRIPT_EXT):
+                return self.send(400, {"ok": False, "msg": "Add a .txt, .md, .docx or .pdf file, or paste the script."})
+            if not 0 < n <= 5 * SCRIPT_MAX:
+                while n > 0 and self.rfile.read(min(1 << 20, n)):   # drained, so the browser reads the answer
+                    n -= 1 << 20
+                return self.send(400, {"ok": False, "msg": "That file is too big. Paste the script instead."})
+            text = script_text(name, self.rfile.read(n))
+            if not text:
+                return self.send(400, {"ok": False, "msg": "Could not read the words in that file. Paste the script instead."})
+            if len(text.encode("utf-8")) > SCRIPT_MAX:
+                return self.send(400, {"ok": False, "msg": "That script is over 200 KB. Paste only the lines you film."})
+            return self.send(200, {"ok": True, "text": text})
+
         def upload(self):
             """A dropped video: streamed to <root>/videos/<name>, never held in memory."""
             name = Path(unquote(parse_qs(urlsplit(self.path).query).get("name", [""])[0])).name
-            n = int(self.headers.get("Content-Length") or 0)
+            n = body_len(self.headers)
             if not name.lower().endswith(links.VIDEO_EXT) or n <= 0:
                 return self.send(400, {"ok": False, "msg": "Drop a .mov, .mp4 or .mkv video."})
             out = Path(read()["root"]) / "videos" / name
@@ -1322,7 +1801,7 @@ def serve(root=None, port=None, open_browser=True):
         update(lambda d: d.__setitem__("port", srv.server_address[1]))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
     (home() / ".server").write_text(url, encoding="utf-8")
-    askhook.register(srv, url)
+    askhook.register(srv, url, "home", asks_for)
     threading.Thread(target=run_doctor, daemon=True).start()
     if open_browser:
         webbrowser.open(url)
@@ -1357,6 +1836,7 @@ def demo():
         "--   gemini key           Recommended"), "at": now()}))
     globals()["run_listing"] = lambda *a: calls.append(a)
     globals()["fetch_latest"] = lambda: ("99.0.0", ["Dark mode in the window"])   # never the network in a self-check
+    os.environ.pop("CLAUDE_CODE_SESSION_ID", None)   # run from inside Claude Code: never that session
     srv, url = serve(root, 0, open_browser=False)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     base, tok = url.split("/?t=")
@@ -1398,19 +1878,37 @@ def demo():
     assert b'src="/ask.js"' in HTML.read_bytes() and b"askq" in urllib.request.urlopen(base + "/ask.js?t=" + tok).read()
     assert askhook.live() == []   # served, but no page has polled yet
     qs = [{"question": "Tight or loose?", "header": "Cut", "options": [{"label": "Tight", "description": ""}], "multiSelect": False}]
-    post("/ask", {"id": "q1", "questions": qs})
-    assert get("/ask?v=1")["ask"] == {"id": "q1", "questions": qs} and askhook.live() == [url]
+    # no session known anywhere (Claude Code without CLAUDE_CODE_SESSION_ID): any question, as before
+    post("/ask", {"id": "q-any", "questions": qs, "session": ""})
+    assert get("/ask?v=1")["ask"]["id"] == "q-any"
+    post("/ask/clear", {"id": "q-any"})
+    (home() / ".listening").write_text("sess-A", encoding="utf-8")   # session A's `wait` is listening
+    try:   # a session with no job here and not listening: its question stays in its own terminal
+        post("/ask", {"id": "q0", "questions": qs, "session": "sess-Z"})
+        raise AssertionError("took another session's question")
+    except urllib.error.HTTPError as e:
+        assert e.code == 409
+    post("/ask", {"id": "q1", "questions": qs, "session": "sess-A"})
+    assert get("/ask?v=1")["ask"] == {"id": "q1", "questions": qs, "about": ""} and askhook.live("home") == [url]
     post("/ask/answer", {"id": "q1", "answers": ["Tight"]})
     assert get("/ask?id=q1")["result"] == {"answers": ["Tight"]} and get("/ask")["ask"] is None
     post("/ask/clear", {"id": "q1"})
     assert not srv.asks
+    (home() / ".listening").unlink()
+    try:   # a POST from another site's page, even with the cookie
+        urllib.request.urlopen(urllib.request.Request(base + "/theme?t=" + tok, b'{"theme":"dark"}', {"Origin": "http://evil.example"}, method="POST"))
+        raise AssertionError("took a cross-site POST")
+    except urllib.error.HTTPError as e:
+        assert e.code == 403
+    assert post("/theme", {"theme": "system"}) and urllib.request.urlopen(urllib.request.Request(
+        base + "/theme?t=" + tok, b'{"theme":"system"}', {"Origin": base}, method="POST")).status == 200
     for _ in range(50):
         if read().get("doctor"):
             break
         time.sleep(0.02)
     st = get("/state")
     assert [(x["name"], x["ok"]) for x in st["doctor"]["rows"]] == [("Python 3.12", True), ("The renderer", False)], st["doctor"]
-    assert st["keys"]["gemini"] == {"set": False, "env": False} and not st["listening"] and st["profile"] is False
+    assert st["keys"]["gemini"] == {"set": False, "env": False, "last4": None, "check": None} and not st["listening"] and st["profile"] is False
     # keys: a wrong prefix is refused before any request; a good one is verified once, saved, never echoed
     sent = []
     real = keys._get
@@ -1422,14 +1920,56 @@ def demo():
         r = post("/key", {"name": "gemini", "value": secret})
         assert r["ok"] and len(sent) == 1 and secret not in json.dumps(r), r
         keys._get = lambda *a: (401, "bad")
-        r = post("/key", {"name": "typesafe", "value": "ts-" + "x" * 30})
+        r = post("/key", {"name": "elevenlabs", "value": "x" * 32})
         assert not r["ok"] and r["msg"].startswith("Not saved. The service rejected"), r
     finally:
         keys._get = real
     st = get("/state")
-    assert st["keys"]["gemini"]["set"] and not st["keys"]["typesafe"]["set"]
+    assert st["keys"]["gemini"]["set"] and not st["keys"]["elevenlabs"]["set"] and "typesafe" not in st["keys"]
     assert secret not in state_path().read_text(encoding="utf-8") and secret not in json.dumps(st), "a key reached state.json"
     assert keys.get("gemini")[0] == secret
+    # Settings: the saved key shows its last 4 and its check, a recheck can fail with the reason, remove keeps the others
+    assert st["keys"]["gemini"]["last4"] == "ssss" and st["keys"]["gemini"]["check"]["ok"] and "keychecks" not in st
+    keys.save("elevenlabs", "sk_" + "e" * 30)
+    assert get("/state")["keys"]["elevenlabs"]["check"] is None   # saved elsewhere: never checked here
+    keys._get = lambda *a: (401, "bad")
+    try:
+        r = post("/key/check", {"name": "gemini"})
+    finally:
+        keys._get = real
+    g = get("/state")["keys"]["gemini"]
+    assert not r["ok"] and not g["check"]["ok"] and "rejected" in g["check"]["msg"] and secret not in json.dumps(r), (r, g)
+    post("/key/remove", {"name": "gemini"})
+    st = get("/state")
+    assert not st["keys"]["gemini"]["set"] and st["keys"]["elevenlabs"]["set"] and keys.get("gemini") == (None, None)
+    os.environ["GEMINI_API_KEY"] = "AIza" + "v" * 35
+    try:
+        post("/key/remove", {"name": "gemini"})
+        raise AssertionError("removed a key that comes from the environment")
+    except urllib.error.HTTPError as e:
+        assert e.code == 409
+    finally:
+        os.environ.pop("GEMINI_API_KEY")
+    post("/update/check", {})
+    for _ in range(50):
+        if get("/state")["update"]["latest"]:
+            break
+        time.sleep(0.02)
+    u = get("/state")["update"]
+    assert u["latest"] == "99.0.0" and u["newer"] and u["checked"] and u["notes"] == ["Dark mode in the window"], u
+    seen = []
+    globals()["fetch_latest"] = lambda: seen.append(1) or ("99.0.0", ["Dark mode in the window"])
+    for _ in range(5):   # pressed again and again within the minute: no new GitHub check
+        post("/update/check", {})
+    time.sleep(0.1)
+    assert not seen and get("/state")["update"]["checked"] == u["checked"], seen
+    _UPD["at"] -= 61   # a minute later: one press checks again
+    post("/update/check", {})
+    for _ in range(50):
+        if seen:
+            break
+        time.sleep(0.02)
+    assert seen == [1], seen
     # the paste: a profile link names the platform; a bare name is a handle; a website is not a creator
     r = post("/lookup", {"text": "https://www.tiktok.com/@sample.creator"})
     assert r["kind"] == "creator" and r["handle"] == "sample.creator" and r["platform"] == "tiktok" and calls, r
@@ -1443,8 +1983,14 @@ def demo():
     assert ig["platform"] == "instagram" and "reel" in ig["note"], ig
     post("/lookup", {"text": "@sample.creator"})
     lk = get("/state")["lookup"]["listing"]
-    assert [v["role"] for v in lk["videos"]] == ["Top 1", "Top 2", "Top 3", "Top 4", "Top 5", "Control, median", "Control, median"]
-    assert lk["videos"][5]["view_count"] == 151000 and lk["videos"][0]["thumbnail"] == "https://x/0.jpg", lk
+    assert [v["role"] for v in lk["videos"]] == ["Top 1", "Top 2", "Top 3", "Top 4", "Top 5", "Top 6, spare", "Top 7, spare",
+                                                 "Control, median", "Control, median"], lk["videos"]
+    # one format, as fetch.py pick: a 200 s clip among 30 s videos is not studied; pasted links all are
+    assert "0" not in [v["id"] for v in picks([{**vids[0], "duration": 200}] + vids[1:], 151000)]
+    assert len(picks(vids, 151000, pasted=True)) == len(vids)
+    small = picks(vids[:7], 151000)   # 7 listed: 5 top and 2 control, no spare
+    assert [v["role"] for v in small][-2:] == ["Control, median", "Control, median"] and len(small) == 7, small
+    assert lk["videos"][7]["view_count"] == 151000 and lk["videos"][0]["thumbnail"] == "https://x/0.jpg", lk
     # Start: a teardown job; `wait` prints it as one line and marks it taken
     try:   # Build my skill before the study is done: refused
         post("/job", {"type": "skill"})
@@ -1466,7 +2012,7 @@ def demo():
     assert t["measured"]["tiles"] == [] and [s["done"] for s in t["steps"]] == [True, False]
     assert t["steps"][-1]["detail"] == "video 4 of 7" and S["claude_seen"] >= t["u"] - 1, "heartbeat recorded"
     assert out(cmd_status, ns(job="modal", step="x", detail=None, progress=None, result=None, done=False, failed=None,
-                              if_active=True)) == "no modal job on the page" and latest(read(), "modal") is None, "--if-active never makes a job"
+                              if_active=True)).startswith("no modal job on the page") and latest(read(), "modal") is None, "--if-active never makes a job"
     (td / "style.json").write_text(json.dumps({"videos": 7, "pace": {"wpm": 186, "median_shot_s": 1.9, "max_pause_s": 0.3},
                                                "zoom": {"kind": "punch", "per_min": 6.0, "scale": 1.12},
                                                "captions": {"present": True, "words_per_caption": 2, "y_pct": 62.4,
@@ -1495,7 +2041,7 @@ def demo():
             assert e.code == 404
     # Build my skill, then a video: the path is probed, the job names the creator
     post("/job", {"type": "skill", "take": ["captions", "graphics"]})
-    assert out(cmd_wait, 0.01) == f"JOB skill @sample.creator take=captions,graphics root={root.resolve()}"
+    assert out(cmd_wait, 0.01) == f"JOB skill @sample.creator take=captions,graphics,entrances,layout root={root.resolve()}"
     vid = tmp / "take.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=360x640:rate=30:duration=2",
                     "-pix_fmt", "yuv420p", str(vid)], check=True)
@@ -1517,6 +2063,66 @@ def demo():
     post("/cancel", {"type": "teardown"})
     assert out(cmd_wait, 0.01) == "JOB cancel teardown" and latest(read(), "teardown")["state"] == "cancelled"
     assert running() == url and serve(root, 0, open_browser=False) == (None, url)
+    # sessions: a job sticks to the Claude Code session that took it
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-A"
+    held = update(lambda d: [j.update(state="done") or j["id"] for j in d["jobs"] if j["state"] in ("queued", "taken")])
+    import launcher
+    opened = []
+    launcher.open_claude = lambda folder, prompt: (opened.append((folder, prompt)) or True, "claude '" + prompt + "'")
+    vs = lambda **k: out(cmd_status, ns(**{"job": "video", "step": None, "detail": None, "progress": None, "result": None,
+                                         "done": False, "failed": None, "if_active": False, **k}))
+    ja = update(lambda d: queue(d, "video", {"path": str(vid), "as": "mine", "aspect": "9:16", "edit": str(root / "edits" / "team-250k-general")}))
+    assert out(cmd_wait, 0.01).startswith("JOB video ")
+    ja = next(j for j in read()["jobs"] if j["id"] == ja["id"])
+    assert ja["state"] == "taken" and ja["owner"] == "sess-A", ja
+    (home() / ".listening").write_text("sess-A", encoding="utf-8")   # A listens again while it works: still busy
+    assert get("/state")["busy"] == {"id": ja["id"], "name": "team-250k-general"}
+    (home() / ".listening").unlink()
+    post("/ask", {"id": "qa", "questions": qs, "session": "sess-A"})
+    assert get("/ask?v=1")["ask"]["about"] == "team-250k-general"
+    post("/ask/clear", {"id": "qa"})
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"   # a second terminal: never writes to A's job
+    assert vs(step="B was here", done=True).startswith("no video job")
+    assert next(j for j in read()["jobs"] if j["id"] == ja["id"]) == ja, "A's job untouched"
+    # Make my video while A is busy: the page offers a new Claude; it opens with that one job, which no other wait takes
+    jb = post("/job", {"type": "video", "path": str(vid), "aspect": "9:16", "as": "mine"})["id"]
+    assert vs(step="B grabs it").startswith("no video job"), "status never takes a queued job inside Claude"
+    os.environ.pop("CLAUDE_CODE_SESSION_ID")
+    vs(step="a script", if_active=True)   # nor a script's own report (it lands on the taken job, A's, outside Claude)
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"
+    assert next(j for j in read()["jobs"] if j["id"] == jb)["state"] == "queued"
+    assert not takeable(next(j for j in read()["jobs"] if j["id"] == jb), "sess-A", read()), "A makes one video at a time"
+    r = post("/claude", {"id": jb})
+    assert r == {"opened": True, "command": f"claude '/ai-editor:start take job {jb}'"} and opened == [(str(root.resolve()), f"/ai-editor:start take job {jb}")], r
+    assert not takeable(next(j for j in read()["jobs"] if j["id"] == jb), "sess-B", read()), "reserved for the new Claude"
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-C"
+    assert out(cmd_wait, 0.01, jb).startswith("JOB video ") and next(j for j in read()["jobs"] if j["id"] == jb)["owner"] == "sess-C"
+    (home() / ".listening").write_text("sess-A", encoding="utf-8")   # A's wait still listens while C works
+    assert get("/state")["busy"]["id"] == ja["id"], "busy follows the listening session, not the newest Claude"
+    (home() / ".listening").unlink()
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"
+    assert out(cmd_wait, 0.01, jb).startswith("GONE"), "another Claude has it"
+    try:
+        post("/claude", {"id": jb})
+        raise AssertionError("opened a second Claude for a taken job")
+    except urllib.error.HTTPError as e:
+        assert e.code == 409
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-A"   # A's status goes to A's job, never C's
+    vs(step="Cutting out the mistakes", done=True)
+    j1, j2 = (next(j for j in read()["jobs"] if j["id"] == i) for i in (ja["id"], jb))
+    assert j1["state"] == "done" and j1["steps"][-1]["text"] == "Cutting out the mistakes" and j2["state"] == "taken" and not j2["steps"]
+    # C stops (closed its terminal): after STALE_S with no report, another session adopts the job
+    update(lambda d: next(j for j in d["jobs"] if j["id"] == jb).__setitem__("u", time.time() - STALE_S - 1))
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"
+    assert vs(step="Picked up where it stopped").startswith("adopted " + jb)
+    assert next(j for j in read()["jobs"] if j["id"] == jb)["owner"] == "sess-B"
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-C"
+    assert vs(done=True).startswith("no video job"), "the stopped session's job is B's now"
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"
+    vs(done=True)
+    assert next(j for j in read()["jobs"] if j["id"] == jb)["state"] == "done" and get("/state")["busy"] is None
+    os.environ.pop("CLAUDE_CODE_SESSION_ID")
+    update(lambda d: [j.update(state="taken") for j in d["jobs"] if j["id"] in held])   # the earlier checks' jobs, as they were
 
     # New video: several picked clips as one video -> one JOB with the takes file, in the order picked
     (tmp / "Desktop").mkdir()
@@ -1543,6 +2149,61 @@ def demo():
     assert len(r["ids"]) == 3
     lines = [out(cmd_wait, 0.01) for _ in range(3)]
     assert [ln.split(" edit=")[1].split()[0] for ln in lines] == [str(root.resolve() / "edits" / n) for n in ("a-2", "b", "c")], lines
+
+    # Add your script: a file's text only comes back (token, 1 MB file, 200 KB text); it is saved with the job
+    def send_script(name, data, t=tok):
+        try:
+            r = urllib.request.urlopen(urllib.request.Request(base + "/script?name=" + quote(name) + (t and "&t=" + t), data, method="POST"))
+            return r.status, json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read() or b"{}")
+    sk = "MANAGER: We need to scale this.\nINTERN: We need to scale this.\n"
+    assert send_script("s.txt", sk.encode(), "")[0] == 403
+    assert send_script("s.txt", ("\ufeff" + sk).encode()) == (200, {"ok": True, "text": sk.strip()})
+    dx = io.BytesIO()
+    import zipfile
+    with zipfile.ZipFile(dx, "w") as z:
+        W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+        z.writestr("word/document.xml", f'<w:document {W}><w:body><w:p><w:r><w:t>MANAGER:</w:t><w:tab/><w:t>Hi.</w:t></w:r></w:p>'
+                                        '<w:p><w:r><w:t>INTERN: Hi.</w:t></w:r></w:p></w:body></w:document>')
+    assert send_script("s.docx", dx.getvalue())[1]["text"] == "MANAGER: Hi.\nINTERN: Hi."
+    pdf = b"%PDF-1.4\n1 0 obj<<>>stream\nBT /F1 12 Tf 72 700 Td (MANAGER: We need to scale.) Tj 0 -14 Td [(INTERN:) -300 (Why?)] TJ ET\nendstream"
+    assert send_script("s.pdf", pdf)[1]["text"] == "MANAGER: We need to scale.\nINTERN: Why?"
+    for name, data in (("s.pdf", b"%PDF-1.4\nstream\nBT <00120034> Tj ET\nendstream"), ("s.docx", b"not a zip"),
+                       ("s.exe", b"MZ"), ("big.txt", b"a " * 600_000), ("long.txt", b"line\n" * 50_000)):
+        code, r = send_script(name, data)
+        assert code == 400 and not r["ok"] and r["msg"] and "\u2014" not in r["msg"], (name, code, r)
+    # the readers stay bounded: a long kerned PDF line, a Flate bomb, a .docx unpacking past the limit, entities
+    import zlib
+    t0 = time.time()
+    tj = b"stream\nBT " + b"[(MANAGER: I don) 20 ('t know) -300 (why.)] TJ " * 30000 + b"ET\nendstream"
+    assert pdf_text(tj).startswith("MANAGER: I don't know why.") and time.time() - t0 < 2, time.time() - t0
+    assert pdf_text(b"stream\n" + zlib.compress(b"BT (one two three) Tj ET" + b" " * (SCRIPT_UNPACK + 10)) + b"\nendstream") == ""
+
+    def docx(xml):
+        b = io.BytesIO()
+        with zipfile.ZipFile(b, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr("word/document.xml", xml)
+        return b.getvalue()
+    big = docx(f'<w:document {W}><w:body><w:p><w:r><w:t>Hi there you.</w:t></w:r></w:p></w:body></w:document>'.encode()
+               + b" " * (SCRIPT_UNPACK + 1))
+    assert len(big) < 5 * SCRIPT_MAX and script_text("s.docx", big) == ""
+    assert script_text("s.docx", docx('<?xml version="1.0"?><!DOCTYPE d [<!ENTITY a "aaaa">]>'
+                                      f'<w:document {W}><w:body><w:p><w:r><w:t>&a;&a;</w:t></w:r></w:p></w:body></w:document>')) == ""
+    c = http.client.HTTPConnection(base.split("//")[1])
+    c.request("POST", "/script?name=s.txt&t=" + tok, b"hi", {"Content-Length": "nope"})
+    assert c.getresponse().status == 400
+    c.close()
+    post("/job", {"type": "video", "path": str(vid), "aspect": "9:16", "as": "mine", "script": sk})
+    got = out(cmd_wait, 0.01)
+    es = Path(re.search(r" edit=(\S+) script=", got).group(1))   # the next free take-N name
+    assert es.parent == root.resolve() / "edits" and got.endswith(f"edit={es} script={es / 'script.md'} root={root.resolve()}"), got
+    assert (es / "script.md").read_text(encoding="utf-8") == sk and not list(home().rglob("s.*"))
+    try:
+        post("/job", {"type": "video", "path": str(vid), "script": "x" * (SCRIPT_MAX + 1)})
+        raise AssertionError("a script over 200 KB was queued")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400 and not (es.parent / f"take-{int(es.name.split('-')[1]) + 1}").exists()
     assert all("takes=" not in ln and "as=@sample.creator" in ln for ln in lines)
     # a script's report (progress.py) lands on the video its edit folder names, never on the newest one
     sr = lambda step, key=None: out(cmd_status, ns(job="video", step=step, detail=None, progress=None, result=None,
@@ -1605,6 +2266,7 @@ def demo():
     assert list(st) == ["mine", "@sample.creator", "@newbie"], list(st)
     assert st["@sample.creator"]["facts"] == [["Cut every", "1.9 s"], ["Zooms", "Punch, 6 a minute"], ["Captions", "2 words at a time"]]
     assert st["@sample.creator"]["look"]["box_color"] == "#000000" and st["mine"]["line"].startswith("The default")
+    assert st["mine"]["learned_from"] == 0, "no feedback yet: no \"Learned from N videos\""
     (tmp / "home" / "profile.json").write_text(json.dumps({"creators": [{"handle": "sample.creator"}]}), encoding="utf-8")
     mine = get("/library")["styles"][0]
     assert mine["line"].startswith("Your saved style. Started from @sample.creator.") and mine["facts"][0] == ["Cut every", "1.9 s"]
@@ -1641,6 +2303,40 @@ def demo():
     pg = post("/style/forget", {"id": "@sample.creator", "rule": rid})
     assert pg["rules"] == [] and json.loads((td / "style.overrides.json").read_text(encoding="utf-8")) == {"captions": {}}, (pg["rules"], (td / "style.overrides.json").read_text(encoding="utf-8"))
     assert "3 words a caption" not in md.read_text(encoding="utf-8")
+    # presets: a creator's page offers its measured captions first, pre-selected, then the built-in tiles;
+    # picking a tile saves captions.preset at that style's scope, Reset puts the section back
+    pz = get("/style?id=@sample.creator")["presets"]
+    assert [t["id"] for t in pz["captions"]["tiles"]][:5] == ["", "plain", "bold", "karaoke", "minimal"] and pz["captions"]["sel"] == ""
+    assert pz["captions"]["tiles"][0]["name"] == "Theirs" and pz["captions"]["tag"] == "from @sample.creator"
+    assert pz["cut"]["sel"] == "natural" and pz["cards"]["on"] and pz["cards"]["look"] == "neutral" and pz["sound"]["sfx"]
+    assert pz["cards"]["sel"] == "", "a creator's style has no card cap until the user picks one"
+    tb = [t["block"] for t in pz["captions"]["tiles"]]
+    pg = post("/style/set", {"id": "@sample.creator", "key": "captions.y_pct", "value": 50})
+    assert [t["block"] for t in pg["presets"]["captions"]["tiles"]] == tb and pg["presets"]["captions"]["y"] == 50, "a drag leaves the tiles alone"
+    post("/style/reset", {"id": "@sample.creator", "section": "captions"})
+    pg = post("/style/set", {"id": "@sample.creator", "key": "captions.preset", "value": "karaoke"})
+    assert pg["presets"]["captions"]["sel"] == "karaoke" and pg["presets"]["captions"]["tag"] == "you changed this"
+    assert json.loads((td / "style.overrides.json").read_text(encoding="utf-8"))["captions"]["preset"] == "karaoke"
+    pg = post("/style/set", {"id": "@sample.creator", "key": "zoom.preset", "value": "punchy"})
+    assert pg["presets"]["zoom"]["sel"] == "punchy" and "Zooms: Punchy (snaps in fast) (set on the style page)" in md.read_text(encoding="utf-8")
+    for key, v in (("cards.per_min", 2), ("cards.on", False), ("look.preset", "editorial"), ("music", True), ("cut.max_pause", 0.25)):
+        pg = post("/style/set", {"id": "@sample.creator", "key": key, "value": v})
+    c = pg["presets"]
+    assert (c["cards"]["sel"], c["cards"]["on"], c["cards"]["look"], c["sound"]["music"], c["cut"]["sel"]) == ("rarely", False, "editorial", True, "relaxed"), c
+    for bad in (("captions.preset", "../x"), ("zoom.preset", "wobbly"), ("look.preset", "poster-red")):
+        try:
+            post("/style/set", {"id": "@sample.creator", "key": bad[0], "value": bad[1]})
+            raise AssertionError(f"{bad} accepted")
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+    pg = post("/style/reset", {"id": "@sample.creator", "section": "captions"})
+    assert pg["presets"]["captions"]["sel"] == "" and "captions" not in [r["setting"].split(".")[0] for r in pg["rules"]]
+    assert "preset" not in (json.loads((td / "style.overrides.json").read_text(encoding="utf-8")).get("captions") or {})
+    for sec in ("zoom", "cut", "cards", "sound"):
+        pg = post("/style/reset", {"id": "@sample.creator", "section": sec})
+    assert pg["rules"] == [] and pg["presets"]["cards"]["on"] and pg["presets"]["zoom"]["tag"] != "you changed this", pg["rules"]
+    pm = get("/style?id=mine")["presets"]   # My style started from the creator: the creator's captions on, zooms closest to measured
+    assert pm["captions"]["sel"] == "" and pm["zoom"]["sel"] == "none", pm["zoom"]   # taste.json zoom.per_min 0 above
     # Tell it what to change: one JOB line for Claude, at that style's scope
     post("/job", {"type": "style-change", "style": "@sample.creator", "text": "captions a bit bigger,\n fewer zooms"})
     assert out(cmd_wait, 0.01) == f"JOB style-change @sample.creator style={(td / 'style.json').resolve()} text=captions a bit bigger, fewer zooms"
@@ -1835,7 +2531,8 @@ def main():
     s.add_argument("--root", help="the folder creator-teardowns/ and edits/ live in (default: the library)")
     s.add_argument("--port", type=int, help=f"default {PORT}, or the port it had last time")
     s.add_argument("--no-open", action="store_true")
-    sp.add_parser("wait")
+    s = sp.add_parser("wait")
+    s.add_argument("--job", help="take this job only (the page opened a new Claude for it)")
     s = sp.add_parser("status")
     s.add_argument("job", choices=JOBS)
     s.add_argument("--step")
@@ -1859,7 +2556,7 @@ def main():
         else:
             print("already serving" + ("" if a.no_open else "; opened it"))
     elif a.cmd == "wait":
-        cmd_wait()
+        cmd_wait(job=a.job)
     elif a.cmd == "status":
         sys.exit(cmd_status(a))
 

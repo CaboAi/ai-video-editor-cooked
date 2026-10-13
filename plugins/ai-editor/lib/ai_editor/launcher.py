@@ -3,6 +3,7 @@
 
     nextwork-editor                 open the window (the same address every time)
     nextwork-editor --dry-run [--os Darwin|Linux|Windows]   print what it would run, and where
+    open_claude(folder, prompt)     the home page's "Open a new Claude for this video": a new terminal window
     python3 launcher.py demo        self-check
 
 `setup.py install-launcher` puts the `nextwork-editor` command on the PATH; `uninstall-launcher` takes
@@ -30,7 +31,7 @@ PLUGIN = Path(__file__).resolve().parents[2]          # plugins/ai-editor
 PROMPT = "/ai-editor:start open the home page"
 
 
-def plan(os_name=None, plugin=PLUGIN, claude=None):
+def plan(os_name=None, plugin=PLUGIN, claude=None, prompt=PROMPT):
     """The Claude Code command. A plugin installed through /plugin lives under ~/.claude/plugins and loads
     by itself; a checkout of this repo loads for this session with --plugin-dir (its plugins/ folder, so
     creator-teardown comes too)."""
@@ -39,11 +40,58 @@ def plan(os_name=None, plugin=PLUGIN, claude=None):
     cmd = [claude]
     if "/.claude/plugins/" not in Path(plugin).as_posix() + "/":
         cmd += ["--plugin-dir", str(Path(plugin).parent)]
-    return cmd + [PROMPT]
+    return cmd + [prompt]
 
 
 def show(cmd, os_name):
     return subprocess.list2cmdline(cmd) if os_name == "Windows" else shlex.join(cmd)
+
+
+def terminal(folder, cmd, os_name):
+    """The command that opens a new terminal window running cmd in folder, or None when this computer has no
+    terminal to open (Linux without x-terminal-emulator): the page then shows the command to copy."""
+    if os_name == "Darwin":
+        line = f"cd {shlex.quote(str(folder))} && {shlex.join(cmd)}"
+        esc = line.replace("\\", "\\\\").replace('"', '\\"')   # inside an AppleScript string
+        return ["osascript", "-e", f'tell application "Terminal" to do script "{esc}"',
+                "-e", 'tell application "Terminal" to activate']
+    if os_name == "Windows":
+        # a console of its own (CREATE_NEW_CONSOLE) started in folder, so the folder is never quoted for cmd. One
+        # string, not a list: a list would escape the inner quotes as \" (cmd reads them literally); cmd /k
+        # strips the outer pair and runs what is inside as typed.
+        return f'cmd /k "{subprocess.list2cmdline(cmd)}"'
+    xte = shutil.which("x-terminal-emulator")
+    if not xte:
+        return None
+    return [xte, "-e", "sh", "-c", f'cd {shlex.quote(str(folder))} && {shlex.join(cmd)}; exec "${{SHELL:-sh}}"']
+
+
+def start(argv, folder, os_name):
+    """Run terminal()'s command. True only when the window opened (as far as the OS says)."""
+    try:
+        if os_name == "Darwin":   # osascript returns once Terminal has the window, non-zero when it is refused
+            return subprocess.run(argv, capture_output=True, timeout=60).returncode == 0
+        if os_name == "Windows":
+            subprocess.Popen(argv, cwd=str(folder), creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0x10))
+            return True
+        p = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:   # a terminal that cannot start exits at once
+            return p.wait(timeout=2) == 0
+        except subprocess.TimeoutExpired:
+            return True
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def open_claude(folder, prompt, os_name=None, run=start):
+    """(opened, the command as the user would type it, for the page to show when nothing opened).
+    run(argv, folder, os_name) -> bool; the demos pass a recorder so no real window opens."""
+    os_name = os_name or platform.system()
+    cmd = plan(os_name, prompt=prompt)
+    text = (f"cd /d {show([str(folder)], os_name)} && " if os_name == "Windows" else f"cd {show([str(folder)], os_name)} && ") \
+        + show(cmd, os_name)
+    argv = terminal(folder, cmd, os_name)
+    return (bool(argv) and run(argv, folder, os_name)), text
 
 
 def main(argv=None):
@@ -94,6 +142,23 @@ def demo():
         assert lines[0] == f"cd {q}{library.path(make=False)}{q}" and lines[1].endswith(f"{q}{PROMPT}{q}"), lines
         print(f"{os_name:<8} {lines[0]}  &&  {lines[1]}")
     assert not (tmp / "My Videos").exists(), "a dry run makes nothing"
+    # "Open a new Claude for this video": the window it would open, per OS (recorded, never run)
+    for os_name in ("Darwin", "Windows", "Linux"):
+        ran = []
+        opened, text = open_claude(Path("/lib/My Videos"), "/ai-editor:start take job video-2", os_name,
+                                   run=lambda w, f, o: ran.append((w, f)) or True)
+        assert "take job video-2" in text and "My Videos" in text, text
+        if ran:
+            assert opened and len(ran) == 1
+            w, f = ran[0]
+            flat = w if isinstance(w, str) else " ".join(w)
+            assert "take job video-2" in flat and (os_name == "Windows" or "My Videos" in flat), flat
+            assert os_name != "Darwin" or w[0] == "osascript", w
+            assert os_name != "Windows" or (w.startswith('cmd /k "') and "My Videos" not in w and text.startswith("cd /d ")), (w, text)
+        else:
+            assert os_name == "Linux" and not opened and not shutil.which("x-terminal-emulator"), "no terminal: copy it"
+        print(f"{os_name:<8} new Claude: {text}")
+        assert open_claude(Path("/lib/My Videos"), "x", os_name, run=lambda w, f, o: False)[0] is False, "nothing opened"
     # a page already served: its address opens again, Claude Code is not started a second time
     opened, real = [], (home.running, webbrowser.open)
     home.running, webbrowser.open = (lambda: "http://127.0.0.1:47821/?t=x"), opened.append

@@ -2,21 +2,22 @@
 
 # cooked.
 
-Edit your own talking-head video in the style of a creator you like. Open the folder in Claude Code
-and say **edit my video**, or paste a link.
+cooked. edits your talking-head video for you. You give it two things:
 
-1. Give it your video. It cuts out the retakes, false starts and pauses.
-2. Give it 3 to 6 videos edited the same way, from one creator or several. It measures the format:
-   cut speed, zooms, captions, graphics, transitions. That becomes one of your styles.
-3. It renders your video in that style, on your laptop or in the cloud, after you approve each step.
+1. **Your video.** It cuts out the retakes, false starts and pauses.
+2. **3 to 6 videos edited the same way.** They can come from one creator or from several. It measures
+   how they are edited: cut speed, zooms, captions, cards, graphics, sound. That set of numbers is a
+   **style**, and you keep it.
 
-It also makes three other things:
+Then it edits your video in that style. You approve the cut, then the look, then the render. It runs in
+[Claude Code](https://claude.com/claude-code) on your computer, with a window in your browser.
 
-- **Shorts from a long video or podcast.** Paste the link; it finds the clips and edits each one.
-- **A product video from a website.** Paste the URL; it asks what to show, records the real product
+It also makes:
+
+- **Shorts from a long video or podcast.** Paste the link. It finds the clips and edits each one.
+- **A product video from a website.** Paste the URL. It asks what to show, records the real product
   and cuts a launch film with its own music.
-- **A creator teardown.** Paste a profile; you get what makes their videos work and a style you can
-  edit with.
+- **A creator teardown.** Paste a profile. You get what makes their videos work, and a style.
 
 ![Six frames from an edit of the sample take: word captions, a captured page and logos timed to the words](docs/screens/after-talking-head.jpg)
 
@@ -26,26 +27,26 @@ Built by [NextWork](https://nextwork.ai). Free and open source (MIT). Works on M
 
 ## Start here
 
-After setup, this is how you open the editor every time. In a terminal, type:
+You need [Claude Code](https://claude.com/claude-code) and a Claude account (a paid plan or an API
+key). Pick one of three ways to get the editor. After that, open it from a terminal every time:
 
 ```
 nextwork-editor
 ```
 
-Your editor opens in the browser, at the same address every time (bookmark it). The sidebar has
-**+ New video**, **Home**, **Your videos**, **Styles** and your folders. Drop in your clips or click
-the ones you want, pick a style, press **Make my video** (or **Make it in a new Claude chat**, so
-that video's questions stay in their own chat). The first time, Claude Code asks
-"Do you trust the files in this folder?": pick **Yes, proceed** (it is your videos folder). Inside Claude Code,
-`/ai-editor:start` does the same. Setup adds the command; `python3 plugins/ai-editor/skills/setup/scripts/setup.py
-uninstall-launcher` removes it.
+The editor opens in your browser, at the same address every time (bookmark it). Inside Claude Code,
+`/ai-editor:start` or **edit my video** does the same. Setup adds the command;
+`python3 plugins/ai-editor/skills/setup/scripts/setup.py uninstall-launcher` removes it.
+
+**The window.** A sidebar on the left has **+ New video**, **Home**, **Your videos**, **Styles**, your
+folders, the video being made right now with its progress, and **Settings**. The panel button folds the
+sidebar into a row of icons. To make a video: drop in your clip (or click one you added before), pick a
+style, press **Make my video**. **Make it in a new Claude chat** keeps that video's questions in their
+own chat. The first time, Claude Code asks "Do you trust the files in this folder?": pick
+**Yes, proceed** (it is your videos folder).
 
 Your videos are saved in one folder, wherever you start: `~/Movies/AI Editor` on a Mac,
-`~/Videos/AI Editor` on Windows and Linux. Change it in the editor's Settings (or set
-`AI_EDITOR_LIBRARY`).
-
-The first time, you need [Claude Code](https://claude.com/claude-code) and a Claude account (a paid
-plan or an API key). Pick one of three ways.
+`~/Videos/AI Editor` on Windows and Linux. Change it in Settings (or set `AI_EDITOR_LIBRARY`).
 
 ### Way 1: open this folder in Claude Code (easiest)
 
@@ -75,15 +76,8 @@ it asks you to log in.
 **4. Say yes when it asks whether you trust this folder.** That lets the editor load. Then type
 **edit my video**.
 
-**5. Pick "Open the home page".** The editor opens in your browser and takes you through three
-steps, shown as **Getting started** in the sidebar:
-
-1. **Set up.** It checks your computer and installs what is missing. Meanwhile it offers two
-   optional free keys (saved on your computer, never sent to the chat).
-2. **Analyse a format.** Paste 3 to 6 links to videos edited the same way (or a profile, then tick
-   its videos) and press **Analyse this format**. Claude measures them (about 3 minutes, free) and
-   saves a named style with what it measured and links to the videos it came from.
-3. **Make a video.** Drop in your clip, keep the new style picked, press **Make my video**.
+**5. Pick "Open the home page".** The editor opens in your browser. Follow
+[Getting started](#getting-started) below.
 
 The folder's `.claude/settings.json` turns the editor on. If Claude says the editor is not loaded,
 it offers to install it: say yes, then type `/reload-plugins`.
@@ -137,47 +131,122 @@ If you want to change the editor's own code:
    /plugin install ai-editor@nextwork
    ```
 3. Clone your fork and change anything you like.
-4. When a new version comes out, say **update the editor**. Claude makes a backup branch, pulls the
-   new version in, keeps your changes, runs the self-checks, and takes you back to the backup if
-   they fail. It never pushes unless you ask.
+4. When a new version comes out, say **update the editor** (see [Updating](#updating)).
 
-## What happens next
+## Getting started
 
-1. **Setup**, first time only. Claude checks your computer and installs what is missing: Python,
+The first time, the sidebar shows **Getting started** with three steps. It ticks them off as you go
+and goes away once your first cut is ready.
+
+1. **Set up.** Press **Start setup**. It checks your computer and installs what is missing: Python,
    ffmpeg, Node, the free transcription model and the renderer (about 1.5 GB, most of it the
-   renderer). On GitHub's clean runners the install took 25-36 s on Linux, 33-49 s on a Mac and
-   66-75 s on Windows, with the 75 MB test model in place of the 500 MB default; a home line is
-   slower. It asks before each step. Anything that needs your password, Claude gives you
-   to paste into your own terminal.
-2. **Keys**, optional, about 5 minutes. Two free accounts that make your edits better and use
-   less of your Claude usage: ElevenLabs hears every um and retake, so the cut is cleaner; Gemini
-   reads a format's fonts, colours and graphics. Skip either and Claude does that job instead. Skip them and add them later by saying **finish setup**. Never paste
-   a key into the chat: Claude gives you a command that saves it from your own terminal.
-3. **A few questions, once.** Platform, creators you like, brand, names to show, captions, sound.
-   Each is multiple choice and the first option is fine to accept. Saved in
-   `~/.ai-video-editor/profile.json`.
-4. **Your first edit.** Give the path to your video (an mp4 or mov of you talking to camera), or
-   paste a link to it. No video yet? Pick **Use the sample take**.
-5. **Approve the cut.** The editor shows your video beside its transcript, which follows playback.
-   Struck words were cut: select words to cut or restore them. Pause anywhere to leave a note, then
-   press **Send notes** for another round, or **Approve the cut and add captions**.
-6. **Approve the stills.** A sheet of frames from the styled edit. Approve, or say what to change.
-   You can also open the edit in your browser and move, trim, swap or delete anything by hand.
-7. **Pick where to render.** Claude times each option on your video and shows the cost first.
-   The render opens on a review page: watch it, pause and leave notes at the moments to change,
-   then send them for the next round or approve.
-8. **Say what you'd change** ("captions too small", "fewer zooms"). It is saved to
-   `~/.ai-video-editor/taste.md` and used on every video after. When you approve, pick **Teach your
-   style from this video** to save what you liked into that style.
+   renderer). On GitHub's clean runners this took 25-36 s on Linux, 33-49 s on a Mac and 66-75 s on
+   Windows, with the 75 MB test model in place of the 500 MB default. A home connection is slower.
+   Anything that needs your password, Claude gives you to paste into your own terminal. While it
+   installs, it offers two optional keys (see [Keys](#keys)).
+2. **Analyse a format.** Paste 3 to 6 links to videos edited the same way, or paste a profile and
+   tick its videos. Press **Analyse this format**. Claude measures them (about 3 minutes, free) and
+   saves a style you can rename. The style lists the videos it came from.
+3. **Make a video.** Drop in your clip. The new style is already picked. Press **Make my video**.
+   No video yet? Pick **Use the sample take**.
 
-Your files land in your library folder (`~/Movies/AI Editor` on a Mac, `~/Videos/AI Editor`
-elsewhere), or in a project folder you name: `videos/` (clips you dropped in), `edits/<name>/`,
-`clips/<name>/`, `product/<name>/` and `creator-teardowns/<handle>/`. The editor's **Your videos**
-lists every one, with its editor page and a ⋯ menu (Remove from this list, Move to folder, Download,
-Move to Trash). Folders in the sidebar filter the list: drag a card onto one to file it. **Styles**
-lists every style you can edit with, each saying where it came from (built by you, from creators'
-videos, or a sample like **Card edit**). **Clear working files** in Settings never deletes your clips,
-a cut, a final video or your notes.
+Claude also asks a few questions once (platform, brand, captions, sound). Each is multiple choice and
+the first option is fine. The answers are saved in `~/.ai-video-editor/profile.json`.
+
+## Keys
+
+Both are optional and free to start. They make edits better and use less of your Claude usage.
+Skip either and Claude does that job instead. Add them later by saying **finish setup**.
+
+- **ElevenLabs** transcribes every "um", false start and retake, so the cut is cleaner. Without it,
+  Whisper transcribes on your computer, which tidies some of those away.
+- **Gemini** (Google AI Studio) watches a format's videos and reads its fonts, colours and graphics.
+
+Never paste a key into the chat. Claude gives you a command that saves it from your own terminal.
+Keys live in `~/.config/creator-teardown/.env`.
+
+## The editor
+
+Each video has an editor page. It opens on the cut, then on each render.
+
+- **Your video beside its transcript.** The transcript follows playback. Struck words were cut.
+- **Suggested cuts.** Claude marks words it thinks should go. Keep them one by one, or press
+  **Accept all**.
+- **Change the cut yourself.** Select words to cut or restore them. **Preview** plays the cut with
+  your changes. **Apply** keeps them. Undo and Discard are there too.
+- **Notes.** Pause anywhere and leave a note. **Send notes** starts the next round. Approve when it
+  looks right.
+- **The look.** After the cut, Claude makes a sheet of frames from the styled edit. Approve, or say
+  what to change. You can also move, trim, swap or delete anything by hand.
+- **The render.** Claude times each place to render on your video and shows the cost first. The
+  render opens on the same page: watch it, leave notes, send them or approve.
+- **Teach your style.** When you approve the final video, **Teach your style from this video** turns
+  your notes into short rules for that style. You see each rule and tick the ones to keep.
+
+A correction you say in the chat ("captions too small", "fewer zooms") is saved to
+`~/.ai-video-editor/taste.md` and used on every video after.
+
+## Styles
+
+**Styles** is one list of every style you can edit with. Each card says where it came from: built by
+you, learned from your edits, or from a creator's videos. Tabs filter the list: **All**,
+**Built by you**, **From creators**.
+
+- **Card edit** is a sample style that comes with the editor: real screenshots, logos, photos and
+  clips on cards behind you, a title pill on the hook, a numbered list, and a red X over a card that
+  does not apply.
+- **New style** opens three choices: **Analyse a format** (paste 3 to 6 videos), **Build it
+  yourself** (set captions, zooms, cut, cards and sound), or **Use your own skill** (see below).
+- A style's page shows it on your video, with its captions, zooms, cut, cards and sound as options.
+  Changes save as you go. Make any style your default.
+- **Skill styles.** A style can run a Claude Code skill instead of using settings. Its card says
+  "Runs /<skill>". Making a video cuts it as usual, then runs that skill on the approved cut and puts
+  its render on the editor page.
+- **Archive** a style from its ⋯ menu to hide it. An **Archived** tab shows up when you have any,
+  with Unarchive and Delete. **Delete** moves the style to the Trash.
+- **Folders** in the sidebar filter your videos and styles. Drag a card onto a folder to file it.
+  **New folder** is next to New style and at the top of Your videos.
+
+**Your videos** lists every video, with its editor page and a ⋯ menu (Remove from this list, Move to
+folder, Download, Move to Trash). **Clear working files** in Settings never deletes your clips, a cut,
+a final video or your notes.
+
+Files land in your library folder, or in a project folder you name: `videos/` (clips you dropped in),
+`edits/<name>/`, `clips/<name>/`, `product/<name>/` and `creator-teardowns/<handle>/`.
+
+## Skills
+
+The editor is a set of Claude Code skills. Three of them help you with your own:
+
+- **logo pack.** Gets the official, brand-colour logo of every company, app and tool named in a video,
+  checks each one and shows them on one sheet. The edit uses them, and shows logos named together side
+  by side.
+- **skill improver.** Turns a finished video's notes into one-line rules in the style or skill that
+  made it, after you say yes. It is what **Teach your style from this video** runs.
+- **skill maker.** Helps you build your own editing skill. It asks a few questions, runs the task once
+  without a skill, writes three test cases, drafts the skill, tests it in a fresh agent and fixes it
+  with you.
+
+For example, say **make a skill** and describe trial reels: short re-cuts of a reel you already
+posted, each with a new opening line and hook. skill maker writes the skill and tests it. Then
+**New style > Use your own skill** turns it into a style, so every video you make with that style gets
+the trial-reel treatment. Your skills live in your own folder and stay when the editor updates.
+
+## Updating
+
+If you installed the plugin (Way 2), type these in Claude Code:
+
+```
+/plugin marketplace update nextwork
+/plugin update ai-editor@nextwork
+/reload-plugins
+```
+
+If you cloned or forked the folder, say **update the editor**. Claude makes a backup branch, pulls the
+new version in, keeps your changes and runs the self-checks. If they fail, it takes you back to the
+backup. It never pushes unless you ask. Settings also shows when an update is ready.
+
+Your styles, skills and settings live in your library folder, not in the plugin, so they stay.
 
 ## What you can say
 
@@ -190,6 +259,9 @@ a cut, a final video or your notes.
 | `style-edit` | "style it", "add captions and zooms", "render the edit", "export to Final Cut" (or Premiere, Resolve, CapCut) | |
 | `overlays` | after a render: "add an animation here", "make a diagram of how this works", "this card is wrong", "swap the logo", "show the real page instead", "fewer cards" | |
 | `taste` | "captions too small", "fewer zooms" | |
+| `logo-pack` | "make a logo pack", "get the logos for this video", "the logos look fake" | |
+| `skill-maker` | "make a skill", "create a skill", "turn this into a skill", "help me write a skill" | |
+| `skill-improver` | "teach my style from this video", "turn my notes into rules", "make this feedback stick" | |
 | `clips` | "clip this video", "make shorts from my podcast" | a long video, a YouTube link, a podcast episode (Apple Podcasts, RSS, YouTube) |
 | `product-video` | "make a launch video for my site" | a website URL |
 | `update` | "update the editor", "get the latest version", "sync my fork" | |

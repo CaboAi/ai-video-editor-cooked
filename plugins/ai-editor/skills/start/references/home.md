@@ -43,7 +43,10 @@ video at a time. A taken job with no report for 15 minutes belonged to a session
 `status` or `wait --job` from another session adopts it and prints `adopted <id>`. Every video gets a Claude of its
 own: when the user presses Make my video, each new video job (one per clip for "Separate videos") opens a new
 Terminal window running Claude Code in the library with the prompt `/ai-editor:start take job <id>`, unless an idle
-listening Claude can take it right now (then that one does, and the rest still get their own). Where no terminal can
+listening Claude can take it right now (then that one does, and the rest still get their own). A listening Claude is
+idle only with no active job: none it holds (a creator, a skill, a video's cut) and no video whose edit it is still on
+(that editor's `wait` listening, or a review command there in the last 15 minutes). Setup and the sample stay with
+the listening Claude; a creator's analysis is queued for it like any job. Where no terminal can
 open (Linux without x-terminal-emulator), the editor shows that command to run instead. On that prompt run
 `python3 "$H" serve --no-open` and `python3 "$H" wait --job <id>` (both in the background): it prints that
 job's line (or `GONE` when it is done or another session has it), then do the job as below. Do not start a
@@ -52,7 +55,9 @@ plain `wait` afterwards unless the user asks for more.
 ## Questions
 
 Ask with AskUserQuestion as usual. When the home page or a review page is open and showing, a hook
-(`lib/ai_editor/askhook.py`) puts the question on that page: the options, an Other box with a paperclip (an image
+(`lib/ai_editor/askhook.py`) puts the question on that page. A question about a video goes to that video's editor
+only: the hook takes the video your latest command named (its edit folder), so run a command on that edit (any
+`review.py <edit> ...` or script on it) before asking about it. On the page: the options, an Other box with a paperclip (an image
 can also be pasted or dropped on the card), and "Answer in Claude Code instead". Images are saved on this
 computer (the review page: `<edit>/review/`; the home page: `<edit>/asks/`, or `$AI_EDITOR_HOME/asks` with no
 edit folder yet) and the answer ends with `Attached images: /abs/a.png (Read each one to see it)`: Read every
@@ -155,8 +160,9 @@ video, so join them first (`cut/references/takes.md`, `join.py <edit>/joined.mp4
 no question: the page asked it). "Separate videos" arrives as one JOB per clip; take them one by one.
 
 `as=` is this video's style only: never `profile.py set creators` for it (only the page's Make default changes the
-saved style). Blend with it in start step 3: `profile.py style <edit> --as <mine|defaults|@handle>` (the job's
-value as it is). When
+saved style). The page already wrote `<edit>/style.json` from it (when the job was made, and again when `wait`
+handed it to you): skip start step 3's blend, never run `profile.py style` on this edit without `--as <the job's
+value>`. `check.py plan` fails when the edit's style is not the one `as=` names. When
 `creator-teardowns/<h>/style.json` is not there yet, that creator is still being copied: cut now
 (the cut needs no style) and start the styled pass once the teardown job is done.
 `aspect`: `profile.py set aspect=<a>`.

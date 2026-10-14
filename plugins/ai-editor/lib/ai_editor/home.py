@@ -51,7 +51,9 @@ the launcher and a bookmark always open the same page.
 Sessions: the window is shared by every Claude Code session on the computer, so each job remembers the
 session that took it (`owner`, from CLAUDE_CODE_SESSION_ID). `status` from another session never writes
 to it, `wait` never takes a job reserved for the Claude opened for that video (every video gets one, claude_for), and a
-question (askhook.py) reaches this page only from a session holding one of its jobs or listening for one.
+question (askhook.py) reaches this page only from a session holding one of its jobs or listening for one, or when
+the hook knows which video it is about (askhook.asking_edit), labelled with that video's name.
+Every video job also gets <edit>/style.json from its as= (seed_style) when it is made and when a Claude takes it.
 """
 import argparse
 import base64
@@ -1458,11 +1460,17 @@ def queue(d, kind, args):
 
 
 def phase(e):
-    """Where a library video is, in the words the cards use: cutting, notes (Claude has the user's notes), stills
+    """Where a library video is, in the words the cards use: ask (Claude's question about it waits on the user,
+    askhook's <edit>/review/asking), cutting, notes (Claude has the user's notes), stills
     (making the stills after the cut was approved), rendering (the stills approved), cut / approve / edit (the
     user's turn: watch the cut, approve the stills, watch the edit), done (the finished video exists)."""
     r = library._review(Path(e["dir"])) or {}
     last = (r.get("events") or [{}])[-1]
+    try:   # Claude's question waits on the user (askhook.mark): their turn, whatever the step
+        if e["status"] != "done" and time.time() - (Path(e["dir"]) / "review" / "asking").stat().st_mtime < askhook.KEEP_S:
+            return "ask"
+    except OSError:
+        pass
     if e["status"] == "cutting":
         return "cutting"
     if e["status"] == "done" or r.get("final") and r.get("sent") and last.get("type") == "approve":
@@ -1511,6 +1519,29 @@ def getting_started(d):
     return {"setup": setup or video and not running, "style": style or video, "video": video}
 
 
+def seed_style(args, root):
+    """<edit>/style.json from the job's as= (profile.py style --as), written by the page when the job is made and again
+    when a Claude takes it, so the style the user picked is the edit's whichever Claude makes it. Left alone when it
+    already is that style. "written", "kept", or None (the sample, or a creator still being analysed: the take writes it)."""
+    if args.get("sample") or not args.get("edit") or not args.get("as"):
+        return None
+    import contextlib
+    import io
+    from ai_editor import profile as pf
+    e = Path(args["edit"])
+    try:
+        if pf.picked(json.loads((e / "style.json").read_text(encoding="utf-8")), args["as"]) is None:
+            return "kept"
+    except (OSError, ValueError):
+        pass
+    try:
+        with contextlib.redirect_stderr(io.StringIO()):
+            pf.write_style(e, root=Path(root), as_=args["as"])
+        return "written"
+    except (SystemExit, OSError, ValueError):
+        return None
+
+
 def claude_for(jid):
     """A new terminal with a Claude that takes video job jid only ("take job <id>", `wait --job`): reserved first, so
     the listening Claude leaves it alone. {opened, command} (also kept on the job as "claude", so the page shows it, or
@@ -1530,10 +1561,34 @@ def claude_for(jid):
     return r
 
 
+def editing(j):
+    """A video whose cut is done but whose edit is not finished, with its Claude still on it: the editor's `wait`
+    listening (review/.listening) or Claude working there (review/.claude) in the last STALE_S."""
+    try:
+        e = Path(j["args"]["edit"])
+        if library.status(library._review(e)) == "done":
+            return False
+        ago = lambda n: time.time() - (e / "review" / n).stat().st_mtime
+        for n, s in ((".listening", 30), (".claude", STALE_S)):
+            try:
+                if ago(n) < s:
+                    return True
+            except OSError:
+                pass
+    except (KeyError, TypeError, OSError, ValueError):
+        pass
+    return False
+
+
 def busy_with(d, sid):
-    """The video job session sid is making now, or None."""
-    return next((j for j in reversed(d["jobs"]) if j["type"] == "video" and j["state"] == "taken"
-                 and sid and j.get("owner") == sid), None)
+    """The job session sid is on now, or None: one it holds (a creator, a video's cut, a skill; setup is left out, the
+    Claude installing takes the next video, as a second one would install again), or a video whose cut it made and
+    whose edit it is still on (editing). A new video then gets a Claude of its own."""
+    if not sid:
+        return None
+    mine = [j for j in reversed(d["jobs"]) if j.get("owner") == sid and j["type"] not in ("setup", "modal", "modal-test")]
+    return next((j for j in mine if j["state"] == "taken"), None) or \
+        next((j for j in mine if j["type"] == "video" and j["state"] == "done" and editing(j)), None)
 
 
 def takeable(j, sid, d, job=None):
@@ -1545,7 +1600,7 @@ def takeable(j, sid, d, job=None):
         return j["id"] == job
     if j.get("reserved") and time.time() - j["reserved"] < (OPENED_S if (j.get("claude") or {}).get("opened") else RESERVE_S):
         return False
-    return not (j["type"] == "video" and busy_with(d, sid))
+    return not (j["type"] == "video" and not j["args"].get("sample") and busy_with(d, sid))   # the sample: the first Claude
 
 
 def cmd_wait(poll=1.0, job=None):
@@ -1581,10 +1636,14 @@ def cmd_wait(poll=1.0, job=None):
         if sid:
             j["owner"] = sid
         d["claude_seen"] = j["u"]
+        got[:] = [j["type"], j["args"], d["root"]]
         return job_line(j, d["root"])
+    got = []
     line = update(take)
     if line is None:
         return cmd_wait(poll)
+    if got and got[0] == "video":   # the picked style is in the edit before Claude reads the line
+        seed_style(got[1], got[2])
     print(line, flush=True)
     return line
 
@@ -1610,6 +1669,9 @@ def _take_one(job, sid, poll):
         if line != "GONE" or any(j["id"] == job for j in read()["jobs"]):
             break
         time.sleep(poll)
+    j = next((j for j in read()["jobs"] if j["id"] == job and j["type"] == "video"), None)
+    if j and line != "GONE":   # the picked style is in the edit before Claude reads the line
+        seed_style(j["args"], read()["root"])
     if line == "GONE":
         line = f"GONE: {job} is finished, cancelled or another Claude has it. Nothing to do."
     print(line, flush=True)
@@ -2321,6 +2383,8 @@ def make_handler(token):
                     (edit / "script.md").write_text(script + "\n", encoding="utf-8")
                     args["script"] = str(edit / "script.md")
                 assets.add(edit, adds)   # "Add images or links": edit/assets/ + assets.json, before the job line is read
+                if not sample:   # the style the user picked, in the edit before any Claude takes it (the sample ships its own)
+                    seed_style(args, d["root"])
                 if sample:   # its transcript, cut, style and visuals, so Claude skips transcribing, deciding and judging
                     for f in SAMPLE.glob("*.json"):
                         shutil.copyfile(f, edit / f.name)
@@ -2340,7 +2404,8 @@ def make_handler(token):
             lis, d = listener(), read()
             idle = lis is not None and not busy_with(d, lis) and not any(takeable(j, lis, d) for j in d["jobs"] if j["id"] not in ids)
             # the sample before setup is done: the Claude installing takes it next, as a second one would install again
-            idle = idle or sample and not getting_started(d)["setup"]
+            # and the sample always stays with the listening Claude (setup, analysis and the sample are the first Claude's)
+            idle = idle or sample and (lis is not None or not getting_started(d)["setup"])
             for jid in ids[1:] if idle else ids:
                 claude_for(jid)
             return self.send(200, {"id": ids[0], "ids": ids, "edits": edits})
@@ -2521,22 +2586,6 @@ def head_start(path):
     except (OSError, subprocess.SubprocessError):   # a head start only: Make still does all of it
         pass
 
-    def note(d):
-        a = d.setdefault("added", {})
-        a.setdefault(p["path"], time.time())
-        d["added"] = dict(list(a.items())[-20:])
-    update(note)
-    import run
-    quiet = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL, "start_new_session": os.name != "nt"}
-    try:
-        if run.venv_python().exists():
-            subprocess.Popen([sys.executable, str(Path(run.__file__)), str(TRANSCRIBE), p["path"], "--pre"], **quiet)
-        if (home().parent / "remotion" / "node_modules" / "remotion").exists() and not any(w.poll() is None for w in _warming):
-            _warming[:] = [subprocess.Popen([sys.executable, str(EDIT_PY), "warm"], **quiet)]
-    except OSError:   # a head start only: Make still does all of it
-        pass
-    return p
-
 
 def review_url(d):
     """The URL of review.py's page for edit folder d, starting its server (detached) when none answers."""
@@ -2653,6 +2702,15 @@ def demo():
     import atexit
     atexit.register(lambda: [p.terminate() for p in _spawned])   # a failed check leaves no review server behind
     os.environ["AI_EDITOR_HOME"] = str(tmp / "home")
+    # head_start (the early transcription when a clip is added) runs to the end: transcribe --pre, no NameError
+    import run as _run
+    ran, real_run, real_vp = [], subprocess.run, _run.venv_python
+    subprocess.run, _run.venv_python = (lambda a, **k: ran.append(a)), (lambda: Path(sys.executable))
+    try:
+        head_start("/x/clip.mov")
+    finally:
+        subprocess.run, _run.venv_python = real_run, real_vp
+    assert ran and ran[0][-2:] == ["/x/clip.mov", "--pre"], ran
     # the self-check never touches the real Trash: "trashed" files are removed from the temp folder instead
     globals()["trash"] = lambda p: (shutil.rmtree(p) if Path(p).is_dir() else Path(p).unlink(missing_ok=True)) or not Path(p).exists()
     for v in keys.VARS.values():
@@ -2920,6 +2978,12 @@ def demo():
     post("/job", {"type": "video", "path": str(vid), "aspect": "9:16"})
     ed = root.resolve() / "edits" / "take"
     assert out(cmd_wait, 0.01) == f"JOB video {vid.resolve()} as=@sample.creator aspect=9:16 edit={ed} root={root.resolve()}"
+    # the picked style is the edit's style.json before Claude reads the line (QA round 3: Motion design came out default)
+    assert json.loads((ed / "style.json").read_text(encoding="utf-8"))["handle"] == "sample.creator"
+    (ed / "style.json").write_text('{"handle": "default"}', encoding="utf-8")
+    assert seed_style({"edit": str(ed), "as": "@sample.creator"}, root) == "written"
+    assert seed_style({"edit": str(ed), "as": "@sample.creator"}, root) == "kept"
+    assert json.loads((ed / "style.json").read_text(encoding="utf-8"))["handle"] == "sample.creator"
     assert ed.is_dir() and str(ed) in json.loads((tmp / "home" / "library.json").read_text(encoding="utf-8"))["edits"]
     (home() / ".listening").touch()
     assert out(cmd_wait, 0.01).startswith("ALREADY")
@@ -2964,6 +3028,21 @@ def demo():
     jxj = next(j for j in read()["jobs"] if j["id"] == jx)
     assert opened == [(str(root.resolve()), f"/ai-editor:start take job {jx}")] and jxj["claude"]["opened"] and jxj["reserved"], (opened, jxj)
     assert not takeable(jxj, "sess-A", read()), "the busy Claude never takes it"
+    # A's cut is out (its job done) but A is still on that video's edit (the editor's wait listens): still busy, so
+    # the next video gets a Claude of its own (QA round 3: one Claude took both videos)
+    be = tmp / "busy-edit"
+    (be / "review").mkdir(parents=True)
+    (be / "review" / ".listening").touch()
+
+    def swap(d):
+        next(j for j in d["jobs"] if j["id"] == ja["id"])["state"] = "done"
+        queue(d, "video", {"edit": str(be), "as": "mine"}).update(state="done", owner="sess-A")
+    update(swap)
+    assert busy_with(read(), "sess-A")["args"]["edit"] == str(be)
+    assert takeable(dict(jxj, reserved=0, args=dict(jxj["args"], sample=1)), "sess-A", read()), "the sample: the first Claude's"
+    (be / "review" / ".listening").unlink()
+    assert busy_with(read(), "sess-A") is None, "its edit left: free again"
+    update(lambda d: next(j for j in d["jobs"] if j["id"] == ja["id"]).update(state="taken"))
     update(lambda d: next(j for j in d["jobs"] if j["id"] == jx).update(state="done"))
     opened.clear()
     (home() / ".listening").unlink()

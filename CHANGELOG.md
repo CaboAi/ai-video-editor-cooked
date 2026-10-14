@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.5, creator-teardown 2.7.5 (2026-10-14)
+
 - Videos are made faster, and look the same. Transcription starts the moment you add a clip on New video, while
   you pick a style. The edit renders in the background while you look at the stills, so Approve with no notes has
   it ready (lower priority, and not on battery). Pages and logos captured for one video are reused by the next for

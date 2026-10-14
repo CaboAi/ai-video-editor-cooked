@@ -887,9 +887,9 @@ function renderList(){
     const rs=(S.rounds||[cur()]).filter(r=>r.stage===view.stage).slice().reverse(),p=pending();
     $('list').innerHTML=rs.map(r=>{const n=S.comments.filter(c=>c.stage===r.stage&&c.round===r.round).length,k=key(r);
       const acts=[k!==key(view)?`<button data-cmp="${k}">Compare side by side</button>`:'',
-        r.stage===S.stage&&r.round!==S.round&&r.round>0&&!r.stills&&r.snap&&!p&&!S.raw?`<button data-back="${r.round}"${sureBack===r.round?' class="sure"':''}>${sureBack===r.round?'Click again to go back':'Go back to this round'}</button>`:''].filter(Boolean);
-      return `<div class="rnd${k===key(view)?' on':''}" data-k="${k}" role="button" tabindex="0"><div class="rm"><b>${rn(r)}</b><span>${[k===key(cur())?'latest':'',r.back_to?'round '+r.back_to+' again':'',plural(n,'note'),r.at?ago(r.at):''].filter(Boolean).join(' · ')}</span></div>${acts.length?`<div class="racts">${acts.join('')}</div>`:''}</div>`}).join('')
-      +(rs.length>1?'<p class="empty2">Click a round to watch it at the same moment.</p>':'');
+        r.stage===S.stage&&r.round!==S.round&&r.round>0&&!r.stills&&r.snap&&!p&&!S.raw?`<button data-back="${r.round}"${sureBack===r.round?' class="sure"':''}>${sureBack===r.round?'Click again to go back':'Go back to this draft'}</button>`:''].filter(Boolean);
+      return `<div class="rnd${k===key(view)?' on':''}" data-k="${k}" role="button" tabindex="0"><div class="rm"><b>${rn(r)}</b><span>${[k===key(cur())?'latest':'',r.back_to?'draft '+r.back_to+' again':'',plural(n,'note'),r.at?ago(r.at):''].filter(Boolean).join(' · ')}</span></div>${acts.length?`<div class="racts">${acts.join('')}</div>`:''}</div>`}).join('')
+      +(rs.length>1?'<p class="empty2">Click a draft to watch it at the same moment.</p>':'');
     return;
   }
   const vr=viewRound(),p=pending();
@@ -900,8 +900,8 @@ function renderList(){
   const also=[...(vr.changed||[]).map(text=>({t:null,text})),...(data().changes||[])];   // Claude's own lines, then what the files say
   if(prev.length||also.length||vr.back_to){
     const todo=prev.filter(c=>!c.checked||c.status==='wontfix'),done=prev.filter(c=>c.checked&&c.status!=='wontfix'),wf=workedFor(vr);
-    h+=`<div class="chhead"><b>Changed in this round</b>${wf?`<span class="since">Worked for ${wf}</span>`:''}</div>`;
-    if(vr.back_to)h+=`<div class="chg back">Back to round ${vr.back_to}. Its plan and render are restored.</div>`;
+    h+=`<div class="chhead"><b>Changed in this draft</b>${wf?`<span class="since">Worked for ${wf}</span>`:''}</div>`;
+    if(vr.back_to)h+=`<div class="chg back">Back to draft ${vr.back_to}. Its files and video are restored.</div>`;
     h+=todo.map(noteHtml).join('');
     if(done.length)h+=`<button class="obtn" id="morechk">${done.length} checked, ${showChecked?'hide':'show'}</button>`+(showChecked?done.map(noteHtml).join(''):'');
     h+=also.map(c=>`<button class="chg" ${c.t!=null?`data-t="${c.t}" title="jump to ${fmt(c.t)}"`:'tabindex="-1"'}>${c.t!=null?`<span class="tchip num">${fmt(c.t)}</span>`:''}<span>${esc(c.text)}</span></button>`).join('');
@@ -968,7 +968,7 @@ $('list').addEventListener('click',async e=>{
   const bk=e.target.closest('[data-back]');
   if(bk){const n=+bk.dataset.back;if(sureBack!==n){sureBack=n;clearTimeout(sureBack.h);setTimeout(()=>{if(sureBack===n){sureBack=null;renderList()}},4000);return renderList()}
     sureBack=null;bk.disabled=true;const r=await fetch('/back',{method:'POST',body:JSON.stringify({round:n})}),j=await r.json().catch(()=>({}));
-    if(!r.ok)return alert(j.error||'Could not go back');toast('Back to round '+n);tab='notes';followNew=true;return load(true)}
+    if(!r.ok)return alert(j.error||'Could not go back');toast('Back to draft '+n);tab='notes';followNew=true;return load(true)}
   const r=e.target.closest('.rnd');if(r){const[stage,n]=r.dataset.k.split('-');seekTo=mapT(v.currentTime,key(view),r.dataset.k);view={stage,round:+n};inT=outT=null;setVideo();render();return}
   const ch=e.target.closest('.chg[data-t]');if(ch){v.currentTime=+ch.dataset.t;return}
   const sc=e.target.closest('[data-scope]');

@@ -24,7 +24,7 @@ product video). Notes save with the edit, never in the plugin:
     python3 review.py <folder> resolve <id> fixed|wontfix|open [--reply "..."] [--new-t 12.3]
     python3 review.py <folder> round --video v2.mp4 [--stage cut|edit] [--transcript ..] [--plan ..] [--note ".."]
                                      [--changed "Captions one size smaller" ...]   anything changed beyond the notes
-    python3 review.py <folder> back <n>             "Go back to round N" (the Rounds tab does the same): that round's files
+    python3 review.py <folder> back <n>             "Go back to draft N" (the Drafts tab does the same): that round's files
                                      (review/snap-<stage><n>/) and its render return as a new round
     python3 review.py <folder> alt <name> --video other.mp4 [--transcript ..]   another video in this round
     python3 review.py <folder> learn --scope this-style|style|video|everyone --rule <id> <section> "<rule>" [key=value] ...
@@ -51,7 +51,7 @@ the stills, the stills check, the render) from the home job and review.json, and
 the page shows under it, "Made in 6 min (cut 3:10, edit 1:40, render 0:52)". `round --stills` starts the laptop
 render in the background (edit.py render --speculative); notes sent on the stills, or Stop, end it.
 Every round snapshots the edit's own files (top-level .json/.txt under 2 MB, and .sfx/music.wav) into
-review/snap-<stage><round>/, so the page can show what changed ("Changed in this round": the notes Claude answered,
+review/snap-<stage><round>/, so the page can show what changed ("Changed in this draft": the notes Claude answered,
 then cards, zooms, captions, title, music and cut words that differ from the round before, plus each --changed line)
 and go back to any round. On the edit, a click on a card, caption, title or zoom on the frame starts a note naming it
 (the round's data "items"), and `wait` prints what is on screen at each note ([caption '...'], [zoom ...]).
@@ -415,7 +415,7 @@ def plan_changes(a, b, music=False):
     if not isinstance(a, dict) or not isinstance(b, dict):
         return []
     out = []
-    key = lambda c: (c.get("src") or json.dumps(c.get("anim") or {}, sort_keys=True), (c.get("trigger_word") or "").strip().lower())
+    key = lambda c: (c.get("src") or (c.get("anim") or {}).get("type") or c.get("format") or "card", (c.get("trigger_word") or "").strip().lower())
     A = {key(c): c for c in a.get("cards") or [] if "start" in c}
     B = {key(c): c for c in b.get("cards") or [] if "start" in c}
     gone, new = [c for k, c in A.items() if k not in B], [c for k, c in B.items() if k not in A]
@@ -428,10 +428,16 @@ def plan_changes(a, b, music=False):
     out += [(c["start"], "Removed the card" + _said(c.get("trigger_word"))) for c in gone]
     out += [(c["start"], "Added a card" + _said(c.get("trigger_word"))) for c in new]
     area = lambda c: (c.get("box") or [0, 0, 100, 100])[2] * (c.get("box") or [0, 0, 100, 100])[3]
+    px = lambda c: (lambda z: z[0] * z[1] if isinstance(z, list) and len(z) == 2 else 0)(c.get("size") or ((c.get("anim") or {}).get("props") or {}).get("size"))
+    shows = lambda c: ((c.get("props") or {}).get("url"), c.get("format"), ((c.get("anim") or {}).get("props") or {}).get("motion"))
+    grew = lambda f, x, y: f(x) and f(y) and abs(f(y) - f(x)) > 0.05 * f(x)
     for k in A.keys() & B.keys():
         x, y, w = A[k], B[k], _said(B[k].get("trigger_word"))
-        if x.get("box") != y.get("box") and abs(area(y) - area(x)) > 0.05 * max(area(x), 1):
-            out.append((y["start"], f"Made the card{w} {'bigger' if area(y) > area(x) else 'smaller'}"))
+        if shows(x) != shows(y):   # the same file name, another page or clip in it
+            out.append((y["start"], "Swapped the card" + w))
+        elif grew(area, x, y) or grew(px, x, y):   # the box on the frame, else the picture inside it
+            big = area(y) > area(x) if grew(area, x, y) else px(y) > px(x)
+            out.append((y["start"], f"Made the card{w} {'bigger' if big else 'smaller'}"))
         elif x.get("box") != y.get("box"):
             out.append((y["start"], f"Moved the card{w}"))
         elif abs(x["start"] - y["start"]) >= 0.05 or abs(x.get("end", 0) - y.get("end", 0)) >= 0.05:
@@ -451,11 +457,15 @@ def plan_changes(a, b, music=False):
     rest = sorted(k for k in sa.keys() | sb.keys() if k != "size_pct" and sa.get(k) != sb.get(k))
     if rest:
         out.append((None, "Caption look changed: " + ", ".join(k.replace("_pct", "").replace("_", " ") for k in rest[:4])))
-    ta = {round(c["start"], 1): c.get("text") for c in ca.get("chunks") or [] if "start" in c}
-    for c in cb.get("chunks") or []:
-        t = round(c.get("start", -1), 1)
-        if t in ta and ta[t] != c.get("text"):
-            out.append((c["start"], f'Caption now reads "{c.get("text")}"'))
+    nb = [c for c in cb.get("chunks") or [] if "start" in c]
+    for c in ca.get("chunks") or []:   # an old caption's moment, read in the new captions (a fix can regroup them)
+        if "start" not in c or "end" not in c:
+            continue
+        ws = [w for x in nb for w in x.get("words") or [] if "start" in w]   # word times: regrouped lines still line up
+        now_ = (" ".join(w.get("text", "") for w in ws if c["start"] - 0.05 <= w["start"] < c["end"] - 0.05) if ws else
+                " ".join(x.get("text", "") for x in nb if c["start"] - 0.05 <= x["start"] < c["end"] - 0.05))
+        if now_ and now_.lower().split() != str(c.get("text", "")).lower().split():
+            out.append((c["start"], f'Caption now reads "{now_}"'))
     xa, xb = a.get("texts") or [], b.get("texts") or []
     for i in range(max(len(xa), len(xb))):
         x, y = (xa[i] if i < len(xa) else None), (xb[i] if i < len(xb) else None)
@@ -1622,7 +1632,7 @@ def cmd_round(a, folder):
 
 
 def go_back(folder, n):
-    """"Go back to round N": that round's files (its snapshot) and its render return, as a new round of the same stage.
+    """"Go back to draft N": that round's files (its snapshot) and its render return, as a new round of the same stage.
     The open round's unsent notes move onto it. ValueError says why it cannot."""
     d0 = load(folder / "review.json")
     r = next((r for r in d0.get("rounds", []) if (r["stage"], r["round"]) == (d0["stage"], n)), None)
@@ -1645,7 +1655,7 @@ def go_back(folder, n):
             # the render the next fix starts from (cut.mp4, render.mp4)
             clone(Path(r["video"]), out)
         d["events"].append({"type": "back", "stage": d["stage"], "round": d["round"] + 1, "to": n, "at": now(), "handled": True})
-    return open_round(folder, r["video"], note=f"Back to round {n}", back_to=n, src=r.get("src"), check=check)
+    return open_round(folder, r["video"], note=f"Back to draft {n}", back_to=n, src=r.get("src"), check=check)
 
 
 def cmd_resolve(a, folder):

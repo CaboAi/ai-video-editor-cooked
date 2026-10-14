@@ -42,16 +42,21 @@ local, so they are made now and made again if the cut changes.
    where a sentence names something real, and in any stretch over 10 s with no card (plan.py's card gap),
    one for the line there that is about something real. On 9:16 a `capture` is a `sticker` with a `find` mark
    on the line's words, so it reads on a phone, except in a card edit (style.json `card_kinds` without `text`):
-   there most cards are animations built from the words (`likes`, `progress`, `notes`, `terminal`, `chat`,
-   `toasts`, `curve`, `side_by_side` with `arrow`, `flow`; motion-design.md "What a beat becomes"), a `capture`
-   only where the real page is the point and once per page (`"format": "shot"` with a `find` mark, or
-   `browser` to scroll to it), the user's own screenshots cropped to about 2:1, a big `logo`. Never a sticker.
+   there every card is a picture or an animation of real parts, never words alone, and most cards are moving
+   formats built from the words (`likes`, `progress`, `notes`, `curve`, `side_by_side` with `arrow`, `flow` of
+   logos, `chat` or `toasts` with the app's `logo`; motion-design.md "What a beat becomes"): the motion skill builds
+   each as a clip, and its template is the fallback, which plan.py fills with the take's own frames (`notes` also
+   the speaker's avatar). For each beat take the first that fits: the user's added image or link, a real capture
+   or screenshot (`"format": "shot"` with a `find` mark, or `browser` to scroll to it, once per page; the user's own
+   screenshots cropped to about 2:1), a logo (logo-pack), a moving format. A line that counts, lists, makes, compares
+   or names kinds of things always fits a moving format, so keep the rate with them. Never a `terminal`, or a `chat` with no
+   logo: lines of words, which plan.py leaves out and check.py plan FAILs. Never a sticker.
    A card edit keeps its rate: 60 / `graphics.per_min` s apart (30 a minute: one about every 2 s), and no
    stretch longer than twice that without one, the opening included (check.py plan FAILs it). Fill every gap
    with the user's assets first, then captures, then animations from the words; a song or demo the speaker
    stops to play holds that item's own card through it (`hold_s`), one card per item, none held over twice the gap. Elsewhere a line with nothing to show gets no card. beats.json `motion` says what a sentence is doing (`counter`,
    `list`, `flow`, `before_after`, `ui_demo`): there, the matching moving format (`likes`, `notes`, `flow`,
-   `side_by_side` with `arrow`, `progress` or `terminal`), which the motion skill then builds as a clip. Also a
+   `side_by_side` with `arrow`, `progress`), which the motion skill then builds as a clip. Also a
    `title` (the hook's promise in 2 short lines of their words, emoji allowed, from 0 s), a `cta` on the ask word, a `list`
    when they count steps, a `stamp` when they say a card's thing does not apply (visuals.md "Card edit").
    Never a `file://` page from the user's config folders.
@@ -62,8 +67,9 @@ local, so they are made now and made again if the cut changes.
    still failing after two rounds is left out), then `route.py beats` again.
 4b. **Motion briefs:** `python3 "<ROOT>/skills/motion/scripts/motion.py" pick EDIT`. It turns the beats that need
    motion into clip folders under `EDIT/motion/` and prints each id. Return every `EDIT/motion/<id>/brief.md`
-   in `motion_briefs` (the caller launches the clip-builders; you never build clips). It prints `not installed`:
-   return `[]`, the template cards stay.
+   in `motion_briefs` (the caller launches the clip-builders; you never build clips). Missing motion tools are
+   installed by pick itself (a few seconds). It prints `Animations fell back`: return `[]` and that line as
+   `motion_note`; the visual templates stay and a words-only beat gets no card.
 5. **Fetch, face, plan and sheet**, one Bash call (face.py does not need the captures, so it runs beside them;
    `edit.py stills` runs `check.py plan` itself and stops on a FAIL):
 
@@ -89,7 +95,7 @@ local, so they are made now and made again if the cut changes.
 Stop at the first error you cannot fix in two tries and report it. Return only this JSON:
 
 ```json
-{"edit": "EDIT", "status": "ready|failed", "images": 0, "visuals": 0, "motion_briefs": ["EDIT/motion/<id>/brief.md"], "captures_failed": ["word: reason"],
+{"edit": "EDIT", "status": "ready|failed", "images": 0, "visuals": 0, "motion_briefs": ["EDIT/motion/<id>/brief.md"], "motion_note": "", "captures_failed": ["word: reason"],
  "sheet": "EDIT/stills/sheet.png or empty", "reviewed": "pass|fail|skipped", "reads_as": ["tile 4: ..."],
  "still_failing": ["item n: where, why"], "plan_warnings": ["each WARN line of check.py plan"],
  "error": "the failing command and its last line, or empty"}

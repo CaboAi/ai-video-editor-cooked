@@ -4,6 +4,12 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Card edit never shows a card of words alone. A notes card now looks like real notes: your face in the header,
+  the frame of your take beside each line, a green tick drawing in. A progress card shows frames of your take. A
+  terminal or a chat with no logo gets no card, and the check fails any words-only card that gets through.
+- Animations install themselves: an editor set up before the motion tools existed installs them on the first edit
+  (a few seconds). If they cannot install, the edit says once that animations fell back.
+
 - Skills lists every skill that helps with an edit, from your own skills folder, the library's .claude/skills and
   your other plugins (named plugin:skill). A skill counts when its name or description is about video, captions,
   cuts, overlays, animation, thumbnails, sound or logos. The rest sit behind Not for editing at the bottom, which

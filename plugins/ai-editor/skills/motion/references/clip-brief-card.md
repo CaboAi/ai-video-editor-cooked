@@ -34,8 +34,8 @@ what the line says, landing each part on the word that names it.
 | `likes` (a count of people, likes, views) | the platform's real mark; a counter from 0 to the number said, tabular figures, ticking on its word; comments sliding in and pushing older ones down |
 | `progress` (something made, rendered, uploaded) | a real app window; the speaker's own frames lighting up as a bar passes them; the percent counting |
 | `curve` (smooth, motion, easing) | an easing curve drawing itself, a dot riding it, the speaker's still moving on the same curve |
-| `notes` (feedback, fixes, steps listed) | a dark notes card, each line landing on its word, a green tick drawing under a fixed one |
-| `terminal` (a command, a tool run) | the command typing in, output landing under it |
+| `notes` (feedback, fixes, steps listed) | real notes UI, never words alone: the speaker's avatar (`assets/avatar-*.jpg`) in the header, beside each line the frame of the take where it is said (`assets/frame-*.jpg`, both in the beat's props), each line landing on its word, a green tick drawing in on it |
+| `terminal` (a command, a tool run) | the real tool's logo or window chrome with the command typing in, output landing under it; never a bare box of words |
 | `chat` (a question to an AI, a reply) | messages popping on their words, the real app's mark |
 | `toasts` (alerts, sign-ups) | each sliding in from the top and stacking |
 | `side_by_side` (before and after) | a then b, the arrow drawing from a to b on the turning word |

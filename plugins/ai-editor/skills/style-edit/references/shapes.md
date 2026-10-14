@@ -40,9 +40,9 @@ hook's subject. A capture on the hook (first 3 s) needs a `find` mark on what is
 | `toasts` | `{"kind": "anim", "type": "toasts", "props": {"items": [{"app", "logo": {"logo"}, "title", "body"?, "word"}]}}` |
 | `side_by_side` | `{"kind": "anim", "type": "side_by_side", "props": {"a": {"src", "size", "crop"?, "label"?}, "b": {...}, "arrow"?: true}}` (`src`: a capture's file; `arrow`: before -> after) |
 | `likes` | `{"kind": "anim", "type": "likes", "props": {"logo": "<platform>", "counts": [{"n": 0}, {"n": <said number>, "word"}], "comments"?: [{"user", "text", "word"}]}}` |
-| `progress` | `{"kind": "anim", "type": "progress", "props": {"label", "title"?, "thumbs"?: ["images/<own frame>"], "word"?}}` |
+| `progress` | `{"kind": "anim", "type": "progress", "props": {"label", "title"?, "thumbs"?: ["images/<own frame>"], "word"?}}` (no `thumbs`: plan.py fills four frames of the take) |
 | `curve` | `{"kind": "anim", "type": "curve", "props": {"label"?, "src"?: "images/<own still>", "bezier"?: [x1, y1, x2, y2]}}` |
-| `notes` | `{"kind": "anim", "type": "notes", "props": {"title"?, "lines": [{"text", "sub"?, "time"?, "word"}]}}` |
+| `notes` | `{"kind": "anim", "type": "notes", "props": {"title"?, "avatar"?, "lines": [{"text", "sub"?, "time"?, "src"?, "word"}]}}` (plan.py fills `avatar` and each line's `src` from the take) |
 | `video_card` | `{"kind": "anim", "type": "video_card", "props": {"src", "start_s"?, "label"?}}` |
 | `flow` | `{"kind": "anim", "type": "flow", "props": {"nodes": [{"logo", "label", "word"}], "split"?: [{"logo", "label" or "lines": [{"text", "word"}], "word"}], "tasks"?: [{"text", "word", "heavy"?}], "accent"?}}`: one beat for the whole explanation, `hold_s` to its last word |
 | `title` | `{"kind": "title", "text": "the hook in the speaker's words", "word"?, "hold_s"?}`: words on screen at the open, when route.py says the creator opens with them |
@@ -56,12 +56,16 @@ something the capture does not already show.
 
 ## Card edit
 
-style.json `card_kinds` without `"text"`: pictures and animations only (`motion-design.md`). Most beats
-are animations built from the words (`likes`, `progress`, `notes`, `terminal`, `chat`, `toasts`, `curve`,
-`side_by_side` with `arrow`, `flow`); a `capture` only where the real page is the point, once per page
+style.json `card_kinds` without `"text"`: pictures and animations only (`motion-design.md`). Fill each beat in
+this order and stop at the first that fits: the user's added image or link, a real capture or screenshot, a logo
+(logo-pack), a motion clip (the motion skill builds one per moving beat), a visual template (`likes` counting,
+`progress` with the take's frames, `curve`, `side_by_side` of real frames). Never a card of words alone: nothing
+visual fits, no card on that beat. A `terminal`, `chat`, `notes` or `progress` of words alone is a text card (plan.py leaves
+it out, check.py plan FAILs it): `notes` and `progress` carry the take's frames and `notes` the speaker's avatar (plan.py fills them),
+`chat` and `toasts` the real app's logo. A `capture` only where the real page is the point, once per page
 (plan.py drops a second capture of the same URL), `shot` with a `find` mark or `browser` to scroll to it;
-the user's own app screenshots cropped to about 2:1; a big `logo`. No sticker. A line with nothing to show
-gets no card. Plus `title` (at the open), `cta` (on the ask), `list`, `stamp` beats (`visuals.md` "Card edit").
+the user's own app screenshots cropped to about 2:1; a big `logo`. No sticker. Plus `title` (at the open),
+`cta` (on the ask), `list`, `stamp` beats (`visuals.md` "Card edit").
 
 ## Rules (plan.py enforces them and warns)
 

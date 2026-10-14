@@ -634,41 +634,69 @@ const Curve: React.FC<TP> = ({ p, w, h, m, fonts, dur }) => {
   );
 };
 
-// notes: a dark notes card where each line appears on its word, its fix ("Fixed in round 2: ...") ticking in under
-// it in green. props: title?, lines: [{text, sub?, time?, src?, word?}] (at most 4), the speaker's or user's words.
+// notes: a real notes panel (a review page's notes), never words alone: the speaker's avatar and the title in its
+// header; each line lands on its word beside the frame of the take where it is said, and a green tick draws in on it
+// ("fixed"), its sub line ("Fixed in round 2: ...") under it. plan.py take_frames fills avatar and each line's src from
+// the take. props: title?, avatar?, lines: [{text, sub?, time?, src?, word?}] (at most 4), the speaker's or user's words.
 const Notes: React.FC<TP> = ({ p, w, h, m, fonts, dur }) => {
-  const u = Math.min(w, h) / 100;
+  const u = Math.min(w, h) / 100, t = useT();
   const { U, s } = useFrame();
   const lines: ({ text: string; sub?: string; time?: string; src?: string } & Said)[] = (p.lines ?? []).slice(0, 4);
   const lt = stagger(lines, 0.35, Math.max(0.5, (dur - 0.9) / Math.max(1, lines.length)));
-  const cw = Math.min(w * 0.98, h * 2.6);
-  const longest = Math.max(12, ...lines.map((l) => l.text.length));
-  const fs = Math.max(34 * s, Math.min((h * 0.8) / (Math.max(2, lines.length) * 2.1), (cw * 0.86) / (longest * 0.54)));
-  const row = fs * 2.1, ch = Math.min(h * 0.96, row * Math.max(2, lines.length) + h * 0.16);
+  const cw = Math.min(w * 0.98, h * 2.6), ch = h * 0.96;
+  const head = p.avatar || p.title ? ch * 0.2 : 0;
+  const n = Math.max(1, lines.length);
+  const row = Math.min((ch - head - ch * 0.08) / n, ch * 0.36);   // one line: a row, not a poster
+  const longest = Math.max(10, ...lines.map((l) => l.text.length));
+  const thumb = lines.some((l) => l.src) ? row * 0.84 : 0;   // a portrait frame of the take, 3:4
+  const fs = Math.max(26 * s, Math.min(row * (lines.some((l) => l.sub) ? 0.36 : 0.46), (cw * 0.62 - thumb * 0.75) / (longest * 0.54)));
+  const tick = row * 0.42, len = 30;
   const ref = useTl((timeline, q, root) => {
     const { tl } = cardLife(timeline, q, root, p, m, dur, u, U, lt.slice(1));
+    const av = q(".nt-av")[0];
+    if (av) tl.fromTo(av, { scale: 0.4, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.4, ease: "back.out(2)" }, 0.12);
     lines.forEach((l, i) => {
       tl.fromTo(q(`.nt-${i}`)[0], { autoAlpha: 0, y: u * 3 }, { autoAlpha: 1, y: 0, duration: 0.35, ease: "power3.out" }, lt[i]);
-      if (l.sub) tl.fromTo(q(`.nt-s-${i}`)[0], { autoAlpha: 0, x: -u * 2 }, { autoAlpha: 1, x: 0, duration: 0.3, ease: "power2.out" }, lt[i] + 0.35);
+      const th = q(`.nt-th-${i}`)[0];
+      if (th) tl.fromTo(th, { scale: 0.7 }, { scale: 1, duration: 0.4, ease: "back.out(1.8)" }, lt[i]);
+      tl.fromTo(q(`.nt-tk-${i}`)[0], { scale: 0 }, { scale: 1, duration: 0.3, ease: "back.out(2.4)" }, lt[i] + 0.3);
+      if (l.sub) tl.fromTo(q(`.nt-s-${i}`)[0], { autoAlpha: 0, x: -u * 2 }, { autoAlpha: 1, x: 0, duration: 0.3, ease: "power2.out" }, lt[i] + 0.4);
     });
-  }, [JSON.stringify(lines), w, h, dur, m.name, JSON.stringify([p.enter, p.exit, p.ambient, p.word_at])]);
+  }, [JSON.stringify(lines), p.avatar, p.title, w, h, dur, m.name, JSON.stringify([p.enter, p.exit, p.ambient, p.word_at])]);
   return (
     <div ref={ref} style={center}>
       <div className="cv-in" style={{ opacity: 0 }}><div className="cv-hit">
-        <div style={{ width: cw, height: ch, borderRadius: u * 2.2, background: "#111214", boxShadow: depth(u), padding: `${ch * 0.06}px ${cw * 0.05}px`,
-          boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "center", gap: row * 0.14, fontFamily: fonts.body }}>
-          {lines.map((l, i) => (
-            <div key={i} className={`nt-${i}`} style={{ opacity: 0, display: "flex", gap: fs * 0.6, alignItems: "flex-start" }}>
-              {l.src ? <Img src={src_(l.src)!} style={{ width: fs * 1.6, height: fs * 1.6, borderRadius: fs * 0.3, objectFit: "cover", flexShrink: 0 }} /> : null}
-              <div style={{ minWidth: 0 }}>
-                {l.time ? <div style={{ color: "#8B8E97", fontSize: fs * 0.62, fontWeight: 600 }}>{l.time}</div> : null}
-                <div style={{ color: "#F4F4F5", fontSize: fs, fontWeight: 700, lineHeight: 1.2 }}>{l.text}</div>
-                {l.sub ? <div className={`nt-s-${i}`} style={{ display: "flex", alignItems: "center", gap: fs * 0.3, color: "#3DDC84", fontSize: fs * 0.7, fontWeight: 600, marginTop: fs * 0.2 }}>
-                  <svg viewBox="0 0 24 24" width={fs * 0.7} height={fs * 0.7}><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="#3DDC84" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round" /></svg>
-                  {l.sub}</div> : null}
-              </div>
-            </div>
-          ))}
+        <div style={{ width: cw, height: ch, borderRadius: u * 2.2, background: "#111214", boxShadow: depth(u), boxSizing: "border-box",
+          border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden", fontFamily: fonts.body, display: "flex", flexDirection: "column" }}>
+          {head ? <div style={{ height: head, flexShrink: 0, display: "flex", alignItems: "center", gap: head * 0.3, padding: `0 ${cw * 0.04}px`,
+            background: "#1A1B1F", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            {p.avatar ? <Img className="nt-av" src={src_(p.avatar)!} style={{ width: head * 0.66, height: head * 0.66, borderRadius: "50%", objectFit: "cover",
+              border: `${Math.max(2, head * 0.03)}px solid #2B2C31`, opacity: 0 }} /> : null}
+            {p.title ? <div style={{ color: "#F4F4F5", fontSize: Math.min(head * 0.38, fs * 0.9), fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden" }}>{p.title}</div> : null}
+          </div> : null}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: `${ch * 0.04}px ${cw * 0.04}px` }}>
+            {lines.map((l, i) => {
+              const k = prog(t, lt[i] + 0.4, 0.35, "power2.out");   // the tick's stroke drawing
+              return (
+                <div key={i} className={`nt-${i}`} style={{ opacity: 0, height: row, display: "flex", gap: row * 0.22, alignItems: "center",
+                  borderTop: i ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+                  {l.src ? <Img className={`nt-th-${i}`} src={src_(l.src)!} style={{ width: thumb * 0.75, height: thumb, borderRadius: row * 0.1, objectFit: "cover", flexShrink: 0 }} /> : null}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    {l.time ? <div style={{ color: "#8B8E97", fontSize: fs * 0.62, fontWeight: 600 }}>{l.time}</div> : null}
+                    <div style={{ color: "#F4F4F5", fontSize: fs, fontWeight: 700, lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden" }}>{l.text}</div>
+                    {l.sub ? <div className={`nt-s-${i}`} style={{ color: "#3DDC84", fontSize: fs * 0.7, fontWeight: 600, marginTop: fs * 0.15, whiteSpace: "nowrap" }}>{l.sub}</div> : null}
+                  </div>
+                  <div className={`nt-tk-${i}`} style={{ width: tick, height: tick, borderRadius: "50%", background: "rgba(61,220,132,0.16)", flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center", transform: "scale(0)" }}>
+                    <svg viewBox="0 0 24 24" width={tick * 0.62} height={tick * 0.62}>
+                      <path d="M4 12.5l5 5L20 6.5" fill="none" stroke="#3DDC84" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round"
+                        strokeDasharray={len} strokeDashoffset={len * (1 - k)} />
+                    </svg>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div></div>
     </div>

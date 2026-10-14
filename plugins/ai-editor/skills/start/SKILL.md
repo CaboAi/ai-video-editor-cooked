@@ -9,29 +9,29 @@ compatibility: Python 3.9+, standard library only for the intake. The steps it r
 
 Paths: `${CLAUDE_SKILL_DIR}` means the folder containing this SKILL.md, and `${CLAUDE_PLUGIN_ROOT}` the plugin folder two levels above it.
 
-Read `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` first: the rules every video follows (where, asking, looking real, motion, story, privacy, cost).
+Read `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` first. Never edit files under `${CLAUDE_PLUGIN_ROOT}`. If a script is wrong, tell the user and use a supported override.
 
 Every question goes in the question box: the AskUserQuestion tool (2-4 options, recommended first). Only in an agent without it, ask numbered questions in text. `Attached images: <paths>` in an answer: Read each first.
 
-The user's whole job: drop a video, answer a few questions, approve the cut, approve the stills, both on
-the review page. Everything else is this skill's job.
+The user only drops a video, answers a few questions and approves the cut and the stills on the review
+page. The rest is this skill's job.
 
 `P="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/profile.py"`. Run it with `python3` on Mac and Linux, `py` on Windows.
 
-**First run** (the session-start line says so, or `setup.py doctor --quiet` prints a line): the
-setup skill's step 0 first (window, then installs in the background), then carry on here.
+**First run** (the session-start line says so, or `setup.py doctor --quiet` prints a line): run the
+setup skill's step 0 (window, then installs behind it), then carry on here.
 
 ## 0. Links first
 
 If the message has any link, @handle or file path, route it before anything else. Never ask what a
-link is; the classifier knows.
+link is.
 
 ```bash
 L="${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/links.py"
 python3 "$L" route "<the user's whole message>" [--own]
 ```
 
-`--own` only when the user says the video link is theirs ("my video", "I posted this"). It prints a list, already in the order to handle it: questions, creators, own footage, long
+`--own` only when the user says the video link is theirs ("my video", "I posted this"). It prints a list in the order to handle it: questions, creators, own footage, long
 videos, websites, music. Each item has a `kind`:
 
 | kind | do |
@@ -70,7 +70,7 @@ Otherwise read `references/intake.md` and ask the printed ids in one question bo
 
 ## 3. Route
 
-Do each step in order, skipping what is already done. Read each skill's SKILL.md before its step.
+Do each step in order, skipping what is done. Read each skill's SKILL.md before its step.
 
 1. **setup**, if any step fails because a tool is missing (`setup.py doctor` says `FIX`).
 2. **creator-teardown** in quick mode (its SKILL.md "Quick mode") for every profile creator without
@@ -89,7 +89,7 @@ Do each step in order, skipping what is already done. Read each skill's SKILL.md
    cut `--max-pause 0.5`, `--layout letterbox`.
    `skill=<skill>` on the job: step 5 is that skill, not style-edit (`references/home.md`, Skill style).
 
-Between steps say one line about what is next. Never ask the user to do a step the skill can do.
+Between steps say in one line what is next. Never ask the user to do a step the skill can do.
 
 ## 4. After
 

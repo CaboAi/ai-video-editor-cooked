@@ -47,3 +47,4 @@ Paths: `A` = `plugins/ai-editor/skills`, `E` = `plugins/ai-editor/evals`. CI run
   the words it can see (search, browse before create, build), and the `storyboard-critic` agent judges it.
 - **Story beats are the right story** (a hook that hooks, a payoff that pays off): the
   `storyboard-critic` agent and the user's Approve.
+| Never edit the plugin's own files during a video | PRINCIPLES "Where"; `A/start`, `A/cut`, `A/style-edit` SKILL.md | `lib/ai_editor/guard.py` PreToolUse hook (Edit/Write on the installed copy); `launcher.py` `deny_rules` (Edit deny on the plugin folder for window jobs) | `guard.py demo`, `launcher.py demo` |

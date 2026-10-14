@@ -99,7 +99,6 @@ TOOLS = {"python": ("Python", "runs the editor"), "ffmpeg": ("ffmpeg", "cuts and
 TOP, CONTROL, SPARE = 5, 2, 2   # creator-teardown quick mode: 5 most viewed + 2 closest to the median + 2 spares
 PORT = 47821              # the fixed address; the next free one up to PORT + 19 when it is taken
 REVIEW = Path(__file__).with_name("review.py")
-DEMO = Path(__file__).with_name("demo")   # stock photos for empty previews (demo/CREDITS.md)
 HANDLE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 PLUGIN_JSON = Path(__file__).resolve().parents[2] / ".claude-plugin" / "plugin.json"
 RAW = "https://raw.githubusercontent.com/nextwork-projects/ai-video-editor-cooked/main/"
@@ -327,8 +326,22 @@ def job_name(j):
     if a.get("edit"):
         return Path(a["edit"]).name
     if a.get("handle"):
-        return "@" + a["handle"]
+        return handle_name(a["handle"])
     return {"style-change": "your style", "modal": "cloud renders", "modal-test": "a test render"}.get(j["type"], j["type"])
+
+
+def shown_name(sp):
+    """A style's name as every card, job and question shows it: the name the user gave, else the style's own; a
+    pasted-links format nobody named yet is "New format" (its links-<n> folder is not a name)."""
+    n = _taste()[1].display(sp)
+    return "New format" if n.startswith("@links-") else n
+
+
+def handle_name(handle):
+    try:
+        return shown_name(style_of(read()["root"], "@" + handle)[0])
+    except (KeyError, OSError, ValueError):
+        return "New format" if handle.startswith("links-") else "@" + handle
 
 
 def stale(j):
@@ -690,7 +703,7 @@ def style_cards(root):
         made = next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None) if sp else None
         changed = taste.rules_path().stat().st_mtime if n and taste.rules_path().exists() else None
         sk = skill_of(st) if sp else None   # a skill style: making a video runs that skill, no settings of ours
-        out.append({"id": sid, "name": ss.display(sp), "facts": [] if sk else facts(st), "look": look(st), "base": base,
+        out.append({"id": sid, "name": shown_name(sp), "facts": [] if sk else facts(st), "look": look(st), "base": base,
                     "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "learned_from": vids, "made": made, "changed": changed, "cover": cover_of(root, sid), "face": face_of(root, base),
                     "own": sid == "mine" or bool(st.get("own")),
                     "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False,
@@ -786,14 +799,29 @@ def newest_edit(need=("words.json",), entries=None):
 
 def preview_source(root, sid):
     """(picture for the previews, what it is): the style's chosen image, else the user's newest raw take (a video, never
-    a finished render or an audio file), else a demo photo."""
+    a finished render or an audio file), else a plain tile (never a stranger's photo)."""
     d = style_dir(root, sid)
     if d and (d / "cover.jpg").is_file():
         return d / "cover.jpg", "Your image"
     eds = [Path(e).resolve() for e in library.edit_dirs()]
     raw = next((Path(r["path"]) for r in recent_list(read()) if Path(r["path"]).suffix.lower() in links.VIDEO_EXT
                 and Path(r["path"]).is_file() and not is_output(Path(r["path"]).resolve(), eds)), None)
-    return (raw, "Your video") if raw else (DEMO / "person-1.jpg", "Example photo")
+    return (raw, "Your video") if raw else (plain_tile(), "No picture yet")
+
+
+def plain_tile():
+    """A 9x16 PNG in the page's tile colour (#44403C), written once: what the caption previews sit on before the
+    user has a clip or an image of their own."""
+    f = home() / "plain-tile.png"
+    if not f.is_file():
+        import struct
+        import zlib
+        chunk = lambda t, b: struct.pack(">I", len(b)) + t + b + struct.pack(">I", zlib.crc32(t + b) & 0xFFFFFFFF)
+        rows = b"".join(b"\0" + bytes((0x44, 0x40, 0x3C)) * 9 for _ in range(16))
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 9, 16, 8, 2, 0, 0, 0))
+                      + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+    return f
 
 
 def preset_state(root, sid, st, base, changed):
@@ -873,7 +901,7 @@ def style_page(root, sid):
              for r in (taste.load_rules() if taste.rules_path().exists() else []) if r["scope"] == sc]
     sk = skill_of(st) if sp else None
     if sk:   # a skill style: its skill does the edit, so the page shows the skill and no controls
-        return {"id": sid, "kind": "skill", "name": ss.display(sp), "base": base, "rules": rules, "style_path": str(sp),
+        return {"id": sid, "kind": "skill", "name": shown_name(sp), "base": base, "rules": rules, "style_path": str(sp),
                 "skill": {"name": sk, **find_skill(root, sk, calls=True)}, "cover": cover_of(root, sid), "face": face_of(root, base),
                 "own": bool(st.get("own")), "videos": st.get("videos"), "sample": bool(st.get("sample")),
                 "references": references(sp.parent) if not st.get("own") else {"videos": [], "profile": None},
@@ -888,7 +916,7 @@ def style_page(root, sid):
         vals["sfx"] = (prof.get("sound") or {}).get("sfx", True) if sp is None else st.get("sfx", True)
     copies = ss.copies(st) if sp else [f"@{base}'s style" if base else "the default style", "your corrections"]
     job = next((j for j in reversed(read()["jobs"]) if j["type"] == "style-change" and j["args"].get("style") == sid), None)
-    return {"id": sid, "name": ss.display(sp), "use_for": ss.use_for(sp), "base": base, "values": vals, "sample": bool(st.get("sample")),
+    return {"id": sid, "name": shown_name(sp), "use_for": ss.use_for(sp), "base": base, "values": vals, "sample": bool(st.get("sample")),
             "changed": [k for k in CONTROLS if dig(changed, k) is not None], "look": look(st), "facts": facts(st),
             "motion": motion_state(st, changed),
             "copies": copies, "rules": rules, "style_path": str(sp) if sp else None, "presets": preset_state(root, sid, st, base, changed),
@@ -1342,6 +1370,23 @@ def queue(d, kind, args):
     return j
 
 
+def phase(e):
+    """Where a library video is, in the words the cards use: cutting, notes (Claude has the user's notes), stills
+    (making the stills after the cut was approved), rendering (the stills approved), cut / approve / edit (the
+    user's turn: watch the cut, approve the stills, watch the edit), done (the finished video exists)."""
+    r = library._review(Path(e["dir"])) or {}
+    last = (r.get("events") or [{}])[-1]
+    if e["status"] == "cutting":
+        return "cutting"
+    if e["status"] == "done" or r.get("final") and r.get("sent") and last.get("type") == "approve":
+        return "done"
+    if e["status"] == "making":
+        if last.get("type") == "approve":
+            return "rendering" if last.get("stills") else "stills"
+        return "notes"
+    return "cut" if r.get("stage") == "cut" else "approve" if r.get("stills") else "edit"
+
+
 def job_line(j, root):
     a = j["args"]
     if j["type"] == "teardown":
@@ -1364,13 +1409,14 @@ def getting_started(d):
     """The sidebar's Getting started block, from the real state (so it holds across reloads): the tools set up,
     a format analysed (or the default style chosen instead), the first video made (a cut ready or done)."""
     rows = (d.get("doctor") or {}).get("rows") or []
-    setup = any(j["type"] == "setup" and j["state"] == "done" for j in d["jobs"]) or bool(rows) and all(r.get("ok") for r in rows)
+    running = any(j["type"] == "setup" and j["state"] in ("queued", "taken") for j in d["jobs"])   # the tools pass mid-install
+    setup = not running and (any(j["type"] == "setup" and j["state"] == "done" for j in d["jobs"]) or bool(rows) and all(r.get("ok") for r in rows))
     style = bool(d.get("style_skipped")) or any(j["type"] == "teardown" and j["state"] == "done" for j in d["jobs"]) \
         or any(not h.startswith(("own-", "sample-")) for h, _ in library.styles(d["root"]))
     es = library.entries()
     video = any(e["status"] in ("ready", "done") for e in es)
     # a user with a made video set up long ago (before the doctor rows were checked): never back to step 1
-    return {"setup": setup or video, "style": style or video, "video": video}
+    return {"setup": setup or video and not running, "style": style or video, "video": video}
 
 
 def claude_for(jid):
@@ -1651,6 +1697,8 @@ def make_handler(token):
                         for e in library.entries() if e["dir"] not in set(read().get("hidden_edits") or [])]   # Remove from this list
                 with ThreadPoolExecutor(8) as ex:   # its length and shape (cached ffprobe): "Done. 2:14 long", a wide or tall frame
                     ms = list(ex.map(lambda v: library.meta(v["video"]) if v["video"] else {}, vids))
+                for v in vids:
+                    v["phase"] = phase(v)
                 for v, m in zip(vids, ms):
                     a = (raw.get(v["dir"]) or {}).get("args", {}).get("aspect")
                     v["duration"] = m.get("duration") if v["status"] in ("ready", "done") else None
@@ -1659,7 +1707,7 @@ def make_handler(token):
                 for j in read()["jobs"]:   # a creator still being studied: a card the user can already pick
                     h = j["args"].get("handle")
                     if j["type"] == "teardown" and j["state"] in ("queued", "taken") and "@" + str(h) not in [c["id"] for c in cards]:
-                        cards.append({"id": "@" + h, "name": "@" + h, "facts": [], "look": None, "studying": True, "face": face_of(root, h),
+                        cards.append({"id": "@" + h, "name": handle_name(h), "facts": [], "look": None, "studying": True, "face": face_of(root, h),
                                       "line": "Being analysed now. Your cut starts first; the style waits for it."})
                 arch = set(read().get("archived_styles") or [])   # Archive: off Styles, Home and Pick a style; files untouched
                 return self.send(200, {"path": root, "place": place(root), "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
@@ -1708,11 +1756,6 @@ def make_handler(token):
                 with open(f, "rb") as fh:
                     shutil.copyfileobj(fh, self.wfile)
                 return
-            if path.startswith("/demo/"):   # the stock photos behind empty previews
-                name = path[len("/demo/"):]
-                f = DEMO / name
-                ok = re.fullmatch(r"person-\d\.jpg", name) and f.is_file()
-                return self.send(200, f.read_bytes(), "image/jpeg", cache="private, max-age=86400") if ok else self.send(404, {})
             if path in ("/style/cover", "/style/face"):
                 d = style_dir(read()["root"], q.get("id", [""])[0])
                 f = face_pic(d) if path.endswith("face") else d / "cover.jpg" if d else None
@@ -2314,14 +2357,29 @@ def serve(root=None, port=None, open_browser=True):
     update(drop_modal_runs)
     askhook.register(srv, url, "home", asks_for, asks_dir)
     threading.Thread(target=run_doctor, daemon=True).start()
-    try:   # an update adds a new plugin folder: point nextwork-editor at this one
+    try:   # an update adds a new plugin folder: point nextwork-editor at this one (the installed copy only)
         import launcher
-        launcher.refresh()
+        if may_refresh(launcher.PLUGIN):
+            launcher.refresh()
     except Exception:
         pass
     if open_browser:
         webbrowser.open(url)
     return srv, url
+
+
+def may_refresh(plugin, home_dir=None, env=None):
+    """Only the plugin Claude Code installed (under ~/.claude/plugins/cache, not a git checkout) rewrites the
+    nextwork-editor launcher, and never with a test's own AI_EDITOR_HOME: a worktree or a QA run that serves the
+    page must not point the user's launcher at itself."""
+    env = os.environ if env is None else env
+    home_dir = Path(home_dir or Path.home())
+    if env.get("AI_EDITOR_HOME", "").strip() and Path(env["AI_EDITOR_HOME"]).expanduser().resolve() != (home_dir / ".ai-video-editor").resolve():
+        return False
+    cache, p = (home_dir / ".claude" / "plugins" / "cache").resolve(), Path(plugin).resolve()
+    if cache not in p.parents:
+        return False
+    return not any((q / ".git").exists() for q in [p, *p.parents] if q != cache and cache in q.parents)
 
 
 # ---------------------------------------------------------------- demo
@@ -2437,7 +2495,7 @@ def demo():
     keys._get = lambda *a: sent.append(a) or (200, "")
     try:
         r = post("/key", {"name": "gemini", "value": "not-a-key-123"})
-        assert not r["ok"] and "AIza" in r["msg"] and "Nothing was sent" in r["msg"] and not sent, r
+        assert not r["ok"] and "AIza" in r["msg"] and "nothing was sent" in r["msg"] and not sent, r
         secret = "AIza" + "s" * 35
         r = post("/key", {"name": "gemini", "value": secret})
         assert r["ok"] and len(sent) == 1 and secret not in json.dumps(r), r
@@ -2852,6 +2910,29 @@ def demo():
     assert read()["style_skipped"] and get("/state")["getting_started"]["style"]
     assert getting_started({**read(), "style_skipped": False, "jobs": [], "doctor": {"rows": [{"ok": False}]}, "root": str(tmp)}) == \
         {"setup": False, "style": False, "video": False}   # a fresh library: nothing done yet
+    ok_rows = {"rows": [{"ok": True}]}   # every tool passes mid-install: Set up still waits for the setup job to end
+    assert not getting_started({**read(), "jobs": [{"type": "setup", "state": "taken"}], "doctor": ok_rows, "root": str(tmp)})["setup"]
+    assert getting_started({**read(), "jobs": [], "doctor": ok_rows, "root": str(tmp)})["setup"]
+    # a video's real step: the user's turn (cut, stills, edit), what Claude is doing, done only once the finished video exists
+    pd = tmp / "phase-check"
+    pd.mkdir()
+    for rj, want in [({"stage": "cut", "round": 1}, "cut"), ({"stage": "edit", "stills": True}, "approve"), ({"stage": "edit"}, "edit"),
+                     ({"stage": "cut", "sent": True, "events": [{"type": "approve"}]}, "stills"),
+                     ({"stage": "edit", "stills": True, "sent": True, "events": [{"type": "approve", "stills": True}]}, "rendering"),
+                     ({"stage": "cut", "sent": True, "events": [{"type": "edits"}]}, "notes"),
+                     ({"stage": "edit", "sent": True, "events": [{"type": "approve"}]}, "done"),
+                     ({"stage": "cut", "final": True, "sent": True, "events": [{"type": "approve"}]}, "done")]:
+        (pd / "review.json").write_text(json.dumps(rj), encoding="utf-8")
+        assert phase({"dir": str(pd), "status": library.status(rj)}) == want, (rj, want)
+    shutil.rmtree(pd)
+    # the launcher is rewritten by the installed plugin only: never a checkout, a git folder or a test's AI_EDITOR_HOME
+    hd = tmp / "mr"
+    inst = hd / ".claude" / "plugins" / "cache" / "nextwork" / "ai-editor" / "2.6.12"
+    inst.mkdir(parents=True)
+    assert may_refresh(inst, hd, {}) and may_refresh(inst, hd, {"AI_EDITOR_HOME": str(hd / ".ai-video-editor")})
+    assert not may_refresh(inst, hd, {"AI_EDITOR_HOME": str(tmp)}) and not may_refresh(Path(__file__).resolve().parents[2], hd, {})
+    (inst / ".git").write_text("gitdir: elsewhere", encoding="utf-8")
+    assert not may_refresh(inst, hd, {})
     # Analyse a format: links from several creators are one job, every link in its picks.txt
     fl = ["https://www.tiktok.com/@a.one/video/7412345678901234567", "https://www.tiktok.com/@b.two/video/7412345678901234568",
           "https://www.tiktok.com/@c.three/video/7412345678901234569"]
@@ -3129,9 +3210,9 @@ def demo():
         post("/scanhome", {"on": False})
     finally:
         globals()["trash"] = real_trash
-    # demo photos for empty previews: served behind the token, nothing else from that folder
-    assert urllib.request.urlopen(base + "/demo/person-1.jpg?t=" + tok).read()[:2] == b"\xff\xd8"
-    for bad, code in (("/demo/../home.py?t=" + tok, 404), ("/demo/person-9.jpg?t=" + tok, 404), ("/demo/person-1.jpg", 403)):
+    # no stock photos: the old /demo/ path serves nothing; the plain tile is a real PNG
+    assert plain_tile().read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    for bad, code in (("/demo/person-1.jpg?t=" + tok, 404), ("/demo/person-1.jpg", 403)):
         try:
             urllib.request.urlopen(base + bad)
             raise AssertionError(bad)
@@ -3194,6 +3275,7 @@ def demo():
     assert pg["name"] == "Fast cuts" and pg["skill"]["name"] == "fast-cuts" and pg["skill"]["exists"], pg["skill"]
     assert (tmp / "skills" / "fast-cuts" / "SKILL.md").read_text(encoding="utf-8").startswith("---\nname: fast-cuts\n")
     assert next(c for c in get("/library")["styles"] if c["id"] == "@sample.creator")["name"] == "Fast cuts"
+    assert handle_name("sample.creator") == "Fast cuts" and handle_name("links-01011200") == "New format"   # jobs and questions
     for bad in ("my style", "a/b", "x"):
         try:
             post("/style/rename", {"id": "@sample.creator", "name": bad})

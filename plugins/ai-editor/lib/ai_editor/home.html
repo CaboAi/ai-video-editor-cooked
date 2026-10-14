@@ -794,8 +794,9 @@ body.rail .sb-theme{margin-top:2px}
 .rd{position:absolute;top:16px;right:16px;width:24px;height:24px;border-radius:12px;border:1.5px solid var(--ring);background:var(--panel)}
 .rd.on{border:7px solid var(--ink)}
 .clipsum{display:flex;align-items:center;gap:14px;padding:12px 20px 12px 12px;border-radius:12px;background:var(--card);min-width:0}
+.clipsum>.ul{white-space:nowrap;flex-shrink:0;margin-left:auto}.clipsum>div{flex:1}
 .clipsum .th{width:38px;height:68px;border-radius:6px;background:#45403C center/cover;flex-shrink:0}
-.pfoot{position:sticky;bottom:-32px;margin:auto -40px -32px;padding:18px 40px 24px;border-top:1px solid var(--line);background:var(--page);display:flex;align-items:center;justify-content:space-between;gap:16px;z-index:3}
+.pfoot{position:sticky;bottom:0;margin:auto -40px 0;padding:18px 40px 24px;border-top:1px solid var(--line);background:var(--page);display:flex;align-items:center;justify-content:space-between;gap:16px;z-index:3}
 /* a style's page */
 .spg{display:flex;gap:40px;align-items:flex-start;min-width:0}
 .spl{width:250px;flex-shrink:0;display:flex;flex-direction:column;gap:16px;position:sticky;top:0}
@@ -819,7 +820,7 @@ body.rail .sb-theme{margin-top:2px}
 .ct .ci{height:64px;border-radius:8px;overflow:hidden;background:#1C1917;display:flex;align-items:center;justify-content:center}
 .ct .ci img{width:100%;height:100%;object-fit:cover;display:block}
 .ct.on .ci{outline:2px solid var(--ink);outline-offset:2px}
-.ct b{font-size:13px;line-height:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ct.on b{font-weight:600}
+.ct b{font-size:13px;line-height:16px;font-weight:500}.ct.on b{font-weight:600}
 .rng{width:180px;accent-color:var(--ink)}.vr{width:1px;height:16px;background:var(--line);flex-shrink:0}
 .ocs{display:flex;gap:8px}
 .oc{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--ring);border-radius:10px;background:none;text-align:left;color:var(--ink);cursor:pointer}
@@ -889,13 +890,30 @@ body.rail .sb-theme{margin-top:2px}
 .obdrop{display:flex;flex-direction:column;align-items:center;gap:10px;padding:40px 24px;border:1.5px dashed var(--ring);border-radius:12px;cursor:pointer;text-align:center;color:var(--ink)}
 .obdrop:hover{border-color:var(--t3)}.obdrop b{font-size:17px}.obdrop .b1{margin-top:8px}
 .obhome{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:24px;align-items:stretch}
+[role=button]:not([aria-disabled=true]){cursor:pointer}
+/* narrow windows and phones: headers, tabs, key rows and fields wrap instead of squeezing words to a letter a line */
+.row:has(>.ph){flex-wrap:wrap}.row>.ph{flex:1 1 240px;min-width:0}.hact{flex-wrap:wrap}
+.obch,.scd .hd{flex-wrap:wrap;gap:6px 12px}.obch b,.scd .hd b{flex-shrink:0}
+@media (max-width:760px){
+  .stabs{overflow-x:auto;scrollbar-width:none}.stabs button{flex-shrink:0}
+  .row:has(>.shape){flex-wrap:wrap}.shape{flex:1 1 100%}
+  .fld{flex-wrap:wrap}.fld>.in2{flex:1 1 180px}
+  .sk .tp{flex-wrap:wrap}
+  .okr{padding:16px}.okr>.ss{display:none}.okr .row{flex-wrap:wrap}.obk .row{flex-wrap:wrap}
+  .sk .tp>div{flex:1 1 150px!important}
+  .row:has(>.choose),.row:has(>.b2){flex-wrap:wrap}
+  .pc{gap:12px;padding:12px}.pc .pic{width:60px;height:107px}.pc .ttl{flex-wrap:wrap}.pc .nm1{white-space:normal}.pc .pf{white-space:normal}
+  .shd{flex-wrap:wrap}
+}
+@media (max-width:900px){.spg{align-items:stretch}}
+.tlist{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:12px}.tlist b{font-weight:600;color:var(--ink)}
 /* the sidebar's Getting started block */
 .sb-gs{background:var(--panel)!important;border:1px solid var(--line)!important;border-radius:10px;padding:12px!important;display:flex;flex-direction:column;gap:8px;flex-shrink:0;width:100%;margin-top:6px}
 .sb-gs .tp{display:flex;justify-content:space-between;align-items:center}.sb-gs .tp b{font-size:13px;font-weight:600}.sb-gs .tp span{font-size:12px;color:var(--t3)}
 .gr{display:flex;align-items:center;gap:10px;font-size:13px;line-height:18px;color:var(--t2)}.gr span{flex:1}.gr em{font-style:normal;font-size:12px;color:var(--t2)}
 .gr.cur{color:var(--ink);font-weight:600}.gr.cur>i{border-color:var(--ink);background:radial-gradient(circle,var(--ink) 4px,transparent 4.5px)}.gr>i,.gr .okd{width:18px;height:18px}
 .sb-new:disabled{opacity:.35;cursor:default}
-@media (max-width:1180px){.obk{flex-direction:column;align-items:stretch}.obwd{grid-template-columns:1fr 1fr}.obhome{grid-template-columns:1fr}}
+@media (max-width:1180px){.obk{flex-direction:column;align-items:stretch}.obk>*{flex:0 0 auto!important}.obwd{grid-template-columns:1fr 1fr}.obhome{grid-template-columns:1fr}}
 
 </style>
 </head>
@@ -935,17 +953,13 @@ function logo(id,px=20){
   if(LOGO_PATHS[id])return `<span class="logo"><svg width="${px}" height="${px}" viewBox="0 0 24 24" style="fill:${BRAND[id]||'currentColor'}" aria-hidden="true">${id==='gemini'?GEM:''}<path d="${LOGO_PATHS[id]}"/></svg></span>`;
   return `<span class="logo"><svg width="${px}" height="${px}" viewBox="0 0 24 24" aria-hidden="true">${GLYPH[id]||''}</svg></span>`;
 }
-const STEPS=['Setup','Videos','Copy','Your skill','Your video'];
 const KEYS=[
  {id:'elevenlabs',name:'ElevenLabs',tag:'exact words',text:'Keeps every "um" and false start, so the cut finds your retakes. The free transcriber tidies them away.',cost:'Free plan: a few hours a month',url:'https://elevenlabs.io/app/settings/api-keys'},
  {id:'gemini',name:'Gemini',tag:"reads a creator's look",text:'Names the font, colours and graphics when it copies a creator. Without it Claude looks at the frames, which uses more of your Claude usage.',cost:'Free, no card',url:'https://aistudio.google.com/apikey'}];
 const PARTS=[['captions','Captions'],['pace','Pace'],['graphics','Graphics'],['sound','Sound']];
-const PART_WHAT={captions:'Font, size and place',pace:'Cuts, pauses and zooms',graphics:'Cards and text on screen',sound:'Sound effects and music'};
 // creator-teardown quick mode, in order. Claude reports these step names (references/home.md).
 const PLAN=['Listed their videos','Downloaded the top 5 and 2 median','Transcribed every word','Measured cuts, zooms and camera moves','Reading captions and faces','Naming graphics','Sound effects and music','Writing the style'];
-const VIDEO_PLAN=[['Transcribe every word',''],['Cut retakes and pauses',''],['You watch the cut and leave notes','review page'],['Captions, zooms and graphics',''],['You approve the edit and export','review page']];
-let S=null, view=null, ui={exp:{},fold:{videos:null,styles:null},keys:{},nc:{},likes:new Set(['captions','pace']),copy:null,paste:'',look:null,file:null,as:'creator',aspect:'9:16',show:{},kept:new Set()};
-try{const v=localStorage.getItem('ave-home-view');if(v)view=+v}catch(e){}
+let S=null, ui={exp:{},fold:{videos:null,styles:null},keys:{},nc:{},likes:new Set(['captions','pace']),copy:null,paste:'',look:null,file:null,as:'creator',aspect:'9:16',show:{},kept:new Set()};
 
 async function post(u,b){const r=await fetch(u,{method:'POST',body:JSON.stringify(b||{})});let j={};try{j=await r.json()}catch(e){}return Object.assign(j,{_ok:r.ok})}
 const latest=t=>S&&[...S.jobs].reverse().find(j=>j.type===t);
@@ -954,60 +968,22 @@ const mult=x=>(x>=10?Math.round(x):Math.round(x*10)/10)+'x';
 const fmtT=s=>s==null?'':`${Math.floor(s/60)}:${String(Math.round(s%60)).padStart(2,'0')}`;
 const secs=s=>s==null?'':s<60?`${s}s`:`${Math.floor(s/60)}m ${String(s%60).padStart(2,'0')}s`;
 const PLAT={tiktok:'TikTok',youtube:'YouTube',instagram:'Instagram'};
-// Home from every page: the dashboard once set up (a profile or a video), else step 1 of the first run.
-function goHome(){if(returning()){ui.onboard=false;rgo('home')}else go(0)}
+// Home from every page: the dashboard once set up, else the first-run step the real state is at.
+function goHome(){ui.ob=null;rgo('home')}
 // light or dark: the OS setting until the user picks; the pick is remembered in this browser (review page: the same)
 const MOON='<svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1z"/></svg>';
 const SUN='<svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3 3l1.1 1.1M11.9 11.9L13 13M3 13l1.1-1.1M11.9 4.1L13 3"/></svg>';
 const OS=matchMedia('(prefers-color-scheme: dark)'),isDark=()=>{const t=document.documentElement.dataset.theme;return t?t==='dark':OS.matches};
-const themeBtn=()=>`<button class="themebtn" title="${isDark()?'Light mode':'Dark mode'}" aria-label="${isDark()?'Light mode':'Dark mode'}" onclick="toggleTheme()">${isDark()?SUN:MOON}</button>`;
 let themeAt=0;   // a poll already in flight still carries the old theme: ignore the server's for 3 s after a click
 function toggleTheme(){const t=isDark()?'light':'dark';document.documentElement.dataset.theme=t;themeAt=Date.now();post('/theme',{theme:t});render()}
 // the theme is one setting ($AI_EDITOR_HOME/ui.json): a choice made on a review page shows here on the next poll
 function applyTheme(t){const h=document.documentElement;if(t==='light'||t==='dark'){if(h.dataset.theme!==t)h.dataset.theme=t}else delete h.dataset.theme}
 OS.addEventListener('change',()=>render());
-function go(n){view=n;ui.forceR=false;try{localStorage.setItem('ave-home-view',n)}catch(e){}render()}
-function autoView(){
-  const td=latest('teardown'),sk=latest('skill'),vd=latest('video');
-  if(vd)return 4; if(sk)return 3; if(td&&td.state!=='cancelled')return 2;
-  return S.setup_skipped?1:0;
-}
-function reached(){const a=autoView();return Math.max(a,view??0)}
 
 function busyJob(){return S.jobs.filter(j=>j.state==='taken').pop()||S.jobs.filter(j=>j.state==='queued').pop()}   // the one being worked on first
 // a spinner, the newest step (Claude's or a script's own), and a clock since anything last arrived
-function liveStrip(){
-  const j=busyJob();if(!j)return '';
-  if(j.state==='queued')return S.listening?`<span class="lstrip"><span class="spin"></span><span class="ltxt">Claude is picking this up</span></span>`:connectHTML('Waiting for Claude.');
-  const s=j.steps.at(-1),last=Math.max(j.u||0,s?s.t||0:0,S.claude_seen||0)||jobStart(j),age=Math.max(0,Math.round(Date.now()/1000-last));
-  if(!S.listening&&age>60)return connectHTML('Claude is not listening.');
-  const txt=age>60?`Still working: ${s?s.text:'getting started'}. First runs take longer.`:s?s.text+(s.detail&&!s.done?' · '+s.detail:''):'Claude is on it';
-  return `<span class="lstrip" title="${esc(txt)}"><span class="spin"></span><span class="ltxt">${esc(txt)}</span><span class="lclk" data-since="${last}">${secs(age)}</span></span>`;
-}
-function header(v){
-  const r=reached();
-  $('#steps').innerHTML=STEPS.map((s,i)=>`<button class="step ${i===v?'on':i<r||i<v?'done':''}" ${i<=r?'':'disabled'} onclick="go(${i})">${i<v||(i<r&&i!==v)?CHECK:`<i>${i+1}</i>`}${s}</button>`).join('');
-  $('#bars').innerHTML=STEPS.map((s,i)=>`<div class="${i===v?'on':i<v?'done':''}"></div>`).join('');
-  const td=latest('teardown');
-  const live=$('#live');let t='',on=false;
-  const strip=liveStrip();
-  if(strip){live.innerHTML=strip+themeBtn();live.className='live busy';return}
-  if(v===2&&td&&td.state==='done'){t=`Done in ${secs(Math.round(td.finished-td.started))}`}
-  else if(v===4&&td&&td.state==='done'){const sk=latest('skill');t='Style: '+((sk&&sk.result.name)||'@'+td.args.handle)}
-  else t=S.listening?'Claude is listening':'';
-  live.innerHTML=`<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="${esc(t)}">${esc(t)}</span>${themeBtn()}`;live.className='live'+(on?' on':'');
-}
 
 // ---------------------------------------------------------------- H1
-function keyRow(k){
-  const st=S.keys[k.id]||{},u=ui.keys[k.id]||{},editing=u.edit||!st.set;
-  let right;
-  if(!editing)right=`<div class="row" style="gap:8px"><div class="input" style="display:flex;align-items:center;background:var(--bg);color:var(--t2)">••••••••••••••••••••••••</div><button class="small" onclick="ui.keys['${k.id}']={edit:1};render()">Replace</button></div>
-    <div class="msg ok"><span>${st.env?'Set from your environment.':u.msg||'Saved. The key works.'}</span></div>`;
-  else right=`<div class="row" style="gap:8px"><div class="input" style="display:flex;align-items:center;gap:8px;padding:0 0 0 12px"><input id="k-${k.id}" type="${ui.show[k.id]?'text':'password'}" autocomplete="off" spellcheck="false" placeholder="Paste the key" style="flex:1;min-width:0;border:0;outline:0;font:13px var(--mono);background:none" onkeydown="if(event.key==='Enter')verify('${k.id}')"><button style="border:0;background:none;color:var(--t3);font-size:13px;padding:0 12px" onclick="ui.show['${k.id}']=!ui.show['${k.id}'];swapType('${k.id}')">Show</button></div><button class="small dark" ${u.busy?'disabled':''} onclick="verify('${k.id}')">${u.busy?'Checking':u.bad?'Try again':'Verify'}</button></div>
-    ${u.bad?`<div class="msg bad">${CROSS}<span>${esc(u.msg)}</span></div>`:`<div class="msg"><span>Not set. Verify sends one free test request, then saves it.</span></div>`}`;
-  return `<div class="krow"><div class="kl"><div class="row" style="gap:8px">${st.set?TICK:TODO}${logo(k.id)}<span class="kname">${k.name}</span><span class="muted">${k.tag}</span></div><div style="color:var(--t2)">${k.text}</div><div class="row" style="gap:14px"><span class="muted">${k.cost}</span><a class="muted" style="color:var(--ink)" href="${k.url}" target="_blank" rel="noopener">Get a key</a></div></div><div class="kr">${right}</div></div>`;
-}
 function swapType(id){const i=$('#k-'+id);if(i)i.type=ui.show[id]?'text':'password'}
 async function verify(id){
   const i=$('#k-'+id);const value=i?i.value.trim():'';if(!value)return;
@@ -1018,34 +994,7 @@ async function verify(id){
 }
 // One bar while setup installs (setup.py install-all --report sends the overall share as each step's progress).
 // The tool rows sit under "See details". Studying a creator needs no renderer, so the next step stays open.
-const toolsReady=()=>!!(S.doctor&&S.doctor.rows.length&&S.doctor.rows.every(r=>r.ok));
 function readyPct(){const j=latest('setup'),s=j&&j.steps.at(-1);return j&&j.state==='done'?100:Math.round(((s&&s.progress)||0)*100)}
-function readyBox(){
-  const d=S.doctor,rows=d?d.rows:[],j=latest('setup'),run=j&&j.state==='taken',s=run&&j.steps.at(-1);
-  if(!d)return `<div class="muted">Checking this computer...</div>`;
-  const tools=rows.map(r=>`<div class="row">${r.ok?TICK:TODO}${logo(r.id)}<div style="width:166px;flex-shrink:0;color:${r.ok?'var(--t2)':'var(--ink)'};font-weight:${r.ok?400:600}">${esc(r.name)}</div><div class="muted" style="color:${r.ok?'var(--t4)':'var(--t2)'}">${r.ok?esc(r.what):'not ready yet'}</div></div>`).join('');
-  const more=`<button class="hlink" style="align-self:flex-start" onclick="ui.details=!ui.details;render()">${ui.details?'Hide details':'See details'}</button>${ui.details?`<div style="display:flex;flex-direction:column;gap:9px;margin-top:4px">${tools}</div>`:''}`;
-  if(toolsReady()&&!run)return `<div class="row" style="gap:8px">${TICK}<span>Your computer is ready.</span></div>${more}`;
-  const now=run?`Now: ${esc(s?s.text:'starting')}${s&&s.detail?' · '+esc(s.detail):''}`:j&&j.state==='failed'?'':'Waiting for Claude. Say "set up the editor" in Claude Code.';
-  return `<div class="between"><span class="h">Getting your computer ready</span><span class="muted">${readyPct()}%</span></div>
-    <div class="prog" style="width:100%"><div style="width:${readyPct()}%"></div></div>
-    ${j&&j.state==='failed'&&!run?`<div class="msg bad">${CROSS}<span>${esc(j.error)}</span></div>`:`<div class="muted">${now}</div>`}
-    <div class="muted">Pick a creator while this runs.</div>${more}`;
-}
-function h1(){
-  const unset=KEYS.filter(k=>!(S.keys[k.id]||{}).set).map(k=>k.id);
-  return `<div class="col" style="width:440px;padding:28px 28px 0 14px;gap:36px">
-    <div><h1>Edit like the creators you watch.</h1><p class="lede">Name a creator. The editor measures how they cut, then edits your video the same way.</p></div>
-    <div style="display:flex;flex-direction:column;gap:12px;align-items:stretch">${readyBox()}</div>
-  </div>
-  <div class="panel grow">
-    <div class="between" style="padding:22px 24px 16px;align-items:flex-start"><div><div class="h">Optional keys</div><div class="sub" style="margin-top:4px">Each one makes edits cheaper or better. Skip any: Claude does that job instead.</div></div><div class="lock">${LOCK}Saved on this computer only. Never sent to the chat.</div></div>
-    ${KEYS.map(keyRow).join('')}
-    <div class="krow"><div class="kl"><div class="row" style="gap:8px">${mState().ready?TICK:TODO}${logo('modal')}<span class="kname">Modal</span><span class="muted">cloud renders</span></div><div style="color:var(--t2)">Splits a long video across many computers so it finishes faster. You see the time and cost before every render.</div><div class="row" style="gap:14px"><span class="muted">$30 free credit a month</span></div></div>
-      <div class="kr">${modalRow()}</div></div>
-    <div class="foot"><span></span><div class="row" style="gap:8px"><button class="btn quiet" onclick="skip(${esc(JSON.stringify(unset))})">Skip, add later</button><button class="btn" onclick="go(1)">Next: pick a creator</button></div></div>
-  </div>`;
-}
 // Modal: Connect and Test render run in the window's own server (setup.py modal-connect / modal-test), no Claude
 // needed. Modal's CLI keeps the login itself; the page only ever sees the step names.
 function mState(){
@@ -1074,8 +1023,6 @@ function mBody(){
     ${!testing&&t&&t.state==='failed'?`<div class="msg bad">${CROSS}<span>${esc(t.error||'The test render failed.')}</span></div>`:''}`;
 }
 async function mGo(what){await post('/modal/'+what,{});await load();render()}
-function modalRow(){return `<div style="display:flex;flex-direction:column;gap:10px">${mBody()}</div>`}
-async function skip(names){await post('/later',{names});if(names.length>1)go(1);else load()}
 async function queue(b){const r=await post('/job',b);if(!r._ok)alert(r.msg||r.error||'That did not work.');await load();return r}
 
 // ---------------------------------------------------------------- several links, one row each
@@ -1093,239 +1040,34 @@ function lbAdd(k,text){
   for(const t of text.split(/\s+/).filter(Boolean)){if(isProfile(t))b.rows=[t];else{b.rows=b.rows.filter(r=>!isProfile(r));if(!b.rows.includes(t))b.rows.push(t)}}
   b.draft='';const e=$('#lb-'+k);if(e)e.value='';lbChanged(k);
 }
-function lbChanged(k){if(k==='paste')onPaste(lbText(k));render()}
+function lbChanged(k){render()}
 function lbRemove(k,i){lbOf(k).rows.splice(i,1);lbChanged(k);const e=$('#lb-'+k);if(e)e.focus()}
-function lbInput(k,v){lbOf(k).draft=v;if(k==='paste')onPaste(lbText(k))}
+function lbInput(k,v){lbOf(k).draft=v}
 function lbKey(e,k){
   const b=lbOf(k),v=e.target.value;
   if(e.key==='Enter'){e.preventDefault();if(v.trim())lbAdd(k,v);else if(k==='study')studyLink()}
   else if(e.key==='Backspace'&&!v&&b.rows.length){e.preventDefault();b.rows.pop();lbChanged(k)}
 }
 function lbPaste(e,k){const t=(e.clipboardData||{getData:()=>''}).getData('text');if(!t.trim())return;e.preventDefault();lbAdd(k,e.target.value+' '+t)}
-function linkBox(k,big){
-  const b=lbOf(k),n=b.rows.length,px=big?20:18;
-  const rows=b.rows.map((r,i)=>`<div class="lrow">${platOf(r)?logo(platOf(r),px):LINKG}<span class="lurl" title="${esc(r)}">${esc(shortLink(r))}</span><button class="lx" aria-label="Remove this link" title="Remove" onclick="lbRemove('${k}',${i})">${CROSS}</button></div>`).join('');
-  const prof=n&&isProfile(b.rows[0]);
-  const ph=prof?'Or paste video links instead':`Video ${n+1}: paste a link`;
-  // empty numbered boxes up to 6 (or more after "Add more links"): several links is the point, so show it
-  const slots=prof?0:Math.max(0,Math.max(6,n+1+(b.extra||0))-n-1);
-  const empty=Array.from({length:slots},(_,i)=>`<div class="lrow lslot" onclick="const e=document.getElementById('lb-${k}');if(e)e.focus()"><span class="lnum">${n+2+i}</span><span>Video ${n+2+i}</span></div>`).join('');
-  const hint=prof?'':`<div class="fmtq"><button class="hlink" style="font-size:13px;color:var(--t2)" onclick="ui.fmtq=!ui.fmtq;render()">What counts as the same format? ${ui.fmtq?'▴':'▾'}</button>${ui.fmtq?'<ul><li>The same kind of video: talking head, skit or tutorial</li><li>The same captions look</li><li>The same layout</li><li>Roughly the same length</li></ul>':''}</div>`;
-  return `${hint}<div class="lbox ${big?'big':''}">${rows}<label class="lrow ladd"><span class="logo">${n?PLUS:`<span class="lnum">1</span>`}</span><input id="lb-${k}" placeholder="${ph}" value="${esc(b.draft)}" oninput="lbInput('${k}',this.value)" onkeydown="lbKey(event,'${k}')" onpaste="lbPaste(event,'${k}')" autocomplete="off" spellcheck="false"></label>${empty}</div>${prof?'':`<div class="muted" style="margin-top:8px;font-size:13px">or paste a creator's profile and we pick their videos in one format</div><button class="lmore" onclick="lbOf('${k}').extra=(lbOf('${k}').extra||0)+1;render();const e=document.getElementById('lb-${k}');if(e)e.focus()">${PLUS} Add more links</button>`}`;
-}
-function lbCount(k){
-  const v=lbOf(k).rows.filter(r=>!isProfile(r));
-  return v.length?`${v.length} of 6 videos.${v.length<6?' More links give a truer style.':' Enough for a good read.'}${v.some(r=>platOf(r)==='instagram')?' Instagram ranks by likes, not views.':''}`:'';
-}
 
 // ---------------------------------------------------------------- H2
-let lookT=null;
-function onPaste(v){ui.paste=v;clearTimeout(lookT);lookT=setTimeout(lookup,450)}
-async function lookup(platform){
-  const text=ui.paste.trim();if(!text){ui.look=null;return render()}
-  ui.look=await post('/lookup',{text,platform:platform||(ui.look&&ui.look.ask_platform?ui.look.platform:undefined)});render();
-}
-function tilesHTML(lk){
-  const tile=(v,c='')=>`<div class="tile ${c}"><div class="pic" style="${v.thumbnail?`background-image:url('${esc(v.thumbnail)}')`:''}">${v.vs_median?`<div class="badge">${mult(v.vs_median)}</div>`:''}<div class="views">${fmtN(v.view_count||v.like_count)}</div></div><div class="tdur">${fmtT(v.duration)}</div></div>`;
-  const top=lk.videos.filter(v=>v.role.startsWith('Top')),med=lk.videos.filter(v=>!v.role.startsWith('Top'));
-  return `<div class="tiles"><div class="glabel"><b>Their top ${top.length}</b> · what to copy</div>${top.slice(0,5).map(v=>tile(v)).join('')}${med.length?`<div class="tdiv"></div><div class="glabel g2"><b>${med.length} typical</b> · for comparison</div>${med.slice(0,2).map((v,i)=>tile(v,'m'+i)).join('')}`:''}</div>`;
-}
-function h2(){
-  const L=ui.look,lk=S.lookup||{},listing=lk.listing&&L&&lk.handle===L.handle?lk.listing:null;
-  const ask=L&&L.kind==='creator'&&L.ask_platform?`<div class="row" style="gap:8px;margin-top:10px"><span class="muted">Which app is @${esc(L.handle)} on?</span>${['tiktok','youtube'].map(p=>`<button class="tag" style="${L.platform===p?'background:var(--panel);outline:1.5px solid var(--ink)':''}" onclick="lookup('${p}')">${PLAT[p]}</button>`).join('')}</div>`:'';
-  const note=L&&L.note&&!L.urls?`<div class="muted" style="margin-top:10px;color:var(--ink)">${esc(L.note)}</div>`:'';
-  let right;
-  if(!L||L.kind!=='creator')right=`<div class="empty">The videos you paste show here.</div>`;
-  else if(L.urls)right=`<div class="empty"><div class="h" style="font-size:17px">${L.handle?'@'+esc(L.handle):'Your links'}</div></div>`;
-  else if(listing&&listing.videos.length)right=tilesHTML(listing);
-  else if(lk.status==='failed'&&lk.handle===L.handle)right=`<div class="empty">${L.platform==='instagram'?esc(lk.msg):`Could not read @${esc(L.handle)} on ${PLAT[L.platform]}: ${esc(lk.msg)}. Check the handle, or start anyway and Claude tries again.`}</div>`;
-  else if(lk.status==='nofetch')right=`<div class="empty">The creator-teardown plugin is not installed, so the videos cannot be listed here. Claude installs it when you start.</div>`;
-  else right=`<div class="empty">Reading @${esc(L.handle)}'s videos on ${PLAT[L.platform]||''}...</div>`;
-  const head=L&&L.kind==='creator'&&!L.urls?`<div class="between" style="padding:24px 24px 20px;align-items:center"><div class="row" style="gap:14px"><div style="width:44px;height:44px;border-radius:22px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--t2)">${esc((L.handle||'').slice(0,2).toUpperCase())}</div><div><div class="h" style="font-size:17px">@${esc(L.handle)}</div><div class="muted" style="margin-top:3px">${PLAT[L.platform]||''}${listing?` · ${listing.count} recent videos · median ${fmtN(listing.median)} ${listing.ranked_by||'views'}`:''}</div></div></div></div>`:'<div style="height:20px"></div>';
-  const can=L&&L.kind==='creator'&&(L.platform!=='instagram'||L.urls||!!listing);   /* an Instagram profile only once it listed */
-  return `<div class="col" style="width:520px;padding:28px 28px 0 14px;gap:0">
-    <h1>Pick videos in a format you like</h1><p class="lede">6 videos edited the same way works best. They can be from one creator or several.</p>
-    <div style="margin-top:32px">${linkBox('paste',true)}</div>${lbCount('paste')?`<div class="lcount" style="margin-top:10px">${lbCount('paste')}</div>`:''}${ask}${note}
-    <div class="between" style="margin-top:40px"><span class="h" style="font-size:17px">What do you like about them?</span><span class="muted">optional</span></div>
-    <div class="likes" style="margin-top:14px">${PARTS.map(([k,n])=>`<button class="like ${ui.likes.has(k)?'on':''}" onclick="ui.likes.has('${k}')?ui.likes.delete('${k}'):ui.likes.add('${k}');render()"><span class="box">${ui.likes.has(k)?CHECK:''}</span><div><b>${n}</b><span>${PART_WHAT[k]}</span></div></button>`).join('')}</div>
-  </div>
-  <div class="panel grow" style="align-self:flex-start">${head}<div style="overflow:auto">${right}</div>
-    <div class="foot"><div class="sub">${L&&L.urls?`Claude measures these ${L.urls.length} video${L.urls.length>1?'s':''}.`:'Claude measures their top 5 and 2 typical videos.'}</div>
-    <div class="row" style="gap:20px"><button class="btn dark" ${can?'':'disabled'} onclick="study()">Analyse this style</button></div></div>
-  </div>`;
-}
-async function study(){
-  const L=ui.look;const r=await queue({type:'teardown',handle:L.handle,platform:L.platform,urls:L.urls,take:[...ui.likes]});
-  if(r._ok){ui.copy=null;go(2)}
-}
 
-// ---------------------------------------------------------------- H3 / H4
+// ---------------------------------------------------------------- analysing a format
 function curVideo(td){const s=td.steps.filter(s=>!s.done).at(-1)||{};const m=/video (\d+) of (\d+)/.exec(s.detail||'');return m?[+m[1],+m[2]]:null}
 const warnBox=ws=>ws&&ws.length?`<div class="ssec"><div class="shd"><b>Worth knowing</b><span class="t2">From the analysis</span></div>${ws.map(w=>`<div class="msg bad" style="font-size:14px;line-height:20px">${esc(w)}</div>`).join('')}</div>`:'';   // report.py's warnings
-// creator-teardown's format check (format.json): the links left out (only when it applied: a majority of 3+)
-const leftOut=td=>{const f=td.format;return f&&f.applied&&Array.isArray(f.left_out)?f.left_out:[]};
-function fmtLine(td){   // the check's own line, whenever some videos differ (left out, or a mix it could not split)
-  const f=td.format;if(!f||!f.line||!(f.left_out||[]).length)return '';
-  return `<div class="msg" style="margin-top:16px;font-size:14px;line-height:20px"><span>${esc(f.line)}</span></div>`;
-}
-function h3(td){
-  const lk=td.listing,m=td.measured||{rows:{}},cv=curVideo(td),n=lk?lk.videos.length:0;
-  const cur=cv?cv[0]-1:null,vid=lk&&cur!=null?lk.videos[cur]:lk&&lk.videos[0];
-  const reported=td.steps.length,elapsed=Math.round(Date.now()/1000-(td.started||Date.now()/1000));
-  const steps=td.steps.map(s=>`<div class="row ${s.done?'':'cur'}"><div class="check" style="color:var(--t4)">${s.done?CHECK:'<div class="spin"></div>'}</div><span class="t">${esc(s.text)}</span><span class="s">${s.done?secs(s.secs):''}</span></div>${!s.done&&(s.detail||s.progress!=null)?`<div class="row" style="padding-left:28px"><div class="prog"><div style="width:${Math.round((s.progress||0)*100)}%"></div></div><span class="muted" style="color:var(--t2);font-size:14px">${esc(s.detail||'')}</span></div>`:''}`).join('')
-    +(td.state==='taken'||td.state==='queued'?PLAN.slice(reported).map(p=>`<div class="row later"><div class="check"><div class="ring"></div></div><span class="t">${p}</span></div>`).join(''):'');
-  const order=[['pace','Pace'],['zooms','Zooms'],['captions','Captions'],['hook','Hook'],['graphics','Graphics'],['sound','Sound']];
-  const curStep=(td.steps.filter(s=>!s.done).at(-1)||{}).text||'';
-  const nowKey=/caption/i.test(curStep)?'captions':/graphic/i.test(curStep)?'graphics':/sound/i.test(curStep)?'sound':/cut|zoom/i.test(curStep)?'pace':'';
-  const keys=S.keys||{};
-  const status=td.state==='failed'?`<div class="msg bad" style="font-size:14px">${CROSS}<span>${esc(td.error)}</span></div>`:td.state==='cancelled'?`<div class="muted">Cancelled.</div>`:td.state==='queued'?`<div class="muted" style="font-size:14px;margin-top:16px;line-height:20px">${S.listening?'Claude is picking this up.':'Waiting for Claude. Say "edit my video" in Claude Code and it picks this up.'}</div>`:'';
-  return `<div class="col grow" style="gap:20px;min-width:0"><div style="display:flex;gap:28px;flex:1;min-height:0">
-    <div class="col" style="flex-shrink:1;min-width:0"><div class="bigframe ${vid&&vid.thumbnail?'':'shimbox'}" style="position:relative;height:100%;aspect-ratio:9/16;max-width:400px;border-radius:20px;overflow:hidden;background:#45403C ${vid&&vid.thumbnail?`url('${esc(vid.thumbnail)}') center/cover`:''};min-height:420px">${vid?`<div class="badge" style="position:absolute;top:14px;left:14px;background:var(--panel);border-radius:6px;padding:3px 9px;font-weight:600;font-size:14px">${esc(vid.role)} · ${fmtN(vid.view_count||vid.like_count)}${cur!=null?' · now':''}</div>`:''}</div></div>
-    <div class="grow"><div class="between" style="padding:6px 20px 12px"><span class="row" style="gap:10px">${td.face?`<i style="width:32px;height:32px;border-radius:50%;flex-shrink:0;background:url('${esc(td.face)}') center/cover"></i>`:''}<span class="h" style="font-size:17px">Measured so far</span></span><span class="muted" style="font-size:14px">${m.videos?`from ${m.videos} of ${n||m.videos} videos · numbers settle as more finish`:'empty until the first video is measured'}</span></div>
-      ${order.map(([k,lab])=>m.rows[k]?`<div class="mrow ${k===nowKey?'now':''}"><span class="k">${lab}</span><span class="v">${esc(m.rows[k])}</span></div>`:`<div class="mrow next ${k===nowKey?'now':''}"><span class="k">${lab}</span><span class="v">${k===nowKey&&cv?`Reading video ${cv[0]} now`:'Next'}</span></div>`).join('')}
-    </div></div>
-    ${lk&&lk.videos.length?`<div class="strip" style="grid-template-columns:repeat(${n},1fr)">${lk.videos.map((v,i)=>`<div class="${i===cur?'cur':''} ${leftOut(td).some(x=>x.url===v.webpage_url)?'out':''}"><div class="bar ${i===cur&&td.state==='taken'?'indet':''}"><div style="width:${cur==null?(td.state==='done'?100:0):i<cur?100:i===cur?50:0}%"></div></div><span>${fmtN(v.view_count||v.like_count)}${i===cur?' now':v.role.startsWith('Control')?' median':''}</span></div>`).join('')}</div>`:''}
-  </div>
-  <div class="panel" style="width:400px;flex-shrink:0;padding:24px 24px 20px">
-    <div class="h">Claude</div><div class="sub" style="font-size:15px;line-height:22px;margin-top:6px">Analysing @${esc(td.args.handle)}'s style. ${n||7} videos, all on this computer.</div>
-    ${(td.state==='queued'||td.state==='taken')&&!reported?`<div class="starting"><div class="spin big"></div><div><b>${td.state==='taken'?'Getting their videos':'Starting'}</b><span>${td.state==='queued'&&!S.listening&&elapsed>20?'Claude has not started yet. In Claude Code, say "open the home page".':`<span data-since="${td.started||Date.now()/1000}">0s</span> · this takes about 3 minutes`}</span></div></div>`:''}
-    ${fmtLine(td)}<div class="slist" style="margin-top:22px">${steps}</div>
-    ${td.state==='taken'&&reported?`<div class="muted" style="margin-top:18px">Working for <span data-since="${td.started}">${secs(elapsed)}</span></div>`:''}${status}
-    <div style="flex:1"></div>
-    <div class="cost"><div class="h">What this costs</div>
-      <div class="between"><span>Transcripts, ${keys.elevenlabs&&keys.elevenlabs.set?'ElevenLabs ($0.22 an hour of audio)':'on this computer'}</span><b>${keys.elevenlabs&&keys.elevenlabs.set?'under $0.05':'$0.00'}</b></div>
-      <div class="between"><span>Graphics, ${keys.gemini&&keys.gemini.set?'Gemini free tier':'Claude reads frame sheets'}</span><b>$0.00</b></div>
-      <div class="between"><span>Measuring, on this computer</span><b>$0.00</b></div>
-      <div class="muted" style="line-height:18px">With no keys it is free and uses a little more of your Claude usage.</div></div>
-    <div class="row stick" style="gap:12px;margin-top:16px;padding-bottom:2px">${td.state==='taken'||td.state==='queued'?`<button class="btn dark" style="flex:1;height:58px" onclick="post('/cancel',{type:'teardown'}).then(load)">■ Cancel</button>`:`<button class="btn" style="flex:1;height:58px" onclick="go(1)">Pick another creator</button>`}<button class="btn quiet" style="height:58px" ${td.state==='done'?'':'disabled'} onclick="render()">See the result</button></div>
-  </div>`;
-}
-const SHORT={captions:r=>r.captions,pace:r=>r.pace,graphics:r=>r.graphics,sound:r=>r.sound};
-function h4(td){
-  const m=td.measured||{tiles:[],rows:{}},lk=td.listing,R=td.result||{};
-  if(!ui.copy)ui.copy=new Set((td.args.take&&td.args.take.length?td.args.take:PARTS.map(p=>p[0])).filter(k=>m.rows[k]||k==='pace'&&m.rows.zooms));
-  const top=lk?lk.videos.filter(v=>v.role.startsWith('Top')).slice(0,3):[];
-  const facts=[['captions','Captions'],['zooms','Zooms'],['graphics','Graphics'],['sound','Sound'],['hook','Hook'],['winners','Winners']].filter(([k])=>m.rows[k]);
-  const liked=new Set(td.args.take||[]);
-  const sk=latest('skill');
-  return `<div class="col grow" style="min-width:0;padding:16px 28px 0 14px">
-    <h1>What makes @${esc(td.args.handle)} work</h1>
-    <div class="between" style="margin-top:10px;margin-bottom:28px"><span class="sub" style="font-size:15px">Measured from ${m.videos||'their'} videos: the top 5 and 2 median.</span>${m.report?`<a href="/td/${esc(td.args.handle)}/teardown.html" target="_blank" rel="noopener" style="font-size:15px">Open the full study</a>`:''}</div>
-    ${(m.warnings||[]).length?`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:24px">${m.warnings.map(w=>`<div class="msg bad" style="font-size:14px;line-height:20px">${esc(w)}</div>`).join('')}</div>`:''}
-    ${m.tiles.length?`<div class="stats">${m.tiles.map(t=>`<div><b>${esc(t.big)}</b><span>${esc(t.label)}</span></div>`).join('')}</div>`:'<div class="empty">Nothing measured.</div>'}
-    <div class="pair" style="display:flex;gap:44px;margin-top:36px">
-      ${top[0]&&top[0].thumbnail?`<div class="thumb" style="width:212px;flex-shrink:0"><div style="aspect-ratio:2/3;border-radius:16px;background:#45403C url('${esc(top[0].thumbnail)}') center/cover"></div><div class="muted" style="margin-top:12px;line-height:18px">Their most viewed video</div></div>`:''}
-      <div class="facts grow">${facts.map(([k,l])=>`<span class="k ${k==='winners'?'b':''}">${l}</span><span>${esc(m.rows[k])}</span>`).join('')}</div>
-    </div>
-    ${top.length?`<div style="border-top:1px solid var(--line);margin-top:32px;padding-top:24px"><div class="between"><span class="h" style="font-size:16px">Best videos</span><span class="muted" style="font-size:14px">views against their ${fmtN(lk.median)} median</span></div>
-    <div class="best" style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:18px;padding-bottom:20px">${top.map(v=>`<div class="row" style="align-items:flex-start;gap:16px"><div style="width:52px;height:92px;border-radius:8px;flex-shrink:0;background:#45403C ${v.thumbnail?`url('${esc(v.thumbnail)}') center/cover`:''}"></div><div><div style="font-weight:600;font-size:15px">${fmtN(v.view_count||v.like_count)}${v.vs_median?' · '+mult(v.vs_median):''}</div><div style="color:var(--t2);margin-top:6px">"${esc((v.title||'').slice(0,60))}"</div></div></div>`).join('')}</div></div>`:''}
-  </div>
-  <div class="panel r4side" style="width:400px;flex-shrink:0;padding:24px 24px 20px">
-    <div class="h">Your edits will copy</div><div class="sub" style="margin-top:6px">Untick anything. A part left out uses the default.</div>
-    <div style="margin-top:18px">${PARTS.map(([k,n])=>{const line=k==='pace'?[m.rows.pace,m.rows.zooms].filter(Boolean).join(' '):m.rows[k];return `<div class="pick ${ui.copy.has(k)?'on':''}" onclick="ui.copy.has('${k}')?ui.copy.delete('${k}'):ui.copy.add('${k}');render()"><div class="box">${ui.copy.has(k)?CHECK:''}</div><div class="grow"><div class="between"><span class="ttl">${n}${k==='pace'?' (cuts and zooms)':''}</span>${liked.has(k)?'<span class="muted">you liked this</span>':''}</div><div style="color:var(--t2);margin-top:4px">${esc(line||'not measured')}</div></div></div>`}).join('')}</div>
-    <div class="h" style="margin-top:26px;font-size:16px">It will not copy</div>
-    <div style="margin-top:10px">${["Their words, voice or jokes. Structure is copied, voice is not.",...(R.reject||[])].map(t=>`<div class="dash">${esc(t)}</div>`).join('')}</div>
-    <div style="flex:1;min-height:20px"></div>
-    <div class="stick" style="padding-top:8px"><button class="btn dark wide" ${ui.copy.size&&!(sk&&(sk.state==='queued'||sk.state==='taken'))?'':'disabled'} onclick="build()">${sk&&(sk.state==='queued'||sk.state==='taken')?'Building...':'Build my skill'}</button></div>
-  </div>`;
-}
-async function build(){const r=await queue({type:'skill',take:[...ui.copy]});if(r._ok)go(3)}
 
 // ---------------------------------------------------------------- the skill being built: the measured parts feed
 // into a SKILL.md card that writes itself line by line, a ring for the steps done, the step now with a clock
+// pasted links (no profile): the same steps, named for links (the scripts report the profile names)
+const LINKSTEP={'Listed their videos':'Read your links','Downloaded the top 5 and 2 median':'Downloaded the videos'};
+const tdStep=(j,t)=>j&&j.args&&j.args.urls&&LINKSTEP[t]||t;
+const tdPlan=j=>PLAN.map(p=>tdStep(j,p)),tdSteps=j=>j.steps.map(s=>({...s,text:tdStep(j,s.text)}));
 const SKILL_PLAN=['Saving your style','Checking whether it is a format of its own','Writing the skill','Testing it with one script'];
 const jobStart=j=>j.started||(j.at?Date.parse(j.at)/1000:0)||Date.now()/1000;
-function stepList(steps,plan,start,waiting){
-  const done=steps.filter(s=>s.done),cur=steps.find(s=>!s.done);
-  const rows=done.map(s=>`<div class="row"><div class="check" style="color:var(--t3)">${CHECK}</div><span class="t">${esc(s.text)}</span><span class="s">${secs(s.secs)}</span></div>`);
-  rows.push(`<div class="row cur"><div class="check"><div class="spin"></div></div><span class="t">${esc(cur?cur.text:waiting)}</span><span class="s" data-since="${cur?cur.t:start}">${secs(Math.max(0,Math.round(Date.now()/1000-(cur?cur.t:start))))}</span></div>${cur&&cur.detail?`<div class="muted" style="padding-left:28px;color:var(--t2)">${esc(cur.detail)}</div>`:''}`);
-  const seen=new Set(steps.map(s=>s.text));
-  plan.filter(p=>!seen.has(p)).forEach(p=>rows.push(`<div class="row later"><div class="check"><div class="ring"></div></div><span class="t">${esc(p)}</span></div>`));
-  return rows.join('');
-}
-function buildStage(sk,td){
-  const h=sk.args.handle||(td&&td.args.handle)||'',m=(td&&td.measured)||{rows:{},tiles:[]},take=sk.args.take||[];
-  const nDone=sk.steps.filter(s=>s.done).length,frac=Math.min(1,(nDone+(sk.steps.some(s=>!s.done)?.5:0))/SKILL_PLAN.length);
-  const chips=[...(m.tiles||[]).slice(0,3).map(t=>[t.big,t.label]),...take.map(k=>[(PARTS.find(p=>p[0]===k)||[k,k])[1],'copied'])].slice(0,6);
-  const lines=[['name',`edit-like-${h}`],...take.map(k=>[k,(k==='pace'?[m.rows.pace,m.rows.zooms].filter(Boolean).join(' '):m.rows[k])||'the default']),['use it for','videos like @'+h+"'s"],['test','one script, cut and checked']];
-  const shown=Math.round(lines.length*frac),C=2*Math.PI*20;
-  const body=lines.map(([k,v],i)=>i<shown?`<div class="wl"><span class="wk">${esc(k)}:</span> ${esc(v)}</div>`:i===shown?`<div class="wl writing"><span class="wk">${esc(k)}:</span> <span class="wv">${esc(v)}</span></div>`:`<div class="wl ghost"><span style="width:${40+(i*23)%45}%"></span></div>`).join('');
-  const waiting=sk.state==='queued'&&!S.listening?'Waiting for Claude. Say "edit my video" in Claude Code.':'Starting';
-  return `<div class="bstage">
-    <div class="h" style="font-size:22px;line-height:28px">Building your skill from @${esc(h)}</div>
-    <div class="bfeed">${chips.map(([a,b],i)=>`<span class="bchip" style="animation-delay:${i*.45}s"><b>${esc(a)}</b>${esc(b)}</span>`).join('')}</div>
-    <div class="bcard"><div class="row" style="gap:14px;padding:16px 18px;border-bottom:1px solid var(--line)">
-      <svg class="bring" width="48" height="48" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20" fill="none" stroke="var(--line)" stroke-width="4"/><circle cx="24" cy="24" r="20" fill="none" stroke="var(--ink)" stroke-width="4" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-frac)).toFixed(1)}" transform="rotate(-90 24 24)" style="transition:stroke-dashoffset .6s"/><text x="24" y="28.5" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">${nDone}/${SKILL_PLAN.length}</text></svg>
-      <div style="min-width:0"><div class="mono" style="color:var(--ink);font-size:14px">edit-like-${esc(h)}/SKILL.md</div><div class="muted" style="margin-top:3px">being written on this computer</div></div></div>
-      <div class="bbody">${body}</div></div>
-    <div class="slist" style="width:min(460px,100%)">${stepList(sk.steps,SKILL_PLAN,jobStart(sk),waiting)}</div>
-  </div>`;
-}
 // ---------------------------------------------------------------- H5
 function copyText(t,el){try{navigator.clipboard.writeText(t)}catch(e){}el.innerHTML=CHECK+' Copied';el.style.color='var(--ink)';el.style.fontWeight='600'}
-function h5(){
-  const sk=latest('skill'),td=latest('teardown'),R=(sk&&sk.result)||{};
-  if(!sk)return `<div class="col grow"><div class="empty">Build your skill on the Copy step first.</div></div>`;
-  const busy=sk.state==='queued'||sk.state==='taken';
-  const prompts=(R.prompts||[]).map(p=>`<div class="prompt"><div><code>${esc(p.text)}</code><div class="sub" style="margin-top:4px">${esc(p.what||'')}</div></div><button class="copy" onclick="copyText(${esc(JSON.stringify(p.text))},this)">Copy</button></div>`).join('');
-  let left;
-  if(busy)left=buildStage(sk,td);
-  else if(sk.state==='failed')left=`<div class="msg bad" style="font-size:15px;margin-top:12px">${CROSS}<span>${esc(sk.error)}</span></div>`;
-  else if(R.passed)left=`<div class="row" style="gap:10px"><span class="muted" style="font-size:14px">Your new skill</span>${R.check?`<span class="tag" style="font-size:13px">${CHECK}passed the check: ${esc(R.check)}</span>`:''}</div>
-    <div style="font:500 44px/52px var(--mono);letter-spacing:-.02em;margin-top:14px">${esc(R.name)}</div>
-    <p class="lede" style="font-size:17px;line-height:26px;max-width:760px">${esc(R.what)}</p>
-    <div class="row" style="gap:40px;margin-top:22px;align-items:flex-start">${[['Use it for',R.use_for],['Not for',R.not_for],['Saved to',R.path],['Style skill',R.style_skill]].filter(x=>x[1]).map(([k,v])=>`<div><div class="muted">${k}</div><div style="margin-top:6px;font-size:15px;${k==='Saved to'||k==='Style skill'?'font-family:var(--mono);font-size:14px':''}">${esc(v)}</div></div>`).join('')}</div>`;
-  else left=`<div class="muted" style="font-size:14px">Your style</div><div class="h" style="font-size:28px;line-height:34px;margin-top:12px">No separate format yet: your style is saved.</div>${R.style_skill?`<div style="font:500 32px/40px var(--mono);margin-top:14px">${esc(R.style_skill)}</div>`:''}
-    <p class="lede" style="font-size:16px;max-width:760px">${esc(R.why||'')} Every edit you ask for now copies the parts you ticked from @${esc(td?td.args.handle:'')}.</p>`;
-  const tools=(R.tools||[]).map(t=>`<div class="tool"><div><div class="h">${esc(t.name)}</div><div class="sub" style="margin-top:4px">${esc(t.why||'')}</div></div>${t.prompt?`<button class="copy" onclick="copyText(${esc(JSON.stringify(t.prompt))},this)">Copy</button>`:''}</div>`).join('');
-  const ks=KEYS.filter(k=>(S.keys[k.id]||{}).set).map(k=>`<div class="tool"><div><div class="h" style="color:var(--t3)">${k.name}</div><div class="sub" style="margin-top:4px;color:var(--t3)">${k.tag}</div></div><span class="muted row" style="gap:6px">${CHECK} Set</span></div>`).join('');
-  return `<div class="col grow" style="min-width:0;padding:16px 28px 0 14px">${left}
-    ${prompts?`<div class="panel" style="margin-top:34px"><div class="between" style="padding:22px 28px 16px"><span class="h" style="font-size:17px">What to ask Claude</span><span class="muted" style="font-size:14px">copy one into Claude Code</span></div>${prompts}</div>`:''}
-    ${R.tested?`<div style="border:1.5px dashed var(--ring);border-radius:20px;padding:20px 28px;margin-top:24px"><div class="h">Tested once before saving</div><div class="sub" style="margin-top:4px">${esc(R.tested)}</div></div>`:''}
-  </div>
-  <div class="panel" style="width:400px;flex-shrink:0;padding:24px 24px 20px">
-    <div class="h" style="font-size:17px">Tools that would help</div><div class="sub" style="margin-top:6px">Picked for this style. All optional.</div>
-    <div style="margin-top:16px">${tools||(busy?'<div class="muted" style="padding:12px 0;line-height:19px">They show here once the skill is written.</div>':'<div class="muted" style="padding:12px 0">None needed.</div>')}${ks}</div>
-    <div style="flex:1;min-height:20px"></div>
-    <div class="stick" style="padding-top:8px"><div class="muted" style="font-size:14px;line-height:20px;margin-bottom:14px">Try it on a real video now. Claude uses the skill without you naming it.</div>
-    <button class="btn dark wide" ${busy?'disabled':''} onclick="go(4)">Next: drop your video</button></div>
-  </div>`;
-}
 
 // ---------------------------------------------------------------- H6
-async function upload(f){
-  ui.file={name:f.name,label:'Copying it into the project...'};render();
-  const r=await fetch('/upload?name='+encodeURIComponent(f.name),{method:'POST',body:f});
-  const j=await r.json().catch(()=>({}));ui.file=j.ok?j:{name:f.name,bad:j.msg||'The copy failed.'};render();
-}
-async function probePath(v){if(!v.trim())return;const j=await post('/probe',{path:v});ui.file=j.ok?j:{name:v,bad:j.msg};render()}
-function h6(){
-  const td=latest('teardown'),sk=latest('skill'),vd=latest('video'),F=ui.file,R=(vd&&vd.result)||{};
-  const hasCreator=td&&td.state==='done';
-  const running=vd&&(vd.state==='queued'||vd.state==='taken');
-  const plan=vd&&vd.steps.length?vd.steps.map(s=>`<div class="row ${s.done?'':'cur'}"><div class="check" style="color:var(--t4)">${s.done?CHECK:'<div class="spin"></div>'}</div><span class="t">${esc(s.text)}</span><span class="s">${s.done?secs(s.secs):esc(s.detail||'')}</span></div>`).join('')
-    :VIDEO_PLAN.map(([t,s])=>`<div class="row later"><div class="check"><div class="ring"></div></div><span class="t" style="color:var(--t2)">${t}</span><span class="s">${s}</span></div>`).join('');
-  return `<div class="col grow" style="min-width:0;padding:16px 28px 0 14px">
-    <h1>Drop your video.</h1><p class="lede" style="margin-top:10px">A raw take straight off your phone is fine. Retakes and pauses get cut first.</p>
-    <button class="drop" id="drop" style="margin-top:28px" onclick="$('#pickf').click()"><div style="width:52px;height:52px;border-radius:26px;background:var(--soft);display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 12V3M5 7l4-4 4 4M3 12v3h12v-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="h" style="font-size:17px">Drop a video file here</div><div class="muted" style="font-size:14px">.mov, .mp4 or .mkv · it stays on this computer</div></button>
-    <input type="file" id="pickf" accept="video/*,.mov,.mkv" class="hide" onchange="this.files[0]&&upload(this.files[0])">
-    ${F?`<div class="file" style="margin-top:20px"><div style="width:32px;height:44px;border-radius:6px;background:#57534E;flex-shrink:0"></div><div class="grow"><div style="font-size:16px;font-weight:500">${esc(F.name)}</div><div class="muted" style="font-size:14px;margin-top:4px;${F.bad?'color:var(--ink)':''}">${esc(F.bad||F.label)}</div></div>${F.ok?`<span class="row" style="gap:6px">${CHECK} Ready</span>`:''}<button style="border:0;background:none;color:var(--t3);font-size:18px" onclick="ui.file=null;render()" aria-label="Remove">×</button></div>`:''}
-    <div class="row" style="margin:16px 0 0;gap:16px"><span class="muted" style="font-size:14px;flex-shrink:0">or paste a path</span><input class="input" style="height:42px" placeholder="~/Movies/raw-take.MOV" onchange="probePath(this.value)"></div>
-  </div>
-  <div class="panel" style="width:400px;flex-shrink:0">
-    <div style="padding:24px 24px 22px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid var(--line)">
-      <div class="h">Edit it as</div><div class="seg"><button class="${ui.as==='creator'&&hasCreator?'on':''}" ${hasCreator?'':'disabled'} onclick="ui.as='creator';render()">${hasCreator?'@'+esc(td.args.handle):'No creator yet'}</button><button class="${ui.as!=='creator'||!hasCreator?'on':''}" onclick="ui.as='defaults';render()">My defaults</button></div>
-      <div class="h" style="margin-top:8px">For</div><div class="seg">${['9:16','16:9'].map(a=>`<button class="${ui.aspect===a?'on':''}" onclick="ui.aspect='${a}';render()">${a==='9:16'?'Vertical 9:16':'Wide 16:9'}</button>`).join('')}</div>
-    </div>
-    <div style="padding:22px 24px"><div class="h" style="margin-bottom:14px">What happens next</div><div class="slist">${plan}</div>
-      ${R.review_url?`<a class="btn" style="margin-top:20px;text-decoration:none" href="${esc(R.review_url)}">Open the review page</a>`:`<div class="muted" style="margin-top:18px">You review every round on the review page, in your browser.</div>`}
-      ${vd&&vd.state==='failed'?`<div class="msg bad" style="margin-top:12px">${CROSS}<span>${esc(vd.error)}</span></div>`:''}
-    </div>
-    <div style="flex:1"></div>
-    <div class="stick" style="padding:8px 20px 20px;text-align:center"><button class="btn dark wide" ${F&&F.ok&&!running&&toolsReady()?'':'disabled'} onclick="startCut()">${running?(vd.state==='queued'&&!S.listening?'Waiting for Claude':'Cutting...'):'Start the cut'}</button><div class="muted" style="margin-top:12px;font-size:14px">${toolsReady()||running?'or say "edit my video" in Claude Code':`Making a video waits for the tools. ${readyPct()}% ready.`}</div></div>
-  </div>`;
-}
-async function startCut(){const r=await queue({type:'video',path:ui.file.path,as:ui.as,aspect:ui.aspect});if(r._ok){ui.onboard=false;toEditor(r)}}
 // Make my video goes straight to the editor: round 0 plays the clip and lists every step of the cut (home.py videos)
 function toEditor(r){const e=(r.edits||[])[0];if(e){location.href='/review?dir='+encodeURIComponent(e);return}loadLib().then(()=>rgo('videos'))}
 
@@ -1341,9 +1083,11 @@ const WCHECK='<svg width="10" height="10" viewBox="0 0 12 12"><path d="M2 6.2l2.
 const returning=()=>!!(L&&S&&(S.profile||L.videos.length||S.jobs.some(j=>j.type==='video'||(j.type==='setup'&&j.state==='done'))));   // set up before, or has a video (hiding every video never sends you back to setup)
 const ago=t=>{const d=(Date.now()/1000-t)/86400,dt=new Date(t*1000);if(d<1&&dt.getDate()===new Date().getDate())return 'today';if(d<2)return 'yesterday';if(d<7)return dt.toLocaleDateString(undefined,{weekday:'short'});return dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})};
 const clipOf=p=>nv.clips[p]||(R&&R.videos.find(v=>v.path===p))||{path:p,name:p.split(/[\\/]/).pop()};
+// the shape follows the first picked clip (wide take: Wide) until the user picks one
+const aspectOf=()=>{if(nv.aspectSet||!nv.sel.length)return nv.aspect;const c=clipOf(nv.sel[0]);return c.vertical===false?'16:9':c.vertical?'9:16':nv.aspect};
 const total=()=>nv.sel.reduce((a,p)=>a+(clipOf(p).duration||0),0);
-const styleName=id=>((L&&L.styles||[]).find(c=>c.id===id)||{}).name||(id==='mine'?'My style':id==='defaults'?'the default style':id);
-function rgo(v){rv=v;ui.onboard=false;ui.forceR=true;ui.cmenu=null;if(v==='new'||v==='home')loadRecent();render();window.scrollTo(0,0)}
+const styleName=id=>((L&&L.styles||[]).find(c=>c.id===id)||{}).name||(id==='mine'?'My style':id==='defaults'?'the default style':/^@links-/.test(id)?'New format':id);
+function rgo(v){rv=v;ui.forceR=true;ui.cmenu=null;if(v==='new'||v==='home')loadRecent();render();window.scrollTo(0,0)}
 async function loadLib(){try{const r=await fetch('/library');if(r.ok){L=await r.json();render()}}catch(e){}}
 async function loadRecent(){try{const r=await fetch('/recent');if(r.ok){R=await r.json();for(const v of R.videos)nv.clips[v.path]=v;render()}}catch(e){}}
 
@@ -1379,7 +1123,7 @@ function vNew(){
       <button class="opt ${nv.join?'':'on'}" onclick="nv.join=false;render()"><div class="radio"></div><div class="grow"><b style="font-size:14px">Separate videos</b><div class="sub" style="font-size:13px;line-height:18px">Each clip becomes its own video. ${n} in total.</div></div></button></div></div>`:''}
     ${n?`<div class="sec"><div class="between"><span class="h">In this order</span>${n>1?'<span class="muted">Drag to change</span>':''}</div><div class="order" id="order">${nv.sel.map((p,i)=>{const c=clipOf(p);return `<div draggable="true" data-i="${i}"><div class="th" style="background-image:url('${esc(c.thumb||'')}')"></div><div style="min-width:0"><div style="font-weight:600;font-size:13px">${i+1}</div><div class="muted" style="color:var(--t2);font-size:12px">${c.duration?fmtT(c.duration):esc(c.name)}</div></div></div>`}).join('')}</div></div>`
       :`<div class="sec"><div class="h">Your clips</div><div class="sub">Click clips, or drop files anywhere here.</div></div>`}
-    <div class="sec"><div class="h">Shape</div><div class="row">${[['9:16','Tall · 9:16','TikTok, Reels, Shorts',18,32],['16:9','Wide · 16:9','YouTube',28,17]].map(([a,t,s,w,h])=>`<button class="shape ${nv.aspect===a?'on':''}" onclick="nv.aspect='${a}';render()"><div style="width:28px;height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i style="width:${w}px;height:${h}px"></i></div><div><b style="font-size:14px">${t}</b><div class="sub" style="font-size:12px;line-height:16px">${s}</div></div></button>`).join('')}</div></div>
+    <div class="sec"><div class="h">Shape</div><div class="row">${[['9:16','Tall · 9:16','TikTok, Reels, Shorts',18,32],['16:9','Wide · 16:9','YouTube',28,17]].map(([a,t,s,w,h])=>`<button class="shape ${aspectOf()===a?'on':''}" onclick="nv.aspect='${a}';nv.aspectSet=1;render()"><div style="width:28px;height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i style="width:${w}px;height:${h}px"></i></div><div><b style="font-size:14px">${t}</b><div class="sub" style="font-size:12px;line-height:16px">${s}</div></div></button>`).join('')}</div></div>
     ${scriptSec()}
     ${assetSec()}
     <div class="sec stick" style="margin-top:auto;padding:18px 24px 22px"><div class="between"><span class="sub" style="font-size:13px">${n?summary():'No clips picked yet'}</span><span class="muted">Step 1 of 2</span></div>
@@ -1393,7 +1137,7 @@ function vNew(){
     <div class="row" style="gap:8px"><b style="font-weight:500;font-size:13px;white-space:nowrap;flex-shrink:0">${n} picked</b><span class="muted">Click a clip again to take it out. The numbers are the order they play.</span></div>
   </div>${side}`;
 }
-const summary=()=>{const n=nv.sel.length;return `${n>1?(nv.join?`${n} clips joined`:`${n} separate videos`):'1 clip'}${total()?' · '+fmtT(total()):''} · ${nv.aspect==='9:16'?'Tall':'Wide'} ${nv.aspect}${nv.script?' · Script':''}`};
+const summary=()=>{const n=nv.sel.length;return `${n>1?(nv.join?`${n} clips joined`:`${n} separate videos`):'1 clip'}${total()?' · '+fmtT(total()):''} · ${aspectOf()==='9:16'?'Tall':'Wide'} ${aspectOf()}${nv.script?' · Script':''}`};
 // Add your script: pasted, or a .txt/.md/.docx/.pdf the server reads to text. Only the text goes with the job.
 const SCRIPT_EXT=/\.(txt|md|docx|pdf)$/i,scriptLines=t=>t.split('\n').map(x=>x.trim()).filter(Boolean);
 function scriptSec(){
@@ -1472,7 +1216,7 @@ async function scanHome(on){await post('/scanhome',{on});await loadRecent()}
 // dropped or chosen files: a card at the front of the grid right away, with its copy progress; once in, it is
 // picked (that is why it was dropped), flashes once, and a toast names it. Problems stay on the card in words.
 let upN=0,toastT=null;
-function toast(t,undo){const e=$('#toast');e.textContent=t;e.classList.toggle('act',!!undo);if(undo){const b=document.createElement('button');b.textContent='Undo';b.onclick=()=>{e.classList.remove('on','act');undo()};e.append(b)}e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('on','act'),undo?6000:2000)}
+function toast(t,undo){const e=$('#toast');e.textContent=t;e.classList.toggle('act',!!undo);if(undo){const b=document.createElement('button');b.textContent='Undo';b.onclick=()=>{e.classList.remove('on','act');undo()};e.append(b)}e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>{e.classList.remove('on','act');toastT=setTimeout(()=>{e.textContent=''},400)},undo?6000:2000)}   // emptied once gone, so no old message stays on the page
 function paintUp(u){const e=$('#up-'+u.id);if(!e)return;const t=e.querySelector('.uptxt'),b=e.querySelector('.upbar div');if(t)t.textContent=`Adding... ${u.pct}%`;if(b)b.style.width=u.pct+'%'}
 function sendFile(u){return new Promise(res=>{const x=new XMLHttpRequest();x.open('POST','/upload?name='+encodeURIComponent(u.f.name));
   x.upload.onprogress=e=>{if(e.lengthComputable){u.pct=Math.round(e.loaded/e.total*100);paintUp(u)}};
@@ -1499,12 +1243,12 @@ async function chooseFiles(files){
 
 // ---- step 2: pick a style
 // A style's 9:16 preview: the image the user chose for it, else their newest raw take (never a finished render,
-// its own captions would clash), else one of the demo photos (demo/CREDITS.md), a different one per card.
-const DEMO=i=>`/demo/person-${i%3+1}.jpg`;
+// its own captions would clash), else a plain tile: never a stranger's photo.
+const bgUrl=u=>u?`background-image:url('${esc(u)}')`:'';
 const rawThumb=()=>{const c=nv.sel.length?clipOf(nv.sel[0]):null;return (c&&c.raw!==false&&c.thumb)||((R?R.videos:[]).find(v=>v.raw&&v.thumb)||{}).thumb||null};
 // a creator's style shows the creator (their account picture, else a frame of their video); My style its base creator's, else the user's own clip
 // My style never shows its base creator's frame: it is the user's style, not theirs
-const picOf=(c,i)=>c.cover?{url:c.cover,mine:1}:c.id!=='mine'&&c.face?{url:c.face,face:!c.face.includes('&a=1')}:c.id==='mine'&&rawThumb()?{url:rawThumb(),clip:1}:{url:DEMO(i),demo:1};
+const picOf=(c,i)=>c.cover?{url:c.cover,mine:1}:c.id!=='mine'&&c.face?{url:c.face,face:!c.face.includes('&a=1')}:c.id==='mine'&&rawThumb()?{url:rawThumb(),clip:1}:{url:'',none:1};
 function picBtns(c){return c.studying?'':`<div class="picbtns"><button onclick="event.stopPropagation();pickCover(${esc(JSON.stringify(c.id))})">Change image</button>${c.cover&&!c.sample?`<button onclick="event.stopPropagation();removeCover(${esc(JSON.stringify(c.id))})">Remove image</button>`:''}</div>`}
 function pickCover(id){ui.coverFor=id;$('#coverf').click()}
 async function setCover(f){
@@ -1567,22 +1311,22 @@ function fact3(c){
 const factList=c=>c.kind==='skill'?`<div class="fl"><div class="fr2"><span class="v" style="color:var(--t3);font-weight:400;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal">${esc(c.description||'')}</span></div></div>`:`<div class="fl">${fact3(c).map(([i,k,v])=>`<div class="fr2">${ic(i)}<span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join('')||'<div class="fr2"><span class="v" style="color:var(--t3);font-weight:400">The default style</span></div>'}</div>`;
 const handleOf=c=>c.id.startsWith('@')&&!c.own?c.id.slice(1):'';
 const avaHTML=(url,px=32)=>`<span class="ava" style="width:${px}px;height:${px}px;border-radius:${px/2}px;${url?`background-image:url('${esc(url)}')`:''}">${url?'':SIL}</span>`;
-const framePic=u=>`<i style="background-image:url('${esc(u)}')"></i><img src="${esc(u)}" alt="" loading="lazy" onload="if(this.naturalWidth>this.naturalHeight)this.parentElement.classList.add('wd')">`;
-const dname=c=>/^@links-/.test(c.name||'')?'New format':c.name;
-const origin=c=>c.kind==='skill'?(c.found?`Runs /${c.skill}`:'Skill not found here'):c.sample?'Sample':c.id==='mine'?'Learned from your edits':c.own?'Built by you':c.studying?'Being analysed now':(handleOf(c).startsWith('links-')?'From several creators':`From @${handleOf(c)}`)+(c.videos?` · ${c.videos} videos`:'');
+const framePic=u=>!u?'':`<i style="background-image:url('${esc(u)}')"></i><img src="${esc(u)}" alt="" loading="lazy" onload="if(this.naturalWidth>this.naturalHeight)this.parentElement.classList.add('wd')">`;
+const dname=c=>c.name;   // home.py shown_name: the user's name, else the style's own, else "New format"
+const origin=c=>c.kind==='skill'?(c.found?`Runs /${c.skill}`:'Skill not found here'):c.sample?'Sample':c.id==='mine'?(c.learned_from?`Learned from ${c.learned_from} edit${c.learned_from>1?'s':''}`:'Your own style. It learns from every edit you approve.'):c.own?'Built by you':c.studying?'Being analysed now':(handleOf(c).startsWith('links-')?'From several creators':`From @${handleOf(c)}`)+(c.videos?` · ${c.videos} videos`:'');
 const isDefault=c=>(L&&L.default_style||'mine')===c.id;
 const ownSub=c=>c.id==='mine'?(c.learned_from?`Learned from ${c.learned_from} video${c.learned_from>1?'s':''}`:c.base?`Started from @${c.base}`:'The default style'):`Built yourself${c.made?' · '+ago(c.made):''}`;
 const crSub=c=>c.studying?'Being analysed now':handleOf(c).startsWith('links-')?'From several creators':`From @${handleOf(c)}`;
 const tdOf=c=>S.jobs.filter(j=>j.type==='teardown'&&'@'+j.args.handle===c.id).pop();
 // the analysing card: the real teardown steps, then what is still to come, a clock and the bar
 function studyCard(c){
-  const j=tdOf(c),steps=j?j.steps:[],cur=steps.find(s=>!s.done),n=j&&j.listing&&j.listing.videos?j.listing.videos.length:0;
+  const j=tdOf(c),steps=j?tdSteps(j):[],cur=steps.find(s=>!s.done),n=j&&j.listing&&j.listing.videos?j.listing.videos.length:0;
   const rows=steps.map(s=>`<div class="sr ${s.done?'':'cur'}">${s.done?`<span class="okc">${ic('check',14,2.4)}</span>`:SPIN}<span>${esc(s.text)}${!s.done&&s.detail?' · '+esc(s.detail):''}</span></div>`).join('')
-    +PLAN.slice(steps.length,steps.length+Math.max(0,6-steps.length)).map(p=>`<div class="sr later"><i></i><span>${esc(p)}</span></div>`).join('');
+    +tdPlan(j).slice(steps.length,steps.length+Math.max(0,6-steps.length)).map(p=>`<div class="sr later"><i></i><span>${esc(p)}</span></div>`).join('');
   const t=j?jobStart(j):Date.now()/1000,f=j?jobFrac(j):0;
   return `<div class="cs" id="sc-${esc(c.id)}"><div class="steps">${rows||`<div class="sr cur">${SPIN}<span>${j&&j.state==='queued'&&!S.listening?connectHTML('Waiting for Claude.'):'Starting'}</span></div>`}</div>
-    <div class="who">${avaHTML(c.face)}<div style="min-width:0"><div class="nm">${esc(handleOf(c).startsWith('links-')?'New format':c.name)}</div><div class="t2">${esc(crSub({...c,studying:0}))}</div></div></div>
-    <div><div class="t1" style="font-weight:600">Analysing ${n?n+' videos':'the videos'} · <span data-since="${t}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-t)))}</span></div><div class="t2" style="white-space:normal;margin-top:4px">About 3 min. It keeps going if you leave.</div></div>
+    <div class="who">${avaHTML(c.face)}<div style="min-width:0"><div class="nm">${esc(c.name)}</div><div class="t2">${esc(crSub({...c,studying:0}))}</div></div></div>
+    <div><div class="t1" style="font-weight:600">Analysing ${n?n+' videos':'the videos'} · <span data-since="${t}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-t)))}</span></div><div class="t2" style="white-space:normal;margin-top:4px">It keeps going if you leave.</div></div>
     <div class="bar"><i style="width:${Math.round((f||0)*100)}%"></i></div></div>`;
 }
 function crCard(c,i){
@@ -1597,7 +1341,7 @@ function mineCard(c,i){
   const n=c.changes||0,pic=picOf(c,i);
   const line=[n?`${n} change${n>1?'s':''} from your feedback`:'',c.changed&&n?'last '+madeAgo(c.changed):'',c.learned_from?`Learned from ${c.learned_from} video${c.learned_from>1?'s':''}`:''].filter(Boolean).join(' · ');
   const b=c.base&&(L.styles.find(x=>x.id==='@'+c.base)||{});
-  return `<div class="cs big" id="sc-${esc(c.id)}" role="button" tabindex="0" onclick="openStyle(${J(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)this.click()"><div class="pic" style="background-image:url('${esc(pic.url)}')">${sMenu(c)}</div>
+  return `<div class="cs big" id="sc-${esc(c.id)}" role="button" tabindex="0" onclick="openStyle(${J(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)this.click()"><div class="pic" style="${bgUrl(pic.url)}">${sMenu(c)}</div>
     <div class="info"><div><div class="ttl">${esc(c.name)}${isDefault(c)?'<span class="tagc">Default</span>':''}</div><div class="sub2">${isDefault(c)?'Used on every video unless you pick another.':'Your style. Pick it for a video, or make it the default.'}</div></div>
       ${c.base?`<span class="schip">${avaHTML(b&&b.face,20)}Started from @${esc(c.base)}</span>`:''}
       ${line?`<div class="chg">${esc(line)}</div>`:'<div class="t2" style="white-space:normal">No changes yet. Your notes on videos change it.</div>'}
@@ -1693,15 +1437,17 @@ async function openSkills(){ui.study={skills:{list:null}};render();try{ui.study.
 function skillModal(){
   const k=ui.study.skills,ls=k.list;
   const body=!ls?'<div class="t2">Looking for skills...</div>':!ls.length?'<div class="t2" style="white-space:normal">No editing skills found. Put one at ~/.claude/skills/&lt;name&gt;/SKILL.md, then open this again.</div>'
-    :ls.map(x=>`<button class="nbox brow" style="${k.sel===x.name?'outline:1.5px solid var(--ink)':''}" onclick="ui.study.skills.sel=${J(x.name)};ui.study.skills.name=ui.study.skills.name||${J(x.name.replace(/-/g,' ').replace(/^./,c=>c.toUpperCase()).slice(0,40))};render()"><div style="min-width:0"><b style="font-family:var(--mono)">/${esc(x.name)}</b><p style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(x.description||'')}</p></div></button>`).join('');
+    :ls.map(x=>`<button class="nbox brow" style="${k.sel===x.name?'outline:1.5px solid var(--ink)':''}" onclick="ui.study.skills.sel=${J(x.name)};ui.study.skills.name=ui.study.skills.name||${J(skStyleName(x.name))};render()"><div style="min-width:0"><b style="font-family:var(--mono)">/${esc(x.name)}</b><p style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(x.description||'')}</p></div></button>`).join('');
   return `<div class="modalbg" onclick="if(event.target===this)closeCreate()"><div class="modal nsm" role="dialog" aria-modal="true" aria-labelledby="mtitle">
     <div class="row" style="justify-content:space-between"><button class="back" style="text-decoration:none" onclick="ui.study={};render()">${ic('back',14,2)}<b class="mt2" id="mtitle">Use your own skill</b></button><button class="mx2" aria-label="Close" title="Close" onclick="closeCreate()">${ic('x',18,2)}</button></div>
     <div style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow:auto">${body}</div>
     ${k.sel?`<div class="fld"><div class="in2"><input id="sk-name" value="${esc(k.name||'')}" placeholder="Name your style" aria-label="Style name" oninput="ui.study.skills.name=this.value" onkeydown="if(event.key==='Enter')createSkillStyle()"></div><button class="b1" onclick="createSkillStyle()">Create</button></div>`:''}
     ${k.msg?`<div class="msg bad">${CROSS}<span>${esc(k.msg)}</span></div>`:''}</div></div>`;
 }
+// the name the field offers: "<skill> style", never the skill's own name (that one is taken by the skill)
+const skStyleName=n=>n.replace(/[-_:]+/g,' ').replace(/^./,c=>c.toUpperCase()).slice(0,34).trim()+' style';
 async function createSkillStyle(){
-  const k=ui.study.skills,r=await post('/style/new',{name:k.name||k.sel,skill:k.sel});
+  const k=ui.study.skills,r=await post('/style/new',{name:k.name||skStyleName(k.sel),skill:k.sel});
   if(!r._ok){k.msg=r.error||'That did not work.';return render()}
   ui.create=false;ui.study=null;await loadLib();openStyle(r.id);
 }
@@ -1716,7 +1462,7 @@ function pickModal(){
   return `<div class="modalbg" onclick="if(event.target===this)closeCreate()"><div class="modal nsm" role="dialog" aria-modal="true" aria-labelledby="ptitle">
     <div class="row" style="gap:16px;align-items:flex-start"><button class="b2" style="width:40px;padding:0" aria-label="Back to links" onclick="ui.study={};render()">${ic('back',16,2)}</button><div style="flex:1;min-width:0"><b class="mt2" id="ptitle">Pick the videos edited the same way</b><div class="t2">${pk.handle?`${esc(PLAT[pk.platform]||'')} @${esc(pk.handle)}${vs.length?` · newest ${vs.length} videos`:''}`:'Paste a profile to see its newest videos'}</div></div><button class="mx2" aria-label="Close" title="Close" onclick="closeCreate()">${ic('x',18,2)}</button></div>
     ${body}
-    <div class="row" style="justify-content:space-between;gap:12px"><span class="t1" style="font-weight:600">${n} video${n===1?'':'s'} · 6 works best</span><span class="row" style="gap:12px"><button class="b2" onclick="ui.study={};render()">Back to links</button><button class="b1" ${n?'':'disabled'} onclick="pickUse()">Use these ${n||''}</button></span></div></div></div>`;
+    <div class="row" style="justify-content:space-between;gap:12px;flex-wrap:wrap"><span class="t1" style="font-weight:600;white-space:normal">${n} video${n===1?'':'s'} · 6 works best</span><span class="row" style="gap:12px"><button class="b2" onclick="ui.study={};render()">Back to links</button><button class="b1" ${n?'':'disabled'} onclick="pickUse()">Use these ${n||''}</button></span></div></div></div>`;
 }
 async function pickLookup(v){
   v=(v||'').trim();if(!v)return;const r=await post('/lookup',{text:v});
@@ -1739,7 +1485,7 @@ async function studyLink(){
 // ---- Pick a style (New video, step 2): radio cards, Your styles then Creator styles
 function pickCard(c,i){
   const on=nv.style===c.id,f=fact3(c)[0],pic=picOf(c,i),chip=isDefault(c)?'Default':'';
-  return `<button class="pc ${on?'on':''}" id="sc-${esc(c.id)}" role="radio" aria-checked="${on}" onclick="nv.style=${J(c.id)};nv.picked=1;render()"><span class="pic" style="background-image:url('${esc(pic.url)}')"></span>
+  return `<button class="pc ${on?'on':''}" id="sc-${esc(c.id)}" role="radio" aria-checked="${on}" onclick="nv.style=${J(c.id)};nv.picked=1;render()"><span class="pic" style="${bgUrl(pic.url)}"></span>
     <span class="tx"><span class="ttl"><span class="nm1">${esc(dname(c))}</span>${chip?`<span class="tagc">${chip}</span>`:''}</span><span class="t2">${esc(c.studying?'Being analysed now. The cut starts first.':origin(c))}</span>${f?`<span class="pf">${ic(f[0])}${esc(f[2])}</span>`:''}</span><span class="rd ${on?'on':''}"></span></button>`;
 }
 function vStyle(){
@@ -1752,14 +1498,14 @@ function vStyle(){
   const n=nv.sel.length,c0=clipOf(nv.sel[0]),cur=cards.find(c=>c.id===nv.style);
   return `<div class="pgc" style="min-height:100%"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
       <div class="ph"><button class="back" style="text-decoration:none" onclick="rgo('new')">${ic('back',14,2)}New video · step 2 of 2</button><h1>Pick a style</h1></div>
-      <div class="clipsum"><span class="th" style="background-image:url('${esc(c0.thumb||'')}')"></span><div style="min-width:0"><div class="t1" style="font-weight:600">${n>1?`${n} clips, ${nv.join?'joined':'separate'}`:esc(c0.name)}</div><div class="t2">${n} clip${n>1?'s':''}${total()?' · '+fmtT(Math.round(total())):''} · ${nv.aspect==='9:16'?'Tall':'Wide'} ${nv.aspect}</div></div><button class="ul" onclick="rgo('new')">Change</button></div></div>
+      <div class="clipsum"><span class="th" style="background-image:url('${esc(c0.thumb||'')}')"></span><div style="min-width:0"><div class="t1" style="font-weight:600">${n>1?`${n} clips, ${nv.join?'joined':'separate'}`:esc(c0.name)}</div><div class="t2">${n} clip${n>1?'s':''}${total()?' · '+fmtT(Math.round(total())):''} · ${aspectOf()==='9:16'?'Tall':'Wide'} ${aspectOf()}</div></div><button class="ul" onclick="rgo('new')">Change</button></div></div>
     <div class="sec2"><div class="sh"><b>Styles</b><button class="b2 s" onclick="openCreate()">${ic('plus',14,2.2)}New style</button></div>${gridRows([...cards].sort((a,b)=>(isDefault(b)-isDefault(a))||(!!b.studying-!!a.studying)||(!!b.own-!!a.own)||((b.made||0)-(a.made||0))).map(c=>pickCard(c,idx(c))),per)}</div>
     <div class="pfoot"><div style="min-width:0"><div class="t1" style="font-weight:600">${esc(cur?cur.name:styleName(nv.style))}</div><div class="t2" style="white-space:normal">First the cut. Captions, zooms and sound start after you approve it.${S.new_claude?` ${n>1&&!nv.join?'Each video gets':'It gets'} its own Claude in a new Terminal window.`:''}</div>${S.listening||S.new_claude?'':`<div class="t2" style="white-space:normal;margin-top:10px">${connectHTML('Claude is not listening.')}</div>`}</div>
       <button class="b1" id="make" onclick="makeVideo()">Make my video</button></div></div>`;
 }
 async function makeVideo(){
   const assets=nv.assets.map(a=>a.kind==='link'?{url:a.url,say:a.say}:{image:a.data,name:a.name,say:a.say});
-  const r=await queue({type:'video',paths:nv.sel,join:nv.join,as:nv.style,aspect:nv.aspect,script:nv.script,assets});
+  const r=await queue({type:'video',paths:nv.sel,join:nv.join,as:nv.style,aspect:aspectOf(),script:nv.script,assets});
   if(!r._ok)return;nv.sel=[];nv.script='';nv.scriptName='';nv.assets=[];nv.assetMsg='';
   toEditor(r);
 }
@@ -1770,14 +1516,14 @@ function spPreview(P){
   const inner=cl&&cl.before?`<video id="sp-clip" src="${esc(cl.at==='after'?cl.after:cl.before)}" autoplay playsinline onended="cutEnded(this)" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0C0A09"></video>
       <span class="ptag" id="sp-cliptag">${cl.at==='after'?'After: '+esc(cl.label):'Before'}</span><div class="picbtns" style="opacity:1"><button onclick="ui.spclip=null;render()">Close</button></div>`
     :`${C.big?`<img src="${esc(C.big)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`:''}
-      <span class="ptag">${P.presets.pic==='Your video'?'Shown on your video':esc(P.presets.pic)}${C.big?'':' · rendering'}</span>
+      <span class="ptag">${P.presets.pic==='Your video'?'Shown on your video':esc(P.presets.pic)}${C.big?'':C.big_err?' · the preview did not render':' · rendering'}</span>
       ${C.off?'':`<div class="sp-drag" style="top:${y}%" onpointerdown="spDrag(event)" title="Drag to move the captions" aria-label="Caption height, drag to move"></div>`}`;
-  return `<div class="pic sprev2" style="background-image:url('${esc(C.big||pic.url)}')">${inner}</div>`;
+  return `<div class="pic sprev2" style="${bgUrl(C.big||pic.url)}">${inner}</div>`;
 }
 const spTag=(tag,sec)=>tag==='you changed this'?`<span class="row" style="gap:10px;font-size:13px"><b style="font-weight:600">You changed this</b><button class="ul" onclick="resetSec('${sec}')">Reset</button></span>`:`<span class="t2" style="font-size:12px">${tag==='default'?'default':/^from @/.test(tag)&&!(ui.spage||{}).own?'measured':esc(tag)}</span>`;
 const spSwitch=(on,key,lbl)=>`<button class="sw ${on?'on':''}" role="switch" aria-checked="${on}" aria-label="${lbl}" onclick="setCtl('${key}',${!on})"><i></i></button>`;
 const secHd=(icn,title,sub,tag,sec)=>`<div class="shd"><span class="row" style="gap:10px;min-width:0">${ic(icn)}<b>${title}</b>${sub?`<span class="t2" style="color:var(--t2)">${esc(sub)}</span>`:''}</span>${tag!=null?spTag(tag,sec):''}</div>`;
-const optCard=(o,on,key,val)=>`<button class="oc ${on?'on':''}" onclick="setCtl('${key}',${val})"><b>${esc(o.label)}</b><span>${esc(o.sub)}</span></button>`;
+const optCard=(o,on,key,val)=>`<button class="oc ${on?'on':''}" onclick="setCtl('${key}',${val})"><b>${esc(o.label)}</b><span>${esc(o.sub).replace(/(\d) (s|x)\b/g,'$1&nbsp;$2')}</span></button>`;   // "0.8 s" never splits
 function useFor(P){
   const wide=/16:9|wide/i.test(P.use_for||'');
   return `<div class="row" style="gap:12px"><span class="t2" style="color:var(--t2)">Use for</span><span class="seg4"><button class="${wide?'':'on'}" onclick="setUse(false)"><i style="width:9px;height:14px"></i>Tall 9:16</button><button class="${wide?'on':''}" onclick="setUse(true)"><i style="width:14px;height:9px"></i>Wide 16:9</button></span></div>`;
@@ -1786,7 +1532,7 @@ async function setUse(wide){const r=await post('/style/usefor',{id:ui.sp,text:wi
 // a skill style's page: its skill makes the edit, so no Captions/Zooms/Cut/Cards/Sound here
 function vSkillPage(P){
   const card=styleById(P.id)||P,K=P.skill,editing=ui.edit&&ui.edit.kind==='name'&&ui.edit.id===P.id,pic=picOf(P,0);
-  return `<div class="spg"><div class="spl"><button class="back" style="text-decoration:none;font-size:14px" onclick="rgo('mystyle')">${ic('back',14,2)}Styles</button><div class="pic sprev2" style="background-image:url('${esc(pic.url)}')"></div>
+  return `<div class="spg"><div class="spl"><button class="back" style="text-decoration:none;font-size:14px" onclick="rgo('mystyle')">${ic('back',14,2)}Styles</button><div class="pic sprev2" style="${bgUrl(pic.url)}"></div>
       ${ui.covermsg&&ui.covermsg.id===P.id?`<div class="msg bad">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
       <button class="b1" style="width:100%" onclick="nv.style=${J(P.id)};nv.picked=1;rgo('new')">Make a video with this style</button></div>
     <div class="spr"><div style="display:flex;flex-direction:column;gap:10px"><div class="row" style="justify-content:space-between;gap:12px"><span class="row" style="gap:8px;min-width:0;flex:1">${editing?'':`<h1 class="sname">${esc(dname(P))}</h1>`}${editField('name',P.id,P.name,'font-size:24px;font-weight:600')}</span><span class="pgdots">${sMenu(card)}</span></div>
@@ -1812,7 +1558,7 @@ function vStylePage(){
   return `<div class="spg"><div class="spl"><button class="back" style="text-decoration:none;font-size:14px" onclick="rgo('mystyle')">${ic('back',14,2)}Styles</button>${spPreview(P)}
       ${ui.covermsg&&ui.covermsg.id===P.id?`<div class="msg bad">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
       <button class="b1" style="width:100%" onclick="nv.style=${J(P.id)};nv.picked=1;rgo('new')">Make a video with this style</button></div>
-    <div class="spr"><div class="row" style="gap:20px;align-items:flex-start">${P.own?'':`<span class="sth" style="background-image:url('${esc(pic.url)}')"></span>`}
+    <div class="spr"><div class="row" style="gap:20px;align-items:flex-start">${P.own?'':`<span class="sth" style="${bgUrl(pic.url)}"></span>`}
         <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px"><div class="row" style="justify-content:space-between;gap:12px"><span class="row" style="gap:8px;min-width:0;flex:1">${editing?'':`<h1 class="sname">${esc(dname(P))}</h1>`}${editField('name',P.id,P.name,'font-size:24px;font-weight:600')}</span><span class="pgdots">${sMenu(card)}</span></div>
           ${meta}${useFor(P)}</div></div>
       ${P.own&&P.id!=='x'?`<div class="ssec"><div class="shd"><b style="font-size:17px">What it learned from you</b><span class="t2">From your review notes and chats</span></div>
@@ -1835,7 +1581,7 @@ function vStylePage(){
         <div class="refs">${P.references.videos.map(v=>{const pl=platOf(v.url),h=linkHandle(v.url);return `<a class="ref" href="${esc(v.url)}" target="_blank" rel="noopener"><span class="rth" style="${v.thumbnail?`background-image:url('${esc(v.thumbnail)}')`:''}">${v.thumbnail?'':pl?logo(pl,16):LINKG}</span><span style="min-width:0;flex:1"><span class="t1" style="display:block">${esc(v.title||shortLink(v.url))}</span><span class="t2" style="display:flex;gap:6px;align-items:center">${pl?logo(pl,12):''}${h?'@'+esc(h):esc(shortLink(v.url))}</span></span></a>`}).join('')}</div></div>`:''}
       <div class="ssec two"><div><div class="shd"><b>Its skill</b></div><div class="row" style="gap:10px;flex-wrap:wrap"><span style="font:500 14px var(--mono)">/${esc(P.skill.name)}</span><button class="b2 s" onclick="post('/style/reveal',{id:ui.sp}).then(loadStyle)">Open the skill file</button></div><div class="t2" style="white-space:normal;margin-top:8px">Say "/${esc(P.skill.name)}" in Claude Code to edit a video in this style.</div></div>
         <div><div class="shd"><b>Tell it what to change</b></div><div class="fld"><div class="in2"><input id="tell" placeholder="captions a bit bigger, fewer zooms" aria-label="What to change" onkeydown="if(event.key==='Enter')tellChange()"></div><button class="b1" onclick="tellChange()">Send</button></div>${jobLine?`<div class="t2" style="white-space:normal;color:var(--ink);margin-top:8px">${jobLine}</div>`:''}</div></div>
-      <div class="ssec sfoot"><span class="okc">${ic('check',16,2.4)}</span><span>Saved as you go. Your next videos use this style.</span><span class="t2">Videos already made stay as they are.</span></div></div></div>`;
+      <div class="ssec sfoot"><span class="okc" style="color:var(--t3)">${ic('check',16,2.4)}</span><span>Saved as you go. Your next videos use this style.</span><span class="t2">Videos already made stay as they are.</span></div></div></div>`;
 }
 
 // Motion: how many beats become animations built for their line, which kinds, the look; the saved animations
@@ -1881,7 +1627,13 @@ function connectHTML(lead,old){
 async function connectClaude(){if(ui.connecting)return;ui.connecting=1;try{const r=await post('/connect',{});ui.connect=r.status==='manual'?r:null}finally{ui.connecting=0}await load()}
 
 // ---- home (welcome back), your videos, my style, settings
-const STATUS={cutting:'Being made',making:'Being made',ready:'Ready to review',done:'Done'};
+// where a video is (home.py phase): the user's turn, done, or what Claude is doing now
+const TURN={cut:'Your turn: watch the cut',approve:'Your turn: approve the stills',edit:'Your turn: watch the edit'};
+const DOING={notes:'Fixing your notes',stills:'Making the stills',rendering:'Rendering the edit',cutting:'Being made'};
+const vPh=v=>v.phase||(v.status==='done'?'done':v.status==='ready'?(v.stage==='cut'?'cut':'edit'):v.status==='making'?'notes':'cutting');
+// one count for Home and Your videos: done, your turn, being made
+function vSum(all){const n=k=>all.filter(v=>k(vPh(v))).length,d=n(p=>p==='done'),t=n(p=>!!TURN[p]),m=all.length-d-t;
+  return [`${all.length} video${all.length===1?'':'s'}.`,d?`${d} done.`:'',t?`${t} waiting for you.`:'',m?`${m} being made.`:''].filter(Boolean).join(' ')}
 const vJob=v=>{const j=v.job&&S.jobs.find(x=>x.id===v.job);return j&&(j.state==='queued'||j.state==='taken')?j:null};
 // the editor (round 0 opens the moment Make my video is pressed), else Your videos
 function openVideo(dir){
@@ -1890,15 +1642,17 @@ function openVideo(dir){
   rgo('videos');
 }
 const goAttrs=v=>`role="button" tabindex="0" onclick="openVideo(${esc(JSON.stringify(v.dir))})" onkeydown="if(event.key==='Enter'&&event.target===this)openVideo(${esc(JSON.stringify(v.dir))})"`;
-const EXROW=`<div class="vrow ex"><div class="th" style="background-image:url('/demo/person-2.jpg')"></div><div class="grow" style="min-width:0"><div style="font-size:16px">my-first-video</div><div class="sub" style="margin-top:4px">Example. Your videos show here.</div></div><div class="st"><span class="tagq">Example</span></div></div>`;
+const EXROW=`<div class="vrow ex"><div class="th"></div><div class="grow" style="min-width:0"><div style="font-size:16px">my-first-video</div><div class="sub" style="margin-top:4px">Example. Your videos show here.</div></div><div class="st"><span class="tagq">Example</span></div></div>`;
 // ---- video cards: status text and the bar along the bottom (green and full when done, black and part-filled while made)
 function vStat(v){
   const open=`<button class="b1" onclick="event.stopPropagation();openVideo(${J(v.dir)})">Open the editor</button>`,see=`<button class="b2" onclick="event.stopPropagation();openVideo(${J(v.dir)})">See progress</button>`;
-  if(v.status==='ready'||v.status==='done'){const w=v.status==='ready'&&v.stage==='cut'?'Cut ready':'Done';return {ok:1,txt:v.duration?`${w}. ${fmtT(Math.round(v.duration))} long`:w,btn:open}}
+  const ph=vPh(v);
+  if(ph==='done')return {ok:1,txt:v.duration?`Done. ${fmtT(Math.round(v.duration))} long`:'Done',btn:open};
+  if(TURN[ph])return {txt:TURN[ph],title:TURN[ph],frac:1,btn:open};
   const j=vJob(v);
   if(j){const s=j.steps.filter(x=>!x.done).at(-1),t=s?s.t:jobStart(j),w=s?s.text:j.state==='queued'?((j.claude||{}).opened?'Claude is working on this video in its own Terminal window':S.listening?(S.busy&&S.busy.id!==j.id?'Waiting for Claude':'Starting'):'Waiting for Claude'):'Starting';
     return {title:w,txt:`${esc(w)} · <span data-since="${t}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-t)))}</span>`,frac:j.state==='queued'?0:jobFrac(j),btn:see}}
-  return {txt:v.round?'Fixing your notes':'Being made',frac:null,btn:see};
+  return {txt:DOING[ph]||'Being made',frac:null,btn:see};
 }
 function vCard(v){
   const s=vStat(v),fn=rv==='videos'&&ui.fold.videos?'':(fd('videos').folders.find(f=>f.id===inFold('videos',v.dir))||{}).name,meta=[fn,v.stage==='edit'?'Full edit':'Cut',v.wide?'16:9':v.round?`round ${v.round}`:'',ago(v.updated)].filter(Boolean).join(' · ');
@@ -1917,7 +1671,7 @@ function tile(v){
 }
 function checkCards(){
   const bad=[];for(const c of document.querySelectorAll('.vi,.cs,.pc,.dt')){const r=c.getBoundingClientRect();
-    for(const e of c.querySelectorAll('*')){const q=e.getBoundingClientRect();if(q.width&&(q.right>r.right+1||q.left<r.left-1)&&!e.parentElement.closest('.stt,.bar,.cmenu,.nm,.mt')&&!e.closest('.cmenu'))bad.push((c.querySelector('.nm,.ttl')||{}).textContent+': '+(e.className||e.tagName)+' leaves the card')}
+    for(const e of c.querySelectorAll('*')){const q=e.getBoundingClientRect();if(q.width&&(q.right>r.right+1||q.left<r.left-1)&&!e.parentElement.closest('.stt,.bar,.cmenu,.nm,.mt')&&!e.closest('.cmenu,.pic'))bad.push((c.querySelector('.nm,.ttl')||{}).textContent+': '+(e.className||e.tagName)+' leaves the card')}
     for(const t of c.querySelectorAll('.stt,.nm,.mt')){if(t.getClientRects().length>1||t.offsetHeight>parseFloat(getComputedStyle(t).lineHeight)*1.5)bad.push(t.textContent+' wraps')}}
   return bad;
 }
@@ -1955,7 +1709,7 @@ function obView(){
 const obStep=(n,on,t,s)=>`<div class="obs"><span class="obn ${on?'on':''}">${n}</span><div><b>${t}</b><p>${s}</p></div></div>`;
 function obWelcome(){
   return `<div class="pgc obw"><div class="ph"><h1>Welcome to cooked.</h1><p>Three steps to your first edit. Claude does the work. You check it.</p></div>
-    <div class="obl">${obStep(1,1,'Set up','Installs the free tools on this computer, about 1.5 GB. Then two optional keys.')}${obStep(2,0,'Analyse a format','Paste 3 to 6 videos edited the same way. Claude writes down how they are edited. About 3 min.')}${obStep(3,0,'Make your first video','Drop a clip. Claude cuts the mistakes, then adds captions, zooms and sound in that style.')}</div>
+    <div class="obl">${obStep(1,1,'Set up','Installs the free tools on this computer. Then two optional keys.')}${obStep(2,0,'Analyse a format','Paste 3 to 6 videos edited the same way. Claude writes down how they are edited.')}${obStep(3,0,'Make your first video','Drop a clip. Claude cuts the mistakes, then adds captions, zooms and sound in that style.')}</div>
     <div class="row" style="gap:24px;flex-wrap:wrap"><button class="b1" onclick="queue({type:'setup'})">Start setup</button><span class="t2" style="color:var(--t2);font-size:14px">Setup keeps going in the background while you do step 2.</span></div></div>`;
 }
 // one list of steps: done (green), now (a filled ring, its detail at the right), still to come
@@ -1967,7 +1721,7 @@ function obRows(plan,steps,nextLabel=true){
 function obSetup(sj){
   const s=sj.steps.filter(x=>!x.done).at(-1),pct=readyPct();
   const now=sj.state==='failed'?'Setup stopped':sj.state==='queued'?(S.listening?'Claude is picking this up':'Waiting for Claude'):s?s.text:'Starting';
-  return `<div class="pgc obw"><div class="ph"><h1>Getting your computer ready</h1><p>Installing the free tools the editor runs on. About 1.5 GB, once.</p></div>
+  return `<div class="pgc obw"><div class="ph"><h1>Getting your computer ready</h1><p>Installing the free tools the editor runs on. This happens once.</p></div>
     <div class="obc"><div class="obnow"><div class="row" style="justify-content:space-between"><span class="cap">Now</span><b>${sj.state==='taken'?pct+'%':''}</b></div><div class="big">${esc(now)}</div><div class="trk ${sj.state==='queued'?'indet':''}" style="height:6px;border-radius:3px"><i style="width:${pct}%;height:6px"></i></div>
       ${sj.state==='failed'?`<div class="msg bad">${CROSS}<span>${esc(sj.error||'Something did not install.')}</span></div><button class="b2" style="align-self:flex-start" onclick="queue({type:'setup'})">Try again</button>`:sj.state==='queued'&&!S.listening?`<div class="t2" style="white-space:normal">${connectHTML('',`Type ${CMD} in Terminal, or say "set up the editor" in Claude Code.`)}</div>`:''}</div>
       <div class="obrs">${obRows(SETUP_PLAN,sj.steps)}</div></div>
@@ -2008,11 +1762,11 @@ function obAnalysing(td){
   const links=ui.lastLinks||[],hs=[...new Set(links.map(linkHandle).filter(Boolean))],lk=td.listing,vs=lk&&lk.videos||[],n=vs.length||links.length,cv=curVideo(td),k=cv?cv[0]-1:td.state==='done'?n:0;
   const faces=hs.map(h=>((L.styles||[]).find(c=>c.id==='@'+h.toLowerCase())||{}).face).filter(Boolean);
   const s=td.steps.filter(x=>!x.done).at(-1),t=s?s.t:jobStart(td);
-  return `<div class="pgc obw"><div class="row" style="gap:20px">${faces.length?`<span class="obav">${faces.slice(0,3).map(f=>avaHTML(f,48)).join('')}</span>`:''}<div class="ph"><h1>Analysing your format</h1><p>${n?`${n} video${n>1?'s':''}${hs.length>1?` from ${hs.length} creators`:''}. `:''}About 3 min. You can leave this page.</p></div></div>
-    <div class="obc"><div class="obnow"><div class="row" style="justify-content:space-between"><span class="cap">Now</span><b data-since="${t}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-t)))}</b></div><div class="big">${esc(s?s.text:td.state==='queued'?(S.listening?'Claude is picking this up':'Waiting for Claude'):'Starting')}</div><div class="trk" style="height:6px;border-radius:3px"><i style="width:${Math.round((jobFrac(td)||0)*100)}%;height:6px"></i></div>
+  return `<div class="pgc obw"><div class="row" style="gap:20px">${faces.length?`<span class="obav">${faces.slice(0,3).map(f=>avaHTML(f,48)).join('')}</span>`:''}<div class="ph"><h1>Analysing your format</h1><p>${n?`${n} video${n>1?'s':''}${hs.length>1?` from ${hs.length} creators`:''}. `:''}You can leave this page.</p></div></div>
+    <div class="obc"><div class="obnow"><div class="row" style="justify-content:space-between"><span class="cap">Now</span><b data-since="${t}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-t)))}</b></div><div class="big">${esc(s?tdStep(td,s.text):td.state==='queued'?(S.listening?'Claude is picking this up':'Waiting for Claude'):'Starting')}</div><div class="trk" style="height:6px;border-radius:3px"><i style="width:${Math.round((jobFrac(td)||0)*100)}%;height:6px"></i></div>
       ${vs.length?`<div class="obth">${vs.map((v,i)=>`<span style="${v.thumbnail?`background-image:url('${esc(v.thumbnail)}')`:''}" class="${i<k?'got':i===k?'now':''}">${i<k?OKDOT:''}</span>`).join('')}</div>`:''}
       ${td.state==='queued'&&!S.listening?`<div class="t2" style="white-space:normal">${connectHTML('',`Type ${CMD} in Terminal, or say "edit my video" in Claude Code.`)}</div>`:''}</div>
-      <div class="obrs">${obRows(PLAN,td.steps)}</div></div>
+      <div class="obrs">${obRows(tdPlan(td),tdSteps(td))}</div></div>
     <div class="obnext"><div><span class="cap">Next</span><b>Make your first video</b><p>Drop a clip now if you like. It starts when the style is ready.</p></div><button class="b1" onclick="ui.ob='drop';render()">Drop a clip now</button></div></div>`;
 }
 const MROWS=[['pace','cut','Cuts'],['zooms','zoom','Zooms'],['captions','caption','Captions'],['graphics','image','Visuals'],['sound','sound','Sound']];
@@ -2032,33 +1786,35 @@ async function obFiles(fs){await chooseFiles(fs);if(nv.sel.length){ui.ob=null;rg
 function obDrop(){
   const rec=(R?R.videos:[]).slice(0,3);
   return `<div class="pgc obw"><div class="ph"><h1>Make your first video</h1><p>Drop a talking-head clip. Claude cuts the mistakes first, then you check it.</p></div>
-    <label class="obdrop" id="droptile">${ic('up',28,1.8)}<b>Drop a video here</b><span class="t2" style="color:var(--t2);font-size:14px">Any talking-head take from your phone or camera</span><span class="b1">Choose a file</span><input type="file" multiple accept="video/*,.mov,.mkv,.mp4" class="hide" onchange="const f=[...this.files];this.value='';obFiles(f)"></label>
+    <label class="obdrop" id="droptile">${ic('up',28,1.8)}<b>Drop a video here</b><span class="t2" style="color:var(--t2);font-size:14px">Any talking-head take from your phone or camera</span><button type="button" class="b1" onclick="event.preventDefault();this.nextElementSibling.click()">Choose a file</button><input type="file" multiple accept="video/*,.mov,.mkv,.mp4" class="hide" onchange="const f=[...this.files];this.value='';obFiles(f)"></label>
     ${nv.up.some(u=>!u.bad)?`<div class="row" style="gap:10px">${SPIN}<span>Adding your clip...</span></div>`:''}
     ${rec.length?`<div class="sec2"><b style="font-size:15px">Or pick a recent take</b><div class="hdrop" style="height:76px">${rec.map(v=>`<div class="hd-clip" role="button" tabindex="0" onclick="obPick(${J(v.path)})" onkeydown="if(event.key==='Enter')obPick(${J(v.path)})"><div class="th" style="background-image:url('${esc(v.thumb)}')"></div><div style="min-width:0"><div class="t1">${esc(v.name)}</div><div class="t2">${esc(v.where)} · ${ago(v.mtime)}</div></div></div>`).join('')}${'<div aria-hidden="true"></div>'.repeat(3-rec.length)}</div></div>`:''}</div>`;
 }
 // Home while the first video is being made, and once its cut is ready (then Getting started is done)
 function firstVideoHome(v){
-  const j=vJob(v),ready=v.status==='ready'||v.status==='done';
-  const side=ready?`<div class="obc" style="padding:24px;gap:12px;justify-content:space-between"><div><div class="row" style="gap:10px">${OKDOT}<b style="font-size:17px">You're all set up</b></div><p class="t2" style="white-space:normal;font-size:15px;line-height:22px;color:var(--t2);margin:10px 0 0">Open the editor to check the cut. Strike or bring back any word, then approve it. Claude adds captions, zooms and sound next.</p></div><p class="t2" style="white-space:normal;font-size:14px">Next time, drop a clip anywhere on Home or press New video.</p></div>`
+  const j=vJob(v),ph=vPh(v),ready=ph==='done'||!!TURN[ph];
+  const how={cut:'Open the editor to check the cut. Strike or bring back any word, then approve it. Claude adds captions, zooms and sound next.',
+    approve:'Open the editor to check the stills. Approve them and Claude renders the edit.',edit:'Open the editor to watch the edit. Leave notes, or approve it.',
+    done:'Open the editor to watch it again or download it.'}[ph];
+  const side=ready?`<div class="obc" style="padding:24px;gap:12px;justify-content:space-between"><div><div class="row" style="gap:10px">${OKDOT}<b style="font-size:17px">You're all set up</b></div><p class="t2" style="white-space:normal;font-size:15px;line-height:22px;color:var(--t2);margin:10px 0 0">${how}</p></div><p class="t2" style="white-space:normal;font-size:14px">Next time, drop a clip anywhere on Home or press New video.</p></div>`
     :`<div class="obc"><div class="obrs">${j?obRows(planFor(j).map(p=>p[0]),j.steps):'<div class="obr cur"><i class="ring2"></i><span>Claude is working on it</span></div>'}</div></div>`;
-  return `<div class="ph"><h1>Home</h1><p>${ready?'Your first cut is ready to check.':'Your first video is being made. You can leave this window open or closed.'}</p></div>
+  return `<div class="ph"><h1>Home</h1><p>${{cut:'Your first cut is ready to check.',approve:'Your stills are ready to approve.',edit:'Your first edit is ready to watch.',done:'Your first video is done.'}[ph]||'Your first video is being made. You can leave this window open or closed.'}</p></div>
     <div class="obhome">${vCard(v)}${side}</div>`;
 }
 function vHome(){
   if(firstRun())return obView();
   const vids=L.videos,W=cw(),st=L.styles||[],own=st.filter(c=>c.own),cr=st.filter(c=>!c.own&&!c.sample);   // samples stay off the creators shelf
-  const done=vids.filter(v=>v.status==='ready'||v.status==='done').length,making=vids.length-done;
   const nc=Math.min(3,Math.max(0,Math.floor((W+12)/212)-1)),rec=(R?R.videos:[]).slice(0,nc),P=J,per=perRow();
   const sw=innerWidth<=760?W:(W-40)*1.4/2.4,ns=Math.max(1,Math.floor((sw+12)/162)),tw=Math.floor((sw-(ns-1)*12)/ns);
   const clip=v=>`<div class="hd-clip" role="button" tabindex="0" title="${esc(v.name)}" onclick="nv.sel=[${P(v.path)}];rgo('new')" onkeydown="if(event.key==='Enter'&&event.target===this){nv.sel=[${P(v.path)}];rgo('new')}"><div class="th" style="background-image:url('${esc(v.thumb)}')"></div><div style="min-width:0"><div class="t1">${esc(v.name)}</div><div class="t2">${esc(v.where)} · ${ago(v.mtime)}</div></div>
     <button class="more2" aria-label="More for this clip" aria-expanded="${ui.clipmenu===v.path}" title="More" onclick="event.stopPropagation();ui.cmenu=null;ui.clipmenu=ui.clipmenu===${P(v.path)}?null:${P(v.path)};render()">${DOTS}</button>${ui.clipmenu===v.path?`<div class="cmenu" onclick="event.stopPropagation()"><button onclick="clipAct('hide',${P(v.path)})">${ic('minus',16)}<span class="lb">Remove from this list</span></button><button onclick="ui.clipmenu=null;ui.cliptrash=${P(v.path)};rgo('new')">${ic('trash',16)}<span class="lb">Move to Trash</span></button></div>`:''}</div>`;
-  const stl=(c,i)=>`<div class="stl" style="width:${tw}px" ${c.studying?'aria-disabled="true"':`role="button" tabindex="0" onclick="openStyle(${P(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)openStyle(${P(c.id)})"`}><div class="pic" style="background-image:url('${esc(picOf(c,i).url)}')">${sMenu(c)}</div><div class="t1">${esc(c.name)}</div></div>`;
-  const crow=c=>`<button class="cr" ${c.studying?'disabled':''} onclick="openStyle(${P(c.id)})"><span class="ava" style="${c.face?`background-image:url('${esc(c.face)}')`:''}">${c.face?'':SIL}</span><span style="min-width:0"><span class="t1" style="display:block">${esc(dname({name:c.id}))}</span><span class="t2" style="display:block">${c.studying?'Being analysed now':c.videos?`Analysed from ${c.videos} videos`:'Analysed'}</span></span></button>`;
+  const stl=(c,i)=>`<div class="stl" style="width:${tw}px" ${c.studying?'aria-disabled="true"':`role="button" tabindex="0" onclick="openStyle(${P(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)openStyle(${P(c.id)})"`}><div class="pic" style="${bgUrl(picOf(c,i).url)}">${sMenu(c)}</div><div class="t1">${esc(c.name)}</div></div>`;
+  const crow=c=>`<button class="cr" ${c.studying?'disabled':''} onclick="openStyle(${P(c.id)})"><span class="ava" style="${c.face?`background-image:url('${esc(c.face)}')`:''}">${c.face?'':SIL}</span><span style="min-width:0"><span class="t1" style="display:block">${esc(c.name)}</span><span class="t2" style="display:block">${c.studying?'Being analysed now':c.videos?`Analysed from ${c.videos} videos`:'Analysed'}</span></span></button>`;
   const shelves=()=>`<div class="sec2"><div class="sh"><b>Built by you</b>${seeAllGo(own.length,ns,"ui.fold.styles=null;ui.stab='own';rgo('mystyle')")}</div><div class="sts">${own.slice(0,ns).map(c=>stl(c,st.indexOf(c))).join('')||'<div class="none">No styles yet.</div>'}</div></div>
-    <div class="sec2"><div class="sh"><b>From creators</b>${seeAllGo(cr.length,3,"ui.fold.styles=null;ui.stab='cr';rgo('mystyle')")}</div><div class="crs">${cr.slice(0,3).map(crow).join('')||'<div class="none">No creator styles yet. Analyse one from My styles.</div>'}</div></div>`;
+    <div class="sec2"><div class="sh"><b>From creators</b>${seeAllGo(cr.length,3,"ui.fold.styles=null;ui.stab='cr';rgo('mystyle')")}</div><div class="crs">${cr.slice(0,3).map(crow).join('')||'<div class="none">No creator styles yet. Analyse one from Styles.</div>'}</div></div>`;
   if(vids.length===1)return `<div class="pgc">${firstVideoHome(vids[0])}<div class="hshelf">${shelves()}</div></div>`;
   return `<div class="pgc">
-  <div class="ph"><h1>Home</h1>${vids.length?`<p>${[`${done} done.`,making?`${making} being made.`:''].filter(Boolean).join(' ')}</p>`:''}</div>
+  <div class="ph"><h1>Home</h1>${vids.length?`<p>${vSum(vids)}</p>`:''}</div>
   <div class="hdrop"><label class="hd-box" id="droptile">${ic('up',20)}<div><div class="t1" style="font-weight:600">Drop a video here</div><div class="t2">or choose a file</div></div><input type="file" multiple accept="video/*,.mov,.mkv,.mp4" class="hide" onchange="const f=[...this.files];this.value='';rgo('new');chooseFiles(f)"></label>${rec.map(clip).join('')}${'<div aria-hidden="true"></div>'.repeat(nc-rec.length)}</div>
   <div class="sec2"><div class="sh"><b>Your videos</b>${seeAllGo(vids.length,per,"ui.fold.videos=null;rgo('videos')")}</div>${vids.length?cardRows(vids.slice(0,per)):'<div class="none">No videos yet. Drop a clip above to start one.</div>'}</div>
   <div class="hshelf">${shelves()}</div></div>`;
@@ -2070,8 +1826,7 @@ function vVideos(){
   if(fid){const f=fd('videos').folders.find(x=>x.id===fid);
     return `<div class="pgc"><div class="ph"><button class="back" onclick="ui.fold.videos=null;render()" ${dropAttrs('videos',null)}>${ic('back',14,2)}Your videos</button><h1>${esc(f.name)}</h1><p>${vids.length} video${pl(vids.length)}. Drag a video onto a folder to move it.</p></div>${editTrashRow()}
       ${vids.length?cardRows(vids):'<div class="none">Nothing in this folder yet. Drag a video onto it in the sidebar, or use ⋯ then Move to folder.</div>'}</div>`}
-  const now=vids.filter(v=>v.status!=='done'),done=vids.filter(v=>v.status==='done'),making=all.filter(v=>v.status==='making'||v.status==='cutting').length,ready=all.filter(v=>v.status==='ready').length;
-  const lede=`${all.length} video${pl(all.length)}.${ready?` ${ready} ready to watch.`:''}${making?` ${making} being made.`:''}`;
+  const now=vids.filter(v=>vPh(v)!=='done'),done=vids.filter(v=>vPh(v)==='done'),lede=vSum(all);
   const fit=perRow();
   return `<div class="pgc"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px"><div class="ph"><h1>Your videos</h1>${all.length?`<p>${lede}</p>`:''}</div><div class="row hact">${newFoldBtn('videos')}</div></div>${editTrashRow()}
     ${now.length?`<div class="sec2"><div class="sh"><b>Now</b></div>${cardRows(now)}</div>`:''}
@@ -2110,7 +1865,7 @@ const narrow=()=>innerWidth<1100,isRail=()=>narrow()||railPref;
 function setRail(on){railPref=!!on;try{localStorage.setItem('ave-rail',on?'1':'0')}catch(e){}render()}
 // the content width of a page view (for how many cards fit in one row)
 const cw=()=>{const m=$('#main');if(m&&m.classList.contains('pg')&&m.clientWidth){const c=getComputedStyle(m);return m.clientWidth-parseFloat(c.paddingLeft)-parseFloat(c.paddingRight)}return innerWidth-(isRail()?80:232)-(innerWidth<=760?32:80)};
-const inApp=()=>!!(L&&S&&!ui.onboard);   // the first run lives in the shell too (Home shows its steps)
+const inApp=()=>!!(L&&S);   // the first run lives in the shell too (Home shows its steps)
 // how far a job is: its steps against the plan for its kind (null: no plan, the bar slides)
 function jobFrac(j){
   if(j.type==='setup')return readyPct()/100;
@@ -2123,13 +1878,13 @@ const JOBNAME={video:'Making',teardown:'Analysing',skill:'Building a skill',setu
 function jobInfo(){
   const act=S.jobs.filter(j=>j.state==='queued'||j.state==='taken'),j=busyJob(),mk=(L?L.videos:[]).filter(v=>v.status==='making'||v.status==='cutting');
   const nv2=Math.max(mk.length,act.filter(x=>x.type==='video').length);
-  if(!j){if(!mk.length)return null;return {label:`Making ${mk.length}`,short:'Making',n:mk.length,text:`Claude is working on your notes in ${mk[0].name}`,frac:null,since:null,go:"ui.fold.videos=null;rgo('videos')"}}
+  if(!j){if(!mk.length)return null;return {label:`Making ${mk.length}`,short:'Making',n:mk.length,text:`${{notes:'Claude is fixing your notes in',stills:'Claude is making the stills for',rendering:'Claude is rendering'}[vPh(mk[0])]||'Claude is making'} ${mk[0].name}`,frac:null,since:null,go:"ui.fold.videos=null;rgo('videos')"}}
   const n=j.type==='video'?nv2:act.filter(x=>x.type===j.type).length,s=j.steps.at(-1);
   const last=Math.max(j.u||0,s?s.t||0:0,S.claude_seen||0)||jobStart(j),age=Math.max(0,Math.round(Date.now()/1000-last));
-  const what=j.type==='video'&&j.args.edit?' in '+j.args.edit.split(/[\\/]/).pop():j.type==='teardown'&&j.args.handle?' · @'+j.args.handle:'';
+  const what=j.type==='video'&&j.args.edit?' in '+j.args.edit.split(/[\\/]/).pop():j.type==='teardown'&&j.args.handle?' · '+styleName('@'+j.args.handle):'';
   const how=S.new_claude?'':` Type ${CMD} in Terminal.`,own=(j.claude||{}).opened,text=j.state==='queued'?(own?'Claude is working on this video in its own Terminal window.':S.listening?'Claude is picking this up.':'Waiting for Claude.'+how)
-    :j.owner!=='home'&&!S.listening&&!own&&age>60?'Claude is not listening.'+how:(s?s.text:'Getting started')+what;
-  const name=JOBNAME[j.type]||'Working',go=j.type==='video'?"ui.fold.videos=null;rgo('videos')":j.type==='teardown'||j.type==='skill'?(inApp()?"rgo('mystyle')":'go(2)'):j.type==='setup'?'ui.onboard=true;go(0)':j.type==='update'||j.owner==='home'?"rgo('settings')":'';
+    :j.owner!=='home'&&!S.listening&&!own&&age>60?'Claude is not listening.'+how:(s?tdStep(j,s.text):'Getting started')+what;
+  const name=JOBNAME[j.type]||'Working',go=j.type==='video'?"ui.fold.videos=null;rgo('videos')":j.type==='teardown'||j.type==='skill'?"rgo('mystyle')":j.type==='setup'?'goHome()':j.type==='update'||j.owner==='home'?"rgo('settings')":'';
   return {label:j.type==='video'||j.type==='teardown'?`${name} ${n}`:name,short:j.type==='video'||j.type==='teardown'?name:'Working',n:j.type==='video'||j.type==='teardown'?n:'',text,frac:j.state==='queued'?0:jobFrac(j),since:s&&!s.done?s.t:jobStart(j),go};
 }
 const ringSvg=f=>{const C=2*Math.PI*10;return `<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="var(--line)" stroke-width="2.5"/><circle cx="12" cy="12" r="10" fill="none" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-(f==null?.25:f))).toFixed(1)}" transform="rotate(-90 12 12)"/></svg>`};
@@ -2289,7 +2044,7 @@ function stUpdate(){
   const u=S.update||{},j=latest('update'),busy=j&&(j.state==='queued'||j.state==='taken'),ok=u.latest&&!u.newer;
   const wq=j&&j.state==='queued'&&!S.listening,st=!j?'':j.state==='queued'?(S.listening?'Claude is picking this up.':''):j.state==='taken'?`Claude: ${(j.steps.at(-1)||{}).text||'updating'}`:j.state==='done'?'Updated. Type /reload-plugins in Claude Code.':j.state==='failed'?j.error:'';
   const line=u.checking?'Checking...':u.newer?'A new version is out':u.latest?'Up to date':u.checked?'Could not reach GitHub':'';
-  return `<div class="scd"><div class="hd"><b>Updates</b><span class="ss ${ok?'ok':''}">${ok?OKTICK:''}${line}</span></div>
+  return `<div class="scd"><div class="hd"><b>Updates</b><span class="ss">${ok?OKTICK:''}${line}</span></div>
     <div class="kvs"><div><span>Installed</span><b>${esc(u.installed||'?')}</b></div><div><span>Latest</span><b>${esc(u.latest||'?')}</b></div></div>
     <div class="t2" style="white-space:normal">Turn on auto-updates: type <b>/plugin</b>, open Marketplaces, pick nextwork, choose Enable auto-update.</div>
     ${u.newer&&(u.notes||[]).length?`<div><div class="t2">What changed</div>${u.notes.map(n=>`<div class="dash">${esc(n)}</div>`).join('')}</div>`:''}
@@ -2319,7 +2074,19 @@ function vSettings(){
     <div class="scol"><div class="scd" style="gap:16px"><div class="hd"><b>Keys</b><span class="st-lock">${ic('lock',14)}Saved on this computer only</span></div>${KEYS.map(stKey).join('')}${stModal()}</div></div>
     <div class="scol">${stUpdate()}${stFolder()}${stLook()}
       <div class="scd"><label class="srow" style="cursor:pointer"><div><div>Recent clips</div><div class="t2">From Movies, Desktop and Downloads</div></div><input type="checkbox" class="st-check" ${R&&R.scan_home?'checked':''} onchange="scanHome(this.checked)"></label>
-        <div class="srow"><div><div>Tools on this computer</div><div class="t2">Python, the renderer, the transcriber</div></div><button class="b2 s" onclick="ui.onboard=true;go(0)">Check</button></div></div></div></div></div>`;
+        ${toolsRow()}</div></div></div></div>`;
+}
+// Tools on this computer: Check runs setup.py doctor here (POST /recheck) and lists what it found, in place
+function toolsRow(){
+  const d=S.doctor,rows=d?d.rows:[],bad=rows.filter(r=>!r.ok),busy=ui.recheck,sj=latest('setup'),setting=sj&&(sj.state==='queued'||sj.state==='taken');
+  const line=busy?'Checking...':setting?'Setting up...':!d?'Python, the renderer, the transcriber':!rows.length?'The check did not run. Try again.':bad.length?`Not ready: ${bad.map(r=>r.name).join(', ')}`:'All ready.';
+  return `<div class="srow"><div style="min-width:0"><div>Tools on this computer</div><div class="t2" style="white-space:normal">${esc(line)}</div></div><div class="row" style="gap:8px;flex-shrink:0">${bad.length&&!busy&&!setting?`<button class="b1 s" onclick="queue({type:'setup'})">Set up</button>`:''}<button class="b2 s" ${busy?'disabled':''} onclick="recheck()">${busy?'Checking':'Check'}</button></div></div>
+    ${ui.toolsShown&&rows.length&&!busy?`<div class="tlist">${rows.map(r=>`<div class="srow2"><span>${esc(r.name)}</span><span>${r.ok?esc(r.what):'<b>Not ready</b>'}</span></div>`).join('')}</div>`:''}`;
+}
+async function recheck(){
+  const at=S.doctor&&S.doctor.at;ui.recheck=1;ui.toolsShown=1;render();await post('/recheck',{});
+  for(let i=0;i<180;i++){await new Promise(r=>setTimeout(r,1000));await load();if(S.doctor&&S.doctor.at!==at)break}
+  ui.recheck=0;render();
 }
 async function setLib(){const v=($('#libpath')||{}).value||'';if(!v.trim())return;const r=await post('/setlib',{path:v.trim()});ui.libmsg=r._ok?'':(r.msg||'That folder did not work.');await loadLib();loadDisk()}
 async function loadDisk(){try{ui.disk=await (await fetch('/disk')).json();render()}catch(e){}}
@@ -2349,7 +2116,7 @@ function spDrag(e){
 const ZOOMILL={none:'<i class="zb"></i>',smooth:'<i class="zb dash"></i><i class="zf smooth"></i>',punchy:'<i class="zb dash"></i><i class="zf punchy"></i>'};
 const CUTILL={relaxed:[22,16,26,14,18],natural:[24,7,28,6,20],tight:[26,0,30,0,22]};
 function rrender(){
-  if(rv==='settings'&&!ui.disk)loadDisk();
+  if(rv==='settings'&&!(ui.diskAt>Date.now()-10000)){ui.diskAt=Date.now();loadDisk()}   // free space is live: read again every 10 s
   const h=rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='settings'?vSettings():vHome();
   $('#main').classList.toggle('pg',['home','videos','settings','mystyle','style','stylepage'].includes(rv));
   paint($('#main'),h,rv+'|'+ui.sp);$('#main').classList.toggle('spwrap',rv==='stylepage');
@@ -2408,23 +2175,10 @@ function tickClocks(){for(const e of document.querySelectorAll('[data-since]')){
 function render(){
   if(!S||DRAG)return;   // a card is being dragged: a redraw would drop it
   const keep=document.activeElement&&document.activeElement.id,pos=keep&&document.activeElement.selectionStart,end=keep&&document.activeElement.selectionEnd,val=keep&&document.activeElement.value;
-  document.body.classList.toggle('rh',inApp());paintSide();
-  if(inApp()){
-    if(!rv||rv==='making')rv=L.videos.length||firstRun()?'home':'new';
-    rrender();
-  }else{
-  $('#main').classList.remove('pg');
-  $('#steps').className='steps';Object.assign($('#live').style,{width:'',minWidth:'',maxWidth:'',whiteSpace:''});
-  const auto=autoView();let v=view??auto;
-  header(v);
-  let html;
-  if(v===0)html=h1();else if(v===1)html=h2();
-  else if(v===2){const td=latest('teardown');html=!td?`<div class="col grow"><div class="empty">Pick a creator first.</div></div>`:td.state==='done'?h4(td):h3(td)}
-  else if(v===3)html=h5();else html=h6();
-  paint($('#main'),html,'v'+v);
-  if(keep){const e=document.getElementById(keep);if(e&&'value' in e){if(e.type!=='file')e.value=val;e.focus();try{e.setSelectionRange(pos,end??pos)}catch(x){}}}
-  const d=$('#drop');if(d){d.ondragover=e=>{e.preventDefault();d.classList.add('over')};d.ondragleave=()=>d.classList.remove('over');d.ondrop=e=>{e.preventDefault();d.classList.remove('over');const f=e.dataTransfer.files[0];if(f)upload(f)}}
-  }
+  if(!inApp())return;   // the library is still loading
+  document.body.classList.toggle('rh',true);paintSide();
+  if(!rv||rv==='making')rv=L.videos.length||firstRun()?'home':'new';
+  rrender();
   if(keep){const e=document.getElementById(keep);if(e&&'value' in e&&!e.matches(':focus')){if(e.type!=='file')e.value=val;e.focus();try{e.setSelectionRange(pos,end??pos)}catch(x){}}}
 }
 setInterval(tickClocks,1000);
@@ -2433,10 +2187,8 @@ async function load(){
   try{const r=await fetch('/state');if(!r.ok)throw 0;S=await r.json();if(S.listening)ui.connect=null;if(Date.now()-themeAt>3000)applyTheme(S.theme)}catch(e){const lv=$('#live');lv.className='live';lv.style.width='auto';lv.style.maxWidth='520px';lv.style.whiteSpace='normal';lv.textContent='The editor stopped. Run nextwork-editor to start it again.';return}
   // live reload: a new page version (home.html, ask.js or the Python changed) reloads this tab, keeping the view
   if(S.page){if(PV&&S.page!==PV&&canReload()){keepView();location.reload();return}PV=PV||S.page}
-  const lk=S.lookup||{};
-  if(!ui.look&&lk.handle){ui.look={kind:'creator',handle:lk.handle,platform:lk.platform};if(!ui.paste){ui.paste='@'+lk.handle;lbOf('paste').rows=[lk.handle]}}
   // typing in a key box: do not redraw under the cursor
-  const a=document.activeElement;if(a&&a.id&&a.id.startsWith('k-')&&a.value)return inApp()?paintSide():header(view??autoView());
+  const a=document.activeElement;if(a&&a.id&&a.id.startsWith('k-')&&a.value)return paintSide();
   if(a&&a.type==='range'||ui.spdrag||DRAG)return;   // dragging a slider, the caption or a card: do not redraw under the hand   // dragging a slider or the caption: do not redraw under the hand
   if(!L)await loadLib();
   if(rv==='stylepage')await loadStyle();
@@ -2445,7 +2197,7 @@ async function load(){
 }
 let PV=null,keepY=null;
 const canReload=()=>{const a=document.activeElement;return !(a&&/^(INPUT|TEXTAREA)$/.test(a.tagName)&&a.value)&&!nv.up.some(u=>!u.bad)&&!ui.edit};
-function keepView(){try{sessionStorage.setItem('ave-home-keep',JSON.stringify({rv,sp:ui.sp,y:scrollY,nv:{sel:nv.sel,style:nv.style,aspect:nv.aspect,join:nv.join}}))}catch(e){}}
+function keepView(){try{sessionStorage.setItem('ave-home-keep',JSON.stringify({rv,sp:ui.sp,y:scrollY,nv:{sel:nv.sel,style:nv.style,aspect:nv.aspect,aspectSet:nv.aspectSet,join:nv.join}}))}catch(e){}}
 try{const k=JSON.parse(sessionStorage.getItem('ave-home-keep')||'null');sessionStorage.removeItem('ave-home-keep');if(k){rv=k.rv;ui.sp=k.sp;Object.assign(nv,k.nv);keepY=k.y}}catch(e){}
 window.addEventListener('dragover',e=>e.preventDefault());window.addEventListener('drop',e=>e.preventDefault());
 load().then(loadRecent);setInterval(load,1500);setInterval(loadLib,4000);

@@ -139,10 +139,3 @@ drawn in one colour to match the page:
 - Python, FFmpeg, Node.js, Git, ElevenLabs, Google Gemini and Modal: SVG paths from Simple Icons
   16.34.0 (https://github.com/simple-icons/simple-icons, CC0 1.0). The marks remain the trademarks of
   their owners and are used only to name each service.
-
-
-## Demo photos (Unsplash License)
-
-`plugins/ai-editor/lib/ai_editor/demo/person-*.jpg`: three photographs from Unsplash under the Unsplash
-License (free to use and modify, no attribution required). Photographers and sources:
-`plugins/ai-editor/lib/ai_editor/demo/CREDITS.md`.

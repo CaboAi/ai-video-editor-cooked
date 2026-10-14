@@ -156,7 +156,8 @@ The style decides; the profile overrides only when the user set `sound.music`:
 - not set, and the creator has no bed (or no creator): no music, no question.
 - `sound.music: true`, or the user asks for music: ask once in the question box: **Generated for this
 cut (Recommended)** / **Your own track** (a file) / **A YouTube link** (or any link yt-dlp reads) /
-**None**. For a link, ask for an optional start and end, then who holds the rights: "It's my own
+**None**. A copied creator with a bed in under half her videos (style.json `sound.music.present_pct`):
+**None** is the recommended option instead. For a link, ask for an optional start and end, then who holds the rights: "It's my own
 track" / "YouTube Audio Library or Creative Commons (I'll credit it)" / "Licensed (Epidemic, Artlist
 etc.)" / "Not sure". Then:
 

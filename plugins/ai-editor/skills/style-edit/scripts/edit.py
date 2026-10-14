@@ -90,8 +90,10 @@ def footage_filter(plan, sw, sh):
     scaled into its band on black (the render proxy is that frame; the checks read the same)."""
     w, h = plan["width"], plan["height"]
     lay = plan.get("layout") or {}
+    g = plan.get("grade")   # the creator's grade (plan.py grade_for), burned into the copy so every check reads it
+    grade = f",colorchannelmixer=rr={g['brightness']}:gg={g['brightness']}:bb={g['brightness']},hue=s={g['saturate']}" if g else ""
     if lay.get("mode") != "letterbox":
-        return proxy_filter(sw, sh, w, h)
+        return proxy_filter(sw, sh, w, h) + grade
     y, bh = (round(v / 100 * h / 2) * 2 for v in lay["band"][1::2])
     return f"scale={w}:{bh},setsar=1,pad={w}:{h}:0:{y}:black"
 
@@ -1152,6 +1154,8 @@ def demo():
     assert proxy_filter(3840, 2160, 1920, 1080).startswith("scale=1920:1080")
     lb = {"width": 1080, "height": 1920, "layout": {"mode": "letterbox", "band": [0, 34.18, 100, 31.64]}}
     assert footage_filter(lb, 1920, 1080) == "scale=1080:608,setsar=1,pad=1080:1920:0:656:black", footage_filter(lb, 1920, 1080)
+    gp = {"width": 1080, "height": 1920, "grade": {"brightness": 0.8, "saturate": 1.5}}
+    assert footage_filter(gp, 1080, 1920).endswith(",colorchannelmixer=rr=0.8:gg=0.8:bb=0.8,hue=s=1.5"), footage_filter(gp, 1080, 1920)
     import tempfile, zipfile
     with tempfile.TemporaryDirectory() as t:
         edit, pub = Path(t) / "fake", Path(t) / "fake" / ".render"

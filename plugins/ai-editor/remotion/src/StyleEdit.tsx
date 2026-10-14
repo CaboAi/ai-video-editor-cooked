@@ -28,7 +28,8 @@ import { Ground, onGround } from "./look";
 
 // Shapes follow skills/style-edit/references/contracts.md "plan.json". Times are seconds on the cut's timeline.
 // origin: the top centre of the head over the zoom, % of the frame (plan.py from face.json): the face holds its place, the hair never rises into a card.
-type Zoom = { start: number; end: number; scale: number; kind: "punch" | "push"; ease_s: number; ease?: string; origin?: [number, number] };
+type Zoom = { start: number; end: number; scale: number; kind: "punch" | "push"; ease_s: number; ease?: string; origin?: [number, number];
+  travel_s?: number };
 // A slow sideways drift of the footage (the creator's camera.pan_per_min): from -> to, % of the width.
 type Pan = { start: number; end: number; from: number; to: number };
 export type Card = {
@@ -91,6 +92,7 @@ export type Plan = {
   pans?: Pan[];
   cover?: Cover;
   texts?: TextItem[]; // a card edit's title pill, running numbered list and X stamp (Texts.tsx)
+  grade?: { brightness: number; saturate: number }; // the creator's grade: burned into the footage copy (edit.py footage_filter), drawn here on the cutouts
 };
 // An audio-only clip (clips.py trim): the show's cover over a blurred, dimmed copy of itself. box: % of the frame.
 // push: the cover's scale at the end; ground_push: the ground's scale at the start (it eases back to 1 as the
@@ -144,7 +146,8 @@ export const zoomAt = (t: number, zooms: Zoom[]): { k: number; origin: string } 
     const z = zs[i], next = zs[i + 1]?.start ?? Infinity;
     const origin = z.origin ? `${z.origin[0]}% ${z.origin[1]}%` : ZOOM_ORIGIN;
     const push = z.kind === "push" && z.ease_s > 0;
-    const tail = push ? 0 : Math.min(PUNCH_S, Math.max(0, next - z.end));
+    const travel = z.travel_s ?? PUNCH_S;   // a copied creator's measured punch is near-instant (plan.py CREATOR_PUNCH_S)
+    const tail = push ? 0 : Math.min(travel, Math.max(0, next - z.end));
     if (t < z.start || t >= z.end + tail) continue;
     let p: number;
     if (push) {
@@ -153,7 +156,7 @@ export const zoomAt = (t: number, zooms: Zoom[]): { k: number; origin: string } 
       p = t < z.start + e ? f((t - z.start) / e) : t > z.end - e ? f((z.end - t) / e) : 1;
     } else {
       const f = ease(z.ease && z.ease !== "none" ? z.ease : PUNCH_EASE);
-      p = t < z.end ? f(Math.min(1, (t - z.start) / PUNCH_S)) : 1 - f(Math.min(1, (t - z.end) / PUNCH_S));
+      p = t < z.end ? f(Math.min(1, (t - z.start) / travel)) : 1 - f(Math.min(1, (t - z.end) / travel));
     }
     return { k: Math.pow(z.scale, Math.max(0, Math.min(1, p))), origin };
   }
@@ -339,7 +342,7 @@ const LetterboxView: React.FC<Letterbox & { video: string; captions: Plan["capti
   );
 };
 
-export const StyleEdit: React.FC<Plan> = ({ video, captions, zooms, cards, layout, look: lookIn, motion, cutouts, pans, cover, texts }) => {
+export const StyleEdit: React.FC<Plan> = ({ video, captions, zooms, cards, layout, look: lookIn, motion, cutouts, pans, cover, texts, grade }) => {
   const frame = useCurrentFrame();
   const { fps, width, height, durationInFrames } = useVideoConfig();
   const t = frame / fps;
@@ -347,6 +350,7 @@ export const StyleEdit: React.FC<Plan> = ({ video, captions, zooms, cards, layou
   const m = pickMotion(motion);
   const fonts = useFonts(look);
   const split = layout?.mode === "split";
+  const graded: React.CSSProperties = grade ? { filter: `brightness(${grade.brightness}) saturate(${grade.saturate})` } : {};
   if (layout?.mode === "letterbox") return <LetterboxView {...layout} video={video} captions={captions} t={t} m={m} font={fonts.ready ? fonts.body : null} />;
   const grounds = sceneGrounds(cards);
   const capAt = (tt: number) => sceneCaptions(captions.style, captions.chunks, cards, tt, look, grounds, m, width, height,
@@ -380,7 +384,7 @@ export const StyleEdit: React.FC<Plan> = ({ video, captions, zooms, cards, layou
           // fades in over the handle before the card (its refined edge differs a little from the raw camera)
           <AbsoluteFill key={c.src} style={{ ...cam, opacity: Math.min(1, c.from === 0 ? 1 : (frame - c.from + 1) / (CUT_FADE_S * fps),
             c.to >= durationInFrames - 1 ? 1 : (c.to - frame + 1) / (CUT_FADE_S * fps)) }}>
-            <Img src={staticFile(`${c.src}/${String(frame).padStart(6, "0")}.png`)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <Img src={staticFile(`${c.src}/${String(frame).padStart(6, "0")}.png`)} style={{ width: "100%", height: "100%", objectFit: "cover", ...graded }} />
           </AbsoluteFill>
         ))}
         {cardViews}

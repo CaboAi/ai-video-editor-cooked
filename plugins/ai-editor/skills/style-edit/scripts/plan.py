@@ -256,6 +256,8 @@ def place_zooms(zoom, words, duration, cuts, cut_kinds=None, quiet=(), shot_s=No
     per_min = zoom.get("per_min") or 0
     if not per_min or not words:
         return []
+    if zoom.get("kind", "punch") == "punch" and shot_s:
+        per_min /= 2   # each punch comes back out by itself: in and out are two of her measured zooms
     gap = 60 / per_min * 0.8
     picked = []
     cands = zoom_times(words, zoom.get("on", "sentence_start"), cuts)
@@ -267,6 +269,14 @@ def place_zooms(zoom, words, duration, cuts, cut_kinds=None, quiet=(), shot_s=No
     for t in cands:
         if not picked or t - picked[-1] >= gap:
             picked.append(t)
+    # Her rate, not her cut count: a take with fewer cuts than hers (one long shot) still gets per_min zooms, the
+    # rest on sentence starts (her every_cut punches were 5 a minute over 35 cuts; ours has 12).
+    want = round(per_min * duration / 60)
+    for t in zoom_times(words, "sentence_start", ()) if len(picked) < want else ():
+        if len(picked) >= want:
+            break
+        if all(abs(t - p) >= gap for p in picked):
+            picked = sorted(picked + [t])
     hold = zoom.get("max_hold_s")
     starts = [w["start"] for w in words]
     longest = lambda a, b: min(hold or 1e9, QUIET_HOLD_S if any(qa < (a + b) / 2 < qb for qa, qb in quiet) else 1e9)
@@ -285,6 +295,8 @@ def place_zooms(zoom, words, duration, cuts, cut_kinds=None, quiet=(), shot_s=No
     ends = picked[1:] + [duration]
     named = {"ease": zoom["ease"]} if kind != "punch" and zoom.get("ease") not in (None, "none") else {}
     capped = kind == "punch" and shot_s
+    if capped:   # her punch is a step on one frame: ours travels 3 frames, not the house 0.16 s (StyleEdit.tsx PUNCH_S)
+        named["travel_s"] = CREATOR_PUNCH_S
     if capped:   # every change is a punch in that comes back out by itself
         ends = [min(e, s + max(1.0, shot_s)) for s, e in zip(picked, ends)]
     return [{"start": round(s, 3), "end": round(e, 3), "scale": zoom.get("scale", 1.15),
@@ -294,6 +306,7 @@ def place_zooms(zoom, words, duration, cuts, cut_kinds=None, quiet=(), shot_s=No
 
 ENTER_S = (0.15, 0.75)   # a card's entrance window: from just before its start to when it has settled
 PUNCH_S = 0.16           # StyleEdit.tsx PUNCH_S: how long a punch zoom takes to travel
+CREATOR_PUNCH_S = 0.1    # a copied creator's punch (measured as a one-frame step): 3 frames, under quality.py's snap line
 
 
 def clear_entrances(zooms, cards):
@@ -301,7 +314,9 @@ def clear_entrances(zooms, cards):
     for a full-frame scene, to its middle, hidden under it (the footage comes back at the new zoom, like a cut).
     Two zooms closer than a punch's travel join into one (the out move would be cut short: a one-frame snap);
     a zoom that gets shorter than 0.5 s is dropped. Two moves at once compete for the eye, and the render check
-    cannot time a card's landing while the footage under it jumps."""
+    cannot time a card's landing while the footage under it jumps. A punch that would start and end under a scene
+    starts as the scene leaves instead (the footage comes back punched in), so the scene does not eat it."""
+    orig = {id(z): (z["start"], z["end"]) for z in zooms}
     for c in cards:
         a, b = c["start"] - ENTER_S[0] - PUNCH_S, c["start"] + ENTER_S[1]
         to = round((c["start"] + c["end"]) / 2, 3) if c.get("layout") == "scene" else round(max(0.0, a), 3)
@@ -312,7 +327,11 @@ def clear_entrances(zooms, cards):
     out = []
     for z in sorted(zooms, key=lambda z: z["start"]):
         if z["end"] - z["start"] < 0.5:
-            continue
+            a0, b0 = orig[id(z)]
+            sc = next((c for c in cards if c.get("layout") == "scene" and c["start"] - ENTER_S[0] - PUNCH_S < a0 < c["end"]), None)
+            if not sc:
+                continue
+            z["start"], z["end"] = round(sc["end"] + ENTER_S[1], 3), round(sc["end"] + ENTER_S[1] + b0 - a0, 3)
         if out and z["start"] < out[-1]["end"] + PUNCH_S:
             out[-1]["end"] = max(out[-1]["end"], z["end"])
         else:
@@ -1336,12 +1355,12 @@ def tuck_behind(cards, face, aspect):
 
 SFX_GAP_S = 0.25       # never two cues closer than this
 SFX_EVERY_S = 5.0      # at most one cue per this many seconds, on average: most cards land silent (ai-tells.md)
-SFX_RANK = ("hit", "whoosh-in", "whoosh-out", "pop", "zoom")   # who keeps its slot when cues crowd
+SFX_RANK = ("impact", "hit", "whoosh-in", "whoosh-out", "pop", "zoom")   # who keeps its slot when cues crowd
 
 
 # sound.kinds (sound.py) -> the kit's cues that sound like them
 SOUND_CUES = {"whoosh": ("whoosh-in", "whoosh-out"), "pop": ("pop",), "click": ("pop",), "ding": ("pop",),
-              "impact": ("hit", "zoom"), "riser": ("hit",), "other": SFX_RANK}
+              "impact": ("impact",), "riser": ("hit",), "other": SFX_RANK[1:]}
 
 
 def place_sfx(plan, words, kit, sound=None):
@@ -1377,6 +1396,8 @@ def place_sfx(plan, words, kit, sound=None):
         logo = kind in ("logo", "logo_sting")
         ent = c.get("entrance", "slide")
         cue = "pop" if logo or ent == "pop" else "whoosh-in" if ent == "slide" else None
+        if c.get("scene_by") == "creator":
+            cue = "hit"   # her cut-away is a cut: her cues sit on cuts (sound.on_cut_pct)
         if cue:
             ev.append((lands, cue))
         parts((c.get("anim") or {}).get("props"), None, c["start"])
@@ -1387,6 +1408,9 @@ def place_sfx(plan, words, kit, sound=None):
     sound = sound or {}
     if sound.get("sfx_per_min") is not None:
         budget = round(duration / 60 * sound["sfx_per_min"])
+    if (sound.get("kinds") or {}).get("impact", 0) >= max((sound.get("kinds") or {"": 1}).values()):
+        # her cues are mostly impacts (a low boom on a cut): the scene cut and the zoom take the kit's impact
+        ev = [(t, "impact" if n in ("hit", "zoom") else n) for t, n in ev]
     if sound.get("kinds"):
         ok = {c for k, v in sound["kinds"].items() if v > 0 for c in SOUND_CUES.get(k, ())}
         ev = [e for e in ev if e[1] in ok]
@@ -1403,7 +1427,8 @@ def place_sfx(plan, words, kit, sound=None):
         if name in kit["cues"] and len(kept) < budget and 0 <= t < duration \
                 and all(abs(t - k) >= SFX_GAP_S for k, _ in kept):
             kept.append((t, name))
-    kept = [k for i, k in enumerate(sorted(kept)) if i == 0 or k[1] != sorted(kept)[i - 1][1]]   # never the same cue twice running
+    if not sound.get("kinds"):   # never the same cue twice running, unless her measured mix repeats them itself
+        kept = [k for i, k in enumerate(sorted(kept)) if i == 0 or k[1] != sorted(kept)[i - 1][1]]
     # on the frame Sfx.tsx starts it on (round(t x fps)): the plan's t is when the cue really plays
     fps = plan["fps"]
     return [{"t": round(round(max(0.0, t - kit["cues"][n]["attack_s"]) * fps) / fps, 4), "src": f".sfx/{n}.wav", "event": round(t, 3)}
@@ -1731,13 +1756,26 @@ def overlay_led(c):
             and bool(c.get("src") or (c.get("anim") or {}).get("type") in OVERLAYS + ("social_post", "flow")))
 
 
+OFF_SCREEN = 30   # % of the runtime the creator is off screen (look.py face.present_pct) from which her cards are cut-aways
+
+
+def off_screen(style):
+    """True when the creator is off screen OFF_SCREEN% of the time or more: her pictures take the whole frame
+    (b-roll, screen recordings), so a picture card with no layout of its own becomes a scene."""
+    p = (style.get("face") or {}).get("present_pct")
+    return took(style, "graphics") and p is not None and 100 - p >= OFF_SCREEN
+
+
 def lay_out(cards, aspect, face, style, split_ok):
     """Gives every card its layout. A scene starts SCENE_LEAD_S x k earlier, a hard cut in no earlier (never before the card
     before it in its lane ends). Returns (cards, any card in the split panel)."""
     n = 0
     lead = SCENE_LEAD_S * MOTION_K.get(pick_motion(style), 1.0)
     prev_end = {}
+    away = off_screen(style)
     for c in sorted(cards, key=lambda c: c["start"]):
+        if away and not c.get("layout") and c.get("lane") != "logo":
+            c["layout"], c["scene_by"] = "scene", "creator"   # she cuts away from herself: her pictures take the whole frame
         f = frame_of(c, aspect)
         if f == "split" and not split_ok:
             f = "scene" if c.get("layout") == "split" else "box"   # no panel in overlay: a box, unless the beat asked for the panel
@@ -1843,6 +1881,7 @@ def with_formats(images, visuals):
 
 
 CAP_GLYPH = 0.35      # half a one-word lowercase caption's ink height, in font sizes (bold, x-height plus ascenders)
+EYES_SHARE = 0.45     # the eyes, down the head box (hair to chin)
 CHIN_SHARE = 0.1      # face.py grows the face down by 0.15 of its height; that is a tenth of the head box
 
 
@@ -1856,14 +1895,28 @@ def heads_median(face):
     return tops[len(tops) // 2], m[1] + m[3]
 
 
-def caption_under_chin(cap, face, aspect):
+def above_face(style):
+    """True when the creator's captions sit above her face (look.py's face and caption centres), so ours go over
+    the head, not under the chin, when they would land on it."""
+    c, f = style.get("captions") or {}, style.get("face") or {}
+    return bool(c.get("y_pct") and f.get("y_pct") and f.get("height_pct")) and c["y_pct"] < f["y_pct"] - f["height_pct"] / 2
+
+
+def caption_under_chin(cap, face, aspect, above=False):
     """Captions never on the face. A vertical caption line that falls inside the head (face.json, the median head
     over the take) moves to the head box's bottom edge, the chin line just below the mouth, held inside the safe
-    zone (its ink above y 1440). Changes cap["y_pct"]; returns the chin line (% down) when it moved, else None."""
+    zone (its ink above y 1440); with above (the creator's captions sit over her face), to just over the head
+    when that is inside the safe zone. Changes cap["y_pct"]; returns the chin line (% down) when it moved under
+    the chin, else None."""
     hm = aspect == "9:16" and heads_median(face)
     if not hm or not hm[0] - 2 < cap["y_pct"] < hm[1]:
         return None
-    lowest = 100 - SAFE[aspect][3] - CAP_GLYPH * (cap.get("size_pct") or 4.4)
+    half = CAP_GLYPH * (cap.get("size_pct") or 4.4)
+    cap["off_face_from"] = cap["y_pct"]   # style_check.py: moved off the face on purpose, not a mismatch
+    if above and hm[0] - 0.6 - 2 * half >= SAFE[aspect][1]:
+        cap["y_pct"] = round(hm[0] - 0.6 - half, 1)
+        return None
+    lowest = 100 - SAFE[aspect][3] - half
     cap["y_pct"] = round(min(hm[1] + 0.6, lowest), 1)
     return hm[1]
 
@@ -1878,8 +1931,16 @@ def clear_chin(zooms, face, cap):
         hd = head_during(face["heads"], face.get("step_s", 0.5), z["start"], z["end"])
         oy = (z.get("origin") or [50, 30])[1]
         chin = hd and hd[3] - CHIN_SHARE * (hd[3] - hd[1])
+        want = z.pop("want", z["scale"])
         if chin and chin > oy:
             k = (top - oy) / (chin - oy)
+            # held under the creator's punch: grow from the chin instead, the head rising (her 2x on a close shot
+            # crops the hair too), as far as keeps the eyes inside the safe zone and the head inside the width
+            eyes = hd[1] + EYES_SHARE * (hd[3] - hd[1])
+            up = min(want, (chin - SAFE["9:16"][1]) / max(1, chin - eyes), 100 / max(1, hd[2] - hd[0]))
+            if up > max(k, 1.02) and chin < top:
+                out.append({**z, "scale": round(up, 3), "origin": [z.get("origin", [50, 30])[0], round(chin, 1)]})
+                continue
             if k < 1.02:
                 continue
             z = {**z, "scale": round(min(z["scale"], k), 3)}
@@ -1928,7 +1989,7 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         if cap.get("present", True) else []
     fj = edit_dir and Path(edit_dir) / "face.json"
     face = json.loads(fj.read_text(encoding="utf-8")) if fj and fj.exists() else None
-    chin = caption_under_chin(cap, face, aspect)
+    chin = caption_under_chin(cap, face, aspect, took(style, "captions") and above_face(style))
     lay = {**SPLIT, **(style.get("layout") or {}), **(layout or {})}
     sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
     from ai_editor import profile as prof_mod
@@ -1936,6 +1997,9 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
             "durationInFrames": round(duration * fps),
             "look": pick_look(style, profile, prof_mod),
             "motion": pick_motion(style)}
+    grade = grade_for(style, Path(edit_dir) / meta["video"]) if edit_dir else None
+    if grade:
+        head["grade"] = grade
     if ((layout or {}).get("mode") or (style.get("layout") or {}).get("mode")) == "letterbox":
         if visuals:
             print("note: letterbox shows one opening photo only; visuals.json beats are not drawn", file=sys.stderr)
@@ -1971,8 +2035,15 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         hd = head_during(face["heads"], face.get("step_s", 0.5), z["start"], z["end"])
         if hd:
             z["origin"] = [round((hd[0] + hd[2]) / 2, 1), round(hd[1], 1)]
+            # never past the frame: grown from the head's top, the head stays whole (a 2x punch on her wide shot is
+            # a 1.6x on a close one)
+            fit = round(min(100 / max(1, hd[2] - hd[0]), (100 - hd[1]) / max(1, hd[3] - hd[1])), 2)
+            if z["scale"] > fit:
+                z["want"], z["scale"] = z["scale"], max(1.0, fit)
     if chin is not None and not split_now:
         zooms = clear_chin(zooms, face, cap)
+    for z in zooms:
+        z.pop("want", None)
     for a, b in quiet:
         said = [f"'{n}' at {x['start']:.1f} s" for x in named_beats(edit_dir) if a <= x["start"] < b for n in x["names"]]
         print(f"warning: no card for {b - a:.1f} s ({a:.1f}-{b:.1f} s, the rule is {gap:.0f} s): "
@@ -2074,6 +2145,41 @@ def probe(video):
     num, den = s["r_frame_rate"].split("/")
     return {"video": Path(video).name, "width": w, "height": h,
             "fps": int(num) / int(den or 1), "duration": float(d["format"]["duration"])}
+
+
+def footage_grade(video, w=48):
+    """(mean luma 0-255, mean HSV saturation 0-1) of the cut, one small frame a second: creator-teardown look.py's
+    grade_of on the same pixels."""
+    m = probe(video)
+    h = max(2, round(w * m["height"] / m["width"] / 2) * 2)
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(video), "-vf", f"fps=1,scale={w}:{h}", "-f", "rawvideo",
+                          "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
+    if not raw:
+        return None
+    luma = sat = 0.0
+    for k in range(0, len(raw) - 2, 3):
+        r, g, b = raw[k], raw[k + 1], raw[k + 2]
+        luma += 0.2126 * r + 0.7152 * g + 0.0722 * b
+        mx = max(r, g, b)
+        sat += (mx - min(r, g, b)) / mx if mx else 0
+    n = len(raw) // 3
+    return luma / n, sat / n
+
+
+GRADE_B, GRADE_S = (0.7, 1.3), (0.5, 1.8)   # how far the footage is pushed towards her grade (CSS brightness, saturate)
+
+
+def grade_for(style, video):
+    """plan.json "grade": the CSS brightness and saturate that take the cut's mean luma and saturation to the
+    creator's (look.py style.json "grade"), held inside GRADE_B / GRADE_S; None when hers is not measured or ours
+    is already within 3%."""
+    want = style.get("grade") if took(style, "graphics") else None
+    have = want and Path(video).exists() and footage_grade(video)
+    if not have or not want.get("luma") or not want.get("sat") or not have[0]:
+        return None
+    b = round(min(max(want["luma"] / have[0], GRADE_B[0]), GRADE_B[1]), 2)
+    s = round(min(max(want["sat"] / have[1], GRADE_S[0]), GRADE_S[1]), 2) if have[1] > 0.01 else 1.0   # grey stays grey
+    return None if abs(b - 1) < 0.03 and abs(s - 1) < 0.03 else {"brightness": b, "saturate": s}
 
 
 # --- caption contrast: the footage behind each caption page, measured on the cut --------------------------
@@ -2227,6 +2333,7 @@ def treat_captions(plan, edit_dir, meta, floors=None):
 STEPS = (None, "shadow", "glow", "stroke", "backing")   # every treatment, least visible first
 
 
+
 def is_plain(cs):
     """Plain white over the footage: the plain style, or a creator measured with no stroke and no box."""
     return cs.get("style") == "plain" or (cs.get("stroke") is False and cs.get("box") is False)
@@ -2297,7 +2404,8 @@ def demo_punch():
     assert card_rate({**her, "cards": {"on": False}}) == 0 and card_rate({"cards": {"per_min": 4}}) is None
     assert card_rate({**her, "blend": {"take": ["captions"]}}) is None
     ws = [{"text": "Go.", "start": t, "end": t + 0.3} for t in (0.0, 10.0, 20.0, 30.0)]
-    z = place_zooms({"per_min": 6, "kind": "punch", "scale": 1.4, "on": "sentence_start"}, ws, 40.0, [], shot_s=2.4)
+    z = place_zooms({"per_min": 12, "kind": "punch", "scale": 1.4, "on": "sentence_start"}, ws, 40.0, [], shot_s=2.4)
+    # 12 measured zooms a minute = 6 punches, each in and back out
     assert [(x["start"], x["end"]) for x in z] == [(0.0, 2.4), (10.0, 12.4), (20.0, 22.4), (30.0, 32.4)], z
     assert len(place_zooms({"per_min": 6, "kind": "punch", "on": "sentence_start"}, ws, 40.0, [])) == 2
 
@@ -2567,11 +2675,16 @@ def demo():
     assert pt2["box"][1] == OVERLAY_TOP and pt2["box"][1] + pt2["box"][3] <= 34 - HEAD_GAP + 1e-6, pt2["box"]
     assert heat({"grid": [[100, 0], [0, 0]]}, [0, 0, 50, 50]) == 1 and heat({"zones_pct": {"top": 40}}, [0, 10, 90, 20]) == 0.4
     # cut_kinds: a quarter of the cuts punch in
-    cz = place_zooms({"per_min": 600, "on": "every_cut"}, words, t, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], {"zoom-punch": 1, "hard": 3})
+    cz = place_zooms({"per_min": 120 / t, "on": "every_cut"}, words, t, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], {"zoom-punch": 1, "hard": 3})
     assert [(z["start"], z["end"]) for z in cz] == [(2.0, 6.0)], cz   # 2 of 8 cuts change the zoom: in at 2, out at 6
+    # her rate holds when the take has fewer cuts than hers: the rest land on sentence starts
+    cz = place_zooms({"per_min": 360 / t, "on": "every_cut"}, words, t, [2.0], {"zoom-punch": 1, "hard": 3})
+    assert len(cz) >= 2, cz   # one cut alone gave none
     # her sound: none a minute -> no cues; impact only -> no whooshes
     assert place_sfx(sp, sw, kit, {"sfx_per_min": 0}) == []
     assert all("whoosh" not in c["src"] for c in place_sfx(sp, sw, kit, {"kinds": {"impact": 100}}))
+    if "impact" in kit["cues"]:   # mostly impacts: the zooms and scene cuts take the low boom
+        assert {c["src"] for c in place_sfx(sp, sw, kit, {"kinds": {"impact": 57, "pop": 7}})} <= {".sfx/impact.wav", ".sfx/pop.wav"}
     # one lead model for plan, renderer and check: motion.ts carries the same two numbers
     ts = (Path(__file__).resolve().parents[3] / "remotion" / "src" / "motion.ts").read_text(encoding="utf-8")
     assert f"CARD_LEAD_S = {CARD_LEAD_S};" in ts and f"OVERLAY_LEAD_S = {OVERLAY_LEAD_S};" in ts, "motion.ts lead drifted"
@@ -2621,6 +2734,8 @@ def demo():
     bx = clear_entrances([zp(24.0, 28.5)], [{"start": 28.2, "end": 30.0, "layout": "box"}])
     assert bx[0]["end"] + PUNCH_S <= 28.2 - ENTER_S[0] + 1e-6, bx
     assert len(clear_entrances([zp(1.0, 3.0), zp(3.1, 5.0)], [])) == 1
+    # a punch that a scene would swallow lands as the scene leaves
+    assert [(z["start"], z["end"]) for z in clear_entrances([zp(10.0, 11.4)], [{"start": 10.1, "end": 12.8, "layout": "scene"}])] == [(13.55, 14.95)]
     with tempfile.TemporaryDirectory() as td:   # an audio clip: its cover moves on sentence starts, no zooms
         assert audio_cover(td, words) is None
         (Path(td) / "cover.png").write_bytes(b"")
@@ -2677,10 +2792,28 @@ def demo():
     fc = {"step_s": 0.5, "heads": [{"t": i / 2, "box": [35, 31, 48, 41.5]} for i in range(9)]}
     cp = {"y_pct": 64, "size_pct": 4.4}
     assert caption_under_chin(cp, fc, "9:16") == 72.5 and cp["y_pct"] == 73.1 <= 100 - SAFE["9:16"][3] - CAP_GLYPH * 4.4, cp
+    ca = {"y_pct": 40, "size_pct": 4.4}   # her captions sit over her face: ours go over the head, inside the safe zone
+    assert caption_under_chin(ca, fc, "9:16", above=True) is None and ca["y_pct"] == 28.9, ca
+    assert above_face({"captions": {"y_pct": 38.6}, "face": {"y_pct": 48.9, "height_pct": 8.2}})
+    assert not above_face({"captions": {"y_pct": 70}, "face": {"y_pct": 48.9, "height_pct": 8.2}})
+    # her grade: a grey cut is pulled darker towards her luma; saturation of grey cannot be scaled, so it is held
+    with tempfile.TemporaryDirectory() as gd:
+        gv = Path(gd) / "g.mp4"
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=0xA0A0A0:s=96x160:d=2", "-pix_fmt", "yuv420p",
+                        str(gv)], check=True)
+        lu, sa = footage_grade(gv)
+        assert 150 < lu < 170 and sa < 0.02, (lu, sa)
+        assert grade_for({"grade": {"luma": 120, "sat": 0.3}}, gv) == {"brightness": 0.76, "saturate": 1.0}
+        assert grade_for({"grade": {"luma": lu, "sat": sa}}, gv) is None and grade_for({}, gv) is None
+    # a creator off screen half the time: picture cards become full-frame cut-aways, logos stay boxes
+    oc, _ = lay_out([{"start": 1, "end": 3, "src": "images/a.png"}, {"start": 5, "end": 6, "lane": "logo", "src": "images/l.svg"}],
+                    "9:16", None, {"face": {"present_pct": 44}}, False)
+    assert [c["layout"] for c in oc] == ["scene", "box"], oc
+    assert not off_screen({"face": {"present_pct": 95}}) and not off_screen({"face": {"present_pct": 44}, "blend": {"take": ["captions"]}})
     assert caption_under_chin({"y_pct": 80, "size_pct": 4}, fc, "9:16") is None and caption_under_chin({"y_pct": 64}, None, "9:16") is None
     # a push zoom from the head's top is held so the chin stays above the captions; one that cannot move is dropped
     zz = clear_chin([{"start": 0, "end": 2, "scale": 1.15, "origin": [59, 31]}, {"start": 2, "end": 4, "scale": 1.15, "origin": [59, 70]}], fc, cp)
-    assert 1.02 <= zz[0]["scale"] < 1.15 and zz[1]["scale"] == 1.15, zz     # grown from under the chin: it rises, kept
+    assert zz[0]["scale"] == 1.15 and zz[0]["origin"][1] == 68.3 and zz[1]["scale"] == 1.15, zz   # grown from the chin instead: the head rises, kept
     assert clear_chin([{"start": 0, "end": 2, "scale": 1.15, "origin": [59, 31]}], fc, {"y_pct": 68, "size_pct": 4.4}) == []
     # one capture per page: the second capture of the same URL is dropped
     vis = [{"kind": "capture", "word": "a", "url": "https://x.dev/"}, {"kind": "capture", "word": "b", "url": "https://x.dev"},
@@ -3046,8 +3179,8 @@ def main():
                  probe(video), images, a.aspect, cut_points(edit_dir), visuals, edit_dir,
                  {k: v for k, v in (("mode", a.layout), ("title", a.title)) if v} or None, prof, None if a.behind is None else a.behind == "on")
     out = Path(a.out) if a.out else edit_dir / "plan.json"
-    line = contrast_summary(treat_captions(plan, edit_dir, probe(video), contrast_floors(edit_dir, out)),
-                            plan["captions"]["chunks"])
+    treated = treat_captions(plan, edit_dir, probe(video), contrast_floors(edit_dir, out))
+    line = contrast_summary(treated, plan["captions"]["chunks"])
     if line:
         print(line, file=sys.stderr)
     if a.no_sfx or (prof.get("sound") or {}).get("sfx") is False:
@@ -3056,6 +3189,9 @@ def main():
     if (edit_dir / ".sfx" / "music.wav").exists() and want_music is not False:
         plan["music"] = {"src": ".sfx/music.wav"}   # sfx.py music: the bed, ducked under the speech
     music = ((style.get("sound") or {}).get("music") or {}) if took(style, "sound") else {}
+    if music.get("present_pct") is not None and music["present_pct"] < 50 and "music" in plan:
+        print(f"music: the creator runs a bed under only {music['present_pct']}% of her videos; the bed in .sfx/music.wav "
+              "is not her look: delete it and plan again unless the user asked for music", file=sys.stderr)
     if music.get("present_pct") and "music" not in plan:   # guidance only: the renderer lays no music (references/visuals.md "From the teardown")
         print(f"music: the creator runs a bed under {music['present_pct']}% of her videos, {abs(music.get('level_db') or 0):.0f} dB "
               "under the voice; sfx.py music lays one at that level (the style-edit Sound step)", file=sys.stderr)

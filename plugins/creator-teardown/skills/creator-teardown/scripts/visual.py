@@ -55,10 +55,12 @@ WIN = 7              # neighbours on each side, frames
 SHOT_R = 10.0        # median block difference (0-255) that means a new picture
 SHOT_H = 0.30        # histogram jump (L1, 0-2) that means a new picture
 ZOOM_H = 0.15        # below this histogram jump, a scaled match is a pure zoom
+JUMP_R = 3.0         # a jump cut on a locked-off camera: the same framing, so only this much block change...
+JUMP_SPIKE = 4.0     # ...but on one frame, this many times its neighbours (a gesture spreads over several)
 PUNCH_SCALES = [1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.4, 1.5, 1.6, 1.8, 2.0]
 PUSH_SCALES = [1.02, 1.04, 1.06, 1.08, 1.1, 1.15]
 PUSH_STEP_S = 0.5
-MEASURE_V = 1        # visual.json "v": bump when measure_video changes, so saved measures are redone
+MEASURE_V = 3        # visual.json "v": bump when measure_video changes, so saved measures are redone
 
 
 def probe(path):
@@ -94,17 +96,18 @@ def hist_jump(a, b):
     return float(np.abs(ha - hb).sum())
 
 
-def best_scale(a, b, scales):
+def best_scale(a, b, scales, steps=5):
     """(scale, residual): b looks like a zoomed by `scale` (>1 in, <1 out).
-    Searches a 5x5 grid of crop offsets per scale, both directions."""
+    Searches a steps x steps grid of crop offsets per scale, both directions (9 for a punch: a 2x punch grown
+    from the chin sits between the 5-grid's offsets and read as 1.6)."""
     h, w = a.shape
     best = (1.0, block_median(a, b))
     for src, dst, sign in ((a, b, 1), (b, a, -1)):
         im = Image.fromarray(src.astype(np.uint8))
         for s in scales:
             cw, ch = w / s, h / s
-            for dx in np.linspace(-(w - cw) / 2, (w - cw) / 2, 5):
-                for dy in np.linspace(-(h - ch) / 2, (h - ch) / 2, 5):
+            for dx in np.linspace(-(w - cw) / 2, (w - cw) / 2, steps):
+                for dy in np.linspace(-(h - ch) / 2, (h - ch) / 2, steps):
                     x0, y0 = (w - cw) / 2 + dx, (h - ch) / 2 + dy
                     z = np.asarray(im.resize((w, h), Image.BILINEAR,
                                              box=(x0, y0, x0 + cw, y0 + ch)), np.float32)
@@ -115,7 +118,7 @@ def best_scale(a, b, scales):
 
 
 def candidates(F):
-    """Frames whose difference to the next spikes above their neighbours."""
+    """[(frame, spike)]: frames whose difference to the next spikes above their neighbours, and by how much."""
     d = np.abs(np.diff(F, axis=0)).mean(axis=(1, 2))
     out = []
     for i in range(len(d)):
@@ -123,7 +126,7 @@ def candidates(F):
         nb = np.concatenate([d[lo:i], d[i + 1:hi]])
         base = float(np.median(nb)) if nb.size else 0.0
         if d[i] == d[lo:hi].max() and d[i] > max(SPIKE * base, SPIKE):
-            out.append(i)
+            out.append((i, d[i] / max(base, 0.1)))
     return out
 
 
@@ -131,13 +134,13 @@ def analyse(F, fps):
     """Cuts and zooms from grey frames at the source frame rate."""
     n = len(F)
     cuts, zooms = [], []
-    for i in candidates(F):
+    for i, spike in candidates(F):
         a, b = F[max(0, i - 1)], F[min(n - 1, i + 2)]
         r1, hj = block_median(a, b), hist_jump(F[i], F[i + 1])
-        if r1 <= SHOT_R and hj <= SHOT_H:
+        if r1 <= SHOT_R and hj <= SHOT_H and not (r1 >= JUMP_R and spike >= JUMP_SPIKE):
             continue  # a gesture, or a small graphic
         t = round((i + 1) / fps, 3)
-        s, rb = best_scale(a, b, PUNCH_SCALES) if r1 > 2 else (1.0, r1)
+        s, rb = best_scale(a, b, PUNCH_SCALES, 9) if r1 > 2 else (1.0, r1)
         scaled = s != 1.0 and rb < 0.5 * r1
         if scaled:
             zooms.append({"t": t, "kind": "punch", "scale": round(s, 2), "duration_s": 0.0,
@@ -572,6 +575,15 @@ def demo():
         assert len(r["sheets"]) == 1 and Path(r["sheets"][0]).exists()
         assert r["cut_kinds"] == ["hard", "hard"], r["cut_kinds"]
         assert [z["ease"] for z in r["zooms"]][:1] == ["none"], r["zooms"]
+
+    # A jump cut on a locked-off camera: the framing barely moves, but on one frame (a gesture spreads over several).
+    sm = np.asarray(Image.fromarray(texture()).resize((108, 192)), np.float32)
+
+    def nudge(img, dx):
+        return np.asarray(Image.fromarray(img.astype(np.uint8)).transform((108, 192), Image.AFFINE, (1, 0, dx, 0, 1, 0),
+                                                                          Image.BILINEAR), np.float32)
+    J = [sm] * 30 + [nudge(sm, 3)] * 30 + [nudge(sm, 3 + 3 * k / 8) for k in range(1, 9)] + [nudge(sm, 6)] * 30
+    assert analyse(np.stack([j + rng.normal(0, 1, j.shape) for j in J]).astype(np.float32), FPS)[0] == [1.0]
 
     # Cut kinds and camera moves, on frames built in memory.
     C, D = texture(), texture()

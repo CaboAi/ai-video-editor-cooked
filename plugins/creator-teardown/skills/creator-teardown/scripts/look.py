@@ -297,6 +297,18 @@ def weight_of(ratio):
     return 900
 
 
+def mix_of(cen, j, f):
+    """True when cluster j lies on the line from cluster f to another cluster: an anti-aliased edge, not a colour."""
+    for o in range(len(cen)):
+        if o in (j, f):
+            continue
+        d = cen[o] - cen[f]
+        t = float(np.clip((cen[j] - cen[f]) @ d / max(1e-6, d @ d), 0.15, 0.85))
+        if np.linalg.norm(cen[f] + t * d - cen[j]) < 35:
+            return True
+    return False
+
+
 def caption_colours(crops, long_side, k=6):
     """crops: [(rgb, core box in crop px, text, line height px, sample index)].
     Fill and stroke are the colours that sit inside the OCR box in most captions and
@@ -357,7 +369,9 @@ def caption_colours(crops, long_side, k=6):
         if abs(luma(fill) - luma(b)) < 100 or score(b) < 0.15 * score(fill):
             continue
         out, back = enclosure(labs, cores, fill, b, hs), enclosure(labs, cores, b, fill, hs)
-        if back >= 0.3 and back > out + 0.15:   # b sits inside: b is the fill
+        # b sits inside: b is the fill, unless b is only a mix of the fill and a third colour (the anti-aliased
+        # edge of white letters with a thin dark stroke on a bright wall also sits inside the rings)
+        if back >= 0.3 and back > out + 0.15 and not mix_of(cen, b, fill):
             fill, stroke = b, fill
             break
         if out >= 0.3 and out > back + 0.15:
@@ -867,10 +881,18 @@ def measure_video(path, words, ocr=None, faces=None, engine="vision", fps=SAMPLE
     }
     band = letterbox_band(dark / n, W) if H > W else None
     return {"id": path.stem, "duration_s": round(dur, 2), "engine": engine if ocr else None,
-            "letterbox": band, "captions": cap, "face": face, "graphics": graphics,
+            "letterbox": band, "captions": cap, "face": face, "graphics": graphics, "grade": grade_of(np.concatenate(thumbs)),
             "samples": [{"t": s["t"], "face": s["face"],
                          "lines": [[ln["text"], ln["box"], bool(ln.get("cap"))] for ln in s["lines"]]}
                         for s in samples]}
+
+
+def grade_of(px):
+    """The colour grade: mean luma (Rec. 709, 0-255) and mean HSV saturation (0-1) of RGB pixels."""
+    a = px.astype(np.float32) / 255
+    mx, mn = a.max(-1), a.min(-1)
+    sat = np.where(mx > 0, (mx - mn) / np.maximum(mx, 1e-6), 0)
+    return {"luma": round(float((a @ np.float32([0.2126, 0.7152, 0.0722])).mean() * 255), 1), "sat": round(float(sat.mean()), 3)}
 
 
 # ---------- one creator ----------
@@ -993,7 +1015,11 @@ def merge(rows, visuals, style):
     motion = {"cuts_per_min": cpm, "ease_in_s": graphics["ease_in_s"], "hold_s": graphics["hold_s"],
               "caption_ease_s": cap.get("ease_s"), "zoom_punch_per_min": punch}
     motion["personality"] = personality(cpm, motion["ease_in_s"], motion["hold_s"], punch)
-    out = {"captions": cap, "face": face, "graphics": graphics, "motion": motion}
+    # graphics.py's measured kinds, layout and entrances stay when look.py runs again after it
+    out = {"captions": cap, "face": face, "graphics": {**(style.get("graphics") or {}), **graphics}, "motion": motion}
+    grades = [r["grade"] for r in rows if r.get("grade")]
+    if grades:   # style-edit grades the user's footage towards it (plan.py "grade")
+        out["grade"] = {"luma": med([g["luma"] for g in grades], 1), "sat": med([g["sat"] for g in grades], 3)}
     bands = [r["letterbox"] for r in rows if r.get("letterbox")]
     if bands and len(bands) > len(rows) / 2:   # most videos are a 16:9 band between black bars: style-edit's letterbox
         out["layout"] = {"mode": "letterbox", "band_pct": [med([b[0] for b in bands], 1), med([b[1] for b in bands], 1)],
@@ -1335,6 +1361,9 @@ def demo():
         mc = m["captions"]
         assert mc["word_effect"] == "highlight" and mc["effect"] == "pop" and mc["highlight_color"][1:3] > "E0", mc
         assert m["motion"]["cuts_per_min"] == 30.0, m
+        assert 0 < m["grade"]["luma"] < 255 and 0 <= m["grade"]["sat"] <= 1, m["grade"]
+        gr = grade_of(np.array([[255, 0, 0], [128, 128, 128]], np.uint8))
+        assert gr == {"luma": 91.1, "sat": 0.5}, gr   # (0.2126 x 255 + 128) / 2
         assert m["motion"]["personality"] == "punchy", m["motion"]
         assert personality(4, 0.05, 4, 0) == "calm" and personality(20, 0.4, 1, 0) == "smooth"
         assert weight_of(0.15) == 700 and weight_of(0.09) == 400 and weight_of(0.5) == 900

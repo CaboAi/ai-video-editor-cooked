@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render the cut with plain ffmpeg: every kept span trimmed and joined.
 
-    python3 render.py <source> <edit_dir> [--crf 18] [--no-hw] [--flip] [--segments-only]
+    python3 render.py <source> <edit_dir> [--crf 18] [--no-hw] [--flip] [--segments-only] [--max 1080]
 
 Reads <edit_dir>/decisions.json and report.json, writes <edit_dir>/cut.mp4 at the
 source resolution (rotation applied), H.264 + AAC. --flip flips it left to right (a mirrored front-camera
@@ -86,6 +86,7 @@ def main():
     ap.add_argument("--no-hw", action="store_true", help="skip hardware decode on a Mac")
     ap.add_argument("--flip", action="store_true", help="flip left to right (a mirrored take, on the user's yes)")
     ap.add_argument("--segments-only", action="store_true", help="fill the segment cache, write no cut.mp4")
+    ap.add_argument("--max", type=int, default=1080, help="short side in pixels, never upscaled (0 keeps the source size)")
     a = ap.parse_args()
     if not a.segments_only:   # the background encode runs while the judge reads: the checklist is not there yet
         progress.step("Rendering the cut", job="video", key=a.edit_dir)
@@ -104,6 +105,11 @@ def main():
     # 192 MB -> 119 MB at 40.6 dB PSNR, no visible change. -q:v needs Apple silicon; an Intel Mac's
     # encoder refuses it and every span is redone with x264.
     enc = ["-c:v", "h264_videotoolbox", "-q:v", "65"] if hw else x264
+    # 1080p: a 4K take's short side down to 1080 (1080x1920 or 1920x1080), smaller never upscaled; the
+    # edit renders at 1080 anyway, and a 4K encode costs about four times the time
+    m = a.max
+    size = (f",scale='trunc(iw*min(1,{m}/min(iw,ih))/2)*2':'trunc(ih*min(1,{m}/min(iw,ih))/2)*2':flags=lanczos"
+            if m else "")
     tmp = Path(tempfile.mkdtemp(prefix="cut_render_"))
     try:
         print(f"{len(frames)} spans, {sum(e - s for s, e in frames)} frames -> {out}", flush=True)
@@ -111,7 +117,7 @@ def main():
         def cache():
             """This render's segment folder; any other (another source, encoder or flip) is stale."""
             st = Path(src).stat()
-            key = hashlib.sha1(f"{Path(src).resolve()}|{st.st_size}|{st.st_mtime_ns}|{fps}|{' '.join(enc)}|{a.flip}"
+            key = hashlib.sha1(f"{Path(src).resolve()}|{st.st_size}|{st.st_mtime_ns}|{fps}|{' '.join(enc)}|{a.flip}|{size}"
                                .encode()).hexdigest()[:12]
             return d.resolve() / ".segments" / key
 
@@ -135,7 +141,7 @@ def main():
             # frames over a 1/600 s source's jittered timestamps.
             cmd = ["ffmpeg", "-v", "error", "-y", "-copyts", *(["-hwaccel", "videotoolbox"] if hw else []),
                    "-ss", f"{max(0.0, t0 - fstart - LEAD_S):.6f}", "-i", src, "-an",
-                   "-vf", f"trim=start={max(0.0, t0):.6f}:end={t1:.6f},setpts=N/({fps})/TB" + (",hflip" if a.flip else ""),
+                   "-vf", f"trim=start={max(0.0, t0):.6f}:end={t1:.6f},setpts=N/({fps})/TB" + (",hflip" if a.flip else "") + size,
                    "-r", str(fps), *enc, "-pix_fmt", "yuv420p", "-g", "15", str(part)]
             r = subprocess.run(cmd, capture_output=True, text=True)
             # Frames are counted once, on the finished file: a decode per segment cost a 10-minute 4K take

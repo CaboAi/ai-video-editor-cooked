@@ -4,6 +4,20 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.0 (2026-10-14)
+
+- Motion graphics built for your video. A new `motion` skill gives each moment that needs an animation (a number,
+  a list, steps, a before and after, an app in use) its own clip: one agent per clip, all built while you review
+  the cut, each checked (lint, transitions, a frame-by-frame motion check), rendered and placed on its word so
+  the motion finishes before the card leaves. A clip that fails its checks falls back to the old template, so a
+  video never breaks. Setup installs HyperFrames and GSAP from npm once. It uses more Claude tokens than the
+  templates (about 100k per clip); the style page's Motion setting turns it down.
+- The style page has a Motion section: None, Some or Lots, a switch for each kind of animation, and the look.
+  Animations you approve go to your own library, with Use again, Archive and Delete. A note on one clip in the
+  editor rebuilds only that clip and re-renders only that part of the video.
+- New sample style: 50/50. The visual owns the top of the frame and you the bottom, on a paper ground, with a
+  panel version and a cutout version where your head breaks out of the card. Your face is back within 8 seconds.
+
 ## ai-editor 2.6.12 (2026-10-13)
 
 - Claude's questions show in the video's editor, with "Claude is asking you something" in the header. Esc folds
@@ -38,6 +52,18 @@ What changed for every user, newest first.
   clip passes lint, a layout check, a frame-to-frame motion check and a look at its contact sheets before it is
   used; a clip that fails keeps the card template. New `motion` skill; `setup.py motion` installs its tools
   (under a minute) and `doctor` checks them. style.json `motion` sets clips or templates, how many and which kinds.
+- A Motion section on each style's page: how many beats get an animation (none, some, lots), which kinds
+  (counters, lists, flows, before and after, the app in use, curves, logos), and the look (palette and font) with
+  a preview. It applies to the next video. A measured creator's style starts from their animation share.
+- Animations you approve are saved, listed under Saved animations on the style page (Use again, Archive, Delete).
+  A new video starts a matching beat from one, re-timed and changed for its words, never copied unchanged;
+  archived ones are never used.
+- A note on one animation ("make the counter bigger") rebuilds only that clip and re-renders only its span.
+- A new sample style, 50/50: the visual owns the top of the frame and you the bottom, on a paper ground, an
+  animation built for each line filling the top panel edge to edge, your face back full frame within 8 seconds.
+  `layout.variant: "cutout"` makes your head break out of your card onto the paper. Each panel animation passes a
+  ground and fill check and four frame-by-frame proofs (nothing clipped, nothing in the side rails, no two beats
+  at once, every line on screen long enough to read).
 
 ## ai-editor 2.6.10 (2026-10-13)
 

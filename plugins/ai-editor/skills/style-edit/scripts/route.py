@@ -140,11 +140,37 @@ def rank_highlight(blocks, said):
     return sorted(blocks, key=lambda b: -len(toks & set(re.findall(r"[a-z0-9]+", b.lower()))))[:MAX_LINES]
 
 
+NUM = re.compile(r"\b\d[\d,.]*\b|\b(?:hundred|thousand|million|billion|percent|half|double|twice|times)\b", re.I)
+STEPS = re.compile(r"\b(?:first|second|third|then|next|finally|step)\b", re.I)
+VERSUS = re.compile(r"\b(?:before|after|instead|versus|vs|used to|compared|better than|worse than|faster than)\b", re.I)
+FLOWS = re.compile(r"\b(?:sends?|goes to|passes|hands?|from \w+ to|into|pipeline|workflow|connects?)\b", re.I)
+UI = re.compile(r"\b(?:drag|click|type|upload|render(?:s|ing)?|cut(?:s|ting)?|open|install|run(?:s|ning)?|press)\b", re.I)
+
+
+def motion_kind(text):
+    """What a sentence is doing, for the motion skill (style.json "motion" kinds): a number said, steps or a list of
+    three or more, a comparison, things handing work along, an app being used. None: nothing to animate."""
+    if VERSUS.search(text):
+        return "before_after"
+    if NUM.search(text):
+        return "counter"
+    if len(STEPS.findall(text)) >= 2 or text.count(",") >= 2:
+        return "list"
+    if FLOWS.search(text):
+        return "flow"
+    if UI.search(text):
+        return "ui_demo"
+    return None
+
+
 def demo():
     ws = [{"text": t, "start": i * 0.4, "end": i * 0.4 + 0.3} for i, t in
           enumerate("I built a router with Jev. It is 40 times faster than Claude. Follow me.".split())]
     bs = sentences(ws)
     assert [b["text"] for b in bs] == ["I built a router with Jev.", "It is 40 times faster than Claude.", "Follow me."]
+    assert [motion_kind(b["text"]) for b in bs] == [None, "before_after", None]
+    assert motion_kind("over 10,000 people asked for it") == "counter" and motion_kind("first cut it, then render it") == "list"
+    assert motion_kind("you can drag in a video") == "ui_demo" and motion_kind("it sends the take to the judge") == "flow"
     names = [{"name": "Jev"}, {"name": "Claude"}, {"name": "Claude Code"}]
     for b in bs:
         b["names"] = named(b["text"], names)
@@ -228,9 +254,10 @@ def main():
                   + (f", placed at the {where(style)}" if where(style) else "") + " (SKILL.md step 3, \"Pacing\")")
         for b in beats:
             b["pick"] = None   # Claude routes each sentence
+            b["motion"] = motion_kind(b["text"])   # a hint: the motion skill builds a clip where the pick is a moving format
         (edit / "beats.json").write_text(json.dumps(beats, indent=1), encoding="utf-8")
         for b in beats:
-            print(f"{b['start']:6.2f} {'*' if b.get('want') else ' '} {str(b.get('pick')):20}  {b['text']}"
+            print(f"{b['start']:6.2f} {'*' if b.get('want') else ' '} {str(b.get('motion') or ''):12}  {b['text']}"
                   + (f"   [{', '.join(b['names'])}]" if b["names"] else "")
                   + (f"   logo_cluster? {', '.join(b['logos'])}" if len(b.get("logos") or []) > 1 else ""))
         print(f"-> {edit / 'beats.json'}")

@@ -456,11 +456,12 @@ const SideBySide: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
 
 // =====================================================================================================
 // video_card: a short real clip (the user's own, or a recorded page) in a rounded card over the
-// footage. props: src (a video in images/), size? [w, h], start_s? (0), label?, rate? (1)
+// footage. props: src (a video in images/), size? [w, h], start_s? (0), label?, rate? (1), bare? (no card: a 50/50 panel clip)
 const VideoCard: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
   const u = Math.min(w, h) / 100;
   const { fps } = useVideoConfig();
-  const [cw, ch] = fitBox(p.size, w * 0.96, h * 0.92, 16 / 9);
+  // bare (a 50/50 panel clip, motion skill): the clip is the panel, edge to edge, no card, radius or shadow
+  const [cw, ch] = p.bare ? fitBox(p.size, w, h, 16 / 9) : fitBox(p.size, w * 0.96, h * 0.92, 16 / 9);
   const { U } = useFrame();
   const ref = useTl((timeline, q, root) => {
     const { tl, L } = cardLife(timeline, q, root, p, m, dur, u, U);
@@ -470,8 +471,8 @@ const VideoCard: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
   return (
     <div ref={ref} style={center}>
       <div className="cv-in" style={{ opacity: 0 }}><div className="cv-hit">
-      <div className="vc-card" style={{ position: "relative", width: cw, height: ch, borderRadius: u * 2.4, boxShadow: depth(u) }}>
-        <div style={{ ...fill, borderRadius: u * 2.4, overflow: "hidden", background: "#000" }}>
+      <div className="vc-card" style={{ position: "relative", width: cw, height: ch, borderRadius: p.bare ? 0 : u * 2.4, boxShadow: p.bare ? undefined : depth(u) }}>
+        <div style={{ ...fill, borderRadius: p.bare ? 0 : u * 2.4, overflow: "hidden", background: p.bare ? undefined : "#000" }}>
           {p.src ? <OffthreadVideo src={src_(p.src)!} muted startFrom={Math.round(Number(p.start_s ?? 0) * fps)} playbackRate={Number(p.rate ?? 1)}
             style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
         </div>

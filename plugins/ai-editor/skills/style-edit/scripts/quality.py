@@ -1077,7 +1077,7 @@ def run(edit, plan, video, plan_path, style=None, cuts=(), brand=None):
                          "a darker or more opaque card ground, or brighter ink (look in style.json)"))
         # the AI-made look on the settled card (ai_tells.check_still runs generic_pixels and ai_title_card)
         from ai_tells import check_still, for_brand
-        gen = for_brand(check_still(crop, name), brand)
+        gen = for_brand(check_still(crop, name), brand, plan.get("allow_tells"))
         rr["generic"] = [f"{g['tell']}: {g['where']}" for g in gen]
         for g in gen:
             out.append(F("FAIL" if g["level"] == "BAN" else "WARN", c["start"], f"{name} AI tell '{g['tell']}': {g['where']}", g["fix"]))

@@ -94,9 +94,36 @@ frame between cards, a part that never moves while held, anything over the face,
 
 ## Notes on a clip
 
-A note on one clip ("make the counter bigger"): send it to that clip's agent (or a new clip-builder with
-the brief and the note), `motion.py check` it, `place`, then plan, stills and render as style-edit says.
-Only that clip is rebuilt.
+A review-page note at a moment a clip is up ("make the counter bigger", "use blue"):
+
+```bash
+python3 "$M" note edits/<name> "make the counter bigger" --at <note time>
+```
+
+It writes the note into that clip's `notes.md` and prints the clip. Give one `clip-builder` its `brief.md`
+(up to 2 more checks), then `place`, plan, and `edit.py patch` (style-edit): only that clip is rebuilt and only its
+span re-rendered (each placed render has its own file name, so the patch sees the change).
+
+## The motion library
+
+When the user approves the render: `python3 "$M" save edits/<name>`. Each placed clip goes to
+`$AI_EDITOR_HOME/motion-library/<id>/` (composition, brief, thumbnail, the style it came from). `pick` gives a beat
+of the same kind the newest one (or the one marked "use again") as `start.html`: a starting point the agent
+re-times and changes, never a copy (`check` fails an unchanged one). Archived clips are never used. The
+window's style page lists them (Archive, Delete, Use again); in chat: `python3 "$M" library [archive|unarchive|use <id>]`.
+
+## Settings
+
+style.json `motion` (the style page's Motion section writes it through the user's corrections): `amount` (0
+none, 0.5 some, 1 lots; unset, a measured style's animation share), `kinds` (each on or off), `look`
+(`default`, `editorial`, `editorial-dark`, `mono`, `poster-red`, `poster-green`, `poster-blue`). `engine:
+"templates"` keeps the template cards.
+
+## The 50/50 style
+
+A split-layout style (style.json `layout.mode: "split"`, the sample `50/50`): every clip is built for the panel's
+art box on the panel's ground and plays edge to edge; the `panel` gate (ground at the corners, ink over 55%) and
+the four proofs (`verify.mjs`) block. Variants, rules and the cutout: `references/fifty-fifty.md`.
 
 ## Skill styles
 
@@ -115,7 +142,8 @@ A user's own style skill gets bespoke animations with one line: "Animations: use
 - `scripts/motion.py` (pick, check, place, status, strips), `check_clip.py`, `check_motion.py`,
   `check_composition.py`, `measure_ink.py`, `clip_motion.py`: each with a `demo` self-check.
 - `template/`: the HyperFrames composition every clip starts from.
+- `scripts/verify.mjs`: the four proofs (clipped, rails, neighbour, reading), frame by frame in Chrome.
 - `references/`: `clip-brief-card.md` (the core every agent reads), `visual-system.md`, `build-loop.md`,
-  `scenes.md`, `looks.md`.
+  `scenes.md`, `looks.md`, `fifty-fifty.md`.
 - HyperFrames is Apache-2.0 (github.com/heygen-com/hyperframes), GSAP is under its standard no-charge licence
   (gsap.com/standard-license); both are installed from npm by setup, not shipped here.

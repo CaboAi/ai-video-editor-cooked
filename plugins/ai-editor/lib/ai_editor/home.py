@@ -709,13 +709,19 @@ CONTROLS = {"captions.size_pct": ("captions", float, 2.5, 9), "captions.words_pe
             "zoom.per_min": ("visuals", float, 0, 20), "zoom.preset": ("visuals", "choice", None, None),
             "cut.max_pause": ("cut", float, 0.05, 0.6), "cards.on": ("visuals", bool, None, None),
             "cards.per_min": ("visuals", float, 1, 20),
-            "sfx": ("sound", bool, None, None), "music": ("sound", bool, None, None)}
+            "sfx": ("sound", bool, None, None), "music": ("sound", bool, None, None),
+            "motion.amount": ("visuals", float, 0, 1), "motion.look": ("visuals", "choice", None, None),
+            **{f"motion.kinds.{k}": ("visuals", bool, None, None) for k in ("counter", "list", "flow", "before_after", "ui_demo", "curve", "logo")}}
+MOTION_KINDS = {"counter": "Counters", "list": "Lists and steps", "flow": "Flows", "before_after": "Before and after",
+                "ui_demo": "The app in use", "curve": "Curves", "logo": "Logos together"}
 # Reset per section: every setting under these prefixes goes back to the style's own (or the default).
-SECTIONS = {"captions": ("captions.",), "zoom": ("zoom.",), "cut": ("cut.",), "cards": ("cards.", "look."), "sound": ("sfx", "music")}   # look.: clears an old pick
+SECTIONS = {"captions": ("captions.",), "zoom": ("zoom.",), "cut": ("cut.",), "cards": ("cards.", "look."), "sound": ("sfx", "music"),
+            "motion": ("motion.",)}   # look.: clears an old pick
 
 
 def choices(key):
-    return {"captions.preset": [""] + list(presets.captions()), "zoom.preset": list(presets.ZOOM)}[key]
+    return {"captions.preset": [""] + list(presets.captions()), "zoom.preset": list(presets.ZOOM),
+            "motion.look": ["default", *motion_mod().PRESETS]}[key]
 
 
 def control_rule(key, v):
@@ -732,8 +738,38 @@ def control_rule(key, v):
              "zoom.per_min": lambda: "No zooms" if not v else f"About {v:g} zooms a minute",
              "cut.max_pause": lambda: f"Pauses cut down to {v:g} s", "sfx": lambda: "Sound effects on" if v else "No sound effects",
              "cards.on": lambda: "Logos and screenshots on" if v else "No logos or screenshots",
-             "music": lambda: "Background music on" if v else "No background music"}[key]()
+             "music": lambda: "Background music on" if v else "No background music",
+             "motion.amount": lambda: "No animations" if not v else f"Animations: {'lots' if v >= 0.75 else 'some'} of the beats",
+             "motion.look": lambda: f"Animations in the {v} look"}.get(key, lambda: (
+                 f"{MOTION_KINDS[key.rsplit('.', 1)[1]]} animated" if v else f"No {MOTION_KINDS[key.rsplit('.', 1)[1]].lower()} animations"))()
     return r + " (set on the style page)"
+
+
+def motion_mod():
+    """The motion skill's motion.py (its config, looks and library)."""
+    import importlib.util
+    if "motion" not in sys.modules:
+        f = Path(__file__).resolve().parents[2] / "skills" / "motion" / "scripts" / "motion.py"
+        spec = importlib.util.spec_from_file_location("motion", f)
+        m = importlib.util.module_from_spec(spec)
+        sys.modules["motion"] = m
+        spec.loader.exec_module(m)
+    return sys.modules["motion"]
+
+
+def motion_state(st, changed):
+    """The style page's Motion section: how many beats become clips, which kinds, the look (palette and font, with
+    what a preview tile needs), and the saved clips (the library)."""
+    mm = motion_mod()
+    cfg = mm.motion_cfg(st)
+    looks = [{"id": k, **{t: v for t, v in {**mm.DEFAULT_LOOK, **({} if k == "default" else mm.PRESETS[k])}.items()
+                          if t in ("ground", "ink", "accent", "font")}} for k in ["default", *mm.PRESETS]]
+    lib = [{**{k: e.get(k) for k in ("id", "kind", "line", "style", "look", "made", "archived", "use_next")},
+            "kind_name": MOTION_KINDS.get(e.get("kind"), e.get("kind")), "thumb": f"/motion/thumb?id={e['id']}"}
+           for e in mm.lib_entries()]
+    return {"amount": cfg["amount"], "kinds": cfg["kinds"], "look": cfg["look"], "engine": cfg["engine"], "looks": looks,
+            "names": MOTION_KINDS, "changed": any(k.startswith("motion.") and dig(changed, k) is not None for k in CONTROLS),
+            "library": lib}
 
 
 def dig(d, key):
@@ -853,6 +889,7 @@ def style_page(root, sid):
     job = next((j for j in reversed(read()["jobs"]) if j["type"] == "style-change" and j["args"].get("style") == sid), None)
     return {"id": sid, "name": ss.display(sp), "use_for": ss.use_for(sp), "base": base, "values": vals, "sample": bool(st.get("sample")),
             "changed": [k for k in CONTROLS if dig(changed, k) is not None], "look": look(st), "facts": facts(st),
+            "motion": motion_state(st, changed),
             "copies": copies, "rules": rules, "style_path": str(sp) if sp else None, "presets": preset_state(root, sid, st, base, changed),
             "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid), "face": face_of(root, base),
             "own": sid == "mine" or bool(st.get("own")), "videos": st.get("videos"),
@@ -1640,6 +1677,14 @@ def make_handler(token):
                     dict(r, duration=m["duration"], vertical=bool(m["h"] and m["w"] and m["h"] > m["w"]),
                          raw=not is_output(Path(r["path"]).resolve(), eds),
                          thumb=f"/thumb?p={quote(r['path'])}&m={int(r['mtime'])}") for r, m in zip(rs, ms)]})
+            if path == "/motion/thumb":   # a saved motion clip's thumbnail
+                try:
+                    mid = q.get("id", [""])[0]
+                    f = motion_mod().library_dir() / mid / "thumb.jpg"
+                    ok = re.fullmatch(r"[a-z_]+-[0-9a-f]{10}", mid) and f.is_file()
+                except Exception:   # noqa: BLE001
+                    ok = False
+                return self.send(200, f.read_bytes(), "image/jpeg", cache="private, max-age=86400") if ok else self.send(404, {})
             if path == "/thumb":
                 f = Path(q.get("p", [""])[0])
                 t = library.thumb(f) if f.suffix.lower() in links.VIDEO_EXT and f.is_file() else None
@@ -1802,6 +1847,19 @@ def make_handler(token):
                 if not got:
                     return self.send(404, {"error": "No cut to play yet. Make a video first."})
                 return self.send(200, {"before": f"/style/clip?k={got[0].name}", "after": f"/style/clip?k={got[1].name}"})
+            if path in ("/motion/archive", "/motion/use", "/motion/delete"):   # the motion library's menu
+                mm, mid = motion_mod(), str(body.get("id") or "")
+                try:
+                    if path == "/motion/delete":
+                        mm.lib_set(mid)   # KeyError when it is not a saved clip
+                        if not trash(mm.library_dir() / mid):
+                            return self.send(200, {"ok": False, "msg": "It could not be moved to the Trash."})
+                    else:
+                        mm.lib_set(mid, archived=bool(body.get("on", True)) if path == "/motion/archive" else None,
+                                   use=True if path == "/motion/use" else None)
+                except KeyError:
+                    return self.send(404, {"error": "no such saved animation"})
+                return self.send(200, {"ok": True, "library": motion_state({}, {})["library"]})
             if path in ("/style/set", "/style/forget", "/style/reveal", "/style/reset"):
                 root = read()["root"]
                 try:
@@ -2816,6 +2874,23 @@ def demo():
     assert next(c for c in get("/library")["styles"] if c["id"] == "mine")["own"]
     assert post("/style/default", {"id": oid})["default_style"] == oid and get("/library")["default_style"] == oid
     assert post("/style/set", {"id": oid, "key": "zoom.preset", "value": "none"})["presets"]["zoom"]["sel"] == "none"
+    # Motion: amount and a kind on the style page reach the style the plan reads; the library's menu archives
+    pg = post("/style/set", {"id": oid, "key": "motion.amount", "value": 0.5})
+    pg = post("/style/set", {"id": oid, "key": "motion.kinds.counter", "value": False})
+    assert pg["motion"]["amount"] == 0.5 and pg["motion"]["kinds"]["counter"] is False and pg["motion"]["changed"], pg["motion"]
+    assert post("/style/set", {"id": oid, "key": "motion.look", "value": "mono"})["motion"]["look"] == "mono"
+    lid = "likes-0123456789"
+    (Path(os.environ["AI_EDITOR_HOME"]) / "motion-library" / lid).mkdir(parents=True)
+    (Path(os.environ["AI_EDITOR_HOME"]) / "motion-library" / lid / "meta.json").write_text(json.dumps(
+        {"id": lid, "type": "likes", "kind": "counter", "line": "over 10,000 people", "made": 1, "archived": False}), encoding="utf-8")
+    assert [e["id"] for e in post("/style/set", {"id": oid, "key": "motion.amount", "value": 1})["motion"]["library"]] == [lid]
+    assert post("/motion/archive", {"id": lid})["library"][0]["archived"] and motion_mod().starting_point("likes") is None
+    try:
+        post("/motion/use", {"id": "../etc"})
+        raise AssertionError("a path for an id was accepted")
+    except urllib.error.HTTPError as e:
+        assert e.code == 404, e.code
+    assert post("/motion/delete", {"id": lid})["ok"] and not motion_mod().lib_entries()
     assert post("/style/delete", {"id": oid})["ok"] and get("/library")["default_style"] == "mine"
     assert oid not in [c["id"] for c in get("/library")["styles"]] and not (root / "creator-teardowns" / oid[1:]).exists()
     # Archive: off the styles list (Styles, Home and Pick a style all read it), files kept; Unarchive brings it back

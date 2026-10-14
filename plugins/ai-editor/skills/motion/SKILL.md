@@ -94,9 +94,30 @@ frame between cards, a part that never moves while held, anything over the face,
 
 ## Notes on a clip
 
-A note on one clip ("make the counter bigger"): send it to that clip's agent (or a new clip-builder with
-the brief and the note), `motion.py check` it, `place`, then plan, stills and render as style-edit says.
-Only that clip is rebuilt.
+A review-page note at a moment a clip is up ("make the counter bigger", "use blue"):
+
+```bash
+python3 "$M" note edits/<name> "make the counter bigger" --at <note time>
+```
+
+It writes the note into that clip's `notes.md` and prints the clip. Give one `clip-builder` its `brief.md`
+(up to 2 more checks), then `place`, plan, and `edit.py patch` (style-edit): only that clip is rebuilt and only its
+span re-rendered (each placed render has its own file name, so the patch sees the change).
+
+## The motion library
+
+When the user approves the render: `python3 "$M" save edits/<name>`. Each placed clip goes to
+`$AI_EDITOR_HOME/motion-library/<id>/` (composition, brief, thumbnail, the style it came from). `pick` gives a beat
+of the same kind the newest one (or the one marked "use again") as `start.html`: a starting point the agent
+re-times and changes, never a copy (`check` fails an unchanged one). Archived clips are never used. The
+window's style page lists them (Archive, Delete, Use again); in chat: `python3 "$M" library [archive|unarchive|use <id>]`.
+
+## Settings
+
+style.json `motion` (the style page's Motion section writes it through the user's corrections): `amount` (0
+none, 0.5 some, 1 lots; unset, a measured style's animation share), `kinds` (each on or off), `look`
+(`default`, `editorial`, `editorial-dark`, `mono`, `poster-red`, `poster-green`, `poster-blue`). `engine:
+"templates"` keeps the template cards.
 
 ## Skill styles
 

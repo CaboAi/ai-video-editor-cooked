@@ -211,7 +211,7 @@ Only on the second answer: `python3 "$S/quality.py" normalize edits/<name>/rende
 
 Hand over on the review page (`references/review.md`), `serve` and `wait` in the background:
 `python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/review.py" edits/<name> round --stage edit --video edits/<name>/render.mp4`
-(no page: `start`, same flags). Card and visual changes later: overlays skill; caption, zoom: plan, stills, render, `round`; cut: cut skill.
+(no page: `start`, same flags). On `APPROVE`: motion skill `save`. Card and visual changes later: overlays skill (a motion clip: motion skill `note`); caption, zoom: plan, stills, render, `round`; cut: cut skill.
 
 ## 9. Export to another editor
 

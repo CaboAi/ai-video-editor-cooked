@@ -45,7 +45,9 @@ local, so they are made now and made again if the cut changes.
    `toasts`, `curve`, `side_by_side` with `arrow`, `flow`; motion-design.md "What a beat becomes"), a `capture`
    only where the real page is the point and once per page (`"format": "shot"` with a `find` mark, or
    `browser` to scroll to it), the user's own screenshots cropped to about 2:1, a big `logo`. Never a sticker.
-   A line with nothing to show gets no card. Also a
+   A line with nothing to show gets no card. beats.json `motion` says what a sentence is doing (`counter`,
+   `list`, `flow`, `before_after`, `ui_demo`): there, the matching moving format (`likes`, `notes`, `flow`,
+   `side_by_side` with `arrow`, `progress` or `terminal`), which the motion skill then builds as a clip. Also a
    `title` (the hook's promise in 2 short lines of their words, emoji allowed, from 0 s), a `cta` on the ask word, a `list`
    when they count steps, a `stamp` when they say a card's thing does not apply (visuals.md "Card edit").
    Never a `file://` page from the user's config folders.

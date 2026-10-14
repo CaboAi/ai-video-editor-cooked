@@ -101,7 +101,10 @@ def look_for(style, profile=None):
     """The clip look: DEFAULT_LOOK, then the style's look preset, then the brand kit's or creator's ink, accent, font."""
     look = json.loads(json.dumps(DEFAULT_LOOK))
     sl = (style or {}).get("look") or {}
-    if sl.get("preset") in PRESETS:
+    pick_ = ((style or {}).get("motion") or {}).get("look") if isinstance((style or {}).get("motion"), dict) else None
+    if pick_ in PRESETS:   # the style page's Motion look wins over the style's card look
+        look.update(PRESETS[pick_], name=pick_)
+    elif sl.get("preset") in PRESETS:
         look.update(PRESETS[sl["preset"]], name=sl["preset"])
     brand = ((profile or {}).get("brand") or {})
     for k, src in (("ink", "ink"), ("accent", "accent"), ("font", "font"), ("ground", "ground")):
@@ -113,12 +116,15 @@ def look_for(style, profile=None):
 
 
 def motion_cfg(style):
-    """style.json "motion" with defaults: clips on, every kind, amount 1 (every moving beat with room)."""
+    """style.json "motion" with defaults: clips on, every kind, look "default". amount: the share of moving beats
+    built as clips (0 none, 0.5 some, 1 lots); with none set, a measured style's animation share
+    (creator-teardown graphics.kinds "animation", in percent) decides, else 1."""
     m = (style or {}).get("motion") or {}
     m = m if isinstance(m, dict) else {}
     kinds = {k: bool((m.get("kinds") or {}).get(k, True)) for k in KINDS}
-    return {"engine": m.get("engine", "clips"), "amount": float(m.get("amount", 1.0)), "kinds": kinds,
-            "look": m.get("look", "default")}
+    share = (((style or {}).get("graphics") or {}).get("kinds") or {}).get("animation")
+    amount = m.get("amount", round(min(1.0, share / 100), 2) if isinstance(share, (int, float)) else 1.0)
+    return {"engine": m.get("engine", "clips"), "amount": float(amount), "kinds": kinds, "look": m.get("look", "default")}
 
 
 def allowed_types(cfg):
@@ -201,17 +207,32 @@ scripts' source. First render within about 10 minutes, then iterate on `check` o
 - What this beat was going to be (the template's content, use its real words and pictures): `{type}` {props}
 - The edit's real pictures you may use (copy into `assets/`): {images}
 
-Build: `{env}python3 "{motion}" check "{dir}"` runs every gate and the render, writes `gates.json`, `renders/clip.mp4`,
+{start}Build: `{env}python3 "{motion}" check "{dir}"` runs every gate and the render, writes `gates.json`, `renders/clip.mp4`,
 `renders/sheet.png` (1 fps) and `renders/strip.png` (10 fps, first 1.2 s). Look at both sheets after every
 render. At most {rounds} checks; then stop and report.
 """
+
+
+def effective(edit):
+    """style.json as plan.py uses it (the style page's settings and the user's corrections over it), else the raw file."""
+    sp = Path(edit) / "style.json"
+    try:
+        sys.path[:0] = [str(SKILL.parent / "style-edit" / "scripts"), str(PLUGIN / "lib")]
+        import contextlib
+        import io
+        import plan
+        from ai_editor import profile as prof_mod
+        with contextlib.redirect_stderr(io.StringIO()):
+            return plan.effective_style(sp, prof_mod.load(), str(edit), count=False)
+    except Exception:   # noqa: BLE001  outside the plugin's venv: the raw style.json
+        return json.loads(sp.read_text(encoding="utf-8")) if sp.exists() else {}
 
 
 def pick(edit, max_n=8):
     edit = Path(edit)
     visuals = json.loads((edit / "visuals.json").read_text(encoding="utf-8"))
     words = [w for w in json.loads((edit / "captions.json").read_text(encoding="utf-8")) if w.get("type", "word") == "word"]
-    style = json.loads((edit / "style.json").read_text(encoding="utf-8")) if (edit / "style.json").exists() else {}
+    style = effective(edit)
     images = json.loads((edit / "images.json").read_text(encoding="utf-8")) if (edit / "images.json").exists() else []
     try:
         sys.path.insert(0, str(PLUGIN / "lib"))
@@ -236,6 +257,15 @@ def pick(edit, max_n=8):
         (d / "assets").mkdir(parents=True, exist_ok=True)
         if not (d / "index.html").exists():   # never clobber a clip being built
             (d / "index.html").write_text(fill_template(b, look), encoding="utf-8")
+            sp = starting_point(b["type"])
+            if sp and (library_dir() / sp["id"] / "index.html").exists():
+                shutil.copy(library_dir() / sp["id"] / "index.html", d / "start.html")
+                for a in (library_dir() / sp["id"] / "assets").glob("*"):
+                    if not (d / "assets" / a.name).exists():
+                        shutil.copy(a, d / "assets" / a.name)
+                b["start_from"] = sp["id"]
+                if sp.get("use_next"):
+                    lib_set(sp["id"], use=False)
         shutil.copy(SKILL / "template" / "hyperframes.json", d / "hyperframes.json")
         if gsap.exists():
             shutil.copy(gsap, d / "assets" / "gsap.min.js")
@@ -246,7 +276,11 @@ def pick(edit, max_n=8):
             cw=800 if aspect == "9:16" else 760, lead=CARD_LEAD_S, look=json.dumps(look), line=b["line"],
             before=b["before"], after=b["after"], words=json.dumps(b["words"]), type=b["type"], props=json.dumps(b["props"]),
             images=", ".join(str((edit / "images" / p).resolve()) for p in pics) or "none", motion=Path(__file__).resolve(), rounds=ROUNDS,
-            env=f'AI_EDITOR_HOME="{os.environ["AI_EDITOR_HOME"]}" ' if os.environ.get("AI_EDITOR_HOME") else ""),
+            env=f'AI_EDITOR_HOME="{os.environ["AI_EDITOR_HOME"]}" ' if os.environ.get("AI_EDITOR_HOME") else "",
+            start="- A clip the user approved before is in `start.html` (same kind of beat). You may start from its design, "
+                  "but re-time every part to this clip's `WORDS` and change it for this line: an unchanged copy fails "
+                  "`check`.\n- Notes on this clip, if any: `notes.md` beside this brief. Do what they say.\n\n"
+                  if b.get("start_from") else "- Notes on this clip, if any: `notes.md` beside this brief. Do what they say.\n\n"),
             encoding="utf-8")
     (root / "beats.json").write_text(json.dumps({"clock": "cut", "look": look, "beats": beats}, indent=1), encoding="utf-8")
     if not gsap.exists():
@@ -311,6 +345,8 @@ def check(clip_dir):
     import check_clip
     err, warn = check_clip.check((d / "index.html").read_text(encoding="utf-8"), clip_id=d.name)
     g["check_clip"] = [not err, "; ".join(m for _, m in err)[:600] or f"{len(warn)} warning(s)"]
+    if same_as_start(d):
+        g["reuse"] = [False, "index.html is the library clip in start.html unchanged: re-time it to WORDS and change it for this line"]
     if g["check_clip"][0]:
         rc, out = run([hf, "lint", str(d)])
         g["lint"] = [rc == 0, last(out, 4)]
@@ -382,7 +418,11 @@ def place(edit):
         render = d / "renders" / "clip.mp4"
         if gates.get("pass") and render.exists() and not gates.get("rejected"):
             (edit / "images").mkdir(exist_ok=True)
-            dst = edit / "images" / f"motion-{b['id']}.mp4"
+            import hashlib   # the name changes with the render, so edit.py patch re-renders only this clip's span
+            tag = hashlib.sha256(render.read_bytes()).hexdigest()[:8]
+            for old in (edit / "images").glob(f"motion-{b['id']}-*.mp4"):
+                old.unlink()
+            dst = edit / "images" / f"motion-{b['id']}-{tag}.mp4"
             shutil.copy(render, dst)
             _, first, last_ = motion_window(dst)
             visuals[i] = placed_beat(orig, b, f"images/{dst.name}", first, last_)
@@ -436,6 +476,115 @@ def strips(video, times, out, before=0.4, after=1.1, fps=10, safe=False, width=2
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---- the motion library: clips the user approved, kept per user to start a matching beat from (never reused unchanged)
+def library_dir():
+    return home() / "motion-library"
+
+
+def lib_entries():
+    """Every saved clip's meta.json, newest first; archived ones included (flag "archived")."""
+    out = []
+    for m in library_dir().glob("*/meta.json"):
+        try:
+            out.append(json.loads(m.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            continue
+    return sorted(out, key=lambda e: -e.get("made", 0))
+
+
+def save(edit, clip=None):
+    """Copy each placed clip (composition, brief, beat, small assets, a thumbnail) into the library. Run when the user
+    approves the render. Returns the saved ids; a clip already saved (same composition) is skipped."""
+    import hashlib
+    import time
+    edit = Path(edit)
+    visuals = json.loads((edit / "visuals.json").read_text(encoding="utf-8"))
+    style = json.loads((edit / "style.json").read_text(encoding="utf-8")) if (edit / "style.json").exists() else {}
+    doc = json.loads((edit / "motion" / "beats.json").read_text(encoding="utf-8"))
+    placed = {v.get("motion") for v in visuals if v.get("motion")}
+    saved = []
+    for b in doc["beats"]:
+        d = edit / "motion" / b["id"]
+        if b["id"] not in placed or (clip and clip != b["id"]) or not (d / "index.html").exists():
+            continue
+        html = (d / "index.html").read_text(encoding="utf-8")
+        lid = f"{b['type']}-{hashlib.sha256(html.encode()).hexdigest()[:10]}"
+        dst = library_dir() / lid
+        if dst.exists():
+            continue
+        (dst / "assets").mkdir(parents=True)
+        for f in ("index.html", "brief.md", "beat.json", "hyperframes.json"):
+            if (d / f).exists():
+                shutil.copy(d / f, dst / f)
+        for a in (d / "assets").glob("*"):
+            if a.is_file() and a.stat().st_size < 20e6:
+                shutil.copy(a, dst / "assets" / a.name)
+        render = d / "renders" / "clip.mp4"
+        if render.exists():
+            run(["ffmpeg", "-v", "error", "-y", "-ss", f"{b['dur'] * 0.6:.2f}", "-i", render, "-frames:v", "1",
+                 "-vf", "scale=480:-2", dst / "thumb.jpg"])
+        kind = next((k for k, ts in KINDS.items() if b["type"] in ts), b["type"])
+        meta = {"id": lid, "type": b["type"], "kind": kind, "line": b["line"], "size": b["size"], "dur": b["dur"],
+                "style": style.get("handle") or "", "look": doc.get("look", {}).get("name", "default"),
+                "made": time.time(), "archived": False, "use_next": False}
+        (dst / "meta.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
+        saved.append(lid)
+    print(f"saved {len(saved)} clip(s) to {library_dir()}" + (": " + ", ".join(saved) if saved else ""))
+    return saved
+
+
+def lib_set(lid, archived=None, use=None):
+    """Archive (never used again) or bring back; "use again" marks it the first starting point for its kind."""
+    f = library_dir() / lid / "meta.json"
+    if not re.fullmatch(r"[a-z_]+-[0-9a-f]{10}", lid or "") or not f.exists():
+        raise KeyError(lid)
+    m = json.loads(f.read_text(encoding="utf-8"))
+    if archived is not None:
+        m["archived"] = bool(archived)
+        m["use_next"] = False if archived else m.get("use_next", False)
+    if use is not None:
+        m["use_next"] = bool(use) and not m.get("archived")
+    f.write_text(json.dumps(m, indent=1), encoding="utf-8")
+    return m
+
+
+def starting_point(kind_type):
+    """The library clip a new beat of this template type starts from: "use again" first, then the newest. Archived
+    clips never."""
+    c = [e for e in lib_entries() if e.get("type") == kind_type and not e.get("archived")]
+    c.sort(key=lambda e: (not e.get("use_next"), -e.get("made", 0)))
+    return c[0] if c else None
+
+
+def same_as_start(d):
+    """True when index.html is the library starting point with only its id swapped: a straight copy."""
+    st, ix = d / "start.html", d / "index.html"
+    if not (st.exists() and ix.exists()):
+        return False
+    a, b = st.read_text(encoding="utf-8"), ix.read_text(encoding="utf-8")
+    old = re.search(r'data-composition-id="([^"]+)"', a)
+    if old:
+        a = a.replace(old[1], d.name)
+    norm = lambda t: re.sub(r"\s+", "", t)
+    return norm(a) == norm(b)
+
+
+def note(edit, text, at=None, clip=None):
+    """A note on one clip (the review page note's time, or the clip id): appended to that clip's notes.md, so only it
+    is rebuilt. Prints what to run next and the span edit.py patch re-renders."""
+    edit = Path(edit)
+    doc = json.loads((edit / "motion" / "beats.json").read_text(encoding="utf-8"))
+    b = next((x for x in doc["beats"] if x["id"] == clip or (at is not None and x["start"] <= at <= x["start"] + x["dur"])), None)
+    if not b:
+        sys.exit(f"no motion clip {'named ' + clip if clip else f'up at {at} s'}: a note for another card goes to the overlays skill")
+    d = edit / "motion" / b["id"]
+    with open(d / "notes.md", "a", encoding="utf-8") as fh:
+        fh.write(f"- {text.strip()}" + (f" (said at {at:.2f} s)" if at is not None else "") + "\n")
+    print(f"note on {b['id']}: give one clip-builder {d / 'brief.md'} and this note (up to 2 checks), then "
+          f"motion.py place, plan.py, and edit.py patch (re-renders {b['start']:.2f}-{b['start'] + b['dur']:.2f} s only)")
+    return b["id"]
+
+
 def demo():
     words = [{"text": w, "start": i * 0.5, "end": i * 0.5 + 0.4, "type": "word"}
              for i, w in enumerate("over ten thousand people asked. it renders every frame. then it learns.".split())]
@@ -479,7 +628,7 @@ def demo():
         if rc == 0:
             placed, back = place(e)
             v = json.loads((e / "visuals.json").read_text(encoding="utf-8"))
-            assert v[0]["type"] == "video_card" and v[0]["fallback"]["type"] == "likes" and (e / "images" / f"motion-{bs[0]['id']}.mp4").exists(), v[0]
+            assert v[0]["type"] == "video_card" and v[0]["fallback"]["type"] == "likes" and list((e / "images").glob(f"motion-{bs[0]['id']}-*.mp4")), v[0]
             assert v[3]["type"] == "notes" and len(back) == 1, (v[3], back)
             (e / "motion" / bs[0]["id"] / "gates.json").write_text(json.dumps({"pass": False}), encoding="utf-8")
             place(e)
@@ -490,6 +639,39 @@ def demo():
             rc, wh = run(["ffprobe", "-v", "error", "-show_entries", "stream=width,height", "-of", "csv=p=0", e / "s.png"])
             assert wh.strip().split(",")[0] == str(16 * 60 + 15 * 2), wh
     assert cream((253, 248, 236)) and not cream((255, 255, 255)) and not cream((23, 22, 20))
+    assert motion_cfg({"graphics": {"kinds": {"animation": 55}}})["amount"] == 0.55   # a measured style's share
+    assert motion_cfg({"motion": {"amount": 0}, "graphics": {"kinds": {"animation": 55}}})["amount"] == 0.0
+    assert look_for({"motion": {"look": "mono"}, "look": {"preset": "editorial"}})["name"] == "mono"
+    with tempfile.TemporaryDirectory() as t:   # library: save, reuse as a starting point, archive, no straight copy
+        keep = os.environ.get("AI_EDITOR_HOME")
+        os.environ["AI_EDITOR_HOME"] = str(Path(t) / "home")
+        try:
+            e = Path(t) / "ed"
+            b = dict(bs[0])
+            (e / "motion" / b["id"] / "renders").mkdir(parents=True)
+            (e / "motion" / b["id"] / "index.html").write_text(fill_template(b, DEFAULT_LOOK).replace("// 4.", "// built\n// 4."), encoding="utf-8")
+            (e / "motion" / "beats.json").write_text(json.dumps({"look": DEFAULT_LOOK, "beats": [b]}), encoding="utf-8")
+            (e / "visuals.json").write_text(json.dumps([placed_beat(visuals[0], b, "x", 0, 1)]), encoding="utf-8")
+            lid = save(e)[0]
+            assert save(e) == [] and lib_entries()[0]["kind"] == "counter" and starting_point("likes")["id"] == lid
+            d = e / "motion" / "x-new"
+            d.mkdir()
+            shutil.copy(library_dir() / lid / "index.html", d / "start.html")
+            (d / "index.html").write_text((d / "start.html").read_text(encoding="utf-8").replace(b["id"], "x-new"), encoding="utf-8")
+            assert same_as_start(d)
+            (d / "index.html").write_text((d / "index.html").read_text(encoding="utf-8").replace("// built", "// re-timed"), encoding="utf-8")
+            assert not same_as_start(d)
+            lib_set(lid, use=True)
+            assert starting_point("likes")["use_next"]
+            lib_set(lid, archived=True)
+            assert starting_point("likes") is None   # archived: never used
+            assert note(e, "make the counter bigger", at=b["start"] + 0.5) == b["id"]
+            assert "bigger" in (e / "motion" / b["id"] / "notes.md").read_text(encoding="utf-8")
+        finally:
+            if keep is None:
+                os.environ.pop("AI_EDITOR_HOME", None)
+            else:
+                os.environ["AI_EDITOR_HOME"] = keep
     print("demo ok")
 
 
@@ -510,6 +692,17 @@ def main():
     s.add_argument("--before", type=float, default=0.4)
     s.add_argument("--after", type=float, default=1.1)
     s.add_argument("--safe", action="store_true")
+    n = sub.add_parser("note")
+    n.add_argument("edit")
+    n.add_argument("text")
+    n.add_argument("--at", type=float)
+    n.add_argument("--clip")
+    sv = sub.add_parser("save")
+    sv.add_argument("edit")
+    sv.add_argument("--clip")
+    lb = sub.add_parser("library")
+    lb.add_argument("action", nargs="?", default="list", choices=["list", "archive", "unarchive", "use"])
+    lb.add_argument("id", nargs="?")
     sub.add_parser("demo")
     a = ap.parse_args()
     if a.cmd == "pick":
@@ -520,6 +713,16 @@ def main():
         place(a.edit)
     elif a.cmd == "status":
         status(a.edit)
+    elif a.cmd == "note":
+        note(a.edit, a.text, a.at, a.clip)
+    elif a.cmd == "save":
+        save(a.edit, a.clip)
+    elif a.cmd == "library":
+        if a.action == "list":
+            for e in lib_entries():
+                print(f"{e['id']:<26} {e['kind']:<12} {'archived' if e.get('archived') else 'use again' if e.get('use_next') else '':<9} \"{e['line'][:60]}\"")
+        else:
+            lib_set(a.id, archived={"archive": True, "unarchive": False}.get(a.action), use=True if a.action == "use" else None)
     elif a.cmd == "strips":
         strips(a.video, [float(x) for x in a.at.split(",")], a.out, a.before, a.after, a.fps, a.safe)
     else:

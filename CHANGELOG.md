@@ -27,6 +27,13 @@ What changed for every user, newest first.
   clip passes lint, a layout check, a frame-to-frame motion check and a look at its contact sheets before it is
   used; a clip that fails keeps the card template. New `motion` skill; `setup.py motion` installs its tools
   (under a minute) and `doctor` checks them. style.json `motion` sets clips or templates, how many and which kinds.
+- A Motion section on each style's page: how many beats get an animation (none, some, lots), which kinds
+  (counters, lists, flows, before and after, the app in use, curves, logos), and the look (palette and font) with
+  a preview. It applies to the next video. A measured creator's style starts from their animation share.
+- Animations you approve are saved, listed under Saved animations on the style page (Use again, Archive, Delete).
+  A new video starts a matching beat from one, re-timed and changed for its words, never copied unchanged;
+  archived ones are never used.
+- A note on one animation ("make the counter bigger") rebuilds only that clip and re-renders only its span.
 
 ## ai-editor 2.6.10 (2026-10-13)
 

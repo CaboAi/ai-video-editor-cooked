@@ -830,6 +830,14 @@ body.rail .sb-theme{margin-top:2px}
 .srow2{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;line-height:16px;color:var(--t2)}
 .lrow2{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--line);font-size:15px;line-height:20px}
 .ssec>.shd+.lrow2{border-top:0}
+.mlooks{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
+.mlk{display:flex;flex-direction:column;gap:6px;padding:6px;border:1px solid var(--line);border-radius:10px;background:none;font-size:12px;color:var(--t2);text-align:left}
+.mlk.on{border-color:var(--ink);color:var(--ink);font-weight:600}
+.mprev{position:relative;display:flex;align-items:center;height:44px;padding:0 8px;border-radius:6px;box-shadow:inset 0 0 0 1px #0000000F;overflow:hidden}
+.mprev b{font-size:17px;font-weight:700}.mprev i{position:absolute;left:8px;bottom:7px;width:22px;height:3px;border-radius:2px}
+.mlib{display:flex;flex-direction:column;gap:6px}
+.mcard{display:flex;align-items:center;gap:10px;padding:6px;border-radius:10px;background:var(--card);min-width:0}.mcard.arch{opacity:.55}
+.mth{width:72px;height:36px;border-radius:6px;background:var(--line) center/cover no-repeat;flex-shrink:0}
 .refs{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px}
 .ref{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;background:var(--card);color:var(--ink);text-decoration:none;min-width:0}.ref:hover{background:var(--act)}
 .rth{width:30px;height:52px;border-radius:5px;background:var(--panel) center/cover;display:grid;place-items:center;flex-shrink:0}.ref .logo{width:auto;height:auto}
@@ -1819,11 +1827,35 @@ function vStylePage(){
         <div><div class="shd"><span class="row" style="gap:10px">${ic('sound')}<b>Sound</b></span>${Z.sound.tag==='you changed this'?spTag(Z.sound.tag,'sound'):''}</div>
           <div class="srow2"><span style="color:var(--ink)">Sound effects</span>${spSwitch(Z.sound.sfx,'sfx','Sound effects')}</div>
           <div class="srow2"><span style="color:var(--ink)">Background music</span>${spSwitch(Z.sound.music,'music','Background music')}</div></div></div>
+      ${motionSec(P)}
       ${P.references&&P.references.videos.length?`<div class="ssec"><div class="shd"><b>Analysed from</b>${P.references.profile?`<a href="${esc(P.references.profile)}" target="_blank" rel="noopener" style="font-size:13px">Their profile</a>`:''}</div>
         <div class="refs">${P.references.videos.map(v=>{const pl=platOf(v.url),h=linkHandle(v.url);return `<a class="ref" href="${esc(v.url)}" target="_blank" rel="noopener"><span class="rth" style="${v.thumbnail?`background-image:url('${esc(v.thumbnail)}')`:''}">${v.thumbnail?'':pl?logo(pl,16):LINKG}</span><span style="min-width:0;flex:1"><span class="t1" style="display:block">${esc(v.title||shortLink(v.url))}</span><span class="t2" style="display:flex;gap:6px;align-items:center">${pl?logo(pl,12):''}${h?'@'+esc(h):esc(shortLink(v.url))}</span></span></a>`}).join('')}</div></div>`:''}
       <div class="ssec two"><div><div class="shd"><b>Its skill</b></div><div class="row" style="gap:10px;flex-wrap:wrap"><span style="font:500 14px var(--mono)">/${esc(P.skill.name)}</span><button class="b2 s" onclick="post('/style/reveal',{id:ui.sp}).then(loadStyle)">Open the skill file</button></div><div class="t2" style="white-space:normal;margin-top:8px">Say "/${esc(P.skill.name)}" in Claude Code to edit a video in this style.</div></div>
         <div><div class="shd"><b>Tell it what to change</b></div><div class="fld"><div class="in2"><input id="tell" placeholder="captions a bit bigger, fewer zooms" aria-label="What to change" onkeydown="if(event.key==='Enter')tellChange()"></div><button class="b1" onclick="tellChange()">Send</button></div>${jobLine?`<div class="t2" style="white-space:normal;color:var(--ink);margin-top:8px">${jobLine}</div>`:''}</div></div>
       <div class="ssec sfoot"><span class="okc">${ic('check',16,2.4)}</span><span>Saved as you go. Your next videos use this style.</span><span class="t2">Videos already made stay as they are.</span></div></div></div>`;
+}
+
+// Motion: how many beats become animations built for their line, which kinds, the look; the saved animations
+const MAMT=[[0,'None'],[0.5,'Some'],[1,'Lots']];
+const lookName=id=>({default:'Default','editorial-dark':'Editorial dark'})[id]||id.replace('-',' ').replace(/^./,c=>c.toUpperCase());
+function motionSec(P){
+  const M=P.motion;if(!M)return '';
+  const amt=MAMT.reduce((b,x)=>Math.abs(x[0]-M.amount)<Math.abs(b[0]-M.amount)?x:b)[0],on=M.engine!=='templates'&&M.amount>0;
+  const live=M.library.filter(e=>!e.archived).length;
+  return `<div class="ssec two"><div><div class="shd"><span class="row" style="gap:10px">${ic('styles')}<b>Motion</b><span class="t2" style="color:var(--t2)">Animations built for each line</span></span>${M.changed?spTag('you changed this','motion'):''}</div>
+      <div class="srow2"><span>How many</span><span class="seg4">${MAMT.map(([v,l])=>`<button class="${v===amt?'on':''}" onclick="setCtl('motion.amount',${v})">${l}</button>`).join('')}</span></div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;${on?'':'opacity:.45;pointer-events:none'}">${Object.entries(M.names).map(([k,l])=>`<div class="srow2"><span style="color:var(--ink)">${esc(l)}</span>${spSwitch(M.kinds[k],'motion.kinds.'+k,l)}</div>`).join('')}</div></div>
+    <div><div class="shd"><b>Look</b><span class="t2" style="color:var(--t2)">Palette and font</span></div>
+      <div class="mlooks">${M.looks.map(l=>`<button class="mlk ${l.id===M.look?'on':''}" onclick="setCtl('motion.look',${J(l.id)})"><span class="mprev" style="background:${esc(l.ground)};color:${esc(l.ink)};font-family:'${esc(l.font)}',sans-serif"><b>10,000</b><i style="background:${esc(l.accent||l.ink)}"></i></span><span>${esc(lookName(l.id))}</span></button>`).join('')}</div>
+      <div class="shd" style="margin-top:16px"><b>Saved animations</b>${M.library.length?`<span class="t2" style="color:var(--t2)">${live} to start from</span>`:''}</div>
+      ${M.library.length?`<div class="mlib">${M.library.map(mlibCard).join('')}</div>`:'<div class="t2" style="white-space:normal">Animations in videos you approve are saved here. A new video starts from them, changed for its own words.</div>'}</div></div>`;
+}
+const mlibCard=e=>`<div class="mcard ${e.archived?'arch':''}"><span class="mth" style="background-image:url('${esc(e.thumb)}')"></span><div style="min-width:0;flex:1"><div class="t1">${esc(e.kind_name)}${e.use_next?' · used next':''}${e.archived?' · archived':''}</div><div class="t2">${esc(e.line)}</div></div><span class="pgdots">${dotsBtn('m:'+e.id,'More for this animation')+cMenu('m:'+e.id,e.archived?[['Unarchive',`mlib('archive',${J(e.id)},false)`,'archive'],'hr',['Delete',`mlib('delete',${J(e.id)})`,'trash']]:[['Use again',`mlib('use',${J(e.id)})`,'star'],['Archive',`mlib('archive',${J(e.id)},true)`,'archive'],'hr',['Delete',`mlib('delete',${J(e.id)})`,'trash']])}</span></div>`;
+async function mlib(act,id,on){
+  const r=await post('/motion/'+act,{id,on});ui.cmenu=null;
+  if(!r._ok||r.ok===false){toast(r.msg||r.error||'That did not work.');return render()}
+  ui.spage.motion.library=r.library;
+  toast(act==='delete'?'Moved to the Trash.':act==='use'?'The next matching beat starts from this one.':on?'Archived. It is never used.':'Back in your saved animations.');render();
 }
 
 function planFor(j){

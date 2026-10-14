@@ -4,6 +4,10 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Skills: every skill has a ⋯ menu with Hide from this list and Delete. Delete moves the skill to the Trash, only from
+  your own skills folder, and says which styles use it. Skills that don't edit video sit under Other skills. A style
+  whose skill was deleted says so and lets you pick another skill or archive it.
+
 ## ai-editor 2.7.9, creator-teardown 2.7.9 (2026-10-14)
 
 - Go back to a draft now undoes the fixes made after it, so a zoom you brought back stays. Prep never changes the

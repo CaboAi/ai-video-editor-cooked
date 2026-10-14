@@ -678,24 +678,57 @@ def find_skill(root, name, calls=False):
     return out
 
 
+# a skill that edits video: one of these words in its name or first sentence. "edit" alone is not enough (notion-editing)
+VIDEO_WORDS = re.compile(r"\b(videos?|reels?|captions?|captioning|cuts?|cutting|footage|clips?|shorts|tiktoks?)\b", re.I)
+
+
 def editing_skills(root):
-    """The skills a style can run ("Use your own skill"): every skill folder the page can see outside this plugin whose
-    name or description is about editing video. [{"name", "description"}], first found wins."""
+    """The Skills view and "Use your own skill": every skill folder the page can see outside this plugin, split into
+    skills that edit video (VIDEO_WORDS, or a style runs it) and the rest ("Other skills"). Each one says whether the
+    user hid it (hidden_skills in the editor's state) and whether Delete may move it to the Trash. First found wins."""
     plugins = Path(__file__).resolve().parents[3]
     _, ss = _taste()
     ours = {ss.MINE} | {v.get("skill") for v in ss.names().values()}   # the editor's own thin style skills
-    out = {}
+    used = set()
+    for f in (Path(root) / "creator-teardowns").glob("*/style.json"):
+        try:
+            used.add((skill_of(json.loads(f.read_text(encoding="utf-8"))) or "").split(":")[-1])
+        except (OSError, ValueError):
+            pass
+    hidden = set(read().get("hidden_skills") or [])
+    seen, video, other = set(), [], []
     for d in skill_dirs(root):
         if d.resolve().parent.parent == plugins.resolve():   # the editor's own skills are not styles
             continue
         for md in sorted(d.glob("*/SKILL.md")):
             n = md.parent.name
-            if n not in out and n not in ours and not n.startswith("edit-like-") and skill_of({"skill": n}):
+            if n not in seen and n not in ours and not n.startswith("edit-like-") and skill_of({"skill": n}):
+                seen.add(n)
                 f = find_skill(root, n)
-                # ponytail: keyword match on name + first sentence; a skill can opt in by naming "video" or "edit"
-                if re.search(r"\b(edits?|editing|editor|videos?|reels?|footage|clips?)\b", n.replace("-", " ") + " " + f["description"], re.I):
-                    out[n] = skill_info(root, n, f)
-    return list(out.values())
+                x = {**skill_info(root, n, f), "hidden": n in hidden, "deletable": bool(deletable_skill(n))}
+                (video if n in used or VIDEO_WORDS.search(n.replace("-", " ") + " " + f["description"]) else other).append(x)
+    return {"skills": video, "other": other}
+
+
+def user_skills_roots():
+    """The user's own skills folders, the only place Delete may touch: $AI_EDITOR_SKILLS, else ~/.claude/skills."""
+    env = [Path(x) for x in os.environ.get("AI_EDITOR_SKILLS", "").split(os.pathsep) if x]
+    return [p.resolve() for p in env or [Path.home() / ".claude" / "skills"]]
+
+
+def deletable_skill(name):
+    """The folder Delete moves to the Trash, or None: a skill straight inside the user's own skills folder, after
+    resolving symlinks (a link to somewhere else is refused), never a plugin's, a project's or a style's thin skill."""
+    if not isinstance(name, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", name):
+        return None
+    _, ss = _taste()
+    if name == ss.MINE or name in {v.get("skill") for v in ss.names().values()}:
+        return None
+    for r in user_skills_roots():
+        d = (r / name).resolve()
+        if d.parent == r and d.name == name and (d / "SKILL.md").is_file():
+            return d
+    return None
 
 
 def skill_info(root, n, f=None):
@@ -774,7 +807,8 @@ def style_cards(root):
                     "sample": bool(st.get("sample")), **naming(sid, sp, base), "kind": "skill" if sk else "settings"})
         if sk:
             f = find_skill(root, sk)
-            out[-1].update(skill=sk, found=f["found"], description=f["description"])
+            out[-1].update(skill=sk, found=f["found"], description=f["description"],
+                           deleted=not f["found"] and sk.split(":")[-1] in (read().get("deleted_skills") or []))
     return out
 
 
@@ -971,7 +1005,7 @@ def style_page(root, sid):
                   "removable": removable} for r in srules]
         return {"id": sid, "kind": "skill", "name": shown_name(sp), "base": base, "rules": rules, "style_path": str(sp),
                 "chain": chain_steps(sp, sk, None),
-                "skill": {"name": sk, **find_skill(root, sk, calls=True)}, "cover": cover_of(root, sid), **thumb_of(root, sid), "face": face_of(root, base),
+                "skill": {"name": sk, **find_skill(root, sk, calls=True), "deleted": sk.split(":")[-1] in (read().get("deleted_skills") or [])}, "cover": cover_of(root, sid), **thumb_of(root, sid), "face": face_of(root, base),
                 "own": bool(st.get("own")), "videos": st.get("videos"), "sample": bool(st.get("sample")),
                 "references": references(sp.parent) if not st.get("own") else {"videos": [], "profile": None},
                 "made": next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None),
@@ -1877,8 +1911,8 @@ def make_handler(token):
                                        "custom": str(custom.path(False)), "videos": vids, "folders": folders(),
                                        "styles": [c for c in cards if c["id"] not in arch], "archived_styles": [c for c in cards if c["id"] in arch],
                                        "default_style": default_style(cards)})
-            if path == "/skills":   # New style, "Use your own skill"
-                return self.send(200, {"skills": editing_skills(read()["root"])})
+            if path == "/skills":   # the Skills view and New style, "Use your own skill"
+                return self.send(200, editing_skills(read()["root"]))
             if path == "/recent":
                 st = read()
                 rs = recent_list(st)
@@ -2107,6 +2141,22 @@ def make_handler(token):
                     return self.send(404, {"error": "no such style"})
                 except (ValueError, TypeError) as e:
                     return self.send(400, {"error": str(e)})
+            if path == "/skill/hide":   # {name, on}: off the Skills list only, the skill stays on disk
+                n, on = str(body.get("name") or ""), body.get("on") is not False
+                if not skill_of({"skill": n}):
+                    return self.send(400, {"error": "That is not a skill name."})
+                update(lambda d: d.__setitem__("hidden_skills", [x for x in d.get("hidden_skills") or [] if x != n] + ([n] if on else [])))
+                return self.send(200, {"ok": True})
+            if path == "/skill/delete":   # {name}: to the Trash, only from the user's own skills folder
+                n = str(body.get("name") or "")
+                d = deletable_skill(n)
+                if d is None:
+                    return self.send(400, {"error": "Only skills in your own skills folder can be deleted here."})
+                if not trash(d):
+                    return self.send(500, {"error": "It could not be moved to the Trash."})
+                update(lambda x: (x.__setitem__("hidden_skills", [a for a in x.get("hidden_skills") or [] if a != n]),
+                                  x.__setitem__("deleted_skills", [a for a in x.get("deleted_skills") or [] if a != n] + [n])))
+                return self.send(200, {"ok": True})
             if path in ("/skill/open", "/skill/reveal"):   # the Skills view: its file in the text editor, or in Finder
                 root = read()["root"]
                 n = str(body.get("name") or "")
@@ -2171,6 +2221,18 @@ def make_handler(token):
                     return self.send(200, {"ok": True, "id": new_own_style(read()["root"], body.get("name"), sk)})
                 except ValueError as e:
                     return self.send(400, {"error": str(e)})
+            if path == "/style/skill":   # {id, skill}: a skill style runs another skill (its skill was deleted)
+                try:
+                    sp, st, _ = style_of(read()["root"], str(body.get("id") or ""))
+                except (KeyError, OSError, ValueError):
+                    return self.send(404, {"error": "No such style."})
+                sk = body.get("skill")
+                if not sp or not skill_of(st) or not skill_of({"skill": sk}):
+                    return self.send(400, {"error": "That is not a skill style, or not a skill name."})
+                raw = json.loads(sp.read_text(encoding="utf-8"))   # the file as stored, never the merged corrections
+                sp.write_text(json.dumps({**raw, "skill": sk}, indent=2), encoding="utf-8")
+                _taste()[1].write(str(sp))
+                return self.send(200, style_page(read()["root"], str(body["id"])))
             if path == "/style/default":   # Make default: the style New video starts on
                 sid = str(body.get("id") or "mine")
                 if sid != "mine" and not any(c["id"] == sid for c in style_cards(read()["root"])):
@@ -3454,7 +3516,7 @@ def demo():
     assert post("/style/delete", {"id": "@own-skilled"})["ok"] and (sks / "my-edit-style" / "SKILL.md").is_file()   # never its skill
     shutil.rmtree(kd, ignore_errors=True)
     ks = {x["name"]: x["description"] for x in get("/skills")["skills"]}
-    assert ks.get("my-edit-style") == "Cuts a reel in my look." and "my-captions" not in ks and "start" not in ks and "my-style" not in ks, ks   # no edit words; the editor's own
+    assert ks.get("my-edit-style") == "Cuts a reel in my look." and "my-captions" in ks and "start" not in ks and "my-style" not in ks, ks   # captions counts; never the editor's own
     nid = post("/style/new", {"name": "Reel edit", "skill": "my-edit-style"})["id"]
     nc = next(c for c in get("/library")["styles"] if c["id"] == nid)
     assert nc["kind"] == "skill" and nc["own"] and nc["found"] and nc["name"] == "Reel edit", nc
@@ -3466,6 +3528,40 @@ def demo():
     assert post("/style/archive", {"id": nid})["ok"] and nid in [c["id"] for c in get("/library")["archived_styles"]]   # skill styles archive too
     assert post("/style/delete", {"id": nid})["ok"] and (sks / "my-edit-style" / "SKILL.md").is_file()
     assert not (root / "creator-teardowns" / nid[1:]).exists() and get("/library")["archived_styles"] == []
+    # Skills: non-video skills under Other, Hide (state only), Delete (Trash, own folder only), a style losing its skill
+    for n_, d_ in (("notion-editing", "Edit existing Notion pages reliably."), ("gone-cuts", "Cuts a talking video fast.")):
+        (tmp / "skills" / n_).mkdir(parents=True, exist_ok=True)
+        (tmp / "skills" / n_ / "SKILL.md").write_text(f"---\nname: {n_}\ndescription: {d_}\n---\n", encoding="utf-8")
+    (tmp / "elsewhere" / "linked-cuts").mkdir(parents=True)
+    (tmp / "elsewhere" / "linked-cuts" / "SKILL.md").write_text("---\ndescription: Cuts video.\n---\n", encoding="utf-8")
+    (tmp / "skills" / "linked-cuts").symlink_to(tmp / "elsewhere" / "linked-cuts")
+    sl = get("/skills")
+    vsk, oth = {x["name"]: x for x in sl["skills"]}, {x["name"]: x for x in sl["other"]}
+    assert "notion-editing" in oth and "notion-editing" not in vsk and oth["notion-editing"]["deletable"], sl
+    assert vsk["gone-cuts"]["deletable"] and not vsk["my-captions"]["deletable"] and not vsk["linked-cuts"]["deletable"], vsk   # a project's; a link out
+    assert post("/skill/hide", {"name": "notion-editing"})["ok"] and next(x for x in get("/skills")["other"] if x["name"] == "notion-editing")["hidden"]
+    assert (tmp / "skills" / "notion-editing" / "SKILL.md").is_file()   # hidden, still on disk
+    assert post("/skill/hide", {"name": "notion-editing", "on": False})["ok"] and not next(x for x in get("/skills")["other"] if x["name"] == "notion-editing")["hidden"]
+    gid = post("/style/new", {"name": "Gone style", "skill": "gone-cuts"})["id"]
+    thin = next(v["skill"] for v in _taste()[1].names().values() if v.get("skill") and v.get("skill") != "my-edit-style")
+    for bad in ("my-captions", "linked-cuts", "../skills", "nope", thin, "my-style"):
+        try:
+            post("/skill/delete", {"name": bad})
+            raise AssertionError(f"deleted {bad}")
+        except urllib.error.HTTPError as e:
+            assert e.code == 400, bad
+    assert (sks / "my-captions" / "SKILL.md").is_file() and (tmp / "elsewhere" / "linked-cuts" / "SKILL.md").is_file()
+    assert post("/skill/hide", {"name": "gone-cuts"})["ok"] and post("/skill/delete", {"name": "gone-cuts"})["ok"]
+    assert not (tmp / "skills" / "gone-cuts").exists() and "gone-cuts" not in (read().get("hidden_skills") or [])
+    gc = next(c for c in get("/library")["styles"] if c["id"] == gid)
+    assert gc["found"] is False and gc["deleted"] is True, gc
+    gp = get("/style?id=" + gid)
+    assert gp["skill"]["deleted"] and not gp["skill"]["found"], gp["skill"]
+    gp = post("/style/skill", {"id": gid, "skill": "notion-editing"})   # pick another skill
+    assert gp["skill"]["name"] == "notion-editing" and gp["skill"]["found"], gp["skill"]
+    assert "notion-editing" in [x["name"] for x in get("/skills")["skills"]]   # a style runs it now
+    assert post("/style/delete", {"id": gid})["ok"] and (tmp / "skills" / "notion-editing" / "SKILL.md").is_file()
+    (tmp / "skills" / "linked-cuts").unlink()
     post("/scanhome", {"on": False})   # picked files stay listed without the opt-in
     assert {r["name"] for r in get("/recent")["videos"]} == {"a.mov", "b.mov", "c.mp4", "drop.mp4", "take.mp4"}
 

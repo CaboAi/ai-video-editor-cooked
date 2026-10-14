@@ -136,7 +136,7 @@ def verify(name, key):
     """(ok, message). Each check is a free listing call: nothing is billed. A key without its vendor's
     fixed prefix is refused here, so text that is not that key never leaves the computer."""
     if name in PREFIX and not key.startswith(PREFIX[name]):
-        return False, f"this is not a {NAMES[name]} key (those start with {' or '.join(PREFIX[name])}), so nothing was sent."
+        return False, f"this is not a {NAMES[name]} key, so nothing was sent. {NAMES[name]} keys start with {' or '.join(PREFIX[name])}"
     if name == "gemini":
         code, body = _get("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
                           {"x-goog-api-key": key})

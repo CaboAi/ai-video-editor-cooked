@@ -146,7 +146,7 @@ Five prompts, each one the user can paste into Claude Code as it is. Every numbe
 
 ### `JOB video <path> as=<mine|@handle|defaults> aspect=<9:16|16:9> edit=<dir> root=<dir>`
 ### `JOB video takes=<dir>/takes.txt as=... aspect=... edit=<dir> root=<dir>`
-### either one with ` script=<edit>/script.md`, ` skill=<skill>`, ` chain=<steps>` and/or ` assets=<edit>/assets.json` before `root=`
+### either one with ` script=<edit>/script.md`, ` skill=<skill>`, ` chain=<steps>`, ` sample=1` and/or ` assets=<edit>/assets.json` before `root=`
 
 The user picked clips and a style and pressed "Make my video" (or "Start the cut" on a first run).
 `edit=` is the edit folder the page already made and listed in the library: use it, never make
@@ -197,6 +197,38 @@ the cut: run `wait` and carry on there. `status video --done` once round 1 is up
 `EDITS <n> transcript edits applied to spans.json`, the user restored or cut words in the transcript beside the player:
 run `build_timeline.py`, `render.py`, `verify_cut.py`, then `review.py <edit> round --video <edit>/cut.mp4`
 (`../../style-edit/references/review.md`, Transcript edits).
+
+#### Sample video (`sample=1`)
+
+The user pressed "Try it with a sample video" to see the whole flow before using their own footage. The page
+downloaded the repo's public sample take and put its decisions in `edit=`: `words.raw.json`, `spans.json`,
+`style.json` (the Card edit sample, cards not behind the head) and `visuals.json`. Do these steps instead of
+the start skill's steps 2-4, fast and exact:
+ask nothing, never change the profile or the taste, and skip transcribe, `retakes.py propose`, the judge,
+verify, visual-prep, logo-pack, the motion skill, music, the render and loudness questions. Notes the user
+sends are handled as usual. `C="${CLAUDE_PLUGIN_ROOT}/skills/cut/scripts"`, `SE="${CLAUDE_PLUGIN_ROOT}/skills/style-edit/scripts"`.
+
+1. Serve the review page and report its URL, as above.
+2. The cut, then `status video --done` and review.py `wait` in the background:
+
+```bash
+python3 "$C/build_timeline.py" <path> <edit> && python3 "$C/render.py" <path> <edit> && \
+cp <edit>/words.json <edit>/cut.transcript.json && \
+python3 "$R" <edit> start --video <edit>/cut.mp4 --stage cut --transcript <edit>/words.json
+```
+
+3. On the cut's `APPROVE`: the stills, then `wait`:
+
+```bash
+python3 "$C/retakes.py" captions <edit> && node "$SE/capture.mjs" <edit> && \
+python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/run.py" "$SE/face.py" <edit> && \
+python3 "$SE/plan.py" <edit>/style.json <edit>/captions.json --aspect 9:16 && python3 "$SE/edit.py" stills <edit> && \
+python3 "$R" <edit> round --stage edit --stills --video <edit>/stills/stills.mp4 --plan <edit>/plan.json
+```
+
+4. On the stills' `APPROVE`: `python3 "$SE/edit.py" render <edit>` on the laptop, then
+   `python3 "$R" <edit> round --stage edit --video <edit>/render.mp4` and `wait`. Say in one line that the
+   sample is done and they can drop their own clip on Home next.
 
 #### Skill style
 

@@ -1,0 +1,118 @@
+{
+ "handle": "sample-card-edit",
+ "name": "Card edit",
+ "sample": true,
+ "about": "A sample style. A plain white title card opens it on the chest. Then a new card every second or two in the wide band above your head, tucked behind your hair: mostly animations built from what you say (a like counter ticking with comments stacking, a progress bar filling, notes appearing line by line, a terminal typing, a before and after), plus a real page or app where the page is the point, one capture per page. Captions are one plain white word under your chin. Some lines get no card at all.",
+ "format": "talking-head videos with moving cards above the speaker's head",
+ "aspect": "9:16",
+ "behind": false,
+ "card_kinds": [
+  "capture",
+  "logo",
+  "photo",
+  "animation"
+ ],
+ "transitions": [],
+ "motion": {
+  "engine": "clips",
+  "amount": 1,
+  "look": "default",
+  "kinds": {
+   "counter": true,
+   "list": true,
+   "flow": true,
+   "before_after": true,
+   "ui_demo": true,
+   "curve": true,
+   "logo": true
+  }
+ },
+ "zoom": {
+  "per_min": 0,
+  "kind": "push",
+  "scale": 1.06,
+  "duration_s": 0.8,
+  "on": "sentence_start",
+  "max_hold_s": 6.0
+ },
+ "captions": {
+  "present": true,
+  "words_per_caption": 1,
+  "y_pct": 72,
+  "size_pct": 4.4,
+  "case": "lower",
+  "font_match": "TikTok Sans",
+  "weight": 700,
+  "color": "#FFFFFF",
+  "highlight_color": "#FFFFFF",
+  "stroke": false,
+  "box": false,
+  "shadow": false,
+  "treat": false,
+  "animation": "none"
+ },
+ "cats": {
+  "card": {
+   "hold_s": 1.8
+  }
+ },
+ "graphics": {
+  "per_min": 30,
+  "kinds": {
+   "animation": 55,
+   "real screenshot": 30,
+   "logo": 15
+  },
+  "layout": {
+   "zones_pct": {
+    "top": 92,
+    "bottom": 8
+   },
+   "median_box": [
+    13,
+    13.1,
+    74,
+    22
+   ]
+  },
+  "entrances": [
+   {
+    "kind": "scale",
+    "ease": "power2.out",
+    "duration_s": 0.23,
+    "scale_from": 0.54,
+    "share_pct": 60
+   },
+   {
+    "kind": "slide",
+    "ease": "power3.out",
+    "duration_s": 0.3,
+    "from": "bottom",
+    "distance_pct": 4,
+    "fade": true,
+    "share_pct": 40
+   }
+  ],
+  "exits": [
+   {
+    "kind": "scale",
+    "ease": "power2.in",
+    "duration_s": 0.2,
+    "scale_to": 0.9,
+    "fade": true,
+    "share_pct": 70
+   },
+   {
+    "kind": "fade",
+    "ease": "power1.in",
+    "duration_s": 0.2,
+    "fade": true,
+    "share_pct": 30
+   }
+  ],
+  "secondary_motion": {
+   "push": 60,
+   "drift": 40
+  }
+ }
+}

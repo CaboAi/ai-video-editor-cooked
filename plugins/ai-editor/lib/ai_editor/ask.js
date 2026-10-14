@@ -77,9 +77,9 @@ function draw(){
   el.innerHTML=`<div class="aq-card"><div class="aq-top"><span>${A.about?`Claude (${esc(A.about)}) asks`:'Claude has a question'}</span><span>${n>1?`Question ${i+1} of ${n}`:''}</span></div>
   ${q.header?`<div class="aq-hd">${esc(q.header)}</div>`:''}<h2${q.header?'':' style="margin-top:14px"'}>${esc(q.question)}</h2>
   <div class="aq-opts">${opts.map((o,k)=>`<button class="aq-opt${sel.has(k)?' aq-sel':''}" data-k="${k}"${multi?` aria-pressed="${sel.has(k)}"`:''}>${multi?`<i class="aq-box">${sel.has(k)?TICK:''}</i>`:''}<div><b>${esc(o.label)}</b>${o.description?`<span>${esc(o.description)}</span>`:''}</div></button>`).join('')}</div>
-  <div class="aq-other"><input id="asko" placeholder="${multi?'Other: add your own words':'Other: type your own answer'}" aria-label="Other answer"><button class="aq-clip" id="askp" aria-label="attach an image" title="attach an image (or paste or drop one)">${CLIP}</button><input type="file" id="aski" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>${multi?'':'<button class="aq-send" id="asks" disabled>Send</button>'}</div>
+  <div class="aq-other"><input id="asko" placeholder="${multi?'Other: add your own words':'Other: type your own answer'}" aria-label="Other answer"><button class="aq-clip" id="askp" aria-label="attach an image" title="attach an image (or paste or drop one)">${CLIP}</button><input type="file" id="aski" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>${multi?'':'<button class="aq-send" id="asks" disabled>Send answer</button>'}</div>
   <div class="aq-pics"></div>
-  ${multi?'<button class="aq-send aq-wide" id="asks" disabled>Send</button>':''}
+  ${multi?'<button class="aq-send aq-wide" id="asks" disabled>Send answer</button>':''}
   <div class="aq-foot"><button class="aq-term" id="askt">Answer in Claude Code instead</button></div></div>`;
   const $o=el.querySelector('#asko'),$s=el.querySelector('#asks');
   $o.value=own;

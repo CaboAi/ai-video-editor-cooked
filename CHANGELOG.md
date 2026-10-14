@@ -28,6 +28,12 @@ What changed for every user, newest first.
   they use them, and cut-away grounds keep the creator's brightness.
 - Smaller fixes: Modal "Later" works, the setup timer counts from the start, no stuck "Still coming" spinner, a
   fresh My style shows no numbers, the editor is centred on a phone, Check lists the motion tools and cutout model.
+- "Try it with a sample video" on the first-run Home and in Getting started. It downloads the repo's public
+  sample take and runs the real flow on it: the cut, the editor, the preview and the finished video, in the Card
+  edit sample style. Its transcript, cut and visuals ship with the editor, so it needs no keys and skips
+  transcribing and checking. It shows as "Sample video" in Your videos and can be removed like any video.
+- Plainer words on every screen: no editor jargon, one idea a sentence, buttons that say what happens, and an
+  empty state with one button.
 
 ## ai-editor 2.7.3, creator-teardown 2.7.3 (2026-10-14)
 

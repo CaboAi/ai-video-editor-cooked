@@ -919,6 +919,7 @@ body.rail .sb-theme{margin-top:2px}
 @media (max-width:900px){.spg{align-items:stretch}}
 .tlist{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:12px}.tlist b{font-weight:600;color:var(--ink)}
 /* the sidebar's Getting started block */
+.sb-smp{background:none;border:0;padding:6px 2px 0;text-align:left;font:inherit;font-size:12px;line-height:17px;color:var(--t2);cursor:pointer}.sb-smp u{color:var(--ink);text-underline-offset:2px}.sb-smp:disabled{cursor:default;opacity:.7}
 .sb-gs{background:var(--panel)!important;border:1px solid var(--line)!important;border-radius:10px;padding:12px!important;display:flex;flex-direction:column;gap:8px;flex-shrink:0;width:100%;margin-top:6px;cursor:pointer;box-sizing:border-box;text-align:left}
 .sb-gs .tp{display:flex;justify-content:space-between;align-items:center}.sb-gs .tp b{font-size:13px;font-weight:600}.sb-gs .tp span{font-size:12px;color:var(--t3)}
 .gr{display:flex;align-items:center;gap:10px;font-size:13px;line-height:18px;color:var(--t2)}.gr span{flex:1}.gr em{font-style:normal;font-size:12px;color:var(--t2)}
@@ -965,8 +966,8 @@ function logo(id,px=20){
   return `<span class="logo"><svg width="${px}" height="${px}" viewBox="0 0 24 24" aria-hidden="true">${GLYPH[id]||''}</svg></span>`;
 }
 const KEYS=[
- {id:'elevenlabs',name:'ElevenLabs',tag:'exact words',text:'Keeps every "um" and false start, so the cut finds your retakes. The free transcriber tidies them away.',cost:'Free plan: a few hours a month',url:'https://elevenlabs.io/app/settings/api-keys'},
- {id:'gemini',name:'Gemini',tag:"reads a creator's look",text:'Names the font, colours and graphics when it copies a creator. Without it Claude looks at the frames, which uses more of your Claude usage.',cost:'Free, no card',url:'https://aistudio.google.com/apikey'}];
+ {id:'elevenlabs',name:'ElevenLabs',tag:'exact words',text:'Keeps every "um" and false start, so the cut finds your retakes. The free transcriber tidies them away.',cost:'Has a free plan',url:'https://elevenlabs.io/app/settings/api-keys'},
+ {id:'gemini',name:'Gemini',tag:"reads a creator's look",text:'Names the fonts, colours and graphics when it analyses a format. Without it, Claude looks at the frames. That uses more of your Claude usage.',cost:'Free, no card',url:'https://aistudio.google.com/apikey'}];
 const PARTS=[['captions','Captions'],['pace','Pace'],['graphics','Graphics'],['sound','Sound']];
 // creator-teardown quick mode, in order. Claude reports these step names (references/home.md).
 const PLAN=['Listed their videos','Downloaded the top 5 and 2 median','Transcribed every word','Measured cuts, zooms and camera moves','Reading captions and faces','Naming graphics','Sound effects and music','Writing the style'];
@@ -1025,13 +1026,13 @@ function mBody(){
   if(!on)return `<div class="lks"><button class="b2 s" onclick="mGo('connect')">Connect Modal</button><button class="ul q" onclick="skip(['modal'])">Later</button></div>${fail}
     <div class="msg"><span>Opens Modal in your browser to log in or sign up. No key to paste.</span></div>`;
   if(!ready)return `<div class="lks"><button class="b2 s" onclick="mGo('connect')">Connect Modal</button></div>${fail}
-    <div class="msg"><span>Logged in. One more step builds the render machine on Modal, so your first render starts fast.</span></div>`;
+    <div class="msg"><span>Logged in. One more step gets Modal ready to make your videos.</span></div>`;
   const credit=c.result&&c.result.credit,tr=t&&t.state==='done'&&t.result&&t.result.time;
   const [secs,usd]=(tr||'').split(' ');
   return `${credit?`<div class="msg"><span>${esc(credit[0].toUpperCase()+credit.slice(1))}.</span></div>`:''}
-    ${testing?mSteps(t):`<div class="lks"><button class="b2 s" onclick="mGo('test')">Test render</button><span class="q2">Renders 5 seconds on Modal</span></div>`}
-    ${!testing&&tr?`<div class="msg"><span>Test render: 5 seconds of video took ${esc(secs)} s on Modal${usd?`, about $${esc(usd)}`:''}.</span></div>`:''}
-    ${!testing&&t&&t.state==='failed'?`<div class="msg bad">${CROSS}<span>${esc(t.error||'The test render failed.')}</span></div>`:''}`;
+    ${testing?mSteps(t):`<div class="lks"><button class="b2 s" onclick="mGo('test')">Make a test video</button><span class="q2">5 seconds, made on Modal</span></div>`}
+    ${!testing&&tr?`<div class="msg"><span>Test video: 5 seconds took ${esc(secs)} s to make on Modal${usd?`, about $${esc(usd)}`:''}.</span></div>`:''}
+    ${!testing&&t&&t.state==='failed'?`<div class="msg bad">${CROSS}<span>${esc(t.error||'The test video failed.')}</span></div>`:''}`;
 }
 async function mGo(what){await post('/modal/'+what,{});await load();render()}
 async function skip(names){await post('/later',{names});toast('Saved for later. Connect it here any time.');await load()}   // Modal's Later
@@ -1081,6 +1082,9 @@ function copyText(t,el){try{navigator.clipboard.writeText(t)}catch(e){}el.innerH
 
 // ---------------------------------------------------------------- H6
 // Make my video goes straight to the editor: round 0 plays the clip and lists every step of the cut (home.py videos)
+// "Try it with a sample video": the repo's public sample take, downloaded once, then the real flow with its decisions shipped
+async function trySample(){if((ui.sample||{}).busy)return;ui.sample={busy:1};render();if(!GS().setup&&!latest('setup')){await post('/job',{type:'setup'});if(!S.listening)await connectClaude()}const r=await post('/sample',{});ui.sample=r._ok?null:{msg:r.msg||'That did not work. Try again.'};await load();if(r._ok)toEditor(r);else render()}
+const sampleRow=()=>{const b=(ui.sample||{}).busy;return `<div class="row" style="gap:12px;flex-wrap:wrap"><span class="t2" style="color:var(--t2);font-size:14px">No footage handy?</span><button class="b2" ${b?'disabled':''} onclick="trySample()">${b?'Getting the sample video...':'Try it with a sample video'}</button></div>${(ui.sample||{}).msg?`<div class="msg bad">${CROSS}<span>${esc(ui.sample.msg)}</span></div>`:''}`};
 function toEditor(r){const e=(r.edits||[])[0];if(e){location.href='/review?dir='+encodeURIComponent(e);return}loadLib().then(()=>rgo('videos'))}
 
 // ---------------------------------------------------------------- returning user (Paper "J launcher + pick")
@@ -1377,7 +1381,7 @@ function vMyStyle(){
     :`<div class="ph"><h1>Styles</h1><p>How your videos get edited. Each one learns from your reviews.</p></div>`;
   return `<div class="pgc"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">${head}<div class="row hact" style="margin-top:${f?32:0}px">${newFoldBtn('styles')}<button class="b1" onclick="openCreate()">${ic('plus',16,2.2)}New style</button></div></div>
     <div class="stabs" role="tablist">${tabs}</div>
-    ${shown.length||tab==='all'||tab==='own'?gridRows([...shown.map(c=>crCard(c,idx(c))),...(!f&&(tab==='all'||tab==='own')?[newTile()]:[])],per):`<div class="none">${tab==='cr'?'No styles from creators yet. New style analyses 3 to 6 videos edited the same way.':'Nothing here yet.'}</div>`}</div>`;
+    ${shown.length||tab==='all'||tab==='own'?gridRows([...shown.map(c=>crCard(c,idx(c))),...(!f&&(tab==='all'||tab==='own')?[newTile()]:[])],per):`<div class="none">${tab==='cr'?'No styles from creators yet. Paste 3 to 6 videos edited the same way, and Claude analyses them.':'Nothing here yet.'}</div><button class="b2" style="align-self:flex-start" onclick="${tab==='cr'?'openCreate()':`ui.stab='all';render()`}">${tab==='cr'?'Analyse a format':'See all styles'}</button>`}</div>`;
 }
 // Build it yourself: a new own style with a free name, then its page with the name field open
 async function buildYourself(){
@@ -1438,7 +1442,7 @@ function vSkills(){
   const njl=nj&&(nj.state!=='done'||Date.now()/1000-(nj.finished||0)<600)?`<div class="t2" style="white-space:normal;color:var(--ink)">${jobText(nj)}</div>`:'';
   const row=x=>{const us=used(x.name),open=ui.skImp===x.name,j=last('skill-change',j=>j.args.skill===x.name);
     return `<div class="skr ssec"><div class="shd"><span class="snm">/${esc(x.name)}</span><span class="t2">${us.length?'Used by '+us.map(c=>`<a href="#" onclick="openStyle(${J(c.id)});return false">${esc(dname(c))}</a>`).join(', '):'Not used by a style yet'}</span></div>
-      <div class="t1" style="white-space:normal;line-height:22px">${x.found===false?'Not in the skill folders this editor can see.':esc(x.description||'No description.')}</div>
+      <div class="t1" style="white-space:normal;line-height:22px">${x.found===false?'The editor can\'t find this skill on this computer.':esc(x.description||'No description.')}</div>
       ${x.rules?`<div class="t2">${x.rules} learned rule${x.rules>1?'s':''}</div>`:''}
       <div class="acts">${x.found===false?'':`<button class="b2 s" onclick="useSkill(${J(x.name)})">Use as a style</button>${x.own?`<button class="b2 s" onclick="ui.skImp=${open?'null':J(x.name)};render();setTimeout(()=>{const e=$('#sk-imp');if(e)e.focus()},0)">Improve with feedback</button>`:''}<button class="b2 s" onclick="skillFile('open',${J(x.name)})">Open the file</button><button class="b2 s" onclick="skillFile('reveal',${J(x.name)})">Show in ${FINDER()}</button>`}</div>
       ${open?`<div class="fld"><div class="in2"><input id="sk-imp" placeholder="never zoom in the first second" aria-label="What to change in this skill" onkeydown="if(event.key==='Enter')improveSkill(${J(x.name)})"></div><button class="b1" onclick="improveSkill(${J(x.name)})">Send</button></div>
@@ -1536,7 +1540,7 @@ function pickCard(c,i){
     <span class="tx"><span class="ttl"><span class="nm1">${esc(dname(c))}</span>${chip?`<span class="tagc">${chip}</span>`:''}</span><span class="t2">${esc(c.studying?'Being analysed now. The cut starts first.':origin(c))}</span>${f?`<span class="pf">${ic(f[0])}${esc(f[2])}</span>`:''}</span><span class="rd ${on?'on':''}"></span></button>`;
 }
 function vStyle(){
-  if(!nv.sel.length)return `<div class="col grow"><div class="empty">Pick your clips first. <a href="#" onclick="rgo('new');return false">Back to your clips</a></div></div>`;
+  if(!nv.sel.length)return `<div class="col grow"><div class="empty">Pick your clips first.</div><button class="b1" style="align-self:flex-start" onclick="rgo('new')">Pick clips</button></div>`;
   const cards=(L?L.styles:[]),k=latest('skill'),idx=c=>cards.indexOf(c);
   if(!nv.picked&&k&&k.state==='done'&&Date.now()/1000-(k.finished||0)<86400&&cards.some(c=>c.id==='@'+k.args.handle))nv.style='@'+k.args.handle;   // the style just built
   if(!nv.picked&&!nv.style)nv.style=L.default_style||'mine';
@@ -1563,7 +1567,7 @@ function spPreview(P){
   const inner=cl&&cl.before?`<video id="sp-clip" src="${esc(cl.at==='after'?cl.after:cl.before)}" autoplay playsinline onended="cutEnded(this)" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0C0A09"></video>
       <span class="ptag" id="sp-cliptag">${cl.at==='after'?'After: '+esc(cl.label):'Before'}</span><div class="picbtns" style="opacity:1"><button onclick="ui.spclip=null;render()">Close</button></div>`
     :`${C.big?`<img src="${esc(C.big)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`:''}
-      <span class="ptag">${P.presets.pic==='Your video'?'Shown on your video':esc(P.presets.pic)}${C.big?'':C.big_err?' · the preview did not render':' · rendering'}</span>
+      <span class="ptag">${P.presets.pic==='Your video'?'Shown on your video':esc(P.presets.pic)}${C.big?'':C.big_err?' · the preview did not load':' · loading'}</span>
       ${C.off?'':`<div class="sp-drag" style="top:${y}%" onpointerdown="spDrag(event)" title="Drag to move the captions" aria-label="Caption height, drag to move"></div>`}`;
   return `<div class="pic sprev2" style="${bgUrl(C.big||pic.url)}">${inner}</div>`;
 }
@@ -1600,8 +1604,8 @@ function vSkillPage(P){
       <button class="b1" style="width:100%" onclick="nv.style=${J(P.id)};nv.picked=1;rgo('new')">Make a video with this style</button></div>
     <div class="spr"><div style="display:flex;flex-direction:column;gap:10px"><div class="row" style="justify-content:space-between;gap:12px"><span class="row" style="gap:8px;min-width:0;flex:1">${editing?'':`<h1 class="sname">${esc(dname(P))}</h1>`}${editField('name',P.id,P.name,'font-size:24px;font-weight:600')}</span><span class="pgdots">${sMenu(card)}</span></div>
         <span style="font:500 14px var(--mono)">/${esc(K.name)}</span>
-        <div class="t1" style="white-space:normal;line-height:22px">${K.found?esc(K.description||'This style runs its own skill.'):`Skill not found here: ${esc(K.name)} is not in the skill folders this editor can see. Making a video still asks Claude to run it, and offers the generic edit if that session doesn't have it.`}</div>
-        <div class="t2" style="white-space:normal">Making a video cuts it here, then runs /${esc(K.name)} on the approved cut for the captions, visuals and render.</div></div>
+        <div class="t1" style="white-space:normal;line-height:22px">${K.found?esc(K.description||'This style runs its own skill.'):`Skill not found: the editor can't see /${esc(K.name)} on this computer. Claude still tries it when you make a video. If it can't, it offers the standard edit instead.`}</div>
+        <div class="t2" style="white-space:normal">Making a video cuts it here first. Then /${esc(K.name)} adds the captions and visuals and makes the video.</div></div>
       ${K.calls&&K.calls.length?`<div class="ssec"><div class="shd"><b>Skills it calls</b></div><div class="row" style="gap:8px;flex-wrap:wrap">${K.calls.map(x=>`<span class="tagc" style="font-family:var(--mono)">/${esc(x)}</span>`).join('')}</div></div>`:''}
       ${chainSec(P)}${rulesSec(P)}
       ${P.references&&P.references.videos.length?`<div class="ssec"><div class="shd"><b>Analysed from</b></div><div class="refs">${P.references.videos.map(v=>`<a class="ref" href="${esc(v.url)}" target="_blank" rel="noopener"><span class="rth" style="${v.thumbnail?`background-image:url('${esc(v.thumbnail)}')`:''}">${v.thumbnail?'':LINKG}</span><span style="min-width:0;flex:1"><span class="t1" style="display:block">${esc(v.title||shortLink(v.url))}</span></span></a>`).join('')}</div></div>`:''}</div></div>`;
@@ -1625,7 +1629,7 @@ function vStylePage(){
           ${meta}${useFor(P)}</div></div>
       ${rulesSec(P)}${chainSec(P)}
       <div class="ssec">${secHd('caption','Captions',(fact3(card).find(f=>f[0]==='caption')||[])[2],C.tag,'captions')}
-        <div class="ctiles">${C.tiles.slice(0,6).map(t=>`<button class="ct ${t.id===C.sel?'on':''}" onclick="setCtl('captions.preset',${J(t.id)})"><span class="ci">${t.img?`<img src="${esc(t.img)}" alt="${esc(t.name)} captions" style="object-position:50% ${t.block.y_pct||C.y}%">`:`<span class="t2">${t.err?'No preview':'Rendering...'}</span>`}</span><b>${esc(capName(t))}</b></button>`).join('')}</div>
+        <div class="ctiles">${C.tiles.slice(0,6).map(t=>`<button class="ct ${t.id===C.sel?'on':''}" onclick="setCtl('captions.preset',${J(t.id)})"><span class="ci">${t.img?`<img src="${esc(t.img)}" alt="${esc(t.name)} captions" style="object-position:50% ${t.block.y_pct||C.y}%">`:`<span class="t2">${t.err?'No preview':'Loading...'}</span>`}</span><b>${esc(capName(t))}</b></button>`).join('')}</div>
         <div class="row" style="gap:12px;flex-wrap:wrap"><span class="t2" style="color:var(--t2);width:34px">Size</span><span style="color:var(--t4);font-size:11px">A</span><input type="range" class="rng" min="3" max="8" step="0.2" value="${size}" aria-label="Caption size" onchange="setCtl('captions.size_pct',+this.value)"><span style="color:var(--t4);font-size:16px">A</span><b style="font-weight:500;font-size:13px">${size<4?'Small':size<5.2?'Medium':'Large'}</b><i class="vr"></i><span class="t2" style="color:var(--t2)">Drag the caption on your video to move it</span></div></div>
       <div class="ssec two"><div>${secHd('zoom','Zooms','',Z.zoom.tag,'zoom')}<div class="ocs">${Z.zoom.opts.map(o=>optCard(o,o.id===Z.zoom.sel,'zoom.preset',J(o.id))).join('')}</div></div>
         <div>${secHd('cut','Cut',(fact3(card).find(f=>f[0]==='cut')||[])[2],Z.cut.tag,'cut')}<div class="ocs">${Z.cut.opts.map(o=>optCard(o,o.id===Z.cut.sel,'cut.max_pause',o.value)).join('')}</div>
@@ -1672,8 +1676,8 @@ function planFor(j){
   const a=j.args,st=a.as==='defaults'?'the default style':a.as.startsWith('@')&&styleName(a.as)===a.as?a.as+"'s style":styleName(a.as);
   const studying=a.as.startsWith('@')&&L&&(L.styles.find(c=>c.id===a.as)||{}).studying;
   return [...(a.takes?[['Joining your clips','']]:[]),['Writing down every word',''],['Finding retakes and pauses',''],['Cutting out the mistakes',''],['Rendering the cut',''],['Checking the cut',''],
-    ['You check the cut','The editor opens on your clip and each version lands there. Leave notes or approve.'],
-    ['Captions, zooms and sound in '+st,studying?`Waits for the copy of ${a.as}'s style to finish, then starts after you approve the cut.`:'Starts after you approve the cut.']];
+    ['You check the cut','The editor opens on your clip. Each new draft shows up there. Leave notes, or approve it.'],
+    ['Captions, zooms and sound in '+st,studying?`Starts after you approve the cut, once ${a.as}'s style is analysed.`:'Starts after you approve the cut.']];
 }
 // nobody listening: "Connect Claude" opens a new Terminal with a listening Claude (launcher.connect, one at a time);
 // where no terminal can open (S.new_claude false), the old instruction
@@ -1689,8 +1693,8 @@ async function connectClaude(){if(ui.connecting)return;ui.connecting=1;try{const
 
 // ---- home (welcome back), your videos, my style, settings
 // where a video is (home.py phase): the user's turn, done, or what Claude is doing now
-const TURN={cut:'Your turn: watch the cut',approve:'Your turn: approve the stills',edit:'Your turn: watch the edit'};
-const DOING={notes:'Fixing your notes',stills:'Making the stills',rendering:'Rendering the edit',cutting:'Being made'};
+const TURN={cut:'Your turn: watch the cut',approve:'Your turn: approve the preview',edit:'Your turn: watch the edit'};
+const DOING={notes:'Fixing your notes',stills:'Making the preview',rendering:'Making the video',cutting:'Being made'};
 const vPh=v=>v.phase||(v.status==='done'?'done':v.status==='ready'?(v.stage==='cut'?'cut':'edit'):v.status==='making'?'notes':'cutting');
 // one count for Home and Your videos: done, your turn, being made
 function vSum(all){const n=k=>all.filter(v=>k(vPh(v))).length,d=n(p=>p==='done'),t=n(p=>!!TURN[p]),m=all.length-d-t;
@@ -1716,7 +1720,7 @@ function vStat(v){
   return {txt:DOING[ph]||'Being made',frac:null,btn:see};
 }
 function vCard(v){
-  const s=vStat(v),fn=rv==='videos'&&ui.fold.videos?'':(fd('videos').folders.find(f=>f.id===inFold('videos',v.dir))||{}).name,meta=[fn,v.stage==='edit'?'Full edit':'Cut',v.wide?'16:9':v.round?`round ${v.round}`:'',ago(v.updated)].filter(Boolean).join(' · ');
+  const s=vStat(v),fn=rv==='videos'&&ui.fold.videos?'':(fd('videos').folders.find(f=>f.id===inFold('videos',v.dir))||{}).name,meta=[fn,v.stage==='edit'?'Full edit':'Cut',v.wide?'16:9':v.round?`draft ${v.round}`:'',ago(v.updated)].filter(Boolean).join(' · ');
   return `<div class="vc" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name,v.thumb)}><div class="vi">${picArea(v)}
     <div class="tx"><div style="min-width:0"><div class="nm" title="${esc(v.name)}">${esc(v.name)}</div><div class="mt">${meta}</div></div><div class="st"><div class="stt ${s.ok?'ok':''}" title="${esc(s.title||'')}">${s.txt}</div>${s.btn}</div></div>
     <div class="bar ${s.ok?'ok':s.frac==null?'indet':''}">${s.ok?'':`<i style="width:${s.frac==null?40:Math.round(s.frac*100)}%"></i>`}</div></div></div>`;
@@ -1756,7 +1760,7 @@ function gsBlock(){
   const nd=rows.filter(([k])=>g[k]).length,early=!g.setup&&!g.style&&pct!=null;   // setup running: step 2 can start now
   return `<div class="sb-gs" role="button" tabindex="0" onclick="goHome()" onkeydown="if(event.key==='Enter'&&event.target===this)goHome()"><div class="tp"><b>Getting started</b><span>${nd} of 3 done</span></div>
     ${rows.map(([k,l],i)=>`<div class="gr ${g[k]?'done':i===cur?'cur':''}">${g[k]?OKDOT:'<i></i>'}<span>${l}</span>${i===cur&&k==='setup'&&pct!=null?`<em>${pct}%</em>`:''}${k==='style'&&early?`<button class="ul q" onclick="event.stopPropagation();obAnalyseNow()">Start</button>`:''}</div>`).join('')}
-    <div class="trk"><i style="width:${Math.round(frac*100)}%"></i></div></div>`;
+    <div class="trk"><i style="width:${Math.round(frac*100)}%"></i></div></div>${g.video?'':`<button class="sb-smp" ${(ui.sample||{}).busy?'disabled':''} onclick="trySample()">No footage handy? <u>${(ui.sample||{}).busy?'Getting the sample video...':'Try it with a sample video'}</u></button>`}`;
 }
 function obAnalyseNow(){ui.obOn=true;ui.ob=null;rgo('home')}   // step 2 while setup keeps going
 function obView(){
@@ -1773,7 +1777,7 @@ const obStep=(n,on,t,s)=>`<div class="obs"><span class="obn ${on?'on':''}">${n}<
 function obWelcome(){
   return `<div class="pgc obw"><div class="ph"><h1>Welcome to cooked.</h1><p>Three steps to your first edit. Claude does the work. You check it.</p></div>
     <div class="obl">${obStep(1,1,'Set up','Installs the free tools on this computer. Then two optional keys.')}${obStep(2,0,'Analyse a format','Paste 3 to 6 videos edited the same way. Claude writes down how they are edited.')}${obStep(3,0,'Make your first video','Drop a clip. Claude cuts the mistakes, then adds captions, zooms and sound in that style.')}</div>
-    <div class="row" style="gap:24px;flex-wrap:wrap"><button class="b1" onclick="queue({type:'setup'})">Start setup</button><span class="t2" style="color:var(--t2);font-size:14px">Setup keeps going in the background while you do step 2.</span></div></div>`;
+    <div class="row" style="gap:24px;flex-wrap:wrap"><button class="b1" onclick="queue({type:'setup'})">Start setup</button><span class="t2" style="color:var(--t2);font-size:14px">Setup keeps going in the background while you do step 2.</span></div>${sampleRow()}</div>`;
 }
 // one list of steps: done (green), now (a filled ring, its detail at the right), still to come
 function obRows(plan,steps,nextLabel=true){
@@ -1791,8 +1795,8 @@ function obSetup(sj){
     <div class="obnext"><div><span class="cap">Next, while this runs</span><b>Analyse a format</b><p>Paste 3 to 6 videos edited the same way. Setup keeps going in the background.</p></div><button class="b1" onclick="obAnalyseNow()">Analyse a format</button></div>
     <div class="obnext"><div><span class="cap">Optional</span><b>Two free keys</b><p>They make your edits better. ElevenLabs hears every um and retake, so the cut is cleaner. Gemini reads the fonts and colours when it analyses a format. Skip them and Claude does those jobs instead.</p></div><button class="b2" onclick="ui.ob='keys';render()">Add keys now</button></div></div>`;
 }
-const OBK=[{id:'gemini',tag:'reads the look',d:'Names the fonts and colours when it analyses a format.',skip:'Skip it: Claude looks at the frames, which uses more of your Claude plan. Free, no card.'},
-  {id:'elevenlabs',tag:'exact words',d:'Keeps every "um" and false start, so the cut finds your retakes.',skip:'Skip it: the free transcriber on this computer does it, and tidies some retakes away. Free plan: a few hours a month.'}];
+const OBK=[{id:'gemini',tag:'reads the look',d:'Names the fonts and colours when it analyses a format.',skip:'Skip it and Claude looks at the frames itself. That uses more of your Claude usage. The key is free, no card.'},
+  {id:'elevenlabs',tag:'exact words',d:'Keeps every "um" and false start, so the cut finds your retakes.',skip:'Skip it and the free transcriber on this computer does it. It misses some retakes. ElevenLabs has a free plan.'}];
 function obKeys(){
   const sel=ui.obKey||((S.keys.gemini||{}).set?'elevenlabs':'gemini'),k=KEYS.find(x=>x.id===sel),st=S.keys[sel]||{},u=ui.keys[sel]||{};
   const row=o=>{const s=S.keys[o.id]||{},K=KEYS.find(x=>x.id===o.id);return `<button class="okr ${sel===o.id?'on':''}" onclick="ui.obKey='${o.id}';render()">${s.set?OKDOT:'<i></i>'}<span class="lt" style="background:${KLT[o.id]}">${logo(o.id,18)}</span><div style="flex:1;min-width:0"><div class="row" style="gap:8px;align-items:baseline"><b>${K.name}</b><span class="t2">${o.tag}</span></div><p>${o.d}</p><p class="q">${o.skip}</p></div><span class="ss ${s.set?'ok':''}">${s.set?'Verified':'Not set'}</span></button>`};
@@ -1851,19 +1855,19 @@ async function obFiles(fs){ui.ob=null;rgo('new');await chooseFiles(fs)}
 function obDrop(){
   const rec=(R?R.videos:[]).slice(0,3);
   return `<div class="pgc obw"><div class="ph"><h1>Make your first video</h1><p>Drop a talking-head clip. Claude cuts the mistakes first, then you check it.</p></div>
-    <label class="obdrop" id="droptile">${ic('up',28,1.8)}<b>Drop a video here</b><span class="t2" style="color:var(--t2);font-size:14px">Any talking-head take from your phone or camera</span><button type="button" class="b1" onclick="event.preventDefault();this.nextElementSibling.click()">Choose a file</button><input type="file" multiple accept="video/*,.mov,.mkv,.mp4" class="hide" onchange="const f=[...this.files];this.value='';obFiles(f)"></label>
-    ${nv.up.some(u=>!u.bad)?`<div class="row" style="gap:10px">${SPIN}<span>Adding your clip...</span></div>`:''}
+    <label class="obdrop" id="droptile">${ic('up',28,1.8)}<b>Drop a video here</b><span class="t2" style="color:var(--t2);font-size:14px;white-space:normal;text-align:center">Any talking-head take from your phone or camera</span><button type="button" class="b1" onclick="event.preventDefault();this.nextElementSibling.click()">Choose a file</button><input type="file" multiple accept="video/*,.mov,.mkv,.mp4" class="hide" onchange="const f=[...this.files];this.value='';obFiles(f)"></label>
+    ${nv.up.some(u=>!u.bad)?`<div class="row" style="gap:10px">${SPIN}<span>Adding your clip...</span></div>`:''}${sampleRow()}
     ${rec.length?`<div class="sec2"><b style="font-size:15px">Or pick a recent take</b><div class="hdrop" style="height:76px">${rec.map(v=>`<div class="hd-clip" role="button" tabindex="0" onclick="obPick(${J(v.path)})" onkeydown="if(event.key==='Enter')obPick(${J(v.path)})"><div class="th" style="background-image:url('${esc(v.thumb)}')"></div><div style="min-width:0"><div class="t1">${esc(v.name)}</div><div class="t2">${esc(v.where)} · ${ago(v.mtime)}</div></div></div>`).join('')}${'<div aria-hidden="true"></div>'.repeat(3-rec.length)}</div></div>`:''}</div>`;
 }
 // Home while the first video is being made, and once its cut is ready (then Getting started is done)
 function firstVideoHome(v){
   const j=vJob(v),ph=vPh(v),ready=ph==='done'||!!TURN[ph];
   const how={cut:'Open the editor to check the cut. Strike or bring back any word, then approve it. Claude adds captions, zooms and sound next.',
-    approve:'Open the editor to check the stills. Approve them and Claude renders the edit.',edit:'Open the editor to watch the edit. Leave notes, or approve it.',
+    approve:'Open the editor to check the preview. Approve it and Claude makes the video.',edit:'Open the editor to watch the edit. Leave notes, or approve it.',
     done:'Open the editor to watch it again or download it.'}[ph];
   const side=ready?`<div class="obc" style="padding:24px;gap:12px;justify-content:space-between"><div><div class="row" style="gap:10px">${OKDOT}<b style="font-size:17px">You're all set up</b></div><p class="t2" style="white-space:normal;font-size:15px;line-height:22px;color:var(--t2);margin:10px 0 0">${how}</p></div><p class="t2" style="white-space:normal;font-size:14px">Next time, drop a clip anywhere on Home or press New video.</p></div>`
     :`<div class="obc"><div class="obrs">${j?obRows(planFor(j).map(p=>p[0]),j.steps):'<div class="obr cur"><i class="ring2"></i><span>Claude is working on it</span></div>'}</div></div>`;
-  return `<div class="ph"><h1>Home</h1><p>${{cut:'Your first cut is ready to check.',approve:'Your stills are ready to approve.',edit:'Your first edit is ready to watch.',done:'Your first video is done.'}[ph]||'Your first video is being made. You can leave this window open or closed.'}</p></div>
+  return `<div class="ph"><h1>Home</h1><p>${{cut:'Your first cut is ready to check.',approve:'Your preview is ready to approve.',edit:'Your first edit is ready to watch.',done:'Your first video is done.'}[ph]||'Your first video is being made. You can leave this window open or closed.'}</p></div>
     <div class="obhome">${vCard(v)}${side}</div>`;
 }
 function vHome(){
@@ -1875,13 +1879,13 @@ function vHome(){
     <button class="more2" aria-label="More for this clip" aria-expanded="${ui.clipmenu===v.path}" title="More" onclick="event.stopPropagation();ui.cmenu=null;ui.clipmenu=ui.clipmenu===${P(v.path)}?null:${P(v.path)};render()">${DOTS}</button>${ui.clipmenu===v.path?`<div class="cmenu" onclick="event.stopPropagation()"><button onclick="clipAct('hide',${P(v.path)})">${ic('minus',16)}<span class="lb">Remove from this list</span></button><button onclick="ui.clipmenu=null;ui.cliptrash=${P(v.path)};rgo('new')">${ic('trash',16)}<span class="lb">Move to Trash</span></button></div>`:''}</div>`;
   const stl=(c,i)=>`<div class="stl" style="width:${tw}px" ${c.studying?'aria-disabled="true"':`role="button" tabindex="0" onclick="openStyle(${P(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)openStyle(${P(c.id)})"`}><div class="pic" style="${bgUrl(picOf(c,i).url)}">${sMenu(c)}</div><div class="t1">${esc(c.name)}</div></div>`;
   const crow=c=>`<button class="cr" ${c.studying?'disabled':''} onclick="openStyle(${P(c.id)})"><span class="ava" style="${c.face?`background-image:url('${esc(c.face)}')`:''}">${c.face?'':SIL}</span><span style="min-width:0"><span class="t1" style="display:block">${esc(c.name)}</span><span class="t2" style="display:block">${c.studying?'Being analysed now':c.videos?`Analysed from ${c.videos} videos`:'Analysed'}</span></span></button>`;
-  const shelves=()=>`<div class="sec2"><div class="sh"><b>Built by you</b>${seeAllGo(own.length,ns,"ui.fold.styles=null;ui.stab='own';rgo('mystyle')")}</div><div class="sts">${own.slice(0,ns).map(c=>stl(c,st.indexOf(c))).join('')||'<div class="none">No styles yet.</div>'}</div></div>
-    <div class="sec2"><div class="sh"><b>From creators</b>${seeAllGo(cr.length,3,"ui.fold.styles=null;ui.stab='cr';rgo('mystyle')")}</div><div class="crs">${cr.slice(0,3).map(crow).join('')||'<div class="none">No creator styles yet. Analyse one from Styles.</div>'}</div></div>`;
+  const shelves=()=>`<div class="sec2"><div class="sh"><b>Built by you</b>${seeAllGo(own.length,ns,"ui.fold.styles=null;ui.stab='own';rgo('mystyle')")}</div><div class="sts">${own.slice(0,ns).map(c=>stl(c,st.indexOf(c))).join('')||'<div class="none">No styles yet. Build one with the captions, zooms and sound you want.</div><button class="b2 s" style="align-self:flex-start" onclick="buildYourself()">Build a style</button>'}</div></div>
+    <div class="sec2"><div class="sh"><b>From creators</b>${seeAllGo(cr.length,3,"ui.fold.styles=null;ui.stab='cr';rgo('mystyle')")}</div><div class="crs">${cr.slice(0,3).map(crow).join('')||'<div class="none">No creator styles yet. Paste a few of their videos to copy how they edit.</div><button class="b2 s" style="align-self:flex-start" onclick="openCreate()">Analyse a format</button>'}</div></div>`;
   if(vids.length===1)return `<div class="pgc">${firstVideoHome(vids[0])}<div class="hshelf">${shelves()}</div></div>`;
   return `<div class="pgc">
   <div class="ph"><h1>Home</h1>${vids.length?`<p>${vSum(vids)}</p>`:''}</div>
   <div class="hdrop"><label class="hd-box" id="droptile">${ic('up',20)}<div><div class="t1" style="font-weight:600">Drop a video here</div><div class="t2">or choose a file</div></div><input type="file" multiple accept="video/*,.mov,.mkv,.mp4" class="hide" onchange="const f=[...this.files];this.value='';rgo('new');chooseFiles(f)"></label>${rec.map(clip).join('')}${'<div aria-hidden="true"></div>'.repeat(nc-rec.length)}</div>
-  <div class="sec2"><div class="sh"><b>Your videos</b>${seeAllGo(vids.length,per,"ui.fold.videos=null;rgo('videos')")}</div>${vids.length?cardRows(vids.slice(0,per)):'<div class="none">No videos yet. Drop a clip above to start one.</div>'}</div>
+  <div class="sec2"><div class="sh"><b>Your videos</b>${seeAllGo(vids.length,per,"ui.fold.videos=null;rgo('videos')")}</div>${vids.length?cardRows(vids.slice(0,per)):'<div class="none">No videos yet. Drop a clip above, or pick one to start.</div><button class="b2 s" style="align-self:flex-start" onclick="rgo(\'new\')">New video</button>'}</div>
   <div class="hshelf">${shelves()}</div></div>`;
 }
 // ---- Your videos: Now (cards) and Done (tiles); a folder opens from the sidebar
@@ -1890,17 +1894,17 @@ function vVideos(){
   const fid=ui.fold.videos,all=L.videos,vids=fid?all.filter(v=>inFold('videos',v.dir)===fid):all,W=cw(),pl=n=>n===1?'':'s';   // Your videos is everything; a folder filters
   if(fid){const f=fd('videos').folders.find(x=>x.id===fid);
     return `<div class="pgc"><div class="ph"><button class="back" onclick="ui.fold.videos=null;render()" ${dropAttrs('videos',null)}>${ic('back',14,2)}Your videos</button><h1>${esc(f.name)}</h1><p>${vids.length} video${pl(vids.length)}. Drag a video onto a folder to move it.</p></div>${editTrashRow()}
-      ${vids.length?cardRows(vids):'<div class="none">Nothing in this folder yet. Drag a video onto it in the sidebar, or use ⋯ then Move to folder.</div>'}</div>`}
+      ${vids.length?cardRows(vids):'<div class="none">Nothing in this folder yet. Drag a video onto it in the sidebar. Or open a video\'s ⋯ menu and pick Move to folder.</div><button class="b2 s" style="align-self:flex-start" onclick="ui.fold.videos=null;render()">See all your videos</button>'}</div>`}
   const now=vids.filter(v=>vPh(v)!=='done'),done=vids.filter(v=>vPh(v)==='done'),lede=vSum(all);
   const fit=perRow();
   return `<div class="pgc"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px"><div class="ph"><h1>Your videos</h1>${all.length?`<p>${lede}</p>`:''}</div><div class="row hact">${newFoldBtn('videos')}</div></div>${editTrashRow()}
     ${now.length?`<div class="sec2"><div class="sh"><b>Now</b></div>${cardRows(now)}</div>`:''}
     ${done.length?`<div class="sec2"><div class="sh"><b>Done</b>${seeAll('done',done.length,fit)}</div><div class="dts">${(ui.exp.done?done:done.slice(0,fit)).map(tile).join('')}</div></div>`:''}
-    ${all.length?'':`<div>${EXROW}</div>`}</div>`;
+    ${all.length?'':`<div class="none">No videos yet. Pick a clip to make your first one.</div><button class="b1" style="align-self:flex-start" onclick="rgo('new')">New video</button>`}</div>`;
 }
 function editTrashRow(){
   const v=ui.edittrash&&L.videos.find(x=>x.dir===ui.edittrash);if(!v)return ui.editmsg?`<div class="msg bad">${CROSS}<span>${esc(ui.editmsg)}</span></div>`:'';
-  return `<div class="confirm"><b>Remove ${esc(v.name)} from your videos?</b><div class="sub">Its folder in your library goes to the Trash: the cut, the renders and your notes. Your original clip stays.</div><div class="row"><button class="btn dark sm" onclick="trashEdit(${esc(JSON.stringify(v.dir))})">Move to Trash</button><button class="btn quiet sm" onclick="ui.edittrash=null;render()">Keep</button></div></div>`;
+  return `<div class="confirm"><b>Remove ${esc(v.name)} from your videos?</b><div class="sub">Its folder in your library goes to the Trash: the cut, the finished videos and your notes. Your original clip stays.</div><div class="row"><button class="btn dark sm" onclick="trashEdit(${esc(JSON.stringify(v.dir))})">Move to Trash</button><button class="btn quiet sm" onclick="ui.edittrash=null;render()">Keep</button></div></div>`;
 }
 async function trashEdit(dir){const r=await post('/edit/trash',{dir});ui.edittrash=null;ui.editmsg=r.ok?null:(r.msg||'That did not work.');await loadLib();render()}
 // ---------------------------------------------------------------- the app shell (Paper "P App: main")
@@ -1944,7 +1948,7 @@ const JOBNAME={video:'Making',teardown:'Analysing',skill:'Building a skill',setu
 function jobInfo(){
   const act=S.jobs.filter(j=>j.state==='queued'||j.state==='taken'),j=busyJob(),mk=(L?L.videos:[]).filter(v=>v.status==='making'||v.status==='cutting');
   const nv2=Math.max(mk.length,act.filter(x=>x.type==='video').length);
-  if(!j){if(!mk.length)return null;return {label:`Making ${mk.length}`,short:'Making',n:mk.length,text:`${{notes:'Claude is fixing your notes in',stills:'Claude is making the stills for',rendering:'Claude is rendering'}[vPh(mk[0])]||'Claude is making'} ${mk[0].name}`,frac:null,since:null,go:"ui.fold.videos=null;rgo('videos')"}}
+  if(!j){if(!mk.length)return null;return {label:`Making ${mk.length}`,short:'Making',n:mk.length,text:`${{notes:'Claude is fixing your notes in',stills:'Claude is making the preview for',rendering:'Claude is finishing'}[vPh(mk[0])]||'Claude is making'} ${mk[0].name}`,frac:null,since:null,go:"ui.fold.videos=null;rgo('videos')"}}
   const n=j.type==='video'?nv2:act.filter(x=>x.type===j.type).length,s=j.steps.at(-1);
   const last=Math.max(j.u||0,s?s.t||0:0,S.claude_seen||0)||jobStart(j),age=Math.max(0,Math.round(Date.now()/1000-last));
   const what=j.type==='video'&&j.args.edit?' in '+j.args.edit.split(/[\\/]/).pop():j.type==='teardown'&&j.args.handle?' · '+styleName('@'+j.args.handle):'';
@@ -2102,12 +2106,12 @@ function stKey(k){
     <div class="lks"><a href="${k.url}" target="_blank" rel="noopener">${k.id==='elevenlabs'?'Create a key':'Get a key'}</a><span class="q2">${k.cost}</span>${st.set?`<button class="ul q" onclick="ui.keys['${k.id}']={};render()">Cancel</button>`:''}</div>`;
   else body=`<div class="fld"><div class="in2 mask">•••• •••• ${esc(st.last4||'••••')}</div>${st.env?'':`<button class="b2" onclick="ui.keys['${k.id}']={edit:1};render()">Replace</button>`}</div>
     ${c&&!c.ok?`<div class="msg bad">${CROSS}<span>${esc(c.msg[0].toUpperCase()+c.msg.slice(1))}</span></div>`:''}
-    <div class="lks"><button class="ul" ${u.busy?'disabled':''} onclick="stCheck('${k.id}')">${c?'Check again':'Check it'}</button>${st.env?'<span class="q2">Change it where the variable is set.</span>':ui.strm===k.id?`<span class="q2">Remove this key? Also removes it from creator-teardown.</span><button class="ul" style="font-weight:600" onclick="stRemove('${k.id}')">Remove</button><button class="ul q" onclick="ui.strm=null;render()">Keep it</button>`:`<button class="ul q" onclick="ui.strm='${k.id}';render()">Remove</button>`}</div>`;
+    <div class="lks"><button class="ul" ${u.busy?'disabled':''} onclick="stCheck('${k.id}')">${c?'Check again':'Check it'}</button>${st.env?'<span class="q2">Change it where the variable is set.</span>':ui.strm===k.id?`<span class="q2">Remove this key? Format analysis stops using it too.</span><button class="ul" style="font-weight:600" onclick="stRemove('${k.id}')">Remove</button><button class="ul q" onclick="ui.strm=null;render()">Keep it</button>`:`<button class="ul q" onclick="ui.strm='${k.id}';render()">Remove</button>`}</div>`;
   return `<div class="sk"><div class="tp"><span class="lt" style="background:${KLT[k.id]||'var(--soft)'}">${logo(k.id,18)}</span><div style="min-width:0;flex:1"><div class="nm">${k.name}</div><div class="ds">${KDS[k.id]||k.tag}</div></div><span class="ss ${cls}">${state}</span></div>${body}</div>`;
 }
 function stModal(){
   const {busy,in:on,ready}=mState();
-  return `<div class="sk"><div class="tp"><span class="lt" style="background:#0C0A09">${logo('modal',20)}</span><div style="flex:1;min-width:0"><div class="nm">Modal</div><div class="ds">Cloud renders. $30 free credit a month.</div></div><span class="ss ${ready?'ok':''}">${ready?OKTICK+'Connected':busy?'Connecting...':on?'Logged in':'Not connected'}</span></div>${mBody()}</div>`;
+  return `<div class="sk"><div class="tp"><span class="lt" style="background:#0C0A09">${logo('modal',20)}</span><div style="flex:1;min-width:0"><div class="nm">Modal</div><div class="ds">Makes your videos in the cloud.</div></div><span class="ss ${ready?'ok':''}">${ready?OKTICK+'Connected':busy?'Connecting...':on?'Logged in':'Not connected'}</span></div>${mBody()}</div>`;
 }
 async function stCheck(id){ui.keys[id]={busy:1};render();await post('/key/check',{name:id});ui.keys[id]={};await load();render()}
 async function stRemove(id){const r=await post('/key/remove',{name:id});ui.strm=null;ui.keys[id]=r._ok?{}:{bad:1,edit:1,msg:r.msg||'Not removed.'};await load();render()}
@@ -2130,7 +2134,7 @@ function stFolder(){
     ${ui.stlib&&!L.env?`<div class="fld"><div class="in2"><input id="libpath" placeholder="~/Videos/AI Editor" aria-label="New videos folder" onkeydown="if(event.key==='Enter')setLib()"></div><button class="b1" onclick="setLib()">Move</button></div><div class="lks"><span class="q2">New videos go there. Old ones stay where they are.</span><button class="ul q" onclick="ui.stlib=false;ui.libmsg='';render()">Cancel</button></div>`:''}
     ${ui.libmsg?`<div class="msg bad">${CROSS}<span>${esc(ui.libmsg)}</span></div>`:''}
     <div class="kvs"><div><span>Videos</span><b>${mb(d&&d.library)}</b></div><div><span>Working files</span><b>${mb(d&&d.working)}</b></div><div><span>Free</span><b>${mb(d&&d.free)}</b></div></div>
-    ${c&&c.ask?`<div class="confirm"><b>Delete ${c.files} working files (${mb(c.bytes)})?</b><div class="sub">Render pieces and caches. Your clips, cuts, final videos and notes stay.</div><div class="row"><button class="b1 s" onclick="cleanNow(true)">Delete them</button><button class="b2 s" onclick="ui.clean=null;render()">Cancel</button></div></div>`
+    ${c&&c.ask?`<div class="confirm"><b>Delete ${c.files} working files (${mb(c.bytes)})?</b><div class="sub">Leftovers from making your videos. Your clips, cuts, finished videos and notes stay.</div><div class="row"><button class="b1 s" onclick="cleanNow(true)">Delete working files</button><button class="b2 s" onclick="ui.clean=null;render()">Cancel</button></div></div>`
       :`<div class="lks" style="gap:8px"><button class="b2 s" onclick="post('/reveal',{})">Show in ${FINDER()}</button>${L.env?'<span class="q2">Set by AI_EDITOR_LIBRARY.</span>':ui.stlib?'':`<button class="b2 s" onclick="ui.stlib=true;render();setTimeout(()=>$('#libpath')&&$('#libpath').focus())">Change</button>`}<button class="ul q" style="margin-left:8px" ${d&&d.working?'':'disabled'} onclick="cleanNow(false)">Clear working files</button>${c&&c.deleted?`<span class="q2">Deleted ${c.files} files, ${mb(c.bytes)}.</span>`:''}</div>`}
     <div class="srow" style="border-top:1px solid var(--line);padding-top:14px"><div style="min-width:0"><div>Your changes</div><div class="t2" title="${esc(L.custom||'')}">Rules and caption styles. Updates never touch them.</div></div><button class="b2 s" onclick="post('/reveal',{custom:true})">Show in ${FINDER()}</button></div></div>`;
 }

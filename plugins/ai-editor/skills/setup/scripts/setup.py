@@ -786,7 +786,15 @@ def step_remotion(force=False, tick=None):
     if not list((REMOTION_HOME / "node_modules" / ".remotion").glob("chrome-headless-shell/*")):
         if tick:
             tick(0.92, "the render browser")
-        quiet([shutil.which("npx"), "remotion", "browser", "ensure"], REMOTION_HOME, "downloading the render browser")
+        try:
+            quiet([shutil.which("npx"), "remotion", "browser", "ensure"], REMOTION_HOME, "downloading the render browser")
+        except SystemExit:   # a first edit running now fetches the same browser into the same folder: wait for it
+            for _ in range(60):
+                if list((REMOTION_HOME / "node_modules" / ".remotion").glob("chrome-headless-shell/*")):
+                    break
+                time.sleep(2)
+            else:
+                raise
         done = "installed"
     env_save(node_lock=file_sha(NPM_LOCK), node=version(["node", "--version"]),
              npm=version([npm, "--version"]))

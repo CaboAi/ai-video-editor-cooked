@@ -1,0 +1,188 @@
+[
+ {
+  "kind": "title",
+  "text": "I built a router\nthat saves me tokens",
+  "hold_s": 3.8
+ },
+ {
+  "word": "Claude",
+  "nth": 1,
+  "kind": "logo",
+  "brand": "Claude",
+  "domain": "claude.ai"
+ },
+ {
+  "word": "AI",
+  "nth": 1,
+  "kind": "anim",
+  "type": "notes",
+  "hold_s": 2.6,
+  "props": {
+   "title": "Jev",
+   "lines": [
+    {
+     "text": "A new AI model",
+     "word": "AI"
+    },
+    {
+     "text": "A lot of people are using it",
+     "word": "lot"
+    }
+   ]
+  }
+ },
+ {
+  "word": "faster",
+  "nth": 1,
+  "kind": "logo",
+  "brand": "Claude",
+  "domain": "claude.ai",
+  "hold_s": 2.8
+ },
+ {
+  "word": "sort",
+  "nth": 1,
+  "kind": "anim",
+  "type": "toasts",
+  "hold_s": 3.2,
+  "props": {
+   "items": [
+    {
+     "app": "Gmail",
+     "logo": {
+      "logo": "gmail"
+     },
+     "title": "Thousands of emails",
+     "word": "thousands"
+    },
+    {
+     "app": "Gmail",
+     "logo": {
+      "logo": "gmail"
+     },
+     "title": "Sorted",
+     "body": "Less than five cents",
+     "word": "five"
+    }
+   ]
+  }
+ },
+ {
+  "word": "competitor",
+  "nth": 1,
+  "kind": "anim",
+  "type": "notes",
+  "hold_s": 3.4,
+  "props": {
+   "title": "In less than a minute",
+   "lines": [
+    {
+     "text": "Competitor ads",
+     "word": "competitor"
+    },
+    {
+     "text": "Content strategies",
+     "word": "strategies"
+    }
+   ]
+  }
+ },
+ {
+  "word": "decisions",
+  "nth": 1,
+  "kind": "anim",
+  "type": "terminal",
+  "hold_s": 2.0,
+  "props": {
+   "title": "router",
+   "lines": [
+    {
+     "text": "make decisions for me",
+     "kind": "cmd",
+     "word": "decisions"
+    }
+   ]
+  }
+ },
+ {
+  "word": "substitute",
+  "nth": 1,
+  "kind": "logo",
+  "brand": "Claude",
+  "domain": "claude.ai",
+  "hold_s": 3.0
+ },
+ {
+  "kind": "stamp",
+  "word": "one-for-one",
+  "nth": 1
+ },
+ {
+  "word": "different",
+  "nth": 1,
+  "kind": "anim",
+  "type": "notes",
+  "hold_s": 3.0,
+  "props": {
+   "title": "Jev is good at",
+   "lines": [
+    {
+     "text": "Quick decisions",
+     "word": "quick"
+    }
+   ]
+  }
+ },
+ {
+  "word": "project",
+  "nth": 1,
+  "kind": "anim",
+  "type": "terminal",
+  "hold_s": 1.8,
+  "props": {
+   "title": "project",
+   "lines": [
+    {
+     "text": "build this router",
+     "kind": "cmd",
+     "word": "build"
+    }
+   ]
+  }
+ },
+ {
+  "word": "task",
+  "nth": 1,
+  "kind": "anim",
+  "type": "flow",
+  "hold_s": 9.2,
+  "props": {
+   "nodes": [
+    {
+     "logo": "claude",
+     "label": "Task",
+     "word": "task"
+    }
+   ],
+   "split": [
+    {
+     "logo": "claude",
+     "label": "Haiku",
+     "word": "Haiku"
+    },
+    {
+     "logo": "claude",
+     "label": "Opus or Fable",
+     "word": "Opus"
+    }
+   ]
+  }
+ },
+ {
+  "word": "comment",
+  "nth": 1,
+  "kind": "cta",
+  "text": "“router”",
+  "label": "comment"
+ }
+]

@@ -11,6 +11,7 @@ What changed for every user, newest first.
   press Turn on alerts in Settings. Settings has Sound when Claude asks or finishes (on by default, this browser only).
 - While a Claude is working, the sidebar card says which video and the step (Claude is working on my-video:
   Cutting the mistakes), and the tab title shows it (Making 1 · cooked.).
+
 ## ai-editor 2.7.12, creator-teardown 2.7.12 (2026-10-14)
 
 - The block on a Claude editing the editor's own files is gone. A Claude making a video can change the editor

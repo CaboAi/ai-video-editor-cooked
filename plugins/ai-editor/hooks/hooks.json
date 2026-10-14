@@ -1,5 +1,5 @@
 {
-  "description": "Checks the editor's tools at session start (silent when everything is installed; on a first run it tells Claude to open the editor's window before installing). Shows Claude's questions in the editor's window when it is open.",
+  "description": "Checks the editor's tools at session start (silent when everything is installed; on a first run it tells Claude to open the editor's window before installing). Shows Claude's questions in the editor's window when it is open. Blocks edits to the installed plugin's own files during a video.",
   "hooks": {
     "SessionStart": [
       {
@@ -22,6 +22,16 @@
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/askhook.py\" 2>/dev/null || py \"${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/askhook.py\" 2>/dev/null || true",
             "timeout": 900,
             "statusMessage": "Asking in the editor window"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/guard.py\" 2>/dev/null || py \"${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/guard.py\" 2>/dev/null || true",
+            "timeout": 10
           }
         ]
       }

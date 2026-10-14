@@ -4,6 +4,13 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Modal is one button. Settings (and the first-run keys page) has **Connect Modal**: it installs Modal, opens
+  Modal's own login page in the browser (log in or sign up there), builds the render machine once in the
+  background with each step shown, and says what this month has cost. No terminal, no Claude needed.
+  **Test render** renders 5 seconds on Modal and shows the time. Errors are one plain sentence: not logged
+  in, out of credit, the render machine did not build.
+- The render question recommends Modal for a video over a minute once Modal is connected and quicker,
+  the laptop otherwise. A saved choice is kept.
 - Several videos at once, with nothing to set up: every video you make gets its own Claude in a new Terminal
   window straight away (one each when several clips become separate videos), unless a listening Claude is free
   to take it now. The editor and the video card say "Claude is working on this video in its own Terminal window".

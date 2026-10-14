@@ -18,7 +18,6 @@ for it, and reports back with `status`:
         JOB video takes=DIR/edits/a/takes.txt as=mine aspect=9:16 edit=DIR/edits/a root=DIR
                                                  (several clips as one video: join them in the listed order)
                                                  (either may end with script=DIR/edits/a/script.md before root=)
-        JOB modal                                 the user pressed "Log in with your browser"
         JOB cancel teardown                       the user pressed Cancel
         ALREADY ...                               another wait is running: nothing to do
         GONE ...                                  (--job) that job is done, cancelled or another Claude's
@@ -26,6 +25,9 @@ for it, and reports back with `status`:
                                  [--result '<json>' | --result @file.json] [--done] [--failed "..."]
                                  <job> is teardown, skill, video or setup: its latest job
     python3 home.py demo                         self-check (no network, no keys)
+
+Connect Modal and Test render run here, not through Claude: the server runs `setup.py modal-connect` or
+`modal-test` and shows its STEP lines as the job's steps (jobs `modal` and `modal-test`, owner "home").
 
 State: $AI_EDITOR_HOME/home/state.json (default ~/.ai-video-editor). Keys typed on the page go
 straight to keys.py (prefix check, one free verify request, then saved 0600); a key value is never
@@ -84,7 +86,7 @@ from review import load, now, save, set_theme, theme, themed  # noqa: E402  (ato
 HTML = Path(__file__).with_name("home.html")
 SETUP = Path(__file__).resolve().parents[2] / "skills" / "setup" / "scripts" / "setup.py"
 BEAT_S = 6
-JOBS = ("teardown", "skill", "video", "modal", "setup", "style-change", "update")
+JOBS = ("teardown", "skill", "video", "modal", "modal-test", "setup", "style-change", "update")
 TAKE = ("captions", "pace", "graphics", "sound")          # the page's parts; editplan.py --take names
 # The page's "graphics" box is her visuals as a whole: what she shows, how it moves in and where it sits.
 EDITPLAN_PARTS = {"graphics": ("graphics", "entrances", "layout")}
@@ -326,7 +328,7 @@ def job_name(j):
         return Path(a["edit"]).name
     if a.get("handle"):
         return "@" + a["handle"]
-    return {"style-change": "your style", "modal": "cloud renders"}.get(j["type"], j["type"])
+    return {"style-change": "your style", "modal": "cloud renders", "modal-test": "a test render"}.get(j["type"], j["type"])
 
 
 def stale(j):
@@ -1211,6 +1213,88 @@ def remove_key(name):
     return True
 
 
+def modal_state():
+    """For the page, read from files only (no network, cheap enough for every /state): installed in the
+    editor's venv, and logged in (`modal setup` saved a token; setup.py modal_config)."""
+    venv = home().parent / "venv"
+    inst = (venv / "bin" / "modal").exists() or (venv / "Scripts" / "modal.exe").exists()
+    try:
+        cfg = Path(os.environ.get("MODAL_CONFIG_PATH") or Path.home() / ".modal.toml").read_text(encoding="utf-8")
+    except OSError:
+        cfg = ""
+    return {"installed": inst, "logged_in": inst and ("token_id" in cfg or bool(os.environ.get("MODAL_TOKEN_ID")))}
+
+
+def run_modal(kind, jid):
+    """Connect Modal (setup.py modal-connect) or Test render (modal-test) for job jid: each STEP line becomes a
+    step, LOGIN/CREDIT/TIME go into the result, FAIL fails the job. Modal's CLI keeps the token itself; no
+    line here carries it."""
+    def edit(fn):
+        def f(d):
+            j = next(x for x in d["jobs"] if x["id"] == jid)
+            t = time.time()
+            j["u"] = t
+            fn(j, t)
+        update(f)
+
+    def step(text):
+        def f(j, t):
+            for s in j["steps"]:
+                if not s.get("done"):
+                    s["done"], s["secs"] = True, round(t - s["t"])
+            j["steps"].append({"text": text, "detail": None, "progress": None, "t": t, "done": False})
+        edit(f)
+
+    def finish(err):
+        def f(j, t):
+            for s in j["steps"]:
+                if not s.get("done"):
+                    s["done"], s["secs"] = True, round(t - s["t"])
+            j["state"], j["error"], j["finished"] = ("failed" if err else "done"), err, t
+        edit(f)
+    err = "The setup step stopped without saying why. Try again."
+    try:
+        p = subprocess.Popen([sys.executable, str(SETUP), "modal-connect" if kind == "modal" else "modal-test"],
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace")
+        for line in p.stdout:
+            word, _, rest = line.strip().partition(" ")
+            if word == "STEP":
+                step(rest)
+            elif word in ("LOGIN", "CREDIT", "TIME"):
+                key = {"LOGIN": "login", "CREDIT": "credit", "TIME": "time"}[word]
+                edit(lambda j, t, k=key, v=rest: j["result"].__setitem__(k, v))
+            elif word == "FAIL":
+                err = rest
+            elif word in ("Connected.", "Tested."):
+                err = None
+        p.wait()
+    except OSError as e:
+        err = f"Could not start the setup step: {e}"
+    finish(err)
+
+
+def drop_modal_runs(d):
+    """A server starting: a Connect or Test left running by the last one has no thread watching it now."""
+    for j in d["jobs"]:
+        if j["type"] in ("modal", "modal-test") and j["state"] == "taken" and j.get("owner") == "home":
+            j.update(state="failed", error="Stopped when the window restarted. Press it again.", finished=time.time())
+
+
+def start_modal(kind):
+    """One Connect (or Test) at a time: a running one is returned instead of a second."""
+    def f(d):
+        j = next((x for x in reversed(d["jobs"]) if x["type"] in ("modal", "modal-test") and x["state"] == "taken"), None)
+        if j:
+            return j, False
+        j = queue(d, kind, {})
+        j.update(state="taken", owner="home", started=time.time(), u=time.time())
+        return j, True
+    j, new = update(f)
+    if new:
+        threading.Thread(target=run_modal, args=(kind, j["id"]), daemon=True).start()
+    return j
+
+
 # ---------------------------------------------------------------- queueing jobs
 def queue(d, kind, args):
     j = {"id": f"{kind}-{sum(x['type'] == kind for x in d['jobs']) + 1}", "type": kind, "args": args,
@@ -1495,6 +1579,7 @@ def make_handler(token):
             if path == "/state":
                 d = read()
                 d["listening"], d["keys"], d["theme"] = listening(), key_rows(d), theme()
+                d["modal"] = modal_state()
                 d.pop("keychecks", None)
                 bz = busy_with(d, listener())   # the listening Claude is making a video: the next one can get its own
                 d["busy"] = bz and {"id": bz["id"], "name": job_name(bz)}
@@ -1675,6 +1760,8 @@ def make_handler(token):
                         subprocess.run([sys.executable, str(SETUP), "later", n], capture_output=True, timeout=30)
                 update(lambda d: d.__setitem__("setup_skipped", True))
                 return self.send(200, {})
+            if path in ("/modal/connect", "/modal/test"):   # Settings and onboarding: Connect Modal, Test render
+                return self.send(200, {"id": start_modal("modal" if path == "/modal/connect" else "modal-test")["id"]})
             if path == "/recheck":
                 threading.Thread(target=run_doctor, daemon=True).start()
                 return self.send(200, {})
@@ -1888,7 +1975,7 @@ def make_handler(token):
                 args = {"handle": td["args"]["handle"], "take": take}
             elif kind == "video":
                 return self.videos(b, d)
-            elif kind in ("modal", "update", "setup"):   # setup: the first run's Start setup (JOB setup, install-all --report)
+            elif kind in ("update", "setup"):   # setup: the first run's Start setup (JOB setup, install-all --report)
                 if kind == "setup" and any(j["type"] == "setup" and j["state"] in ("queued", "taken") for j in d["jobs"]):
                     return self.send(200, {"id": latest(d, "setup")["id"]})
                 args = {}
@@ -2159,6 +2246,7 @@ def serve(root=None, port=None, open_browser=True):
         update(lambda d: d.__setitem__("port", srv.server_address[1]))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
     (home() / ".server").write_text(url, encoding="utf-8")
+    update(drop_modal_runs)
     askhook.register(srv, url, "home", asks_for, asks_dir)
     threading.Thread(target=run_doctor, daemon=True).start()
     try:   # an update adds a new plugin folder: point nextwork-editor at this one
@@ -2383,6 +2471,29 @@ def demo():
     assert t["steps"][-1]["detail"] == "video 4 of 7" and S["claude_seen"] >= t["u"] - 1, "heartbeat recorded"
     assert out(cmd_status, ns(job="modal", step="x", detail=None, progress=None, result=None, done=False, failed=None,
                               if_active=True)).startswith("no modal job on the page") and latest(read(), "modal") is None, "--if-active never makes a job"
+    # Connect Modal runs in this server, not through Claude: setup.py's lines become steps, the result, a failure
+    fake = tmp / "fake_setup.py"
+    fake.write_text("import sys\nif sys.argv[1] == 'modal-connect':\n    print('STEP Installing Modal')\n"
+                    "    print('LOGIN https://modal.com/token-flow/tf-x', flush=True)\n    print('STEP Building')\n"
+                    "    print('CREDIT $0.10 used this month')\n    print('Connected.')\nelse:\n    print('STEP Rendering')\n"
+                    "    print('FAIL Your Modal account is out of credit.')\n", encoding="utf-8")
+    real_setup, globals()["SETUP"] = SETUP, fake
+    try:
+        assert post("/modal/connect", {})["id"] == "modal-1"
+        for _ in range(100):
+            if latest(read(), "modal")["state"] != "taken":
+                break
+            time.sleep(0.05)
+        c = latest(read(), "modal")
+        assert c["state"] == "done" and c["owner"] == "home" and [x["text"] for x in c["steps"]] == ["Installing Modal", "Building"], c
+        assert c["result"] == {"login": "https://modal.com/token-flow/tf-x", "credit": "$0.10 used this month"}, c["result"]
+        run_modal("modal-test", update(lambda d: queue(d, "modal-test", {}))["id"])
+        t = latest(read(), "modal-test")
+        assert t["state"] == "failed" and t["error"] == "Your Modal account is out of credit.", t
+        assert get("/state")["modal"] == {"installed": False, "logged_in": False}
+    finally:
+        globals()["SETUP"] = real_setup
+        update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["type"] not in ("modal", "modal-test")]))
     (td / "style.json").write_text(json.dumps({"videos": 7, "pace": {"wpm": 186, "median_shot_s": 1.9, "max_pause_s": 0.3},
                                                "zoom": {"kind": "punch", "per_min": 6.0, "scale": 1.12},
                                                "captions": {"present": True, "words_per_caption": 2, "y_pct": 62.4,

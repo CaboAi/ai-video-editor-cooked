@@ -398,8 +398,11 @@ def venv_python():
 def modal_ready():
     """modal installed in the venv and a token saved (no network call)."""
     has_pkg = subprocess.run([venv_python(), "-c", "import modal"], capture_output=True).returncode == 0
-    has_token = (Path.home() / ".modal.toml").exists() or bool(os.environ.get("MODAL_TOKEN_ID"))
-    return has_pkg and has_token
+    try:   # setup.py modal_config: where `modal setup` saved the login
+        has_token = "token_id" in Path(os.environ.get("MODAL_CONFIG_PATH") or Path.home() / ".modal.toml").read_text(encoding="utf-8")
+    except OSError:
+        has_token = False
+    return has_pkg and (has_token or bool(os.environ.get("MODAL_TOKEN_ID")))
 
 
 def gh_ready():
@@ -543,15 +546,30 @@ def estimate(plan_path, pub):
     lap = laptop_speed(plan_path, pub)
     print(f"Laptop: about {minutes(laptop_s(lap, frames))} ({frames} frames, {speed_note(lap, plan_path.parent.name)}). Free.")
     wall, usd, n, measured = modal_estimate(frames, modal_upload_bytes(pub, media))
+    modal_ok = modal_ready()
     print(f"Modal: about {minutes(wall)} on {n} machine{'s' * (n > 1)}, about ${usd:.2f} "
           f"({'speed measured on the last Modal render' if measured else 'a guess until the first Modal render'}; "
           f"the Starter plan includes $30 of free credit a month)." +
-          not_set_up(modal_ready(), "Modal step"))
+          not_set_up(modal_ok, "Modal step"))
     lam = json.loads(node("lambda-estimate", plan_path).stdout.strip().splitlines()[-1])
     print("Other: " + github_estimate(frames, plan["fps"], media) + not_set_up(gh_ready(), "GitHub CLI section"))
     print(f"Other: Lambda: about {lam['wall_s']} s on {lam['lambdas']} Lambdas in {lam['region']}, "
           f"about ${lam['usd']:.3f}. A guess until a real render is measured; the render prints the real cost."
           + not_set_up(aws_ready(), "Lambda section"))
+    print(recommend(frames / plan["fps"], modal_ok, laptop_s(lap, frames), wall, usd))
+
+
+MODAL_OVER_S = 60   # a video longer than this renders on Modal when it is connected and faster
+
+
+def recommend(video_s, modal_ok, lap_s, modal_s, usd):
+    """The render question's recommended answer: Modal for a video over a minute once it is connected and
+    quicker, the laptop otherwise."""
+    if modal_ok and video_s > MODAL_OVER_S and modal_s < lap_s:
+        return f"Recommended: Modal, about {minutes(modal_s)} for about ${usd:.2f} (the laptop: about {minutes(lap_s)})."
+    why = "Modal is not connected" if not modal_ok else "the video is a minute or less" if video_s <= MODAL_OVER_S \
+        else "the laptop is as quick"
+    return f"Recommended: Laptop, free ({why})."
 
 
 # The render in parallel: `plan` splits the frames (chunk_ranges, pasted in below), one `render` job per
@@ -1220,6 +1238,11 @@ def demo():
     assert modal_upload_bytes("pub", 140e6, run=said('{"to_upload": 5}\n'), ready=lambda: True) == 5
     assert modal_upload_bytes("pub", 140e6, run=said(""), ready=lambda: True) == 140e6, "no answer: all of it"
     assert modal_upload_bytes("pub", 140e6, run=None, ready=lambda: False) == 140e6, "Modal not set up"
+    # the render question: Modal once it is connected, the video is over a minute and Modal is quicker
+    assert recommend(120, True, 600, 80, 0.12).startswith("Recommended: Modal, about 80 s for about $0.12")
+    assert "not connected" in recommend(120, False, 600, 90, 0.12)
+    assert "a minute or less" in recommend(45, True, 200, 60, 0.03)
+    assert "as quick" in recommend(120, True, 70, 90, 0.12)
     # the estimate says when its speed is another video's (the real-footage test read "speed from the last
     # render of pod-clip1" as if it were this video's)
     assert "another video (pod-clip1)" in speed_note({"source": "render of pod-clip1"}, "raw-take")

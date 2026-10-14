@@ -82,7 +82,7 @@ same words as the newest step update that row, never a second one. A new `--step
 `--failed "<plain sentence>"` ends the job:
 
 ```bash
-python3 "$H" status <teardown|skill|video|modal|setup|update> --step "..." [--detail "video 3 of 7"] [--progress 0.4]
+python3 "$H" status <teardown|skill|video|setup|update> --step "..." [--detail "video 3 of 7"] [--progress 0.4]
 python3 "$H" status <job> --result '<json>' --done
 ```
 
@@ -225,10 +225,10 @@ The same change said in the chat goes through the same `taste.py add`, so both l
 The page's own controls (sliders, zooms, cut, sound effects) save through `styleskill.learn` directly
 and need no job.
 
-### `JOB modal`
+### Connect Modal and Test render (no job for Claude)
 
-The user pressed "Log in with your browser". Follow the setup skill's step 6 (Modal), reporting
-each of its steps with `status modal --step "..."`, and `status modal --done` when it works.
+The window runs these itself (`setup.py modal-connect` and `modal-test`), as jobs `modal` and `modal-test`
+owned by `home`. `wait` never hands them out and `status` never writes to them.
 
 ### `JOB setup`
 

@@ -26,8 +26,10 @@ What got installed is recorded in ~/.ai-video-editor/env.json. AI_EDITOR_HOME mo
   python3 setup.py crisper    install CrisperWhisper, free verbatim transcription (about 1 GB; non-commercial licence)
   python3 setup.py awskey     save AWS keys for Lambda renders (asks, hides what you type)
   python3 setup.py lambda     check the AWS keys and permissions for Lambda renders
-  python3 setup.py modal      install Modal (cloud renders) in the venv, then say how to log in
-  python3 setup.py modal-check   one tiny function on Modal: proves the login works
+  python3 setup.py modal-connect   cloud renders on Modal in one go: install it into the venv, log in in the
+                              browser (`modal setup`), build the render machine once, say the credit used
+                              (`modal` and `modal-check` do the same)
+  python3 setup.py modal-test      render a 5-second test video on Modal and say how long it took
   python3 setup.py matte      download the person-matting model (15 MB) for cards behind the speaker
   python3 setup.py later <step>   save an optional step for later (gemini elevenlabs style modal matte)
   python3 setup.py todo       every optional step not done yet ("finish setup")
@@ -371,8 +373,8 @@ def doctor():
     mo = modal_status()
     print(f"{'ok ' if mo == 'ready' else '-- '}  {'modal':<20} " + {
         "ready": "logged in: cloud renders on Modal",
-        "no token": f"installed, not logged in. In your own terminal: {modal_exe()} token new",
-        "missing": f"optional, cloud renders on Modal ($30 free credit a month): {py_self} \"{here}\" modal"}[mo])
+        "no token": f"installed, not logged in: {py_self} \"{here}\" modal-connect (opens the browser)",
+        "missing": f"optional, cloud renders on Modal ($30 free credit a month): {py_self} \"{here}\" modal-connect"}[mo])
     node = shutil.which("node")
     if node:   # logged-in captures need an installed Chrome; login.mjs says which, or why none works
         b = run([node, str(PLUGIN / "skills/product-video/scripts/login.mjs"), "browser"], timeout=30)
@@ -646,7 +648,8 @@ def quiet(cmd, cwd, what, on_line=None, timeout=None, env=None):
     p = subprocess.Popen([str(c) for c in cmd], cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          text=True, encoding="utf-8", errors="replace", env=env,
                          start_new_session=bool(timeout) and OS != "Windows")
-    timer = threading.Timer(timeout, kill_tree, [p]) if timeout else None
+    killed = []   # Timer.cancel() also sets .finished, so the timer says itself when it fired
+    timer = threading.Timer(timeout, lambda: (killed.append(1), kill_tree(p))) if timeout else None
     if timer:
         timer.daemon = True
         timer.start()
@@ -660,7 +663,7 @@ def quiet(cmd, cwd, what, on_line=None, timeout=None, env=None):
     finally:
         if timer:
             timer.cancel()
-    if timer and timer.finished.is_set() and code:
+    if killed and code:
         sys.exit(f"ERROR: {what} took over {timeout} s and was stopped.")
     if code:
         print("".join(tail).strip()[-3000:])
@@ -707,6 +710,22 @@ WARM_IMPORTS = "import cv2, numpy, onnxruntime, faster_whisper, PIL.Image"
 WARM_S = 600   # each warm-up command; a stuck one is stopped and the step says skipped
 
 
+def test_edit(t, secs, env=None):
+    """A planned test edit in t/test: a secs-second test clip with four caption words."""
+    edit = t / "test"
+    edit.mkdir()
+    quiet(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", f"testsrc2=s=540x960:r=30:d={secs}", "-f", "lavfi",
+           "-i", f"sine=f=220:d={secs}", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+           edit / "cut.mp4"], t, "making a test clip", timeout=WARM_S)
+    words = [{"text": w, "start": 0.2 + i * 0.4, "end": 0.5 + i * 0.4, "type": "word"}
+             for i, w in enumerate("getting your computer ready".split())]
+    (edit / "captions.json").write_text(json.dumps(words), encoding="utf-8")
+    py = VPY if VPY.exists() else Path(sys.executable)
+    quiet([py, PLUGIN / "skills" / "style-edit" / "scripts" / "plan.py", edit / "style.json", edit / "captions.json",
+           "--no-sfx"], t, "planning a test edit", timeout=WARM_S, env=env)
+    return edit
+
+
 def step_warm(force=False, tick=None):
     """The first edit's one-time costs, paid during setup so the first edit is as fast as the second: the first
     load of OpenCV, onnxruntime and faster-whisper (a new library is slow to load once; face.py took 16.6 s on its
@@ -731,16 +750,7 @@ def step_warm(force=False, tick=None):
             quiet([VPY, "-c", WARM_IMPORTS], None, "loading the Python libraries", timeout=WARM_S)
         if tick:
             tick(0.3, "a test frame")
-        edit = t / "warm"
-        edit.mkdir()
-        quiet(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=540x960:r=30:d=2", "-f", "lavfi",
-               "-i", "sine=f=220:d=2", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
-               edit / "cut.mp4"], t, "making a test clip", timeout=WARM_S)
-        words = [{"text": w, "start": 0.2 + i * 0.4, "end": 0.5 + i * 0.4, "type": "word"}
-                 for i, w in enumerate("getting your computer ready".split())]
-        (edit / "captions.json").write_text(json.dumps(words), encoding="utf-8")
-        quiet([py, sk / "plan.py", edit / "style.json", edit / "captions.json", "--no-sfx"], t, "planning a test frame",
-              timeout=WARM_S, env=env)
+        edit = test_edit(t, 2, env)
         quiet([py, sk / "edit.py", "stills", edit, "--at", "1", "--no-check"], t, "drawing a test frame",
               timeout=WARM_S, env=env)
     except (SystemExit, Exception) as e:   # noqa: BLE001  optional: a full disk or a stuck browser never fails setup
@@ -894,37 +904,142 @@ def modal_exe():
     return VENV / ("Scripts/modal.exe" if OS == "Windows" else "bin/modal")
 
 
+def modal_config():
+    """Where Modal's own CLI keeps the login (`modal setup` writes it; MODAL_CONFIG_PATH moves it)."""
+    return Path(os.environ.get("MODAL_CONFIG_PATH") or Path.home() / ".modal.toml")
+
+
 def modal_status():
-    """ready, no token, or missing. No network call: a token saved by `modal token new` counts."""
+    """ready, no token, or missing. No network call: a token saved by `modal setup` counts."""
     if not venv_has("modal"):
         return "missing"
-    token = (Path.home() / ".modal.toml").exists() or os.environ.get("MODAL_TOKEN_ID")
-    return "ready" if token else "no token"
+    try:
+        token = "token_id" in modal_config().read_text(encoding="utf-8")
+    except OSError:
+        token = False
+    return "ready" if token or os.environ.get("MODAL_TOKEN_ID") else "no token"
 
 
-def install_modal():
+MODAL_LOGIN = re.compile(r"https://modal\.com/token-flow/[\w-]+")
+MODAL_LOGIN_S = 900     # the browser login: 15 minutes to sign up or log in
+MODAL_BUILD_S = 1500    # the first build of the render machine (a few minutes; 25 is a stuck build)
+
+
+def modal_error(text):
+    """Modal's output -> one plain sentence for each way the connect or a test render fails."""
+    t = text.lower()
+    if re.search(r"autherror|token not found|token missing|could not authenticate|unauthenticated|invalid token|token.*(revoked|expired)|modal token new", t):
+        return "Not logged in to Modal. Press Connect Modal to log in again."
+    if re.search(r"billing|spend limit|credit|payment|quota exceeded|workspace.*(disabled|suspended)", t):
+        return "Your Modal account is out of credit. Add a card at modal.com/settings or render on this computer."
+    if re.search(r"image build|build.*failed|failed to build|npm err", t):
+        return "The render machine did not build on Modal. Press Connect Modal to try again; laptop renders still work."
+    if re.search(r"connect|timed out|network|dns|ssl", t):
+        return "Could not reach Modal. Check the internet connection and try again."
+    last = next((x.strip() for x in reversed(text.strip().splitlines()) if x.strip()), "no output")
+    return f"Modal did not answer: {last[:200]}"
+
+
+def modal_credit():
+    """What this month has cost so far, from `modal billing summary`. None when Modal does not say."""
+    r = run([str(modal_exe()), "billing", "summary", "--json"], timeout=60)
+    try:
+        used = float(json.loads(r.stdout)["metered_cost"])
+    except (ValueError, KeyError, TypeError):
+        return None
+    return f"${used:.2f} used this month (the free Starter plan includes $30)"
+
+
+def say(line):
+    print(line, flush=True)
+
+
+def connect_modal():
+    """The Connect Modal button (home.py runs it; the setup skill too). Installs Modal into the venv, runs
+    `modal setup` (it opens the browser; Modal's CLI keeps the token in its own file, never printed here), builds
+    the render machine once, then says the credit used. Lines: STEP <what>, LOGIN <url>, CREDIT <text>; the last
+    is `Connected.` or `FAIL <plain reason>`."""
     if not VPY.exists():
-        sys.exit("Run the venv step first.")
-    pip_optional("modal")
-    print("Modal installed.")
-    if modal_status() != "ready":
-        print(f"Next, log in. In your own terminal (it opens the browser):\n  {modal_exe()} token new")
+        say("FAIL Finish setting up the editor first, then connect Modal.")
+        return 1
+    if not venv_has("modal"):
+        say("STEP Installing Modal")
+        try:
+            pip_optional("modal")
+        except (subprocess.CalledProcessError, OSError):
+            say("FAIL Modal did not install. Check the internet connection and press Connect Modal again.")
+            return 1
+
+    def login():
+        say("STEP Log in to Modal in your browser")
+        try:
+            quiet([modal_exe(), "setup"], None, "the Modal login", timeout=MODAL_LOGIN_S,
+                  env=dict(os.environ, PYTHONUNBUFFERED="1", COLUMNS="400"),
+                  on_line=lambda ln: (m := MODAL_LOGIN.search(ln)) and say(f"LOGIN {m[0]}"))
+        except SystemExit:   # closed, timed out, or Modal said no: the old token file may still be there
+            return False
+        return modal_status() == "ready"
+
+    def build():
+        say("STEP Building the render machine on Modal (first time only, about 3 to 5 minutes)")
+        try:
+            r = run([str(VPY), str(PLUGIN / "skills" / "style-edit" / "scripts" / "modal_render.py"), "hello"],
+                    timeout=MODAL_BUILD_S)
+        except subprocess.TimeoutExpired:
+            return "The render machine did not build on Modal in 25 minutes. Press Connect Modal to try again."
+        return None if r.returncode == 0 and "modal ok" in r.stdout else modal_error(r.stderr + r.stdout)
+    fresh = modal_status() != "ready"   # logs in during this run
+    if fresh and not login():
+        say("FAIL The Modal login did not finish. Press Connect Modal to try again.")
+        return 1
+    err = build()
+    if err and err.startswith("Not logged in") and not fresh:   # a saved login Modal no longer takes
+        if not login():
+            say("FAIL The Modal login did not finish. Press Connect Modal to try again.")
+            return 1
+        err = build()
+    if err:
+        say(f"FAIL {err}")
+        return 1
+    credit = modal_credit()
+    if credit:
+        say(f"CREDIT {credit}")
+    say("Connected.")
     return 0
 
 
-def check_modal():
-    st = modal_status()
-    if st != "ready":
-        print("Modal is not installed yet: setup.py modal" if st == "missing" else
-              f"Not logged in. In your own terminal: {modal_exe()} token new")
+def test_modal():
+    """The Test render button: a 5-second test edit rendered on Modal, timed. Lines: STEP, then
+    `TIME <seconds> <usd>` and `Tested.`, or `FAIL <plain reason>`."""
+    import tempfile
+    if modal_status() != "ready":
+        say("FAIL Not logged in to Modal. Press Connect Modal first.")
         return 1
-    script = PLUGIN / "skills" / "style-edit" / "scripts" / "modal_render.py"
-    r = run([str(VPY), str(script), "hello"], timeout=900)
-    if r.returncode == 0 and "modal ok" in r.stdout:
-        print("Tested: Modal works. The render machine is built and cached in your account.")
+    t = Path(tempfile.mkdtemp(prefix="ave-modal-test-"))
+    try:
+        say("STEP Making a 5-second test video")
+        try:
+            edit = test_edit(t, 5, dict(os.environ, TMPDIR=str(t), TEMP=str(t), TMP=str(t)))
+        except (SystemExit, Exception) as e:   # noqa: BLE001
+            say(f"FAIL The test video could not be made here: {plain(e)}")
+            return 1
+        say("STEP Rendering it on Modal")
+        t0 = time.time()
+        r = run([sys.executable, str(PLUGIN / "skills" / "style-edit" / "scripts" / "edit.py"), "render", str(edit), "--modal"],
+                timeout=MODAL_BUILD_S)
+        secs = time.time() - t0
+        if r.returncode or not (edit / "render.mp4").exists():
+            say(f"FAIL {modal_error(r.stderr + r.stdout)}")
+            return 1
+        usd = re.search(r"about \$(\d+\.\d+) at Modal", r.stdout)
+        say(f"TIME {secs:.0f} {usd[1] if usd else ''}".rstrip())
+        say("Tested.")
         return 0
-    print(f"Modal did not answer:\n{(r.stderr or r.stdout).strip()[-1500:]}")
-    return 1
+    except subprocess.TimeoutExpired:
+        say("FAIL The test render took over 25 minutes and was stopped.")
+        return 1
+    finally:
+        shutil.rmtree(t, ignore_errors=True)
 
 
 def step_matte(force=False):
@@ -1075,6 +1190,13 @@ def demo():
     assert "add my gemini key" in miss and "clipboard" in miss and "terminal" not in miss, miss
     assert key_line("gemini", "looks", "x", "the GEMINI_API_KEY variable").startswith("ok "), "found key row"
     assert modal_status() in ("ready", "no token", "missing")
+    # Connect Modal: the login link is read from `modal setup`'s output; each failure is one plain sentence
+    assert MODAL_LOGIN.search("go to https://modal.com/token-flow/tf-AbC123xyz\n")[0] == "https://modal.com/token-flow/tf-AbC123xyz"
+    assert modal_error("modal.exception.AuthError: Token missing. Could not authenticate client.").startswith("Not logged in")
+    assert modal_error("modal.exception.AuthError: Token not found").startswith("Not logged in")
+    assert "out of credit" in modal_error("Workspace has reached its spend limit")
+    assert "did not build" in modal_error("modal.exception.RemoteError: Image build for im-12 failed. See build logs")
+    assert modal_error("weird\n  last thing\n") == "Modal did not answer: last thing"
     assert major("v22.3.0") == 22 and major(None) == 0
     assert fix("ffmpeg").split()[0] in ("brew", "winget", "sudo")
     # Linux: the fix uses the package manager this computer has, not apt everywhere
@@ -1263,7 +1385,7 @@ def demo_install_all():
 if __name__ == "__main__":
     cmds = {"doctor": doctor, "venv": step_venv, "model": step_model, "remotion": step_remotion,
             "bootstrap": bootstrap, "repair": repair, "awskey": save_aws_key,
-            "lambda": check_lambda, "modal": install_modal, "modal-check": check_modal, "matte": step_matte, "warm": step_warm,
+            "lambda": check_lambda, "modal": connect_modal, "modal-connect": connect_modal, "modal-check": connect_modal, "modal-test": test_modal, "matte": step_matte, "warm": step_warm,
             "demo": demo, "keys": test_keys, "certs": step_certs, "todo": todo, "crisper": install_crisper,
             "install-launcher": install_launcher, "uninstall-launcher": uninstall_launcher}
     if sys.argv[1:] == ["doctor", "--quiet"]:

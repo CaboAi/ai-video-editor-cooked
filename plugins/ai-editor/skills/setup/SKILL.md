@@ -156,10 +156,10 @@ Only to a user who skipped ElevenLabs and wants better cuts, offer CrisperWhispe
 
 ## 6. Cloud renders with Modal (offer it)
 
-Offer it once, in the question box: "Set up cloud renders with Modal? (about 5 minutes)" with
-**Later (Recommended)** first and **Set it up now** second. Also run it when the user picks Modal at
+Offer it once, in the question box: "Set up cloud renders with Modal? (one login in the browser)" with
+**Later (Recommended)** first and **Connect Modal** second. Also run it when the user picks Modal at
 render time and doctor shows `modal` as not ready. Follow `references/cloud.md` "Modal": what it
-is, what it costs, the card, then four checked steps.
+is, what it costs, the card, then one step (`setup.py modal-connect`, or Connect Modal in the window).
 
 ## 7. Check
 

@@ -4,6 +4,9 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- The cut renders at 1080p: a 4K take comes out 1080x1920 (or 1920x1080), never upscaled. The edit was already
+  1080p, and a 4K cut took about four times as long to encode. `render.py --max 0` keeps the source size.
+
 ## ai-editor 2.6.9 (2026-10-13)
 
 - Card edit: cards move. Most beats are now animations built from what is said: a like counter ticking with

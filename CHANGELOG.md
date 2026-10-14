@@ -4,6 +4,12 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- The window tells you when Claude needs you. A new question plays a soft chime once (not again on reload) and
+  the tab title says so. A draft that finishes chimes too. While the tab is hidden, both show a system notice once you
+  press Turn on alerts in Settings. Settings has Sound when Claude asks or finishes (on by default, this browser only).
+- While a Claude is working, the sidebar card says which video and the step (Claude is working on my-video:
+  Cutting the mistakes), and the tab title shows it (Making 1 · cooked.).
+
 ## ai-editor 2.7.11, creator-teardown 2.7.11 (2026-10-14)
 
 - Card edit never shows a card of words alone. A notes card now looks like real notes: your face in the header,

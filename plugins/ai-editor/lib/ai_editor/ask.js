@@ -1,6 +1,15 @@
 // Claude's questions in this page (askhook.py). Loaded by home.html and review.html; uses each page's own
 // colour tokens, so it follows the review page's dark mode. Polls GET /ask every second.
 (()=>{
+// Alerts (pure, so tests/test_alerts.mjs runs them in node): a question chimes once per id across reloads and tabs
+// (the ids already chimed live in localStorage); a video chimes once when its phase goes from Claude working to
+// anything but a question. A question mid-make keeps the phase from before it, so the answer does not chime.
+const WORK=['notes','stills','rendering','cutting'];
+const firstTime=(seen,id)=>seen.includes(id)?null:[id,...seen].slice(0,30);
+function finished(prev,now){const done=[],next={};
+  for(const [d,ph] of Object.entries(now)){const was=prev[d];next[d]=ph==='ask'&&was?was:ph;if(WORK.includes(was)&&!WORK.includes(ph)&&ph!=='ask')done.push(d)}
+  return {done,next}}
+if(typeof document==='undefined'){module.exports={firstTime,finished};return}
 const css=`#askq{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(12,10,9,.36);backdrop-filter:blur(2px)}
 #askq.on{display:flex}
 #askq .aq-card{--a-panel:var(--panel,#fff);--a-ink:var(--ink,#0C0A09);--a-line:var(--line,#E7E5E4);--a-muted:var(--muted,var(--t3,#78716C));
@@ -74,8 +83,16 @@ el.addEventListener('dragover',e=>{if(!A)return;e.preventDefault();el.querySelec
 el.addEventListener('dragleave',e=>{if(!el.contains(e.relatedTarget))el.querySelector('.aq-card')?.classList.remove('aq-drag')});
 el.addEventListener('drop',e=>{if(!A)return;e.preventDefault();el.querySelector('.aq-card')?.classList.remove('aq-drag');addFiles(e.dataTransfer.files)});
 const TITLE='(1) Claude is asking';   // a background tab shows it in its title
-function chime(){try{const c=new AudioContext(),o=c.createOscillator(),g=c.createGain();o.frequency.value=660;g.gain.setValueAtTime(.0001,c.currentTime);
-  g.gain.exponentialRampToValueAtTime(.06,c.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+.35);o.connect(g).connect(c.destination);o.start();o.stop(c.currentTime+.4)}catch(e){}}
+// a soft two-note chime made here (no audio file); Settings turns it off (localStorage, this browser only)
+function chime(){try{const c=new AudioContext();[[660,0],[880,.14]].forEach(([f,t])=>{const o=c.createOscillator(),g=c.createGain(),at=c.currentTime+t;o.frequency.value=f;g.gain.setValueAtTime(.0001,at);
+  g.gain.exponentialRampToValueAtTime(.05,at+.02);g.gain.exponentialRampToValueAtTime(.0001,at+.4);o.connect(g).connect(c.destination);o.start(at);o.stop(at+.45)});setTimeout(()=>c.close(),900)}catch(e){}}
+const soundOn=()=>{try{return localStorage.getItem('ave-sound')!=='0'}catch(e){return true}};
+// the chime, and a system notice while the tab is hidden (permission is asked only from Settings' Turn on alerts)
+function alert1(title,body){if(soundOn())chime();
+  if(document.hidden&&window.Notification&&Notification.permission==='granted')try{const n=new Notification(title,{body,tag:title});n.onclick=()=>{focus();n.close()}}catch(e){}}
+window.aveAlert={alert:alert1,chime,soundOn,finished,setSound(on){try{localStorage.setItem('ave-sound',on?'1':'0')}catch(e){}if(on)chime()}};
+function askedNow(id){let seen=[];try{seen=JSON.parse(localStorage.getItem('ave-asked')||'[]')}catch(e){}const s=firstTime(Array.isArray(seen)?seen:[],id);
+  if(s)try{localStorage.setItem('ave-asked',JSON.stringify(s))}catch(e){}return !!s}
 async function send(b){try{await fetch('/ask/answer',{method:'POST',body:JSON.stringify(Object.assign({id:A.id},b))})}catch(e){}}
 function close(msg){
   if(msg){el.innerHTML=`<div class="aq-card"><div class="aq-done">${esc(msg)}</div></div>`;setTimeout(()=>{if(!A)el.classList.remove('on')},1400)}else el.classList.remove('on');
@@ -114,7 +131,8 @@ async function poll(){
   if(document.title!==TITLE){title=document.title;document.title=TITLE}
   const was=ALL.map(x=>x.id).join();ALL=all;
   if(A&&ALL.some(x=>x.id===A.id)){if(was!==ALL.map(x=>x.id).join())flag(true),dispatchEvent(new Event('askchange'));return}
-  A=a;i=0;ans=[];imgs=[];pics=[];sel=new Set();el.innerHTML='';bar.classList.remove('on');draw();flag(true);chime();
+  A=a;i=0;ans=[];imgs=[];pics=[];sel=new Set();el.innerHTML='';bar.classList.remove('on');draw();flag(true);
+  if(askedNow(a.id))alert1('Claude has a question',(a.about?a.about+': ':'')+((a.questions||[])[0]||{}).question);
 }
 poll();setInterval(poll,1000);document.addEventListener('visibilitychange',poll);
 addEventListener('pagehide',()=>{try{navigator.sendBeacon('/ask/gone')}catch(e){}});   // a closed tab: Claude's next question goes to the terminal at once

@@ -364,6 +364,7 @@ def screen_items(folder, p):
 
 
 SNAP_MAX = 2 << 20   # a snapshot keeps the edit's small files; a bigger one is media, never a setting
+SNAP_NAMES = ".names"   # in a snapshot: the names of the files the edit had then
 
 
 def clone(src, dst):
@@ -379,11 +380,16 @@ def snapshot(folder, stage, rnd):
     dst = folder / "review" / f"snap-{stage}{rnd}"
     shutil.rmtree(dst, ignore_errors=True)
     dst.mkdir(parents=True)
+    names = []   # every top-level setting file, big ones too: going back removes any file this list lacks
     for f in folder.iterdir():
-        if f.is_file() and f.suffix in (".json", ".txt") and f.name != "review.json" and f.stat().st_size <= SNAP_MAX:
-            clone(f, dst / f.name)
+        if f.is_file() and f.suffix in (".json", ".txt") and f.name != "review.json":
+            names.append(f.name)
+            if f.stat().st_size <= SNAP_MAX:
+                clone(f, dst / f.name)
     if (folder / ".sfx" / "music.wav").is_file():
         clone(folder / ".sfx" / "music.wav", dst / "music.wav")
+        names.append("music.wav")
+    (dst / SNAP_NAMES).write_text("\n".join(sorted(names)), encoding="utf-8")
     try:   # the pictures and clips the plan shows: a fix can rebuild one in place (a motion clip, a capture)
         p = load(folder / "plan.json")
     except (OSError, ValueError):
@@ -558,6 +564,26 @@ def card_at(plan, t):
     return None
 
 
+def note_tags(plan, transcript, stage, t, te=None, on=None):
+    """(words, card) for a note: what the user clicked ("on": {"k": cards|captions|texts|zooms, "text"}), else what is on
+    screen at t exactly. The quote is the caption page showing then, not seconds of speech; a zoom or a caption click is
+    never tagged with the card under it (QA round 4: "Card 1 on 'tutorials'" on a zoom note)."""
+    if stage != "edit":
+        return words_at(transcript, t, te if te is not None else t), None
+    k = (on or {}).get("k") if isinstance(on, dict) else None
+    card = card_at(plan, t) if k in (None, "cards") else None
+    try:
+        chunks = (load(plan).get("captions") or {}).get("chunks") or [] if plan else []
+    except (OSError, ValueError):
+        chunks = []
+    cap = next((x.get("text") for x in chunks if x.get("start", 0) <= t < x.get("end", 0)), None)
+    if k == "captions" and str(on.get("text") or "").strip():
+        return str(on["text"]).strip(), card
+    if cap:
+        return str(cap).strip(), card
+    return (words_at(transcript, t, te if te is not None else t) if not chunks else ""), card
+
+
 def on_screen(plan, t):
     """For `wait`: the caption, title and zoom on screen at t (the card is card_at's), so a note like "this word is
     wrong" or "no zoom here" names what it is about."""
@@ -694,13 +720,22 @@ def home_url():
 
 
 def home_jobs():
-    """How many videos the home window is making (its state.json jobs queued or taken): the rail's Making ring."""
+    """How many videos are being made (the home window's video jobs queued or taken, and every library video being cut,
+    edited, previewed or rendered, as Home counts them): the rail's Making ring."""
     f = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home" / "state.json"
     try:
         jobs = json.loads(f.read_text(encoding="utf-8")).get("jobs") or []
     except (OSError, ValueError, AttributeError):
         return 0
-    return sum(1 for j in jobs if isinstance(j, dict) and j.get("type") == "video" and j.get("state") in ("queued", "taken"))
+    act = [j for j in jobs if isinstance(j, dict) and j.get("type") == "video" and j.get("state") in ("queued", "taken")]
+    edits = {str(Path(j["args"]["edit"]).resolve()) for j in act if (j.get("args") or {}).get("edit")}
+    try:   # the edit, the preview and the render run after the job: the library's videos being made count too
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import library
+        edits |= {str(Path(e["dir"]).resolve()) for e in library.entries() if e["status"] in ("making", "cutting")}
+    except (OSError, ValueError, ImportError):
+        pass
+    return len(edits) + sum(1 for j in act if not (j.get("args") or {}).get("edit"))
 
 
 # The cut's steps, in order, as the scripts report them onto the home window's video job (progress.step, by text):
@@ -1312,15 +1347,17 @@ def make_handler(folder, token):
             frame = f"r{d['stage']}{d['round']}-c{cid}.jpg"
             grab(src["video"], t, folder / "review" / frame)
             images = askhook.save_images(folder / "review", imgs, f"r{d['stage']}{d['round']}-c{cid}")
+            on = body.get("on") if isinstance(body.get("on"), dict) else None
+            words, card = note_tags(d.get("plan"), src.get("transcript"), d["stage"], t, te, on)
             c = {"id": cid, "round": d["round"] + queued, "stage": d["stage"], "t": round(t, 2), "alt": alt,
-                 "t_end": round(te, 2) if te is not None else None, "text": text,
-                 "words": words_at(src.get("transcript"), t, te if te is not None else t),
-                 "card": card_at(d.get("plan"), t) if d["stage"] == "edit" else None,
+                 "t_end": round(te, 2) if te is not None else None, "text": text, "words": words, "card": card,
                  "frame": frame, "images": images, "status": "open", "reply": None, "new_t": None, "at": now()}
             if looks_like_rule(text):   # offered as a rule, ticked: the user unticks it on the page
                 c["keep"] = True
             if queued:
                 c["queued"] = True
+            if on:
+                c["on"] = {"k": str(on.get("k") or ""), "text": str(on.get("text") or "")[:300]}
             update(rj, lambda d: d["comments"].append(c))
             return self.send(200, c)
 
@@ -1389,9 +1426,10 @@ def make_handler(folder, token):
                     new["t_end"] = round(t + c["t_end"] - c["t"], 2)
                 new["t"], new["frame"] = t, f"r{c['stage']}{c['round']}-c{c['id']}-{int(time.time() * 1000) % 10 ** 8}.jpg"
                 grab(src["video"], t, folder / "review" / new["frame"])
-                new["card"] = card_at(d.get("plan"), t) if c["stage"] == "edit" else None
+                new.pop("on", None)   # moved: no longer the thing clicked, what is on screen at the new time
             if "t" in body or "alt" in body:
-                new["words"] = words_at(src.get("transcript"), new["t"], new["t_end"] if new["t_end"] is not None else new["t"])
+                new["words"], new["card"] = note_tags(d.get("plan"), src.get("transcript"), c["stage"], new["t"], new["t_end"],
+                                                      new.get("on"))
             new["edited"] = now()
 
             def put(d):   # again under the lock: the round may have gone to Claude meanwhile
@@ -1612,8 +1650,7 @@ def open_round(folder, video, stage=None, transcript=None, plan=None, note="", s
                 if c["alt"] not in (None, "*"):   # versions belong to a round: its version is gone, so the main video
                     c["alt"], src_ = None, alt_of(d, None)
                 grab(src_["video"], nt, folder / "review" / c["frame"])
-                c["words"] = words_at(src_.get("transcript"), nt, c["t_end"] if c["t_end"] is not None else nt)
-                c["card"] = card_at(d.get("plan"), nt) if d["stage"] == "edit" else None
+                c["words"], c["card"] = note_tags(d.get("plan"), src_.get("transcript"), d["stage"], nt, c["t_end"], c.get("on"))
         d.pop("stopped", None)
         for x in d.get("activity", []):
             x["done"] = True
@@ -1676,8 +1713,17 @@ def go_back(folder, n):
         for c in d["comments"]:   # the open round's notes go with the user onto the restored round
             if c["stage"] == d["stage"] and c["round"] == d["round"] and c["status"] == "open":
                 c["queued"] = True
+        try:   # files made after that round (a "no zoom here" overrides.json, a contrast.json) go
+            had = set((snap / SNAP_NAMES).read_text(encoding="utf-8").split())
+        except OSError:   # a snapshot from before the list: the files it kept
+            had = {f.name for f in snap.iterdir() if f.is_file()}
+        for f in folder.iterdir():
+            if f.is_file() and f.suffix in (".json", ".txt") and f.name != "review.json" and f.name not in had:
+                f.unlink()
+        if "music.wav" not in had:
+            (folder / ".sfx" / "music.wav").unlink(missing_ok=True)
         for f in snap.rglob("*"):   # the files come back before the new round snapshots them
-            if f.is_file():
+            if f.is_file() and f.name != SNAP_NAMES:
                 rel = f.relative_to(snap)
                 out_ = folder / ".sfx" / "music.wav" if rel.name == "music.wav" and len(rel.parts) == 1 else \
                     folder / Path(*rel.parts[1:]) if rel.parts[0] == "files" else folder / rel
@@ -2265,18 +2311,19 @@ def edit_style(folder):
 
 
 def learn_hint(folder, kept=()):
+    """After a send: only the notes the user ticked "Keep as a rule" become rules, saved with no question (QA round 4:
+    an unticked note was asked about, by its style's folder id)."""
     sp = edit_style(folder)
-    scopes = "this-style|style|video|everyone" if sp else "style|video|everyone"
-    out = (f"LEARN: pick the notes that are preferences, ask the scope once for all of them"
-           + (f" (this edit used {shown_style(sp)}: \"This style\" first)" if sp else "") + ", then run:\n"
-           f"  python3 {Path(__file__).resolve()} {folder} learn --scope {scopes}"
-           f" --rule <id> <section> \"<rule>\" [key=value] ...   (no preferences: learn --none)")
-    if kept:   # the user already said yes and named the style: no scope question for these
-        out += (f"\n  Notes {', '.join('#' + str(i) for i in kept)} are marked \"keep as a rule for {style_label(folder)}\": the user"
-                f" said yes on the page. Save each with --scope {'this-style' if sp else 'style'} (no question), one short rule"
-                " in the user's words with its setting when the taste table maps (\"fewer zooms\" -> zoom.per_min); the page"
-                " then shows a receipt with Undo.")
-    return out
+    if not kept:
+        return ("LEARN: no note is ticked \"Keep as a rule\", so none becomes a rule. Ask nothing about rules or scope; run:\n"
+                f"  python3 {Path(__file__).resolve()} {folder} learn --none")
+    return (f"LEARN: notes {', '.join('#' + str(i) for i in kept)} are ticked \"keep as a rule for {style_label(folder)}\": the user"
+            f" said yes on the page. Save each with --scope {'this-style' if sp else 'style'} (no question), one short rule"
+            " in the user's words with its setting when the taste table maps (\"fewer zooms\" -> zoom.per_min); the page"
+            " then shows a receipt with Undo. Every other note is a one-off fix: no rule, no question. Run:\n"
+            f"  python3 {Path(__file__).resolve()} {folder} learn --scope {'this-style' if sp else 'style'}"
+            f" --rule <id> <section> \"<rule>\" [key=value] ...\n"
+            f"  Call the style {style_label(folder)} when you mention it, never by its folder or @id.")
 
 
 def learned_round(d):
@@ -2585,6 +2632,13 @@ def demo():
     hsf.write_text(json.dumps({"jobs": [{"type": "video", "state": "taken"}, {"type": "video", "state": "queued"},
                                         {"type": "video", "state": "done"}, {"type": "teardown", "state": "taken"}]}), encoding="utf-8")
     assert json.loads(get("/state").read())["jobs"] == 2, "the rail's Making ring counts the home window's videos being made"
+    mk = tmp / "edits" / "being-made"   # past its job: the preview approved, the video rendering (QA round 4 showed 0)
+    mk.mkdir(parents=True)
+    save(mk / "review.json", {"stage": "edit", "round": 1, "sent": True, "events": [{"type": "approve", "stills": True}], "rounds": []})
+    import library
+    library.record(mk)
+    assert home_jobs() == 3, "an edit being made after its job counts in the Making ring"
+    shutil.rmtree(mk)
     # round 0's checklist: every step of the cut from the job for this edit, by the scripts' own words
     j = {"type": "video", "state": "taken", "args": {"edit": str(folder)}, "steps": [{"text": "Writing down every word"},
                                                                                    {"text": "Finding retakes and pauses"}]}
@@ -2656,7 +2710,7 @@ def demo():
     assert next(x for x in load(folder / "review.json")["comments"] if x["id"] == cn["id"])["queued"]
     assert [x["id"] for x in load(folder / "review.json")["comments"]] == [c["id"], cn["id"]]
     assert all(e["handled"] for e in load(folder / "review.json")["events"])   # nothing for `wait` to return on
-    assert "LEARN:" in out.splitlines()[-2] and f"{folder} learn --scope style|video|everyone" in out, out
+    assert "LEARN:" in out.splitlines()[-2] and f"{folder} learn --none" in out, out
     # round 2 on the styled edit: the card under a note comes with it, Claude's answer shows.
     # The cut's note was never learned: round says so, then learn --none marks it one-off
     o = io.StringIO()
@@ -2699,6 +2753,7 @@ def demo():
     assert post("/edit", {"id": c5["id"], "text": "never zoom"}).get("keep") is False   # the user's choice stays
     assert json.loads(get("/state").read())["style_name"] == "My style"
     assert "keep as a rule for My style" in learn_hint(folder, [c5["id"]]) and "--scope style (no question)" in learn_hint(folder, [c5["id"]])
+    assert "learn --none" in learn_hint(folder) and "Ask nothing" in learn_hint(folder), "nothing ticked: no rule, no question"
     post("/delete", {"id": c5["id"]})
     post("/scope", {"id": c3["id"], "alt": "*"})
     assert next(x for x in load(folder / "review.json")["comments"] if x["id"] == c3["id"])["alt"] == "*"
@@ -2758,7 +2813,7 @@ def demo():
     sp.parent.mkdir(parents=True)
     sp.write_text('{"handle": "alice"}', encoding="utf-8")
     (folder / "style.json").write_text(json.dumps({"handle": "alice", "source": [str(sp)]}), encoding="utf-8")
-    assert "learn --scope this-style|style|video|everyone" in learn_hint(folder) and "@alice" in learn_hint(folder)
+    assert "learn --scope this-style" in learn_hint(folder, [c2["id"]]) and "@alice" in learn_hint(folder, [c2["id"]])
     with contextlib.redirect_stdout(o):
         learn(scope="this-style", rule=[[str(c2["id"]), "captions", "Captions too big", "captions.size_pct=4.5"]])
     assert "(this style, skill edit-like-alice)" in o.getvalue(), o.getvalue()
@@ -3155,6 +3210,14 @@ def demo():
     assert it["cards"][0]["label"] == 'the picture on "notion"' and it["cards"][1]["box"] == [0, 0, 100, 100], it["cards"]
     assert it["cards"][3]["label"] == "the notes animation" and it["cards"][3]["box"] == [0, 0, 100, 50]
     assert it["cap"]["y"] == 66 and it["captions"][0]["text"] == "hello wrold" and it["zooms"] == [{"s": 0.5, "e": 1.5}]
+    # a note is tagged with what was clicked, else what is on screen at that exact time; the quote is one caption page
+    tp = tmp / "tags.json"
+    tp.write_text(json.dumps({"cards": [{"start": 0, "end": 9, "trigger_word": "tutorials"}], "zooms": [{"start": 2, "end": 6}],
+                              "captions": {"chunks": [{"start": 2, "end": 3, "text": "steal these"}, {"start": 3, "end": 4.5, "text": "background songs"}]}}),
+                  encoding="utf-8")
+    assert note_tags(tp, None, "edit", 2.0, 6.0, {"k": "zooms"}) == ("steal these", None), "a zoom click: no card tag"
+    assert note_tags(tp, None, "edit", 3.0, 4.5, {"k": "captions", "text": "background songs"}) == ("background songs", None)
+    assert note_tags(tp, None, "edit", 3.2)[0] == "background songs" and note_tags(tp, None, "edit", 3.2)[1]["trigger_word"] == "tutorials"
     # go back: round 1's files and render return as round 3; the open note moves onto it
     gb = tmp / "edits" / "goback"
     gb.mkdir(parents=True)
@@ -3164,6 +3227,7 @@ def demo():
     with contextlib.redirect_stdout(io.StringIO()):
         cmd_start(ns(video=str(gb / "render.mp4"), stage="edit", transcript=None, plan=str(gb / "plan.json"), note=None, name=None), gb)
         (gb / "plan.json").write_text(json.dumps(B), encoding="utf-8")
+        (gb / "overrides.json").write_text(json.dumps({"zooms": "none here"}), encoding="utf-8")   # a "no zoom here" fix
         cmd_round(ns(video=str(gb / "render.mp4"), stage=None, transcript=None, plan=None, note=None, name=None,
                      changed=["Captions one size bigger"]), gb)
     d2 = load(gb / "review.json")
@@ -3181,6 +3245,7 @@ def demo():
     (gb / "a.png").write_text("new", encoding="utf-8")   # round 2 rebuilt round 1's picture in place
     d3 = go_back(gb, 1)
     assert (gb / "a.png").read_text(encoding="utf-8") == "old", "the picture round 1 showed is back"
+    assert not (gb / "overrides.json").exists(), "a file made after round 1 goes: the next re-plan keeps round 1's zoom"
     assert d3["round"] == 3 and d3["back_to"] == 1 and load(gb / "plan.json") == A, "round 1's plan is back"
     assert d3["comments"][0]["round"] == 3 and "queued" not in d3["comments"][0], "the open note moved onto the restored round"
     assert 'Swapped the card on "notion"' in [c["text"] for c in data_of(gb, d3["data"])["changes"]], "round 3 shows the undo"

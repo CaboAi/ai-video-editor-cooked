@@ -4,6 +4,15 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Go back to a draft now undoes the fixes made after it, so a zoom you brought back stays. Prep never changes the
+  style you picked. Only notes you tick "Keep as a rule" become rules, with no question, and styles go by their
+  names. The cut keeps your opening hook unless you said it again later.
+- Card edit keeps its pace: a card about every 2 s, none on screen under 1.2 s, lists at caption size and photos
+  at their own shape. A note is tagged with what you clicked and quotes the caption on screen then.
+- The Making count in the editor hides at 0 and counts every video being made. "Making draft 2" names the right
+  draft. A style with no zooms says "No zooms". One name for the preview, one row per open question, and the
+  sample offered once.
+
 ## ai-editor 2.7.8, creator-teardown 2.7.8 (2026-10-14)
 
 - The style you pick is always used, whichever Claude takes the video. Each question goes only to the video it is

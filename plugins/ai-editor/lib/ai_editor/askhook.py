@@ -41,7 +41,8 @@ card says what it is about ("Claude (team-250k-general) asks"). No server takes 
 The servers (route() below, called from both):
     GET  /ask.js                 the card's script
     GET  /ask[?v=1]              the page's poll: the oldest open question or null (v=1: the page is showing)
-                                 {id, questions, about, elsewhere}: elsewhere, the editor page has it too
+                                 {id, questions, about, elsewhere}: elsewhere, the editor page has it too; "all":
+                                 every open one, oldest first (Home: one row per question)
     GET  /ask?id=X               the hook's poll: {"result": null | {"answers": [...]} | {"terminal": true}}
     POST /ask {id, questions, elsewhere?}   the hook asks (elsewhere: the video's editor page has it too)
     POST /ask/answer {id, answers | terminal, images?}   the page answers (one string per question; images: one
@@ -183,10 +184,9 @@ def route(h, method, path, query, body=None):
         else:
             if getattr(srv, "ask_url", None):   # open, showing or in a background tab
                 _seen(srv)
-            a = next((dict(id=k, questions=a["questions"], about=a.get("about") or "", **({"elsewhere": True} if a.get("elsewhere") else {}))
-                      for k, a in sorted(asks.items(), key=lambda x: x[1]["at"])
-                      if not a.get("result")), None)
-            h.send(200, {"ask": a})
+            every = [dict(id=k, questions=a["questions"], about=a.get("about") or "", **({"elsewhere": True} if a.get("elsewhere") else {}))
+                     for k, a in sorted(asks.items(), key=lambda x: x[1]["at"]) if not a.get("result")]
+            h.send(200, {"ask": every[0] if every else None, "all": every})   # all: Home shows one row per open question
     elif method == "POST" and path == "/ask":
         qs = body.get("questions")
         if not (isinstance(body.get("id"), str) and isinstance(qs, list) and 0 < len(qs) <= 10):

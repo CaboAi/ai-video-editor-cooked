@@ -78,13 +78,13 @@ refuses while stopped. Send and approve are refused while Claude has the changes
 
 Review notes flow into the user's taste (memory) and, when marked for everyone, to the maintainers.
 
-1. Pick the notes that are preferences: "captions too small", "too many zooms". Leave out one-off
-   fixes ("cut the 'um' at 0:12"). Write each as a general rule, as the taste skill does.
-2. If any, ask the scope ONCE for the whole batch in the question box: `My style (Recommended)` /
-   `Just this video` / `Would help everyone`. When `wait`'s LEARN line names a creator's style, put
-   `This style (@handle) (Recommended)` first (`--scope this-style`: that style's overrides and its
-   `edit-like-<handle>` skill).
-3. Run `learn`. One `--rule` per preference note; add `key=value` when a taste setting maps:
+1. Only the notes the user ticked "Keep as a rule" on the page become rules (`wait` marks them
+   `[keep as a rule for <style>]`, and its `LEARN:` line names them). Save them with no question: the
+   tick is the answer. Every other note is a one-off fix. Never ask a scope or "save as a rule?"
+   question about a note the user did not tick. Nothing ticked: `learn --none`.
+2. Name a style the way the page does (`LEARN:` gives it: "50/50", "My style"), never its folder
+   or `@id` (`@sample-50-50`).
+3. Run `learn`. One `--rule` per ticked note; add `key=value` when a taste setting maps:
 
 ```bash
 python3 "$R" edits/<name> learn --scope style --rule 2 captions "Captions bigger" captions.size_pct=6 --rule 4 visuals "Logos stay small"

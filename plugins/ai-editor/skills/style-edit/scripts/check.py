@@ -33,7 +33,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(HERE))
-from plan import GAP_S, QUIET_HOLD_S, card_gaps, INK_MIN_W, OVERLAY_EDGE, READ_XH, SAFE, capture_xh, explain_ink, clean, cut_lines, cut_points, head_during, overlay_led, small_lines, sticker_crop  # noqa: E402
+from plan import GAP_S, MIN_SHOW_S, QUIET_HOLD_S, card_gaps, INK_MIN_W, OVERLAY_EDGE, READ_XH, SAFE, capture_xh, explain_ink, clean, cut_lines, cut_points, head_during, overlay_led, small_lines, sticker_crop  # noqa: E402
 
 CENTRE_PLAN = 1.5      # % of the width a vertical card's box centre may sit off 50
 CENTRE_INK = 2.0       # % of the width a card's drawn content may sit off centre
@@ -315,7 +315,19 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
     # in it is named and the frame still changes (a zoom or a cut) at least every QUIET_HOLD_S
     gap_s = plan.get("card_gap_s") or GAP_S
     moves = sorted([z[k] for z in plan["zooms"] for k in ("start", "end")] + list(cuts))
-    for a, b in card_gaps(shown, dur):
+    titles = [{"start": x["start"], "end": x["end"]} for x in plan.get("texts") or [] if x.get("kind") == "title"]
+    for a, b in card_gaps(shown + titles, dur) if plan.get("card_rate") else ():
+        if b - a > gap_s + 0.01:   # a card edit: its measured rate is the look, a long stretch with no card is not it
+            out.append(finding("FAIL", a, f"no card for {b - a:.1f} s ({a:.1f}-{b:.1f} s): this style shows a card about every "
+                               f"{60 / plan['card_rate']:.0f} s, {gap_s:.0f} s at most",
+                               "add cards on the lines there in visuals.json: the user's own images and links first, then "
+                               "captures of what the line names, then animations built from its words (likes, notes, progress, flow)"))
+    for c in cards if plan.get("card_rate") else ():   # one card held for a whole stretch is a gap too
+        if c["end"] - c["start"] > 2 * gap_s + 0.01:
+            out.append(finding("FAIL", c["start"], f"'{c.get('trigger_word')}' card holds {c['end'] - c['start']:.1f} s: this style "
+                               f"changes card about every {60 / plan['card_rate']:.0f} s", "end it sooner (hold_s) and give the "
+                               "lines after it their own cards (one per item of a list)"))
+    for a, b in card_gaps(shown, dur) if not plan.get("card_rate") else ():
         if b - a <= gap_s + 0.01:
             continue
         said = [f"'{n}' at {t:.1f} s" for t, n in named if a <= t < b]
@@ -326,6 +338,15 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
                                + (f": {', '.join(said)} is named there" if said else f" and the frame holds still for {still:.1f} s"),
                                "show the named thing (a capture, post or logo in visuals.json)" if said else
                                f"plan again (plan.py adds a zoom change every {QUIET_HOLD_S:.0f} s there); never a made-up visual"))
+    for c in cards:   # a card shorter than this is a flash nobody reads (QA round 4: a capture for 0.6 s at the end)
+        if c["end"] - c["start"] < MIN_SHOW_S - 0.01:
+            out.append(finding("FAIL", c["start"], f"'{c.get('trigger_word')}' card is on screen {c['end'] - c['start']:.1f} s "
+                               f"(under {MIN_SHOW_S} s)", "plan again with the current plan.py (it grows or drops it), or move it earlier"))
+    cap_size = ((plan.get("captions") or {}).get("style") or {}).get("size_pct") or 0
+    for x in plan.get("texts") or []:
+        if x.get("kind") == "list" and (x.get("size_pct") or 0) < cap_size - 0.01:
+            out.append(finding("FAIL", x["start"], f"the list's type is {x.get('size_pct')}% of the frame, under the captions' "
+                               f"{cap_size}%: too small to read", "plan again with the current plan.py (lists match the captions)"))
     main = [c for c in cards if c.get("lane") != "logo"]
     text = [c for c in main if (c.get("anim") or {}).get("type") in TEXT_ANIMS]
     if len(text) > len(main) - len(text):
@@ -364,7 +385,7 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
 
 def user_assets(edit, plan, visuals=()):
     """What the user added on the page (assets.json, lib/ai_editor/assets.py) must be in the edit: an image as a card
-    of the plan (its file name, copied into images/), a link as a visuals.json beat (its url, or a github beat's repo)."""
+    of the plan (its file name, or the name it was added as, copied into images/), a link as a visuals.json beat (its url, or a github beat's repo)."""
     try:
         items = json.loads((Path(edit) / "assets.json").read_text(encoding="utf-8")).get("items") or []
     except (OSError, ValueError, AttributeError):
@@ -374,7 +395,7 @@ def user_assets(edit, plan, visuals=()):
         {"https://github.com/" + str(v["repo"]) for v in visuals or [] if v.get("repo")}
     out = []
     for x in items:
-        miss = Path(x.get("src") or "").name not in srcs if x.get("kind") == "image" else \
+        miss = not {Path(x.get("src") or "").name, x.get("name")} & srcs - {"", None} if x.get("kind") == "image" else \
             str(x.get("url") or "").rstrip("/") not in urls
         if miss:
             what = x.get("name") if x.get("kind") == "image" else x.get("url")
@@ -1001,6 +1022,15 @@ def demo():
     assert gaps(check_plan(pc, face, named=[(14.0, "Jev")])) and "'Jev' at 14.0 s" in gaps(check_plan(pc, face, named=[(14.0, "Jev")]))[0]["what"]
     assert not gaps(check_plan(pc, face)), gaps(check_plan(pc, face))
     assert gaps(check_plan({**pc, "zooms": []}, face))
+    # a card edit (plan card_rate, 30 a minute: 4 s at most): a gap over it FAILs even with zooms (QA round 4: 0-19 s)
+    ce = {**pc, "card_rate": 30, "card_gap_s": 4.0}
+    assert [f["level"] for f in gaps(check_plan(ce, face))] == ["FAIL"], gaps(check_plan(ce, face))
+    assert any("holds 10.1 s" in f["what"] for f in check_plan(ce, face)), "one card over a whole stretch: FAIL"
+    short = {**pc, "cards": pc["cards"] + [{**plan["cards"][0], "start": 29.4, "end": 30.0}]}
+    assert any("under 1.2 s" in f["what"] and f["level"] == "FAIL" for f in check_plan(short, face))
+    tiny_list = {**pc, "texts": [{"kind": "list", "start": 1, "end": 5, "size_pct": 1.8, "items": [], "x_pct": 7, "y_pct": 30}],
+                 "captions": {**pc["captions"], "style": {**pc["captions"]["style"], "size_pct": 4.4}}}
+    assert any("list's type" in f["what"] and f["level"] == "FAIL" for f in check_plan(tiny_list, face))
     # a card edit (card_kinds without "text"): a small-text screenshot is a picture (WARN), a re-set sentence FAILs
     pics = {**withfind, "card_kinds": ["capture", "logo", "photo", "animation"]}
     lv = lambda pl_, k: [f["level"] for f in check_plan(pl_, face) if k in f["what"]]

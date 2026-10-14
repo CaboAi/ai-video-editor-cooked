@@ -4,6 +4,13 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.3, creator-teardown 2.7.3 (2026-10-14)
+
+- Captions follow a creator's typography: the share of lines in their accent colour (on keywords), a second
+  lighter or serif face, big keywords at their size, and two-line stacks. No box or stroke unless the creator
+  uses one: a soft shadow or a soft band instead, one treatment for the whole video. A creator who is often off
+  screen gets more full-frame cut-aways, with your face back within 8 seconds. match.py scores these too.
+
 - A note like "always use fewer zooms" is offered as a rule for the style ("Keep as a rule for My style"). Each
   rule Claude saves shows as "Saved to <style>: <rule>. Undo" on the editor.
 - Every style page lists its learned rules with the day and the video each came from, and Remove. A skill

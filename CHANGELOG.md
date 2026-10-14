@@ -4,6 +4,15 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- A note like "always use fewer zooms" is offered as a rule for the style ("Keep as a rule for My style"). Each
+  rule Claude saves shows as "Saved to <style>: <rule>. Undo" on the editor.
+- Every style page lists its learned rules with the day and the video each came from, and Remove. A skill
+  style lists the rules in its skill's own file.
+- New Skills page in the sidebar: your video skills, the styles that use each, and Use as a style, Improve with
+  feedback, Open the file, Show in Finder, Make a new skill.
+- A style page shows "What runs": the cut, real logos, animations and the edit, with logos and animations
+  switchable per style.
+- "Fewer zooms" now gives fewer zooms: a zoom rate you set is no longer filled back in on long sentences.
 ## ai-editor 2.7.2, creator-teardown 2.7.2 (2026-10-14)
 
 - New sample style: Motion design (16:9). One dark board the camera moves across, silver-rimmed tiles with real

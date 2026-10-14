@@ -117,6 +117,28 @@ def use_for(style_path=None):
     return names().get(key(style_path), {}).get("use_for") or ""
 
 
+# The steps a style runs around its own edit, on or off per style (style-names.json "chain"): logo-pack before the
+# edit, and for a skill style the motion skill's clips handed to its skill (a settings style's motion is its
+# motion.amount setting instead).
+CHAIN = {"logos": True, "motion": False}
+
+
+def chain(style_path=None):
+    c = names().get(key(style_path), {}).get("chain") or {}
+    return {k: bool(c.get(k, v)) for k, v in CHAIN.items()}
+
+
+def set_chain(style_path, step, on):
+    if step not in CHAIN:
+        raise ValueError(f"step is one of {', '.join(CHAIN)}")
+    d = names()
+    e = d.get(key(style_path), {})
+    d[key(style_path)] = {**e, "chain": {**chain(style_path), step: bool(on)},
+                          "path": e.get("path") or (str(preferred(style_path)) if style_path else None)}
+    _save_names(d)
+    return chain(style_path)
+
+
 def plugin_skill_names():
     return {p.parent.name for p in Path(__file__).resolve().parents[3].glob("*/skills/*/SKILL.md")}
 

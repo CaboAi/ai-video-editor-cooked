@@ -97,6 +97,13 @@ python3 "$R" edits/<name> learn --done      # after `wait` prints the ticked rul
 style's rules into its SKILL.md and a settings style's through `styleskill.learn`. A round's
 `learn --scope this-style` does the same for a skill style (the note is the reason).
 
+Each saved rule shows on the review page as a receipt, "Saved to <style>: <rule>. Undo", and on the style's
+page under "Learned rules" with its day and the video it came from, where the user can Remove it. Undo and
+Remove take the line out again (`taste.py forget`, `skillrules.py remove`); never put it back by hand.
+
+**From the Skills page** ("Improve with feedback", `JOB skill-change`): no video, only the user's words. Steps 3-6
+the same; the target is the `path=` the job names. `start/references/home.md` has the status lines.
+
 **From the chat**, after the yes:
 
 ```bash
@@ -113,6 +120,6 @@ Tell the user in one line what was saved and where.
 
 ## Files
 
-- `${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/skillrules.py`: `target`, `similar`, `add`, `demo`.
+- `${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/skillrules.py`: `target`, `similar`, `add`, `remove`, `list`, `demo`.
 - `${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/review.py`: `learn --propose` / `--done` (the Teach panel).
 - `${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/styleskill.py`: `learn`, a settings style's rules and skill.

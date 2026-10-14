@@ -831,6 +831,15 @@ body.rail .sb-theme{margin-top:2px}
 .srow2{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;line-height:16px;color:var(--t2)}
 .lrow2{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--line);font-size:15px;line-height:20px}
 .ssec>.shd+.lrow2{border-top:0}
+.chain{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.chain li{display:flex;align-items:center;gap:14px;padding:12px 0;border-top:1px solid var(--line)}.chain li:first-child{border-top:0}
+.chain .cn{width:24px;height:24px;border-radius:12px;border:1px solid var(--ring);display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--t2);flex-shrink:0}
+.chain li.off .cn,.chain li.off b{color:var(--t3)}
+.chain .cx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.chain .cx b{font-size:15px;line-height:20px;font-weight:600}
+.chain .cx span{font-size:13px;line-height:18px;color:var(--t2)}.chain .al{font-size:12px;color:var(--t3);white-space:nowrap}
+.skl{display:flex;flex-direction:column;gap:28px}
+.skr{display:flex;flex-direction:column;gap:10px}.skr .snm{font:600 16px/22px var(--mono);color:var(--ink)}
+.skr .acts{display:flex;gap:8px;flex-wrap:wrap}
 .mlooks{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
 .mlk{display:flex;flex-direction:column;gap:6px;padding:6px;border:1px solid var(--line);border-radius:10px;background:none;font-size:12px;color:var(--t2);text-align:left}
 .mlk.on{border-color:var(--ink);color:var(--ink);font-weight:600}
@@ -1073,7 +1082,7 @@ function toEditor(r){const e=(r.edits||[])[0];if(e){location.href='/review?dir='
 
 // ---------------------------------------------------------------- returning user (Paper "J launcher + pick")
 // New video (pick clips) -> Pick a style -> Making your video; Home (welcome back), Your videos, My style, Settings.
-let L=null, R=null, rv=['home','videos','mystyle','settings','new'].includes(location.hash.slice(1))?location.hash.slice(1):null;   // the review page's rail opens a view: #videos
+let L=null, R=null, rv=['home','videos','mystyle','skills','settings','new'].includes(location.hash.slice(1))?location.hash.slice(1):null;   // the review page's rail opens a view: #videos
 if(location.hash)history.replaceState(null,'',location.pathname+location.search);
 const nv={sel:[],clips:{},join:true,aspect:'9:16',style:'mine',filter:'all',up:[],script:'',scriptName:'',scriptMsg:'',draft:null,assets:[],assetMsg:''};
 const CMD='nextwork-editor';
@@ -1087,7 +1096,7 @@ const clipOf=p=>nv.clips[p]||(R&&R.videos.find(v=>v.path===p))||{path:p,name:p.s
 const aspectOf=()=>{if(nv.aspectSet||!nv.sel.length)return nv.aspect;const c=clipOf(nv.sel[0]);return c.vertical===false?'16:9':c.vertical?'9:16':nv.aspect};
 const total=()=>nv.sel.reduce((a,p)=>a+(clipOf(p).duration||0),0);
 const styleName=id=>((L&&L.styles||[]).find(c=>c.id===id)||{}).name||(id==='mine'?'My style':id==='defaults'?'the default style':/^@links-/.test(id)?'New format':id);
-function rgo(v){rv=v;ui.forceR=true;ui.cmenu=null;if(v==='new'||v==='home')loadRecent();render();window.scrollTo(0,0)}
+function rgo(v){rv=v;ui.forceR=true;ui.cmenu=null;if(v==='new'||v==='home')loadRecent();if(v==='skills')loadSkills();render();window.scrollTo(0,0)}
 async function loadLib(){try{const r=await fetch('/library');if(r.ok){L=await r.json();render()}}catch(e){}}
 async function loadRecent(){try{const r=await fetch('/recent');if(r.ok){R=await r.json();for(const v of R.videos)nv.clips[v.path]=v;render()}}catch(e){}}
 
@@ -1408,6 +1417,41 @@ async function archStyle(id,on){
   toast(on?`Archived ${c?dname(c):'the style'}. It is under Archived in Styles.`:`${c?dname(c):'The style'} is back in Styles.`);render();
 }
 
+// ---- Skills: the user's Claude Code skills that edit videos, the styles that run each, and what to do with one
+async function loadSkills(){try{const r=await fetch('/skills');if(r.ok){ui.skills=(await r.json()).skills;render()}}catch(e){}}
+// a job's line, in plain words, from its real state (the same as a style's "Tell it what to change")
+function jobText(job){
+  const jr=job.result||{};
+  return job.state==='queued'?(S.listening?'Claude is picking this up.':connectHTML('Waiting for Claude.')):job.state==='taken'?`Claude: ${esc((job.steps.at(-1)||{}).text||'working on it')}`
+    :job.state==='done'?esc(jr.changed&&jr.changed.length?'Saved: '+jr.changed.join('; '):jr.summary||'Done.'):job.state==='failed'?esc(job.error||'That stopped.'):'';
+}
+function vSkills(){
+  const cards=L?[...(L.styles||[]),...(L.archived_styles||[])]:[],used=n=>cards.filter(c=>c.kind==='skill'&&c.skill===n);
+  const ls=(ui.skills||[]).slice();
+  for(const c of cards)if(c.kind==='skill'&&!ls.some(x=>x.name===c.skill))ls.push({name:c.skill,description:c.description||'',found:!!c.found,own:false});
+  const jobs=t=>S.jobs.filter(j=>j.type===t),last=(t,f)=>jobs(t).filter(f).at(-1),nj=last('skill-new',()=>true);
+  const mk=ui.skNew?`<div class="ssec"><div class="shd"><b>Make a new skill</b></div><div class="t2" style="white-space:normal">Say what it should do. Claude asks a few questions here, writes it, tests it and shows you.</div>
+      <div class="fld"><div class="in2"><input id="sk-new" placeholder="captions that pop on the key word" aria-label="What the skill should do" onkeydown="if(event.key==='Enter')makeSkill()"></div><button class="b1" onclick="makeSkill()">Start</button></div></div>`:'';
+  const njl=nj&&(nj.state!=='done'||Date.now()/1000-(nj.finished||0)<600)?`<div class="t2" style="white-space:normal;color:var(--ink)">${jobText(nj)}</div>`:'';
+  const row=x=>{const us=used(x.name),open=ui.skImp===x.name,j=last('skill-change',j=>j.args.skill===x.name);
+    return `<div class="skr ssec"><div class="shd"><span class="snm">/${esc(x.name)}</span><span class="t2">${us.length?'Used by '+us.map(c=>`<a href="#" onclick="openStyle(${J(c.id)});return false">${esc(dname(c))}</a>`).join(', '):'Not used by a style yet'}</span></div>
+      <div class="t1" style="white-space:normal;line-height:22px">${x.found===false?'Not in the skill folders this editor can see.':esc(x.description||'No description.')}</div>
+      ${x.rules?`<div class="t2">${x.rules} learned rule${x.rules>1?'s':''}</div>`:''}
+      <div class="acts">${x.found===false?'':`<button class="b2 s" onclick="useSkill(${J(x.name)})">Use as a style</button>${x.own?`<button class="b2 s" onclick="ui.skImp=${open?'null':J(x.name)};render();setTimeout(()=>{const e=$('#sk-imp');if(e)e.focus()},0)">Improve with feedback</button>`:''}<button class="b2 s" onclick="skillFile('open',${J(x.name)})">Open the file</button><button class="b2 s" onclick="skillFile('reveal',${J(x.name)})">Show in ${FINDER()}</button>`}</div>
+      ${open?`<div class="fld"><div class="in2"><input id="sk-imp" placeholder="never zoom in the first second" aria-label="What to change in this skill" onkeydown="if(event.key==='Enter')improveSkill(${J(x.name)})"></div><button class="b1" onclick="improveSkill(${J(x.name)})">Send</button></div>
+        <div class="t2" style="white-space:normal">Claude turns it into a rule, shows you the exact line and saves it when you say yes.</div>`:''}
+      ${j&&(j.state!=='done'||Date.now()/1000-(j.finished||0)<600)?`<div class="t2" style="white-space:normal;color:var(--ink)">${jobText(j)}</div>`:''}</div>`};
+  const body=ui.skills==null&&!ls.length?'<div class="none">Looking for skills...</div>':ls.length?`<div class="skl">${ls.map(row).join('')}</div>`
+    :ui.skNew?'':`<div class="ssec"><div class="t1" style="white-space:normal;line-height:22px">You have no skills that edit videos yet. Claude can make one with you: say what it should do, and it writes and tests it.</div><button class="b1" style="align-self:flex-start" onclick="newSkill()">${ic('plus',16,2.2)}Make a new skill</button></div>`;
+  return `<div class="pgc"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px"><div class="ph"><h1>Skills</h1><p>A skill is a set of steps Claude follows. A style can use one to make your edit.</p></div>
+      <div class="row hact">${ls.length?`<button class="b1" onclick="newSkill()">${ic('plus',16,2.2)}Make a new skill</button>`:''}</div></div>${mk}${njl}${body}</div>`;
+}
+function newSkill(){ui.skNew=true;if(rv!=='skills')rgo('skills');else render();setTimeout(()=>{const e=$('#sk-new');if(e)e.focus()},0)}
+async function makeSkill(){const t=($('#sk-new')||{}).value||'';const r=await queue({type:'skill-new',text:t.trim()});if(r._ok){ui.skNew=false;render()}}
+async function improveSkill(n){const t=($('#sk-imp')||{}).value||'';if(!t.trim())return;const r=await queue({type:'skill-change',skill:n,text:t.trim()});if(r._ok){ui.skImp=null;render()}}
+async function useSkill(n){const r=await post('/style/new',{name:skStyleName(n),skill:n});if(!r._ok){toast(r.error||'That did not work.');return}await loadLib();openStyle(r.id)}
+async function skillFile(how,name){const r=await post('/skill/'+how,{name});if(!r._ok)toast(r.error||'That did not open.')}
+
 // ---- New style: Analyse a format (3 to 6 links, any creators; or pick them from a profile), or Build it yourself
 function openCreate(){ui.create=true;ui.study={};render();setTimeout(()=>{const e=$('#lb-study');if(e)e.focus()},0)}
 function closeCreate(){ui.create=false;ui.study=null;render()}
@@ -1436,7 +1480,7 @@ function createModal(){
 async function openSkills(){ui.study={skills:{list:null}};render();try{ui.study.skills.list=(await (await fetch('/skills')).json()).skills}catch(e){ui.study.skills.list=[]}render()}
 function skillModal(){
   const k=ui.study.skills,ls=k.list;
-  const body=!ls?'<div class="t2">Looking for skills...</div>':!ls.length?'<div class="t2" style="white-space:normal">No editing skills found. Put one at ~/.claude/skills/&lt;name&gt;/SKILL.md, then open this again.</div>'
+  const body=!ls?'<div class="t2">Looking for skills...</div>':!ls.length?`<div class="t2" style="white-space:normal">You have no skills that edit videos yet. Claude can make one with you, step by step.</div><button class="b1" style="align-self:flex-start" onclick="closeCreate();newSkill()">Make a new skill</button>`
     :ls.map(x=>`<button class="nbox brow" style="${k.sel===x.name?'outline:1.5px solid var(--ink)':''}" onclick="ui.study.skills.sel=${J(x.name)};ui.study.skills.name=ui.study.skills.name||${J(skStyleName(x.name))};render()"><div style="min-width:0"><b style="font-family:var(--mono)">/${esc(x.name)}</b><p style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(x.description||'')}</p></div></button>`).join('');
   return `<div class="modalbg" onclick="if(event.target===this)closeCreate()"><div class="modal nsm" role="dialog" aria-modal="true" aria-labelledby="mtitle">
     <div class="row" style="justify-content:space-between"><button class="back" style="text-decoration:none" onclick="ui.study={};render()">${ic('back',14,2)}<b class="mt2" id="mtitle">Use your own skill</b></button><button class="mx2" aria-label="Close" title="Close" onclick="closeCreate()">${ic('x',18,2)}</button></div>
@@ -1529,6 +1573,22 @@ function useFor(P){
   return `<div class="row" style="gap:12px"><span class="t2" style="color:var(--t2)">Use for</span><span class="seg4"><button class="${wide?'':'on'}" onclick="setUse(false)"><i style="width:9px;height:14px"></i>Tall 9:16</button><button class="${wide?'on':''}" onclick="setUse(true)"><i style="width:14px;height:9px"></i>Wide 16:9</button></span></div>`;
 }
 async function setUse(wide){const r=await post('/style/usefor',{id:ui.sp,text:wide?'Wide 16:9 videos':'Tall 9:16 videos'});if(r._ok){ui.spage=r;loadLib()}render()}
+// "Learned rules": every rule this style learned from notes and chats, with its day and the video it came from
+const dayOf=d=>{if(!d)return '';const t=new Date(d+'T12:00:00');return isNaN(t)?d:t.toLocaleDateString(undefined,{month:'short',day:'numeric'})};
+const vidName=n=>{const v=(L?L.videos:[]).find(x=>(x.dir||'').split(/[\\/]/).pop()===n);return v?v.name:n};
+function rulesSec(P){
+  const row=r=>`<div class="lrow2"><div style="min-width:0"><div>${esc(r.rule)}</div><div class="t2" style="white-space:normal">${[dayOf(r.last),r.video?'from '+esc(vidName(r.video)):'from your feedback',r.said>1?`said ${r.said} times`:''].filter(Boolean).join(' · ')}</div></div>`
+    +(r.id!=null?`<button class="b2 s" onclick="forgetRule(${r.id})">Remove</button>`:r.removable?`<button class="b2 s" onclick="forgetSkillRule(${J(r.rule)})">Remove</button>`:'')+'</div>';
+  return `<div class="ssec"><div class="shd"><b style="font-size:17px">Learned rules</b>${P.rules.length?`<span class="t2">${P.rules.length} from your notes</span>`:''}</div>
+    ${P.rules.map(row).join('')||`<div class="t2" style="white-space:normal">Nothing learned yet. On a video made with this style, leave a note like "always use fewer zooms" and keep it as a rule. It shows up here.</div>`}</div>`;
+}
+async function forgetSkillRule(text){const r=await post('/style/forget',{id:ui.sp,text});if(r._ok){ui.spage=r;loadLib()}else toast(r.error||'That did not work.');render()}
+// "What runs": the steps this style runs on every video, in order; logos and animations switch on or off
+function chainSec(P){
+  if(!P.chain)return '';
+  return `<div class="ssec"><div class="shd"><b style="font-size:17px">What runs</b><span class="t2">In this order, on every video</span></div><ol class="chain">${P.chain.map((x,i)=>`<li class="${x.on===false?'off':''}"><span class="cn">${i+1}</span><div class="cx"><b>${esc(x.name)}</b><span>${esc(x.what)}</span></div>${x.on==null?'<span class="al">Always</span>':`<button class="sw ${x.on?'on':''}" role="switch" aria-checked="${x.on}" aria-label="${esc(x.name)}" onclick="setChain('${x.key}',${!x.on})"><i></i></button>`}</li>`).join('')}</ol></div>`;
+}
+async function setChain(step,on){const r=await post('/style/chain',{id:ui.sp,step,on});if(r._ok){ui.spage=r;loadLib()}else toast(r.error||'That did not save.');render()}
 // a skill style's page: its skill makes the edit, so no Captions/Zooms/Cut/Cards/Sound here
 function vSkillPage(P){
   const card=styleById(P.id)||P,K=P.skill,editing=ui.edit&&ui.edit.kind==='name'&&ui.edit.id===P.id,pic=picOf(P,0);
@@ -1540,8 +1600,7 @@ function vSkillPage(P){
         <div class="t1" style="white-space:normal;line-height:22px">${K.found?esc(K.description||'This style runs its own skill.'):`Skill not found here: ${esc(K.name)} is not in the skill folders this editor can see. Making a video still asks Claude to run it, and offers the generic edit if that session doesn't have it.`}</div>
         <div class="t2" style="white-space:normal">Making a video cuts it here, then runs /${esc(K.name)} on the approved cut for the captions, visuals and render.</div></div>
       ${K.calls&&K.calls.length?`<div class="ssec"><div class="shd"><b>Skills it calls</b></div><div class="row" style="gap:8px;flex-wrap:wrap">${K.calls.map(x=>`<span class="tagc" style="font-family:var(--mono)">/${esc(x)}</span>`).join('')}</div></div>`:''}
-      ${P.rules.length?`<div class="ssec"><div class="shd"><b style="font-size:17px">What it learned from you</b><span class="t2">From your review notes and chats</span></div>
-        ${P.rules.map(r=>`<div class="lrow2"><div style="min-width:0"><div>${esc(r.rule)}</div><div class="t2" style="white-space:normal">Said ${r.said}x${r.last?` · last ${esc(r.last)}`:''}</div></div><button class="b2 s" onclick="forgetRule(${r.id})">Forget</button></div>`).join('')}</div>`:''}
+      ${chainSec(P)}${rulesSec(P)}
       ${P.references&&P.references.videos.length?`<div class="ssec"><div class="shd"><b>Analysed from</b></div><div class="refs">${P.references.videos.map(v=>`<a class="ref" href="${esc(v.url)}" target="_blank" rel="noopener"><span class="rth" style="${v.thumbnail?`background-image:url('${esc(v.thumbnail)}')`:''}">${v.thumbnail?'':LINKG}</span><span style="min-width:0;flex:1"><span class="t1" style="display:block">${esc(v.title||shortLink(v.url))}</span></span></a>`).join('')}</div></div>`:''}</div></div>`;
 }
 function vStylePage(){
@@ -1561,8 +1620,7 @@ function vStylePage(){
     <div class="spr"><div class="row" style="gap:20px;align-items:flex-start">${P.own?'':`<span class="sth" style="${bgUrl(pic.url)}"></span>`}
         <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px"><div class="row" style="justify-content:space-between;gap:12px"><span class="row" style="gap:8px;min-width:0;flex:1">${editing?'':`<h1 class="sname">${esc(dname(P))}</h1>`}${editField('name',P.id,P.name,'font-size:24px;font-weight:600')}</span><span class="pgdots">${sMenu(card)}</span></div>
           ${meta}${useFor(P)}</div></div>
-      ${P.own&&P.id!=='x'?`<div class="ssec"><div class="shd"><b style="font-size:17px">What it learned from you</b><span class="t2">From your review notes and chats</span></div>
-        ${P.rules.map(r=>`<div class="lrow2"><div style="min-width:0"><div>${esc(r.rule)}</div><div class="t2" style="white-space:normal">Said ${r.said}x${r.last?` · last ${esc(r.last)}`:''}${r.applied?` · used ${r.applied}x`:''}${r.regressions?` · came back ${r.regressions}x`:''}</div></div><button class="b2 s" onclick="forgetRule(${r.id})">Forget</button></div>`).join('')||'<div class="t2" style="white-space:normal">Nothing yet. Your notes on the review page and corrections in the Claude chat land here.</div>'}</div>`:''}
+      ${rulesSec(P)}${chainSec(P)}
       <div class="ssec">${secHd('caption','Captions',(fact3(card).find(f=>f[0]==='caption')||[])[2],C.tag,'captions')}
         <div class="ctiles">${C.tiles.slice(0,6).map(t=>`<button class="ct ${t.id===C.sel?'on':''}" onclick="setCtl('captions.preset',${J(t.id)})"><span class="ci">${t.img?`<img src="${esc(t.img)}" alt="${esc(t.name)} captions" style="object-position:50% ${t.block.y_pct||C.y}%">`:`<span class="t2">${t.err?'No preview':'Rendering...'}</span>`}</span><b>${esc(capName(t))}</b></button>`).join('')}</div>
         <div class="row" style="gap:12px;flex-wrap:wrap"><span class="t2" style="color:var(--t2);width:34px">Size</span><span style="color:var(--t4);font-size:11px">A</span><input type="range" class="rng" min="3" max="8" step="0.2" value="${size}" aria-label="Caption size" onchange="setCtl('captions.size_pct',+this.value)"><span style="color:var(--t4);font-size:16px">A</span><b style="font-weight:500;font-size:13px">${size<4?'Small':size<5.2?'Medium':'Large'}</b><i class="vr"></i><span class="t2" style="color:var(--t2)">Drag the caption on your video to move it</span></div></div>
@@ -1854,6 +1912,7 @@ const IC={home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 
  lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
  moon:'<path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/>'};
+IC.skill='<path d="M13 3 5 13.5h6l-1 7.5 8-10.5h-6z"/>';
 Object.assign(IC,IC2);
 const ic=(k,px=18,sw=1.8)=>`<svg width="${px}" height="${px}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k]}</svg>`;
 const DOTS='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>';
@@ -1873,7 +1932,7 @@ function jobFrac(j){
   const done=j.steps.filter(s=>s.done).length,cur=j.steps.find(s=>!s.done);
   return Math.min(1,(done+(cur?(cur.progress!=null?cur.progress:.3):0))/n);
 }
-const JOBNAME={video:'Making',teardown:'Analysing',skill:'Building a skill',setup:'Setting up',update:'Updating',modal:'Connecting Modal','modal-test':'Testing Modal','style-change':'Changing a style'};
+const JOBNAME={video:'Making',teardown:'Analysing',skill:'Building a skill',setup:'Setting up',update:'Updating',modal:'Connecting Modal','modal-test':'Testing Modal','style-change':'Changing a style','skill-change':'Improving a skill','skill-new':'Making a skill'};
 // the sidebar's live card: the job being worked on, from the real job state
 function jobInfo(){
   const act=S.jobs.filter(j=>j.state==='queued'||j.state==='taken'),j=busyJob(),mk=(L?L.videos:[]).filter(v=>v.status==='making'||v.status==='cutting');
@@ -1884,7 +1943,7 @@ function jobInfo(){
   const what=j.type==='video'&&j.args.edit?' in '+j.args.edit.split(/[\\/]/).pop():j.type==='teardown'&&j.args.handle?' · '+styleName('@'+j.args.handle):'';
   const how=S.new_claude?'':` Type ${CMD} in Terminal.`,own=(j.claude||{}).opened,text=j.state==='queued'?(own?'Claude is working on this video in its own Terminal window.':S.listening?'Claude is picking this up.':'Waiting for Claude.'+how)
     :j.owner!=='home'&&!S.listening&&!own&&age>60?'Claude is not listening.'+how:(s?tdStep(j,s.text):'Getting started')+what;
-  const name=JOBNAME[j.type]||'Working',go=j.type==='video'?"ui.fold.videos=null;rgo('videos')":j.type==='teardown'||j.type==='skill'?"rgo('mystyle')":j.type==='setup'?'goHome()':j.type==='update'||j.owner==='home'?"rgo('settings')":'';
+  const name=JOBNAME[j.type]||'Working',go=j.type==='video'?"ui.fold.videos=null;rgo('videos')":j.type==='teardown'||j.type==='skill'?"rgo('mystyle')":j.type==='skill-change'||j.type==='skill-new'?"rgo('skills')":j.type==='setup'?'goHome()':j.type==='update'||j.owner==='home'?"rgo('settings')":'';
   return {label:j.type==='video'||j.type==='teardown'?`${name} ${n}`:name,short:j.type==='video'||j.type==='teardown'?name:'Working',n:j.type==='video'||j.type==='teardown'?n:'',text,frac:j.state==='queued'?0:jobFrac(j),since:s&&!s.done?s.t:jobStart(j),go};
 }
 const ringSvg=f=>{const C=2*Math.PI*10;return `<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="var(--line)" stroke-width="2.5"/><circle cx="12" cy="12" r="10" fill="none" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-(f==null?.25:f))).toFixed(1)}" transform="rotate(-90 12 12)"/></svg>`};
@@ -1911,7 +1970,7 @@ function sideHTML(){
     const it=(k,label,on,js,extra='')=>`<button class="rl-it ${on?'on':''}" onclick="${js}" ${extra}><span class="ic">${ic(k,20,1.9)}</span>${label}</button>`;
     return `<button class="rl-pan" data-home onclick="goHome()" title="Home" aria-label="cooked. home">${PAN(24)}</button>${tog}
       <button class="rl-it rl-new" onclick="rgo('new')"><span class="ic">${ic('plus',20,2.2)}</span>New</button><div style="height:10px;flex-shrink:0"></div>
-      ${it('home','Home',cur==='home','goHome()')}${it('videos','Videos',cur==='videos',vgo,dropAttrs('videos',null))}${it('styles','Styles',onS,"rgo('mystyle')")}
+      ${it('home','Home',cur==='home','goHome()')}${it('videos','Videos',cur==='videos',vgo,dropAttrs('videos',null))}${it('styles','Styles',onS,"rgo('mystyle')")}${it('skill','Skills',cur==='skills',"rgo('skills')")}
       <div class="sb-sp"></div>
       ${ji?`<button class="rl-it rl-job" onclick="${ji.go}" title="${esc(ji.label+': '+ji.text)}"><span class="ic">${ringSvg(ji.frac)}${ji.n}</span>${ji.short}</button>`:''}
       ${it('gear','Settings',cur==='settings',"rgo('settings')")}${thm}`;
@@ -1928,7 +1987,8 @@ function sideHTML(){
     <button class="sb-new" ${GS().setup?'':'disabled title="New video opens once setup is done"'} onclick="rgo('new')">${ic('plus',16,2.2)}New video</button>
     <nav class="sb-nav"><button class="sb-row ${cur==='home'?'on':''}" onclick="goHome()">${ic('home')}<span class="lb">Home</span></button>
       <button class="sb-row ${cur==='videos'&&!ui.fold.videos?'on':''}" onclick="${vgo}" ${dropAttrs('videos',null)}>${ic('videos')}<span class="lb">Your videos</span><span class="n">${vids.length}</span></button>
-      <button class="sb-row ${onS?'on':''}" onclick="rgo('mystyle')">${ic('styles')}<span class="lb">Styles</span><span class="n">${st.length}</span></button></nav>
+      <button class="sb-row ${onS?'on':''}" onclick="rgo('mystyle')">${ic('styles')}<span class="lb">Styles</span><span class="n">${st.length}</span></button>
+      <button class="sb-row ${cur==='skills'?'on':''}" onclick="rgo('skills')">${ic('skill')}<span class="lb">Skills</span></button></nav>
     <div class="sb-fold"><div class="sb-fh">Folders<button class="sb-add" title="New folder" aria-label="New folder" onclick="newFolder(null,null,rv==='mystyle'||rv==='stylepage'?'styles':'videos')">${ic('plus',12,2.4)}</button></div>
       <div class="sb-flist">${fd('videos').folders.map(f=>frow('videos',f)).join('')}${fd('styles').folders.map(f=>frow('styles',f)).join('')}${nf}</div></div>
     <div class="sb-sp"></div>
@@ -2117,7 +2177,7 @@ const ZOOMILL={none:'<i class="zb"></i>',smooth:'<i class="zb dash"></i><i class
 const CUTILL={relaxed:[22,16,26,14,18],natural:[24,7,28,6,20],tight:[26,0,30,0,22]};
 function rrender(){
   if(rv==='settings'&&!(ui.diskAt>Date.now()-10000)){ui.diskAt=Date.now();loadDisk()}   // free space is live: read again every 10 s
-  const h=rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='settings'?vSettings():vHome();
+  const h=rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='skills'?vSkills():rv==='settings'?vSettings():vHome();
   $('#main').classList.toggle('pg',['home','videos','settings','mystyle','style','stylepage'].includes(rv));
   paint($('#main'),h,rv+'|'+ui.sp);$('#main').classList.toggle('spwrap',rv==='stylepage');
   const md=ui.del?delModal():ui.create?createModal():'';paint($('#modal'),md,'m');document.documentElement.style.overflow=md?'hidden':'';$('#main').classList.toggle('hmain',rv==='home');

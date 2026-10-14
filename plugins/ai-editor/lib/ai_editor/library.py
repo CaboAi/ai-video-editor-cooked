@@ -291,6 +291,16 @@ def trash_cmd(p, os_name=None):
     return ["gio", "trash", str(p)]
 
 
+def open_cmd(p, os_name=None):
+    """A text file in the user's text editor (the Skills view's Open the file)."""
+    os_name = os_name or platform.system()
+    if os_name == "Darwin":
+        return ["open", "-t", str(p)]
+    if os_name == "Windows":
+        return ["notepad", str(p)]
+    return ["xdg-open", str(p)]
+
+
 def reveal_cmd(p, os_name=None):
     os_name = os_name or platform.system()
     if os_name == "Darwin":

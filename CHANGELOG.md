@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.6.10 (2026-10-13)
+
 - The cut renders at 1080p: a 4K take comes out 1080x1920 (or 1920x1080), never upscaled. The edit was already
   1080p, and a 4K cut took about four times as long to encode. `render.py --max 0` keeps the source size.
 

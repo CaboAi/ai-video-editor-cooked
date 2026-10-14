@@ -4,6 +4,16 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.2, creator-teardown 2.7.2 (2026-10-14)
+
+- New sample style: Motion design (16:9). One dark board the camera moves across, silver-rimmed tiles with real
+  logos landing on your words and joined by flowing lines, questions that sit centred then rise into the heading,
+  a few overlays alternating sides, and simple sound cues from the editor's own kit.
+- Styles from a creator follow them more closely. The analysis now sees jump cuts on a fixed camera, measures 2x
+  punch-ins and caption colours correctly, finds cards above a close-framed head, and records the colour grade;
+  the edit now uses the caption side, zoom rate, cut-aways, title at the open, music choice and impact sounds it
+  measured. `creator-teardown/scripts/match.py` scores an edit against the creator, feature by feature.
+
 ## ai-editor 2.7.1 (2026-10-14)
 
 - Video cards say whose turn it is: "Your turn: watch the cut", "Your turn: approve the stills", "Your turn: watch

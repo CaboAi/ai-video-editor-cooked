@@ -19,6 +19,8 @@ for it, and reports back with `status`:
                                                  (several clips as one video: join them in the listed order)
                                                  (either may end with script=DIR/edits/a/script.md before root=)
         JOB video ... skill=<name> chain=motion   a skill style; chain= is the style's "What runs" when not the default
+        JOB video ~/.ai-video-editor/home/sample/sample-take.mp4 as=@sample-card-edit aspect=9:16 edit=DIR/edits/sample-video sample=1 root=DIR
+                                                 (Try it with a sample video: its decisions are already in edit=)
         JOB style-change @handle style=DIR/creator-teardowns/handle/style.json text=<the user's words>
         JOB skill-change <skill> path=<its SKILL.md> text=<the user's words>   Skills: Improve with feedback (skill-improver)
         JOB skill-new [text=<what it should do>]  Skills: Make a new skill (skill-maker)
@@ -112,6 +114,13 @@ RAW = "https://raw.githubusercontent.com/nextwork-projects/ai-video-editor-cooke
 COVER_MAX = 50 << 20   # a style's chosen image, or a short clip to take a frame from
 SCRIPT_MAX = 200_000   # a script's text, in bytes; the file it came from may be up to 1 MB (a .docx with a logo)
 SCRIPT_EXT = (".txt", ".md", ".docx", ".pdf")
+# "Try it with a sample video": the repo's public sample take (a GitHub release asset), and next to the plugin the
+# transcript, cut, style and visuals already decided for it (presets/sample/), so it needs no keys, no transcriber
+# and no judge: the cut, the editor, the stills and the render, in a couple of minutes.
+SAMPLE = Path(__file__).resolve().parents[2] / "presets" / "sample"
+SAMPLE_URL = "https://github.com/nextwork-projects/ai-video-editor-cooked/releases/download/sample-video/sample-take.mp4"
+SAMPLE_SHA = "0f4718b97060c5e7a5cd843f48fe6815d62cf93a08a8485138dfbfbd41527441"
+SAMPLE_NAME = "Sample video"
 
 
 SCRIPT_UNPACK = 20 << 20   # what a .pdf's streams or a .docx's document.xml may unpack to; more is refused
@@ -1459,7 +1468,7 @@ def job_line(j, root):
         src = f"takes={a['takes']}" if a.get("takes") else a["path"]
         return f"JOB video {src} as={a['as']} aspect={a['aspect']}" + (f" edit={a['edit']}" if a.get("edit") else "") + \
             (f" script={a['script']}" if a.get("script") else "") + (f" skill={a['skill']}" if a.get("skill") else "") + \
-            (f" chain={a['chain']}" if a.get("chain") else "") + \
+            (f" chain={a['chain']}" if a.get("chain") else "") + (" sample=1" if a.get("sample") else "") + \
             (f" assets={Path(a['edit']) / 'assets.json'}" if a.get("edit") and (Path(a["edit"]) / "assets.json").exists() else "") + f" root={root}"
     if j["type"] == "skill-change":
         return f"JOB skill-change {a['skill']} path={a['path']} text={a['text']}"
@@ -1780,7 +1789,7 @@ def make_handler(token):
                     h = j["args"].get("handle")
                     if j["type"] == "teardown" and j["state"] in ("queued", "taken") and "@" + str(h) not in [c["id"] for c in cards]:
                         cards.append({"id": "@" + h, "name": handle_name(h), "facts": [], "look": None, "studying": True, "face": face_of(root, h),
-                                      "line": "Being analysed now. Your cut starts first; the style waits for it."})
+                                      "line": "Being analysed now. Your cut starts first. The style waits for it."})
                 arch = set(read().get("archived_styles") or [])   # Archive: off Styles, Home and Pick a style; files untouched
                 return self.send(200, {"path": root, "place": place(root), "env": bool(os.environ.get("AI_EDITOR_LIBRARY", "").strip()),
                                        "custom": str(custom.path(False)), "videos": vids, "folders": folders(),
@@ -1849,10 +1858,10 @@ def make_handler(token):
             if path == "/review":   # a library video's review page: its own server, started if it is not running
                 d = Path(q.get("dir", [""])[0]).resolve()
                 if d not in library.edit_dirs() or not (d / "review.json").exists():
-                    return self.send(404, {"error": "no review page for that video yet"})
+                    return self.send(404, {"error": "This video has no editor page yet."})
                 url = review_url(d)
                 if not url:
-                    return self.send(500, {"error": "the review page did not start"})
+                    return self.send(500, {"error": "The editor did not open. Try again."})
                 self.send_response(302)
                 self.send_header("Location", url)
                 self.send_header("Content-Length", "0")
@@ -2123,6 +2132,8 @@ def make_handler(token):
                     return self.send(400, {"msg": f"Could not use that folder: {e.strerror or e}"})
                 update(lambda d: d.__setitem__("root", str(p)))
                 return self.send(200, {"path": str(p)})
+            if path == "/sample":   # "Try it with a sample video"
+                return self.sample()
             if path == "/connect":   # "Connect Claude": a new terminal with a listening Claude, one at a time
                 import launcher
                 st, cmd = launcher.connect(read()["root"])
@@ -2170,7 +2181,7 @@ def make_handler(token):
                 if urls and not handle:
                     handle = link_set([links.classify(u) for u in urls])["handle"] or "links-" + time.strftime("%m%d%H%M")
                 if not handle:
-                    return self.send(400, {"error": "no creator"})
+                    return self.send(400, {"error": "Paste a creator or some video links first."})
                 args = {"handle": handle, "platform": b.get("platform") if b.get("platform") in ("tiktok", "youtube", "instagram") else "tiktok",
                         "take": take}
                 if urls:
@@ -2181,7 +2192,7 @@ def make_handler(token):
             elif kind == "skill":
                 td = latest(d, "teardown")
                 if not td or td["state"] != "done":
-                    return self.send(409, {"error": "the copy of their style is not finished"})
+                    return self.send(409, {"error": "Their style is still being analysed. Try again when it is done."})
                 args = {"handle": td["args"]["handle"], "take": take}
             elif kind == "video":
                 return self.videos(b, d)
@@ -2196,7 +2207,7 @@ def make_handler(token):
                 except KeyError:
                     return self.send(400, {"error": "no such style"})
                 if not text:
-                    return self.send(400, {"error": "say what to change"})
+                    return self.send(400, {"error": "Say what to change."})
                 args = {"style": b.get("style") or "mine", "path": str(sp) if sp else "", "text": text}
             elif kind == "skill-change":   # Skills, "Improve with feedback": skill-improver turns the words into learned rules
                 from ai_editor import skillrules
@@ -2215,6 +2226,16 @@ def make_handler(token):
             j = update(lambda d: queue(d, kind, args))
             return self.send(200, {"id": j["id"], "handle": j["args"].get("handle")})
 
+        def sample(self):
+            """The sample take, downloaded once, made like any video with its decisions shipped."""
+            d = read()
+            try:
+                src = get_sample()
+            except (OSError, ValueError):
+                return self.send(400, {"ok": False, "msg": "The sample video did not download. Check your internet connection, then try again."})
+            library.seed_samples(Path(d["root"]))
+            return self.videos({"path": str(src), "as": "@sample-card-edit", "aspect": "9:16", "sample": True}, d)
+
         def videos(self, b, d):
             """One clip, several joined into one video (takes), or several separate videos: one JOB each."""
             ps = [probe(x) for x in (b.get("paths") or [b.get("path") or ""])[:20]]
@@ -2228,7 +2249,7 @@ def make_handler(token):
                 studying = any(j["type"] == "teardown" and j["args"].get("handle") == h and j["state"] in ("queued", "taken")
                                for j in d["jobs"])   # the cut starts now; the styled pass waits for the study
                 if not studying and not (Path(d["root"]) / "creator-teardowns" / h / "style.json").exists():
-                    return self.send(400, {"ok": False, "msg": f"@{h}'s style has not been copied yet."})
+                    return self.send(400, {"ok": False, "msg": f"@{h}'s style is not analysed yet."})
                 style = "@" + h
                 try:   # a skill style: the edit stage is that skill (start skill, JOB video skill=)
                     skill = skill_of(json.loads((Path(d["root"]) / "creator-teardowns" / h / "style.json").read_text(encoding="utf-8")))
@@ -2253,9 +2274,11 @@ def make_handler(token):
 
             def remember(d):
                 d["picked"] = list(dict.fromkeys([p["path"] for p in ps] + (d.get("picked") or [])))[:60]
-            update(remember)
+            sample = bool(b.get("sample"))
+            if not sample:   # the sample stays off the recent takes
+                update(remember)
             for g in groups:
-                edit = new_edit(Path(d["root"]), g[0]["name"])
+                edit = new_edit(Path(d["root"]), SAMPLE_NAME if sample else g[0]["name"])
                 args = {"path": g[0]["path"], "paths": [p["path"] for p in g], "as": style, "aspect": aspect, "edit": str(edit),
                         **({"skill": skill} if skill else {}), **({"chain": chain} if chain else {})}
                 if len(g) > 1:
@@ -2266,11 +2289,21 @@ def make_handler(token):
                     (edit / "script.md").write_text(script + "\n", encoding="utf-8")
                     args["script"] = str(edit / "script.md")
                 assets.add(edit, adds)   # "Add images or links": edit/assets/ + assets.json, before the job line is read
+                if sample:   # its transcript, cut, style and visuals, so Claude skips transcribing, deciding and judging
+                    for f in SAMPLE.glob("*.json"):
+                        shutil.copyfile(f, edit / f.name)
+                    st = json.loads((edit / "style.json").read_text(encoding="utf-8"))   # named Card edit, as its style
+                    st["source"] = [str(Path(d["root"]).resolve() / "creator-teardowns" / "sample-card-edit" / "style.json")]
+                    (edit / "style.json").write_text(json.dumps(st, indent=1), encoding="utf-8")
+                    args["sample"] = 1
                 ids.append(update(lambda d: queue(d, "video", args))["id"])
                 edits.append(str(edit))
                 # the editor opens at once on the clip (round 0, "The cut / your clip"); Claude's cut lands there
                 subprocess.run([sys.executable, str(REVIEW), str(edit), "start", "--raw", "--video", g[0]["path"], "--stage", "cut"],
                                capture_output=True, timeout=60)
+                if sample:   # its name in Your videos and on the editor
+                    rj = edit / "review.json"
+                    save(rj, {**load(rj), "name": SAMPLE_NAME})
             # every video gets a Claude of its own in a new Terminal window, unless an idle listening Claude takes it now
             lis, d = listener(), read()
             idle = lis is not None and not busy_with(d, lis) and not any(takeable(j, lis, d) for j in d["jobs"] if j["id"] not in ids)
@@ -2351,6 +2384,30 @@ def make_handler(token):
     return H
 
 
+def get_sample():
+    """$AI_EDITOR_HOME/home/sample/sample-take.mp4 (off the library, so never a recent take), downloaded from the repo's
+    release once and checked against its sha256."""
+    import hashlib
+    from ai_editor import net
+    out = home() / "sample" / "sample-take.mp4"
+    if out.is_file() and out.stat().st_size > 0:
+        return out
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_suffix(".part")
+    try:
+        net.retrieve(SAMPLE_URL, tmp, timeout=60)
+        h = hashlib.sha256()
+        with open(tmp, "rb") as f:
+            for b in iter(lambda: f.read(1 << 20), b""):
+                h.update(b)
+        if h.hexdigest() != SAMPLE_SHA:
+            raise ValueError("the sample video did not match its checksum")
+        os.replace(tmp, out)
+    finally:
+        tmp.unlink(missing_ok=True)
+    return out
+
+
 def new_edit(root, name):
     """<root>/edits/<slug of the file name>, -2, -3 ... when taken; made now and listed in the library."""
     slug = links._slug(Path(name).stem)
@@ -2383,7 +2440,7 @@ def probe(path):
         w = h = None
         dur = 0
     if not w:
-        return {"ok": False, "msg": "That file has no video in it that ffprobe can read."}
+        return {"ok": False, "msg": "That file has no video the editor can read."}
     size = p.stat().st_size
     gb = f"{size / 1e9:.1f} GB" if size >= 1e9 else f"{size / 1e6:.0f} MB"
     res = "4K" if max(w, h) >= 3840 else "1080p" if max(w, h) >= 1920 else f"{min(w, h)}p"
@@ -2838,6 +2895,20 @@ def demo():
     out(cmd_wait, 0.01)
     post("/cancel", {"type": "teardown"})
     assert out(cmd_wait, 0.01) == "JOB cancel teardown" and latest(read(), "teardown")["state"] == "cancelled"
+    # Try it with a sample video: the downloaded take (here already there), its decisions copied, named, off the recent list
+    (home() / "sample").mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(vid, home() / "sample" / "sample-take.mp4")
+    picked = read().get("picked")
+    r = post("/sample", {})
+    se = root.resolve() / "edits" / "sample-video"
+    assert r["edits"] == [str(se)] and read().get("picked") == picked, r
+    assert out(cmd_wait, 0.01) == (f"JOB video {(home() / 'sample' / 'sample-take.mp4').resolve()} as=@sample-card-edit aspect=9:16 "
+                                   f"edit={se} sample=1 root={root.resolve()}")
+    assert sorted(f.name for f in se.glob("*.json")) == ["review.json", "spans.json", "style.json", "visuals.json", "words.raw.json"]
+    assert json.loads((se / "style.json").read_text(encoding="utf-8"))["behind"] is False
+    import review
+    assert review.download_name(se, {"name": "Sample video", "stage": "edit"}) == "Sample video - Card edit.mp4"
+    assert library.entry(se)["name"] == "Sample video" and get_sample() == home() / "sample" / "sample-take.mp4"
     assert running() == url and serve(root, 0, open_browser=False) == (None, url)
     # sessions: a job sticks to the Claude Code session that took it
     os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-A"

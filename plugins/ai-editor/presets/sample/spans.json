@@ -1,0 +1,79 @@
+[
+ {
+  "text": "I built, I built a router with a new-- I built a router with Jev that saves me money and tokens.",
+  "after": 18.0,
+  "kind": "retake",
+  "note": "keeper is the take at 37.6s"
+ },
+ {
+  "text": "I built this router with Jev that s-- I built this router with Jev that saves me money and tokens for my AI models.",
+  "after": 25.0,
+  "kind": "retake",
+  "note": "keeper is the take at 37.6s"
+ },
+ {
+  "text": "I built a router that--",
+  "after": 37.0,
+  "kind": "false_start",
+  "note": "restarts at once"
+ },
+ {
+  "text": "Jev is this new AI model that a bunch of people are use... Jev is this new AI mo--",
+  "after": 46.5,
+  "kind": "retake",
+  "note": "keeper is the take at 51.9s"
+ },
+ {
+  "text": "It is forty to two hundred times faster than Claude.",
+  "after": 57.0,
+  "kind": "retake",
+  "note": "keeper is the take at 61.4s"
+ },
+ {
+  "text": "People have been using it to sort their emails in less... People have been using it to sort their emails in less than a second. People have been using it to sort their emails... People have been using it to sort thousands of emails in... People have been using it to sort thousands of emails for less than three cents. People have been using it, people have been using it to sort,",
+  "after": 68.0,
+  "kind": "retake",
+  "note": "keeper is the last take at 89s"
+ },
+ {
+  "text": "And to break down, and to break down competitor ads, and to break down competitor, and to break down competitor ads for their entire niche in less than a minute. And to break down, and to break down competitor ads for, and to break down competitor ads and u--",
+  "after": 96.0,
+  "kind": "retake",
+  "note": "keeper is the take at 118.1s"
+ },
+ {
+  "text": "The thing is that,",
+  "after": 130.0,
+  "kind": "false_start",
+  "note": "restarts at once"
+ },
+ {
+  "text": "it's not an,",
+  "after": 131.0,
+  "kind": "false_start",
+  "note": "restarts at 132.9s"
+ },
+ {
+  "text": "So I wrote a project on how to build this router.",
+  "after": 143.0,
+  "kind": "retake",
+  "note": "said twice; keeper is the take at 145.6s"
+ },
+ {
+  "text": "[coughs]",
+  "after": 147.0,
+  "kind": "audio_event"
+ },
+ {
+  "text": "Follow for more tips.",
+  "after": 178.0,
+  "kind": "redundant",
+  "note": "the line before already asks for the follow"
+ },
+ {
+  "text": "[coughs] I built, I built a model router that picks the most efficient-- I built a model router with Jev that picks the most efficient model for me to use, and it's saving me a ton of time and money.",
+  "after": 179.0,
+  "kind": "alt_hook",
+  "note": "takes of the opening after the call to action"
+ }
+]

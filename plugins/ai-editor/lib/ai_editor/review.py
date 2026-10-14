@@ -923,7 +923,7 @@ def make_handler(folder, token):
                             c["keep"], c["keep_set"] = bool(body.get("keep")), True
                             return True
                     return False
-                return self.send(200, {}) if update(rj, kp) else self.send(409, {"error": "this note is with Claude"})
+                return self.send(200, {}) if update(rj, kp) else self.send(409, {"error": "Claude has this note now."})
             if path == "/undo":   # a receipt's Undo: the saved rule comes out of the style
                 try:
                     msg = undo_receipt(folder, int(body.get("id")))
@@ -976,9 +976,9 @@ def make_handler(folder, token):
                 if body.get("type") not in ("send", "approve", "stop"):
                     return self.send(400, {})
                 if body["type"] == "approve" and load(rj).get("raw"):   # nothing to approve before the first cut
-                    return self.send(409, {"error": "the cut is not ready yet"})
+                    return self.send(409, {"error": "The cut is not ready yet."})
                 if body["type"] == "stop" and load(rj).get("raw"):   # the first cut cannot be stopped from here
-                    return self.send(409, {"error": "the first cut is on its way"})
+                    return self.send(409, {"error": "The first cut is on its way."})
                 if body["type"] == "stop":   # the round's notes open again; `status` tells Claude to stop
                     def st(d):
                         if d.get("sent") and d["events"] and (d["events"][-1]["type"] in ("send", "edits") or making_edit(d)):
@@ -1016,7 +1016,7 @@ def make_handler(folder, token):
                         prepared_steps(folder, d)
                     return True
                 if not update(rj, ev):
-                    return self.send(409, {"error": "Claude is applying your transcript changes"})
+                    return self.send(409, {"error": "Claude is applying your transcript changes."})
                 if body["type"] == "send" and load(rj).get("stills"):   # notes on the stills: that render is not the one
                     drop_spec(folder)
                 return self.send(200, {})
@@ -1035,7 +1035,7 @@ def make_handler(folder, token):
             d = load(rj)
             last = d["events"][-1]["type"] if d["events"] else None
             if d.get("sent") and last not in ("send", "edits"):   # approved: nothing comes after it on this stage
-                return self.send(409, {"error": "this round is approved"})
+                return self.send(409, {"error": "This draft is approved."})
             queued = bool(d.get("sent"))   # with Claude: the note waits for the next round
             alt = body.get("alt") or None
             src = alt_of(d, alt if alt != "*" else None)
@@ -1068,9 +1068,9 @@ def make_handler(folder, token):
             with LOCK:   # one Apply at a time: the sent check, the files and the event move together
                 d = load(rj)
                 if d.get("stage") != "cut" or d.get("raw"):
-                    return self.send(409, {"error": "words change on the cut only"})
+                    return self.send(409, {"error": "Words can only change on the cut."})
                 if d.get("sent"):
-                    return self.send(409, {"error": "Claude has this round"})
+                    return self.send(409, {"error": "Claude is working on this draft."})
                 try:
                     out = apply_edits(folder, restore, cut, pause)
                 except Exception as e:   # a spans.json or transcript this cannot read: say so, never drop the connection
@@ -1095,7 +1095,7 @@ def make_handler(folder, token):
             if not c:
                 return self.send(404, {"error": "no such note"})
             if not editable(d, c):
-                return self.send(409, {"error": "this round is with Claude" if d.get("sent") else "this note is from an earlier round"})
+                return self.send(409, {"error": "Claude is working on this draft." if d.get("sent") else "This note is from an earlier draft."})
             new = dict(c)
             if "text" in body:
                 new["text"] = str(body["text"] or "").strip()
@@ -1134,7 +1134,7 @@ def make_handler(folder, token):
                         return True
                 return False
             if not update(rj, put):
-                return self.send(409, {"error": "this round is with Claude"})
+                return self.send(409, {"error": "Claude is working on this draft."})
             return self.send(200, new)
     return H
 
@@ -1382,7 +1382,7 @@ def cmd_resolve(a, folder):
 # The style-edit's own steps, in order. The page fills its "Making the edit" bar from them (render by its log's
 # percent); plan.py, retakes.py captions, route.py and edit.py report them with step(), Claude with status --step.
 EDIT_STEPS = {"captions": "Writing the captions", "visuals": "Finding the visuals",
-              "plan": "Planning zooms, cards and sound", "render": "Rendering the edit"}
+              "plan": "Planning zooms, cards and sound", "render": "Making the video"}
 
 
 def add_step(d, text, log=None, key=None, done=False):
@@ -2487,7 +2487,7 @@ def demo():
         mid = {"listening": False, "busy": True, "sent": False, "round": 1, "stage": "edit", "comments": [], "events": []}
         o = subprocess.run(["node", "-e", js.group(0) + "for(const s of " + json.dumps([ev("approve", 0), ev("send", 1), mid])
                             + ")console.log(listenText(s))"], capture_output=True, text=True, check=True).stdout
-        assert o.splitlines() == ["Approved", "Claude is working on round 2", "Claude is working. Notes you send now are next."], o
+        assert o.splitlines() == ["Approved", "Claude is working on draft 2", "Claude is working. Notes you send now are next."], o
     # approve on the cut: the style-edit's scripts fill the page's "Making the edit" steps, in place, never twice
     sf = tmp / "edits" / "steps"
     sf.mkdir(parents=True)
@@ -2503,7 +2503,7 @@ def demo():
         cmd_status(ns(text="", log=str(lg), done=False, step="render"), sf)
     act = load(sf / "review.json")["activity"]
     assert [x.get("step") for x in act] == ["captions", "visuals", "plan", "render"], act
-    assert [x["done"] for x in act] == [True, True, True, False] and act[-1]["text"] == "Rendering the edit", act
+    assert [x["done"] for x in act] == [True, True, True, False] and act[-1]["text"] == "Making the video", act
     assert act[2]["log"] == str(lg.resolve()) and busy(sf)
     srv3, url3 = serve(sf, 0, open_browser=False)   # the page's Stop takes the approve back; `status` says STOPPED
     threading.Thread(target=srv3.serve_forever, daemon=True).start()

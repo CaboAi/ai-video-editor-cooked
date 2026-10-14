@@ -53,6 +53,25 @@ def count_frames(path):
     return first_int(r.stdout)
 
 
+def packets(path):
+    """The video stream's frame count from its packets: no decode, what build_timeline sized the cut on."""
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets",
+                        "-show_entries", "stream=nb_read_packets", "-of", "csv=p=0", str(path)],
+                       capture_output=True, text=True)
+    return first_int(r.stdout)
+
+
+def trim_filter(s, e, fps, vstart, total):
+    """The trim for frames s..e-1. A span that ends on the source's last frame has no time end: a
+    phone often stamps that frame late (past the half-frame edge), and the window would drop it. It
+    keeps exactly e - s frames by count instead, repeating the last frame if the decode is one short."""
+    t0, t1 = video_window(s, e, fps, vstart)
+    if e < total:
+        return f"trim=start={max(0.0, t0):.6f}:end={t1:.6f},setpts=N/({fps})/TB"
+    return (f"trim=start={max(0.0, t0):.6f},setpts=N/({fps})/TB,"
+            f"tpad=stop_mode=clone:stop=1,trim=end_frame={e - s}")
+
+
 def starts(path):
     """(video stream start, file start) in seconds. With -copyts the video trim sees the stream's
     own timestamps, which can begin a frame or two in (B-frame delay, an edit list); the audio
@@ -99,6 +118,7 @@ def main():
         print("flipping left to right (--flip)", flush=True)
     hw = sys.platform == "darwin" and not a.no_hw
     vstart, fstart = starts(src)
+    total = packets(src)
     off = vstart - fstart     # where frame 0 plays on the audio's timeline
     x264 = ["-c:v", "libx264", "-crf", str(a.crf), "-preset", "veryfast"]
     # A Mac already decoding in hardware encodes there too: a 107 s iPhone cut went 60 s -> 20 s and
@@ -126,7 +146,7 @@ def main():
 
         def one(i):
             s, e = frames[i]
-            t0, t1 = video_window(s, e, fps, vstart)
+            t0 = video_window(s, e, fps, vstart)[0]
             seg = seg_of(i)
             if seg.exists():
                 return None
@@ -141,7 +161,7 @@ def main():
             # frames over a 1/600 s source's jittered timestamps.
             cmd = ["ffmpeg", "-v", "error", "-y", "-copyts", *(["-hwaccel", "videotoolbox"] if hw else []),
                    "-ss", f"{max(0.0, t0 - fstart - LEAD_S):.6f}", "-i", src, "-an",
-                   "-vf", f"trim=start={max(0.0, t0):.6f}:end={t1:.6f},setpts=N/({fps})/TB" + (",hflip" if a.flip else "") + size,
+                   "-vf", trim_filter(s, e, fps, vstart, total) + (",hflip" if a.flip else "") + size,
                    "-r", str(fps), *enc, "-pix_fmt", "yuv420p", "-g", "15", str(part)]
             r = subprocess.run(cmd, capture_output=True, text=True)
             # Frames are counted once, on the finished file: a decode per segment cost a 10-minute 4K take

@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.11, creator-teardown 2.7.11 (2026-10-14)
+
 - Card edit never shows a card of words alone. A notes card now looks like real notes: your face in the header,
   the frame of your take beside each line, a green tick drawing in. A progress card shows frames of your take. A
   terminal or a chat with no logo gets no card, and the check fails any words-only card that gets through.
@@ -22,6 +24,7 @@ What changed for every user, newest first.
   Edit and Write inside it with a plain message, and Claude sessions the window opens get an Edit deny rule on
   the plugin folder. A checkout or fork you own is not blocked outside the window. The start, cut and
   style-edit skills say to report a wrong script and use a supported override instead.
+
 ## ai-editor 2.7.10, creator-teardown 2.7.10 (2026-10-14)
 
 - Skills: every skill has a ⋯ menu with Hide from this list and Delete. Delete moves the skill to the Trash, only from

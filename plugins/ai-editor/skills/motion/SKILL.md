@@ -119,6 +119,12 @@ none, 0.5 some, 1 lots; unset, a measured style's animation share), `kinds` (eac
 (`default`, `editorial`, `editorial-dark`, `mono`, `poster-red`, `poster-green`, `poster-blue`). `engine:
 "templates"` keeps the template cards.
 
+## The 50/50 style
+
+A split-layout style (style.json `layout.mode: "split"`, the sample `50/50`): every clip is built for the panel's
+art box on the panel's ground and plays edge to edge; the `panel` gate (ground at the corners, ink over 55%) and
+the four proofs (`verify.mjs`) block. Variants, rules and the cutout: `references/fifty-fifty.md`.
+
 ## Skill styles
 
 A user's own style skill gets bespoke animations with one line: "Animations: use the motion skill".
@@ -136,7 +142,8 @@ A user's own style skill gets bespoke animations with one line: "Animations: use
 - `scripts/motion.py` (pick, check, place, status, strips), `check_clip.py`, `check_motion.py`,
   `check_composition.py`, `measure_ink.py`, `clip_motion.py`: each with a `demo` self-check.
 - `template/`: the HyperFrames composition every clip starts from.
+- `scripts/verify.mjs`: the four proofs (clipped, rails, neighbour, reading), frame by frame in Chrome.
 - `references/`: `clip-brief-card.md` (the core every agent reads), `visual-system.md`, `build-loop.md`,
-  `scenes.md`, `looks.md`.
+  `scenes.md`, `looks.md`, `fifty-fifty.md`.
 - HyperFrames is Apache-2.0 (github.com/heygen-com/hyperframes), GSAP is under its standard no-charge licence
   (gsap.com/standard-license); both are installed from npm by setup, not shipped here.

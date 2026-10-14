@@ -2986,7 +2986,7 @@ def demo():
         assert e.code == 404
     # style cards: My style (the default style until a creator is saved), then each studied creator, measured only
     st = {c["id"]: c for c in lib["styles"]}
-    assert list(st) == ["mine", "@sample.creator", "@sample-card-edit", "@newbie"], list(st)
+    assert list(st) == ["mine", "@sample.creator", "@sample-50-50", "@sample-card-edit", "@newbie"], list(st)
     sm = st["@sample-card-edit"]   # the sample style the plugin ships: listed for every user, by its own name
     assert sm["sample"] and sm["name"] == "Card edit" and sm["line"].startswith("A sample style") and sm["cover"], sm
     assert sm["facts"][1] == ["Captions", "1 word at a time"] and not st["@sample.creator"]["sample"], sm["facts"]

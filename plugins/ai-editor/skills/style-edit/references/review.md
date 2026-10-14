@@ -148,8 +148,13 @@ Answer every note, then open the round with the new render:
 ```bash
 python3 "$R" edits/<name> resolve 1 fixed --reply "pause is 0.10 s now" --new-t 2.4
 python3 "$R" edits/<name> resolve 2 wontfix --reply "<why>" --new-t 8.0
-python3 "$R" edits/<name> round --video edits/<name>/cut.mp4
+python3 "$R" edits/<name> round --video edits/<name>/cut.mp4 --changed "Captions one size smaller"
 ```
+
+Every `--reply` is one plain line saying what you did ("Swapped it for the notion.so page"), never "done".
+`--changed` (repeat it) lists anything you changed that no note asked for. The page shows both under
+**Changed in this round**, with what the files themselves say changed (cards swapped, removed, added or
+bigger, zooms, caption look and words, the title, the music, cut words), each one a link to its moment.
 
 A note resolved `fixed` turns green on the next round ("Done in round N: <reply>"); `wontfix` turns grey with the reply. `--new-t` pins the note on the new render's timeline (a cut moves later moments). `wontfix` shows as
 **left as is** with the reply as the reason; the user can press **fix it anyway**, which comes back
@@ -172,6 +177,15 @@ tab follows the new round by itself; `round` never opens another.
 - **The styled edit:** the same page moves on to it:
   `round --stage edit --video edits/<name>/render.mp4 --transcript edits/<name>/words.json --plan edits/<name>/plan.json`.
   Approve there finishes the video. Stop the background `serve`.
+
+## Going back
+
+The **Rounds** tab plays any round at the same moment, compares two side by side, and has **Go back to
+this round** on earlier rounds of the open stage. It needs no Claude: review.py puts that round's files
+back (`review/snap-<stage><n>/`: plan.json, spans.json, visuals.json and the other top-level .json/.txt, and
+`.sfx/music.wav`) and its render (`cut.mp4`, `render.mp4`), and opens them as a new round, "Back to round N".
+The user's unsent notes move onto it. The next `wait` says `this round is round N again`: fix from those
+files. In the terminal, "go back to round 2" is `python3 "$R" edits/<name> back 2`.
 
 ## Several videos in one round
 

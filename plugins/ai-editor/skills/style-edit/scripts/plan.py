@@ -2,7 +2,7 @@
 """Turn a creator's style.json + a cut's words.json into plan.json for the Remotion render.
 
     python3 plan.py <style.json> <edits/NAME/captions.json> [--images images.json (default: next to it)]
-                    [--aspect auto|9:16|16:9] [--layout overlay|split|letterbox] [--title T]
+                    [--aspect auto|9:16|16:9] [--layout overlay|split|letterbox|board] [--title T]
                     [--out edits/NAME/plan.json]
     python3 plan.py cards edits/NAME [--plan plan.json]   every card, its time, box and the beat it came from
     python3 plan.py beat  edits/NAME card:3|0:15|word@2 key=value ... | --drop   change one beat (visuals.json, images.json)
@@ -24,6 +24,9 @@ footage. A beat's "layout" overrides, except that an explaining card on vertical
 --layout overlay never opens the panel: split cards become scenes. --layout letterbox (a landscape take only):
 a black 9:16 frame, the take as a centred band, a lowercase title above it, one word at a time in the band and
 the first image in images.json beside the head over the opening line; nothing else.
+--layout board (16:9, the Motion design sample style): one dark canvas a camera drags across; logo cards become
+tiles landing on their words under a heading in the speaker's words, a question becomes a heading that rises as the
+camera pans down, every other card an overlay on the speaker's footage, sides alternating (board_layout).
 Also writes "look" (profile brand kit > creator style.json > editorial; references/motion.md) and
 "motion" (the personality, from the creator's pace). The anti-generic rules (visuals.md) run first.
 The user's profile (~/.ai-video-editor/profile.json, the start skill) supplies brand, avoid and sound.
@@ -500,7 +503,7 @@ def logo_items(visuals, edit_dir, cap_y, aspect, card=False):
             print(f"warning: no logo file for '{slug}', run capture.mjs first; skipped", file=sys.stderr)
             continue
         w = LOGO_BOX_H * (16 / 9 if aspect == "9:16" else 9 / 16)   # a square tile
-        item = {k: v[k] for k in ("word", "nth", "entrance") if k in v}
+        item = {k: v[k] for k in ("word", "nth", "entrance", "heading") if k in v}
         if card and aspect == "9:16":
             item.update({"anim": {"type": "logo", "props": {"src": src, "card": True}}, "box": v.get("box") or list(LOGO_CARD_BOX)})
             item.update({"hold_s": v["hold_s"]} if v.get("hold_s") else {})
@@ -777,7 +780,7 @@ def anim_items(visuals, edit_dir=None, style=None):
         if v.get("type") not in ANIMS:
             print(f"warning: unknown anim type {v.get('type')!r} on '{v.get('word')}', skipped", file=sys.stderr)
             continue
-        item = {k: v[k] for k in ("word", "nth", "box", "entrance", "hold_s", "layout", "transition_in", "transition_out", "focus") if k in v}
+        item = {k: v[k] for k in ("word", "nth", "box", "entrance", "hold_s", "layout", "transition_in", "transition_out", "focus", "heading") if k in v}
         if "box" in v:
             item["_own_box"] = True
         item["anim"] = {"type": v["type"], "props": template_props(v["type"], v.get("props"))}
@@ -905,7 +908,8 @@ def _place(images, words, duration, hold, ent, box, aspect):
         card = {"src": im["src"]} if "src" in im else {"anim": im["anim"]}
         if im.get("lane"):
             card["lane"] = im["lane"]
-        for k in ("highlight", "size", "layout", "transition_in", "transition_out", "focus", "format", "props", "_own_box", "xh", "lines", "pics"):
+        for k in ("highlight", "size", "layout", "transition_in", "transition_out", "focus", "format", "props", "_own_box", "xh", "lines", "pics",
+                  "heading"):
             if im.get(k):
                 card[k] = im[k]
         if im.get("marks"):
@@ -1392,6 +1396,7 @@ def place_sfx(plan, words, kit, sound=None):
         return bool(before) and t - before[-1]["end"] < PAUSE_S and not ends_sentence(before[-1]["text"]) \
             and any(0 <= w["start"] - t < PAUSE_S for w in words)
 
+    ev += [(t, n) for t, n in (plan.get("layout") or {}).get("cues", [])]   # the board's camera moves and tile landings
     for c in plan["cards"]:
         kind = (c.get("anim") or {}).get("type")
         lands = c["start"] + CARD_LEAD_S
@@ -1521,6 +1526,210 @@ def face_every(cards, max_run):
         if 0 < b["start"] - a["end"] < BRIDGE_S:
             a["end"] = b["start"]
     return out
+
+
+# Board layout (the Motion design sample style, 16:9): one dark canvas a camera drags across. Logos become tiles
+# landing on their words under a heading in the speaker's words; a question asked becomes a heading that first sits
+# centred and then rises as the camera pans down; every other card is an overlay on the speaker's footage, the
+# sides alternating and the speaker reframed to the other side. Units: px of a 1920x1080 frame.
+BOARD_GAP_S = 4.0      # a tile this long after the last one starts a new board
+BOARD_MAX_TILES = 4    # one idea in view: a fifth tile starts a new board
+BOARD_HOLD_S = 2.5     # a board stays this long after its last tile lands
+BOARD_LEAD_S = 3.0     # a board starts on the sentence that names it, at most this long before its first tile
+BOARD_BRIDGE_S = 1.5   # boards closer than this: the camera drags straight across, no speaker in between
+BOARD_DRAG_S = 1.0     # one camera move
+BOARD_FADE_S = 0.6     # speaker <-> canvas crossfade (Board.tsx); the camera never flies over the speaker
+BOARD_HEAD_WORDS = 6   # a heading is one line of their words
+BOARD_Q_WORDS = 14     # a question keeps every word (Board.tsx shrinks it to fit one line)
+BOARD_Q_LEAD_S = 2.5   # a board whose first tile is said this soon after a question rises into it (one said inside it: no rise)
+BOARD_Q_GAP_S = 6.0    # a question with no board this soon after the last one shown stays with the speaker
+Q_WORDS = {"what", "why", "how", "when", "where", "which", "who", "can", "could", "should", "would", "will", "do",
+           "does", "did", "is", "are", "was", "have", "has"}   # a question starts with one of these
+BOARD_Q_RISE = 402     # the question sits this far below the heading spot (the frame's middle), then rises
+BOARD_STEP = (2400, 1350)   # board i sits at (STEP x (i % 2), STEP y x i) on the canvas: right, down, left, down
+BOARD_OVERLAY_BOX = ([5, 14, 42, 60], [53, 14, 42, 60])   # % of the frame, left and right, off the frame edge
+BOARD_REFRAME_S = 5.0  # the speaker's framing changes at least this often while they hold the frame
+BOARD_FACE = {"rest": 1.1, "push": 1.18, "side": 1.3, "max": 1.5}   # the speaker's zoom: between beats, a slow push, beside an overlay
+
+
+def board_heading(ws, t0):
+    """Heading words -> [[word, time it types on]]: its own time, or arrival + 0.1 s a word when said before the board."""
+    return [[clean(w["text"]).lower(), round(max(w["start"], t0 + 0.1 * i), 3)] for i, w in enumerate(ws)]
+
+
+def board_words(words, first, phrase=None):
+    """The words a board's heading is made of: the beat's own "heading" (their words, found in order around the first
+    tile), else the BOARD_HEAD_WORDS of the sentence that end on the first tile's word."""
+    if phrase:
+        want, out = [clean(x).lower() for x in phrase.split() if clean(x)], []
+        for w in words:
+            if len(out) < len(want) and first - 8 <= w["start"] < first + 4 and clean(w["text"]).lower() == want[len(out)]:
+                out.append(w)
+        if len(out) == len(want):
+            return out
+        print(f"warning: heading '{phrase}' is not said in that order near {first:.1f} s; using the sentence instead", file=sys.stderr)
+    a = board_sentence(words, first + CARD_LEAD_S)[0]
+    ws = [w for w in words if a - 0.05 <= w["start"] <= first + CARD_LEAD_S + 0.05 and clean(w["text"])]
+    return ws[-BOARD_HEAD_WORDS:]
+
+
+def board_sentence(words, t):
+    """[start, end, words] of the sentence being said at t."""
+    i = max((k for k, w in enumerate(words) if w["start"] <= t + 0.05), default=0)
+    a = i
+    while a > 0 and not ends_sentence(words[a - 1]["text"]):
+        a -= 1
+    b = i
+    while b < len(words) - 1 and not ends_sentence(words[b]["text"]):
+        b += 1
+    return words[a]["start"], words[b]["end"], words[a:b + 1]
+
+
+def board_tiles(c, words, edit_dir):
+    """The logo tiles a card turns into: [{src, label, at}], or [] for a card that stays an overlay. A logo is one
+    tile; a logo_cluster or a flow one per logo, each on its own word."""
+    a = c.get("anim") or {}
+    p = a.get("props") or {}
+    if a.get("type") == "logo" and p.get("src"):
+        return [{"src": p["src"], "label": clean(c.get("trigger_word") or "").lower(), "at": round(c["start"], 3),
+                 **({"heading": c["heading"]} if c.get("heading") else {})}]
+    nodes = p.get("logos") if a.get("type") == "logo_cluster" else p.get("nodes") if a.get("type") == "flow" else None
+    out = []
+    for i, n in enumerate(nodes or []):
+        if not isinstance(n, dict):
+            continue
+        src = n.get("src") or (resolve_src(n, edit_dir) if n.get("logo") else None)
+        if not src:
+            continue
+        said = clean(n.get("word") or n.get("label") or n.get("logo") or "").lower()
+        hit = next((w for w in words if clean(w["text"]).lower() == said and w["start"] >= c["start"] - 0.3), None)
+        at = hit["start"] - CARD_LEAD_S if hit else c["start"] + 0.4 * i
+        out.append({"src": src, "label": clean(n.get("label") or n.get("word") or n.get("logo") or "").lower(), "at": round(at, 3),
+                    **({"heading": c["heading"]} if c.get("heading") else {})})
+    return out
+
+
+def board_layout(cards, words, duration, face, edit_dir=None):
+    """The board layout (references/contracts.md "board"): logos -> tiles on boards, questions -> headings that rise or
+    centred lines over the speaker, the rest -> overlays on alternating sides. Returns (overlay cards, layout)."""
+    tiles, rest = [], []
+    for c in sorted(cards, key=lambda c: c["start"]):
+        ts = board_tiles(c, words, edit_dir)
+        (tiles.extend(sorted(ts, key=lambda x: x["at"])) if ts else rest.append(c))
+    groups = []
+    for t in sorted(tiles, key=lambda x: x["at"]):
+        g = groups[-1] if groups else None
+        if g and t["at"] - g[-1]["at"] < BOARD_GAP_S and len(g) < BOARD_MAX_TILES:
+            if t["src"] not in [x["src"] for x in g]:   # one tile a brand on a board
+                g.append(t)
+        else:
+            groups.append([t])
+    sents, cur = [], []
+    for w in words:
+        cur.append(w)
+        if ends_sentence(w["text"]):
+            sents, cur = sents + [cur], []
+    qs = []   # a question: the clause that ends in "?" ("so now you know, but when should you ...?" -> "when should ...?")
+    for st in sents + [cur]:
+        if st and st[-1]["text"].rstrip().endswith("?"):
+            cut = max((i + 1 for i, w in enumerate(st[:-1]) if ends_clause(w["text"]) and len(st) - i - 1 >= 3), default=0)
+            st = [w for w in st[cut:] if clean(w["text"])]
+            while st and clean(st[0]["text"]).lower() in DANGLING:   # "but when should you ..." -> "when should you ..."
+                st = st[1:]
+            if len(st) > BOARD_Q_WORDS:   # "... to decide is can you write down every answer?" -> "can you write down ..."
+                st = st[next((i for i in range(len(st) - BOARD_Q_WORDS, len(st) - 2) if clean(st[i]["text"]).lower() in Q_WORDS), 0):]
+            if 3 <= len(st) <= BOARD_Q_WORDS and clean(st[0]["text"]).lower() in Q_WORDS:   # "yes or no?" is not one
+                qs.append({"start": st[0]["start"], "end": st[-1]["end"], "words": st})
+    boards, prev_end = [], 0.0
+    for k, g in enumerate(groups):
+        first = g[0]["at"]
+        q = None if g[0].get("heading") else \
+            next((q for q in qs if q["end"] - 0.5 <= first <= q["end"] + BOARD_Q_LEAD_S and q["start"] >= prev_end), None)
+        if q:   # the whole question is the heading, never cut
+            start = max(prev_end, q["start"] - 0.2)
+            heading = board_heading([w for w in q["words"] if clean(w["text"])][:BOARD_Q_WORDS], start)
+            qs.remove(q)
+        else:   # the board arrives on its heading's first word: never an empty board
+            inq = next((q for q in qs if q["start"] <= first < q["end"] - 0.5), None)   # named inside a question: its heading
+            hw = inq["words"] if inq and not g[0].get("heading") else board_words(words, first, g[0].get("heading"))
+            start = max(prev_end, first - BOARD_LEAD_S, min(first - 0.3, hw[0]["start"] if hw else first))
+            heading = board_heading(hw, start)
+        nxt = min([groups[k + 1][0]["at"] if k + 1 < len(groups) else duration] +   # the next board, or an overlay after it
+                  [c["start"] for c in rest if c["start"] > g[-1]["at"] + 0.5])
+        end = min(max(g[-1]["at"] + BOARD_HOLD_S, start + 3.0), nxt - 0.5, duration)
+        start = max(start, min(first - 0.3, max([c["end"] + 0.3 for c in rest if c["start"] < first], default=0)))   # after an overlay
+        bd = {"start": round(start, 3), "end": round(end, 3), "x": BOARD_STEP[0] * (k % 2), "y": BOARD_STEP[1] * k,
+              "heading": heading, "tiles": g, **({"question": True, "rise": round(max(start + 0.6, first - 0.9), 3)} if q else {})}
+        boards.append(bd)
+        prev_end = end
+    # the camera: [at, centre x, centre y, zoom, move seconds]; views: when the canvas has the frame
+    cam, views, cues = [], [], []
+    for k, bd in enumerate(boards):
+        cx, cy = bd["x"] + 960, bd["y"] + 540
+        y0 = cy - BOARD_Q_RISE if bd.get("question") else cy
+        if views and bd["start"] - views[-1][1] < BOARD_BRIDGE_S:   # drag straight across from the last board
+            views[-1][1] = bd["end"]
+            cam.append([bd["start"], cx, y0, 1, BOARD_DRAG_S])
+        else:   # the canvas fades in over the speaker while the camera is already dragging in from the side
+            views.append([bd["start"], bd["end"]])
+            cam += [[bd["start"], cx + 350, y0, 1, 0.01], [bd["start"], cx, y0, 1, BOARD_DRAG_S]]
+        if not any(n == "whoosh-in" and bd["start"] - t < 30 for t, n in cues):   # two whooshes a minute at most
+            cues.append([bd["start"], "whoosh-in"])
+        if bd.get("question"):
+            cam.append([bd["rise"], cx, cy, 1, max(0.4, min(0.9, bd["tiles"][0]["at"] - bd["rise"]))])
+            cues.append([bd["rise"], "zoom"])   # the pan down: a short rise into a soft thump
+        cues += [[t["at"] + CARD_LEAD_S, "pop"] for t in bd["tiles"]]
+    up = lambda a, b: any(v[0] - 0.3 < b and a < v[1] for v in views)   # noqa: E731
+    over, side = [], 0
+    for c in rest:
+        if up(c["start"], c["end"]):
+            print(f"warning: the '{c.get('trigger_word')}' card falls while a board is up, dropped: the board is the "
+                  "visual there", file=sys.stderr)
+            continue
+        c = {**c, "box": list(BOARD_OVERLAY_BOX[side]), "lane": None, "side": "left" if side == 0 else "right"}
+        c.pop("layout", None)   # a full-frame scene becomes an overlay: the canvas is the only full-frame visual
+        over.append(c)
+        side = 1 - side
+    lone, last = [], -99.0   # questions with no board after them: centred over the speaker, never over an overlay
+    for q in qs:
+        if up(q["start"], q["end"]) or q["start"] - last < BOARD_Q_GAP_S or \
+                any(o["start"] - 0.3 < q["end"] and q["start"] < o["end"] + 0.3 for o in over):
+            continue
+        last = min([q["end"] + 1.0, duration] + [o["start"] - 0.1 for o in over if o["start"] > q["end"]])
+        lone.append({"start": round(q["start"], 3), "end": round(last, 3),
+                     "words": [[clean(w["text"]).lower(), round(w["start"], 3)] for w in q["words"] if clean(w["text"])]})
+    heads = [h["box"] for h in (face or {}).get("heads", []) if h.get("box")]
+    head_x = sorted(b[0] + b[2] / 2 for b in heads)[len(heads) // 2] if heads else 50
+    # the speaker's framing: [at, zoom, side (-1 on the left, 0 centred, +1 on the right), move seconds], top-anchored
+    fkf = [[0, 1.0, 0, 0.01], [0.3, BOARD_FACE["push"], 0, 2.5]]
+    for a, b in views:   # back from the canvas: a slow push in, unless an overlay is about to want the speaker aside
+        if not any(c["start"] - 1.6 <= b + 0.4 <= c["end"] for c in over):
+            fkf += [[b, BOARD_FACE["rest"], 0, 0.01], [b + 0.4, BOARD_FACE["push"], 0, 2.5]]
+    for c in over:   # the speaker moves to the side the overlay is not on, zoomed in until the head clears its half
+        hd = head_during(face["heads"], face.get("step_s", 0.5), c["start"], c["end"]) if face else None
+        left = c["side"] == "left"
+        z = BOARD_FACE["side"]
+        if hd:   # Board.tsx faceRect: him on the right shows the source's left edge, on the left its right edge
+            z = min(BOARD_FACE["max"], max(z, 51 / max(1, hd[0]) if left else 49 / max(1, 100 - hd[2])))
+            edge = hd[0] * z if left else hd[2] * z - 100 * (z - 1)   # the head's near edge on screen, %
+            bx = c["box"]
+            if left and bx[0] + bx[2] > edge - 2:
+                bx[2] = max(30, round(edge - 2 - bx[0], 1))
+            elif not left and bx[0] < edge + 2:
+                bx[2], bx[0] = max(30, round(bx[0] + bx[2] - edge - 2, 1)), round(max(bx[0], min(edge + 2, 65)), 1)
+        fkf += [[max(0, c["start"] - 1.6), round(z, 3), 1 if left else -1, 1.0], [c["end"], BOARD_FACE["rest"], 0, 1.0]]
+    fkf.sort(key=lambda k: k[0])
+    ends = sorted([k[0] for k in fkf] + [duration])
+    for a, b in zip(ends, ends[1:]):   # a long stretch on the speaker eases in or back out every BOARD_REFRAME_S
+        t = a + BOARD_REFRAME_S
+        while b - t > 2.0:
+            if not any(v[0] - 0.5 < t < v[1] for v in views) and not any(c["start"] - 1.6 < t < c["end"] for c in over):
+                z = next(k[1] for k in sorted(fkf, key=lambda k: k[0], reverse=True) if k[0] <= t)
+                fkf.append([round(t, 3), 1.06 if z > 1.12 else BOARD_FACE["push"] + 0.06, 0, 2.2])
+                fkf.sort(key=lambda k: k[0])
+            t += BOARD_REFRAME_S
+    return over, {"mode": "board", "ground": "#0B0B0D", "boards": boards, "camera": cam, "views": views,
+                  "questions": lone, "face": fkf, "head_x": round(head_x, 1), "fade": BOARD_FADE_S, "cues": cues}
 
 
 def split_cards(cards, art):
@@ -2006,6 +2215,10 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         if visuals:
             print("note: letterbox shows one opening photo only; visuals.json beats are not drawn", file=sys.stderr)
         return letterbox_plan(head, style, words, meta, images, face, {**(style.get("layout") or {}), **(layout or {})})
+    board = lay.get("mode") == "board"
+    if board and aspect != "16:9":
+        sys.exit("ERROR: the board layout is 16:9 only (the canvas, the side overlays and the speaker's left-right "
+                 "reframes need a wide frame); use --aspect 16:9 or another style for vertical")
     pace =(style.get("pace") or {}) if took(style, "pace") else {}
     # Explaining cards are scenes or sit in the split panel; the panel opens only when a card needs it,
     # unless the layout was set by hand (overlay: split cards become scenes).
@@ -2082,7 +2295,7 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         rest = place_overlays(rest, seen, cap["y_pct"], aspect, graphics(style, "layout").get("layout"))
         rest = avoid_heads(rest, seen, cap["y_pct"], aspect)
         rest = readable_captures(rest, aspect, pictures_only(style))
-        if behind:
+        if behind and not board:
             rest = tuck_behind(rest, face, aspect)
         out = dict(head)
     cards = clear_caption_paths(creator_motion(sorted(rest + scenes, key=lambda c: c["start"]), style, aspect), cap["y_pct"], aspect)
@@ -2119,8 +2332,14 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         # a soft rule, checked by check.py plan: the creator's winners show a graphic by then
         extra["targets"] = {"first_graphic_s": hook["first_graphic_s"],
                             "control_first_graphic_s": ((style.get("hook") or {}).get("control") or {}).get("first_graphic_s")}
+    cards = scene_parts(cards, words, edit_dir)
+    if board:   # logos -> tiles on the canvas, questions -> headings; the speaker's framing replaces the zooms and pans
+        cards, out["layout"] = board_layout(cards, words, duration, face, edit_dir)
+        zooms = []
+        for k in ("pans", "cover", "texts"):
+            extra.pop(k, None)
     return {**out, "captions": {"style": cap, "chunks": chunks}, "zooms": zooms, "card_gap_s": gap,
-            "cards": scene_parts(cards, words, edit_dir), **extra}
+            "cards": cards, **extra}
 
 
 def source_fps(fps):
@@ -3157,9 +3376,30 @@ def demo_face_every():
     assert held[0]["end"] == 4.5 and held[1]["end"] == 7.0, held   # held across the 0.5 s gap, never an empty panel
 
 
+def demo_board():
+    ws = [{"text": t, "start": i * 0.8, "end": i * 0.8 + 0.6} for i, t in enumerate(
+        "So which tool should you use? I use Notion and Linear. It is fine. Then Claude writes it. Why does it work? Nobody knows.".split())]
+    at = lambda w: next(x["start"] for x in ws if clean(x["text"]) == w)   # noqa: E731
+    logo = lambda w, slug: {"anim": {"type": "logo", "props": {"src": f"images/logo-{slug}.svg"}}, "start": at(w) - 0.1,   # noqa: E731
+                            "end": at(w) + 1.5, "trigger_word": w, "lane": "logo"}
+    over = {"anim": {"type": "notes", "props": {}}, "start": at("fine") - 0.1, "end": at("fine") + 0.6, "trigger_word": "fine",
+            "box": [10, 10, 80, 30]}
+    cards, L = board_layout([logo("Notion", "notion"), logo("Linear", "linear"), over, logo("Claude", "claude")], ws, 20.0, None)
+    b1, b2 = L["boards"]
+    assert [t["label"] for t in b1["tiles"]] == ["notion", "linear"] and b1.get("question"), b1   # tiles after a question: it rises
+    assert [w for w, _ in b1["heading"]] == ["which", "tool", "should", "you", "use"], b1["heading"]   # "so" dropped
+    assert b1["start"] <= b1["rise"] < b1["tiles"][0]["at"] and b1["end"] <= over["start"] - 0.5, b1
+    assert [w for w, _ in b2["heading"]][-1] == "claude" and b2["x"] != b1["x"] and b2["y"] > b1["y"], b2
+    assert len(cards) == 1 and cards[0]["box"] == BOARD_OVERLAY_BOX[0] and cards[0]["side"] == "left"   # the overlay, left
+    assert any(k[2] == 1 and k[0] < over["start"] for k in L["face"]), L["face"]   # the speaker moved right before it
+    assert [q["words"][0][0] for q in L["questions"]] == ["why"], L["questions"]   # a question with no board: centred
+    assert [n for _, n in L["cues"]].count("whoosh-in") == 1 and "zoom" in [n for _, n in L["cues"]], L["cues"]
+
+
 def main():
     if sys.argv[1:] == ["demo"]:
         demo_face_every()
+        demo_board()
         import os
         os.environ["AI_EDITOR_LIBRARY"] = tempfile.mkdtemp(prefix="plan_demo_lib_")   # never the user's custom/ folder
         return demo()
@@ -3170,7 +3410,7 @@ def main():
     ap.add_argument("words")
     ap.add_argument("--images")
     ap.add_argument("--aspect", choices=["auto", "9:16", "16:9"], default="auto")
-    ap.add_argument("--layout", choices=["overlay", "split", "letterbox"], help="default: style.json layout.mode, else overlay")
+    ap.add_argument("--layout", choices=["overlay", "split", "letterbox", "board"], help="default: style.json layout.mode, else overlay")
     ap.add_argument("--title", help="letterbox: the title above the band (default: the first sentence, lowercase)")
     ap.add_argument("--out")
     ap.add_argument("--no-sfx", action="store_true", help="no sound cues (same as \"sfx\": false in style.json)")

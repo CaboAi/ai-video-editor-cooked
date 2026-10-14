@@ -122,6 +122,18 @@ def footage_affine(t, plan, W, H):
     return [[s, 0, ox * (1 - s) + px / 100 * W], [0, s, oy * (1 - s)]]
 
 
+def board_frame(t, lay):
+    """The speaker's (zoom, side) at t from the board layout's face keyframes (Board.tsx keyed; smoothstep for its ease)."""
+    z, sd = lay["face"][0][1], lay["face"][0][2]
+    for at, kz, ks, d in lay["face"]:
+        if t < at:
+            break
+        u = min(1.0, max(0.0, (t - at) / max(0.01, d)))
+        p = u * u * (3 - 2 * u)
+        z, sd = z + (kz - z) * p, sd + (ks - sd) * p
+    return z, sd
+
+
 def on_screen(box, t, plan):
     """A head box on cut.mp4 (percent) -> where it is drawn on the output while a card is up:
     grown by the zoom (and moved by a pan), and in split moved into the speaker's window under the seam."""
@@ -131,6 +143,12 @@ def on_screen(box, t, plan):
     if lay.get("mode") == "letterbox":   # the cut sits unmoved in the band
         _, by, _, bh = lay["band"]
         return [x, by + y * bh / 100, w, h * bh / 100]
+    if lay.get("mode") == "board":   # Board.tsx faceRect: zoomed about the top edge, the head moved left or right
+        z, sd = board_frame(t, lay)
+        slack = 100 * (1 - 1 / z)
+        c0 = min(slack, max(0, lay.get("head_x", 50) - 50 / z))
+        start = c0 + (0 - c0) * sd if sd >= 0 else c0 + (slack - c0) * -sd
+        return [(x - start) * z, y * z, w * z, h * z]
     if not lay:
         ox, oy = zoom_state(t, plan["zooms"])[1]
         px, pk = pan_at(t, plan.get("pans"))
@@ -282,18 +300,22 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
                                "plan again with the current plan.py (it caps the tail at 0.3 s)"))
     # Stretches with nothing changing: no card up, no zoom starting or ending, no jump cut.
     dur = plan["durationInFrames"] / plan["fps"]
+    shown, lay = list(cards), plan.get("layout") or {}
+    if lay.get("mode") == "board":   # the canvas and the centred questions are visuals too; each reframe moves the camera
+        shown += [{"start": a, "end": b} for a, b in lay["views"]] + [{"start": q["start"], "end": q["end"]} for q in lay["questions"]]
+        cuts = list(cuts) + [k[0] for k in lay["face"]]
     marks = sorted([0.0, dur] + [z[k] for z in plan["zooms"] for k in ("start", "end")] + list(cuts)
-                   + [c[k] for c in cards for k in ("start", "end")])
+                   + [c[k] for c in shown for k in ("start", "end")])
     # an audio clip's cover moves throughout; a letterbox holds still on purpose
     for a, b in zip(marks, marks[1:]) if not plan.get("cover") and (plan.get("layout") or {}).get("mode") != "letterbox" else ():
-        if b - a > static_s and not any(c["start"] <= a and c["end"] >= b for c in cards):
+        if b - a > static_s and not any(c["start"] <= a and c["end"] >= b for c in shown):
             out.append(finding("WARN", a, f"static for {b - a:.1f} s ({a:.1f}-{b:.1f} s): no card, zoom or cut",
                                "add a visual beat or a zoom in that stretch"))
     # pacing (SKILL.md step 3): a stretch with no card longer than the plan's card_gap_s is fine only when nothing
     # in it is named and the frame still changes (a zoom or a cut) at least every QUIET_HOLD_S
     gap_s = plan.get("card_gap_s") or GAP_S
     moves = sorted([z[k] for z in plan["zooms"] for k in ("start", "end")] + list(cuts))
-    for a, b in card_gaps(cards, dur):
+    for a, b in card_gaps(shown, dur):
         if b - a <= gap_s + 0.01:
             continue
         said = [f"'{n}' at {t:.1f} s" for t, n in named if a <= t < b]

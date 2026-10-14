@@ -13,6 +13,15 @@ What changed for every user, newest first.
 - A style page shows "What runs": the cut, real logos, animations and the edit, with logos and animations
   switchable per style.
 - "Fewer zooms" now gives fewer zooms: a zoom rate you set is no longer filled back in on long sentences.
+## ai-editor 2.7.2, creator-teardown 2.7.2 (2026-10-14)
+
+- New sample style: Motion design (16:9). One dark board the camera moves across, silver-rimmed tiles with real
+  logos landing on your words and joined by flowing lines, questions that sit centred then rise into the heading,
+  a few overlays alternating sides, and simple sound cues from the editor's own kit.
+- Styles from a creator follow them more closely. The analysis now sees jump cuts on a fixed camera, measures 2x
+  punch-ins and caption colours correctly, finds cards above a close-framed head, and records the colour grade;
+  the edit now uses the caption side, zoom rate, cut-aways, title at the open, music choice and impact sounds it
+  measured. `creator-teardown/scripts/match.py` scores an edit against the creator, feature by feature.
 
 ## ai-editor 2.7.1 (2026-10-14)
 
@@ -51,6 +60,11 @@ What changed for every user, newest first.
 - No render question when no cloud is connected: it renders on your computer and says so.
 - Update leaves a developer copy (a git checkout) alone.
 - A cut whose last source frame is stamped late no longer comes out one frame short.
+- A new sample style, **Motion design**, for wide videos. One near-black canvas a camera drags across. When you
+  name a tool, a dark tile with a silver rim and its real logo lands on the word, joined to the last by a dashed
+  line, under a heading in your words. A question you ask sits big in the middle, then the camera pans down and it
+  rises into the heading. Between boards you have the whole frame, the camera easing in and moving you left or
+  right, so each animation lands on the other side. Soft sound cues on the moves, two whooshes a minute at most.
 
 ## ai-editor 2.6.11 (2026-10-13)
 

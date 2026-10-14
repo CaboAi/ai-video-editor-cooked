@@ -24,7 +24,7 @@ In order, each overriding the last (`motion.py look_for`):
 
 1. style.json `motion.look` (the style page's Motion look), then `look.preset`: `editorial`, `editorial-dark`, `mono`, `poster-red`, `poster-green`,
    `poster-blue` set ground, ink, accent and font as the renderer's presets do; `paper` (`#FDF8EC` on
-   `#171614`) is the 50/50 style's. A split-layout style's panel ground always wins in the panel.
+   `#171614`) is the 50/50 style's, `board` (`#F4F6FA` on `#0B0B0D`) Motion design's. A split-layout style's panel ground always wins in the panel.
 2. style.json `look.ink`, `look.accent`, `look.font`, `look.ground`.
 3. The user's brand kit in the profile (`brand.ink`, `brand.accent`, `brand.font`).
 

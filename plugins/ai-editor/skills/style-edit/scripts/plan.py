@@ -256,6 +256,8 @@ def place_zooms(zoom, words, duration, cuts, cut_kinds=None, quiet=(), shot_s=No
     per_min = zoom.get("per_min") or 0
     if not per_min or not words:
         return []
+    if zoom.get("fill_quiet") is False:   # user_rate: the user's own zoom rate, no extra changes in quiet stretches
+        quiet = ()
     if zoom.get("kind", "punch") == "punch" and shot_s:
         per_min /= 2   # each punch comes back out by itself: in and out are two of her measured zooms
     gap = 60 / per_min * 0.8
@@ -2408,6 +2410,10 @@ def demo_punch():
     # 12 measured zooms a minute = 6 punches, each in and back out
     assert [(x["start"], x["end"]) for x in z] == [(0.0, 2.4), (10.0, 12.4), (20.0, 22.4), (30.0, 32.4)], z
     assert len(place_zooms({"per_min": 6, "kind": "punch", "on": "sentence_start"}, ws, 40.0, [])) == 2
+    # "fewer zooms" (taste zoom.per_min) is the rate: the 5 s hold fill and the quiet fill no longer add them back
+    ur = user_rate({"zoom": {"per_min": 3, "max_hold_s": 5.0}}, {"zoom": {"per_min": 1}})["zoom"]
+    assert ur == {"per_min": 3, "max_hold_s": 60.0, "fill_quiet": False}, ur
+    assert user_rate({"zoom": {"max_hold_s": 5.0}}, {"zoom": {"per_min": 1, "max_hold_s": 4}})["zoom"] == {"max_hold_s": 5.0}
 
 
 def demo():
@@ -3124,8 +3130,20 @@ def effective_style(sp, prof, edit_dir, count=True):
               f"with the edit: python3 {Path(profile.__file__)} style {edit_dir}", file=sys.stderr)
         style = profile.default_style(prof)
     mine = taste.load_json(edit_dir, count=count, style=sp)
-    return profile.fill_transitions(taste.merge(with_presets(style, mine), mine),
+    return profile.fill_transitions(user_rate(taste.merge(with_presets(style, mine), mine), mine),
                                     lambda m: print(f"note: {m}", file=sys.stderr))
+
+
+def user_rate(style, mine):
+    """A zoom rate the user set ("fewer zooms" -> zoom.per_min) is the rate: the hold fill (max_hold_s, a change at
+    least every 5 s) and the quiet-stretch fill would add the zooms back, so they stretch to one change per
+    60 / per_min s. Without this a per_min under the style's own changed nothing on most takes."""
+    uz = mine.get("zoom") if isinstance(mine.get("zoom"), dict) else {}
+    if uz.get("per_min") and "max_hold_s" not in uz:
+        z = style.setdefault("zoom", {})
+        z["max_hold_s"] = max(z.get("max_hold_s") or 0, round(60 / uz["per_min"], 1))
+        z["fill_quiet"] = False
+    return style
 
 
 def demo_face_every():

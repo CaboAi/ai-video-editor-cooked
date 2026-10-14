@@ -146,7 +146,7 @@ Five prompts, each one the user can paste into Claude Code as it is. Every numbe
 
 ### `JOB video <path> as=<mine|@handle|defaults> aspect=<9:16|16:9> edit=<dir> root=<dir>`
 ### `JOB video takes=<dir>/takes.txt as=... aspect=... edit=<dir> root=<dir>`
-### either one with ` script=<edit>/script.md`, ` skill=<skill>` and/or ` assets=<edit>/assets.json` before `root=`
+### either one with ` script=<edit>/script.md`, ` skill=<skill>`, ` chain=<steps>` and/or ` assets=<edit>/assets.json` before `root=`
 
 The user picked clips and a style and pressed "Make my video" (or "Start the cut" on a first run).
 `edit=` is the edit folder the page already made and listed in the library: use it, never make
@@ -163,6 +163,9 @@ no question: the page asked it). "Separate videos" arrives as one JOB per clip; 
 there if the path is elsewhere). Pass `--script <edit>/script.md` to `transcribe.py`; the cut then runs
 `script_match.py` before deciding spans (cut skill step 2).
 `skill=`: a skill style (its `style.json` has `"skill"`), see Skill style below.
+`chain=`: the style page's "What runs" when it is not the default. With no `chain=`, run logo-pack as usual (after
+the cut's approve, before the edit, when the video names two or more products). `chain=none`: never run
+logo-pack on this video. `chain=logo-pack,motion` or `chain=motion` (a skill style only): see Skill style below.
 `assets=`: images and links the user added on the page ("Add images or links"; more can come from the editor's
 "Anything to add?", and review.py `wait` then prints an `assets:` line). Images are in `<edit>/assets/`. Hand the
 file to visual-prep and style-edit: each item goes in first, as a card on its `say` words (else the line it is
@@ -201,6 +204,12 @@ cut's approve run `/<skill>` on `<edit>/cut.mp4`: it makes its own captions, vis
 hand its render back as the edit round, as style-edit step 8 does:
 `python3 "$R" <edit> round --stage edit --video <its render>`, then `wait` on the page as usual.
 
+`chain=` with `motion` (the user switched Animations on for this skill style): before running `/<skill>`, run the
+visual-prep agent on the cut (style-edit steps 1-3), then the motion skill (`motion.py pick`, one clip-builder per
+clip, `motion.py check`). Hand `/<skill>` the checked clips: each `motion/<id>/` render with its `beat.json`
+times, to lay over the cut on those words. With `logo-pack` in the chain, run logo-pack first and tell `/<skill>`
+the logos are in `<edit>/images/` (`logos.json`). Say each step on the page (`review.py status`).
+
 When `<skill>` is not in this session's skill list, never switch silently:
 `python3 "$R" <edit> status "This style needs the <skill> skill, which this Claude session doesn't have"`,
 then ask: **Continue with the generic edit, using the style's numbers (Recommended)** / **Stop here**.
@@ -226,6 +235,24 @@ the final approve's "Teach <style>" panel, `review.py learn --done`).
 The same change said in the chat goes through the same `taste.py add`, so both land in one skill.
 The page's own controls (sliders, zooms, cut, sound effects) save through `styleskill.learn` directly
 and need no job.
+
+### `JOB skill-change <skill> path=<its SKILL.md> text=<the user's words>`
+
+The user pressed "Improve with feedback" on the Skills page and typed what to change in that skill. Run the
+skill-improver skill on the words (no video): one short rule per thing they asked, checked with
+`skillrules.py similar` (sharpen a twin with `--replace`, ask in the question box when one conflicts), show the
+exact lines and ask `Save these (Recommended)` / `Change one` / `Don't save` (the question reaches the page).
+After the yes: `skillrules.py add <path> "<rule>" --why "you said: <their words>"`. Then
+`status skill-change --result '{"changed": ["<rule>", ...]}' --done` (or `--done` with `{"changed": []}` on
+Don't save). The page shows `changed`; the style pages of every style using the skill list the rules.
+
+### `JOB skill-new [text=<what it should do>]`
+
+The user pressed "Make a new skill" on the Skills page. Run the skill-maker skill, with `text` as the answer to
+its first interview question when given. Its questions go in the question box (they reach the page). Report
+each step with `status skill-new --step "..."`, and at the end
+`status skill-new --result '{"summary": "Made /<name>. It is on the Skills page."}' --done`. The new skill
+shows on the Skills page, where "Use as a style" makes it a style.
 
 ### Connect Modal and Test render (no job for Claude)
 

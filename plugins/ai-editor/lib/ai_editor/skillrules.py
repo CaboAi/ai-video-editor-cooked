@@ -5,6 +5,8 @@
                                                             else the settings style styleskill.learn writes)
     python3 skillrules.py similar <SKILL.md> "<rule>"       the learned rules that look like it (sharpen or conflict?)
     python3 skillrules.py add <SKILL.md> "<rule>" --why "<reason>" [--replace "<old rule>"] [--edit edits/NAME]
+    python3 skillrules.py remove <SKILL.md> "<rule>"       take one learned rule out (the page's Remove and Undo)
+    python3 skillrules.py list <SKILL.md>                  every learned rule as JSON: rule, why, date, the video it came from
     python3 skillrules.py demo                              self-check
 
 A skill style is a style.json with "skill": "<name>": that skill makes the edit, so its rules go into its own
@@ -120,19 +122,54 @@ def add(md, rule, why, replace=None, edit=None, today=None):
         s = section("\n".join(lines), RULES)
         if s is None:   # a new section, before the Log when there is one
             at = lines.index(LOG) if LOG in lines else len(lines)
-            lines[at:at] = [RULES, "", line, ""]
+            lines[at:at] = ([""] if at and lines[at - 1].strip() else []) + [RULES, "", line, ""]
         else:
             last = max([k for k in range(s[0], s[1]) if lines[k].startswith("- ")], default=s[0])
             lines.insert(last + 1, line)
         status, note = "added", f'"{rule}"'
+    lines = _write_log(lines, day, f"{status} {note}" + (f" (from {edit})" if edit else ""))
+    md.write_text("\n".join(lines).rstrip("\n") + "\n", encoding="utf-8")
+    return status, line
+
+
+def _write_log(lines, day, entry):
     if LOG not in lines:
         lines += ["", LOG, ""]
     s = section("\n".join(lines), LOG)
     log = [ln for ln in lines[s[0]:s[1]] if ln.startswith("- ")]
-    log = (log + [f"- {day} {status} {note}" + (f" (from {edit})" if edit else "")])[-LOG_KEEP:]
-    lines[s[0]:s[1]] = log
+    lines[s[0]:s[1]] = (log + [f"- {day} {entry}"])[-LOG_KEEP:]
+    return lines
+
+
+def remove(md, rule, today=None):
+    """Take one learned rule out, by its words (case and the final period ignored). True when one was there."""
+    md = Path(md)
+    if "/plugins/" in md.resolve().as_posix() and (md.parent.parent.parent / ".claude-plugin").is_dir():
+        return False   # a plugin's own skill: never written
+    want = rule.strip().rstrip(".").lower()
+    text = md.read_text(encoding="utf-8")
+    hit = next((ln for ln in learned(text) if rule_of(ln).lower() == want), None)
+    if not hit:
+        return False
+    lines = text.rstrip("\n").split("\n")
+    lines.remove(hit)
+    lines = _write_log(lines, today or datetime.date.today().isoformat(), f'removed "{rule_of(hit)}"')
     md.write_text("\n".join(lines).rstrip("\n") + "\n", encoding="utf-8")
-    return status, line
+    return True
+
+
+def listing(text):
+    """[{rule, why, date, video}] of the Learned rules, the video from the newest Log line that added it."""
+    s = section(text, LOG)
+    log = [ln for ln in text.split("\n")[s[0]:s[1]] if ln.startswith("- ")] if s else []
+    out = []
+    for ln in learned(text):
+        r = rule_of(ln)
+        m = re.search(r"\sWhy:\s*(.*?)\.?\s*(?:\((\d{4}-\d{2}-\d{2})\))?\s*$", ln)
+        src = next((re.search(r"\(from (.+)\)$", g) for g in reversed(log) if f'"{r}"' in g and "(from " in g), None)
+        out.append({"rule": r, "why": m.group(1) if m else "", "date": m.group(2) if m else None,
+                    "video": Path(src.group(1)).name if src else None})
+    return out
 
 
 def demo():
@@ -159,6 +196,13 @@ def demo():
         t = md.read_text(encoding="utf-8")
         assert len(learned(t)) == 2 and t.rstrip().split("\n")[-1].startswith("- 2026-10-15 added \"Captions"), t
         assert t.count(RULES) == 1 and t.count(LOG) == 1 and t.strip().split("\n")[-4] == LOG, t
+        # list: date and the video from the Log; remove: the line goes, a Log line says so
+        ls = listing(md.read_text(encoding="utf-8"))
+        assert ls[0]["video"] == "demo" and ls[0]["date"] == "2026-10-15" and ls[0]["why"] == "the first rule left them tiny", ls[0]
+        assert remove(md, "captions one size smaller.", today="2026-10-17") and not remove(md, "Captions one size smaller")
+        t = md.read_text(encoding="utf-8")
+        assert "Captions one size smaller. Why" not in t and t.rstrip().endswith('removed "Captions one size smaller"'), t
+        add(md, "Captions one size smaller", "said on two videos", today="2026-10-15")
         for i in range(LOG_KEEP + 5):
             add(md, f"Rule number {i} for pacing", "test", today="2026-10-16")
         t = md.read_text(encoding="utf-8")
@@ -184,6 +228,10 @@ def main():
     elif len(a) == 3 and a[0] == "similar":
         hits = similar(Path(a[1]).read_text(encoding="utf-8"), a[2])
         print("\n".join(f"{s:.2f}  {ln}" for s, ln in hits) or "nothing alike: add it")
+    elif len(a) == 3 and a[0] == "remove":
+        print("removed" if remove(a[1], a[2]) else "no such learned rule")
+    elif len(a) == 2 and a[0] == "list":
+        print(json.dumps(listing(Path(a[1]).read_text(encoding="utf-8")), indent=1))
     elif len(a) >= 3 and a[0] == "add":
         opt = dict(zip(a[3::2], a[4::2]))
         if "--why" not in opt:

@@ -362,6 +362,10 @@ body.staged #stagebar{display:flex}
 .lrule input{appearance:none;-webkit-appearance:none;margin:0;width:18px;height:18px;border-radius:5px;border:1.5px solid var(--quiet);background:var(--panel) center/12px 12px no-repeat;flex-shrink:0;cursor:pointer}
 .lrule input:checked{background-color:var(--ink);border-color:var(--ink);background-image:var(--tickimg)}
 .lrule input:disabled{cursor:default}.lrule.off span{color:var(--muted)}
+.lrule.keep{font-size:12px;line-height:18px;color:var(--body)}.lrule.keep input{width:16px;height:16px;border-radius:4px;background-size:10px 10px}
+.rcpt{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:18px;color:var(--strong)}.rcpt svg{color:var(--ok);flex-shrink:0;margin-top:2px}
+.rcpt.off{color:var(--muted)}.rcpt button{border:0;background:none;padding:0;font:inherit;font-weight:600;color:var(--strong);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.rcpt button:hover{color:var(--ink)}
 .learn .erow button.go{flex:1}.learn .erow button.go:disabled{opacity:.5}
 /* the edit being made: the player dims and a card at its foot says the step */
 #making{position:absolute;inset:0;z-index:3;display:none;align-items:flex-end;justify-content:center;background:var(--dim);padding:12px}
@@ -755,6 +759,8 @@ function noteHtml(c){
   if(said){const btns=old&&live&&st==='wontfix'?`<button class="obtn" data-anyway="${c.id}">Fix it anyway</button>`:'';
     rep=(c.reply||moved?`<span class="cr">${c.reply?'Claude: '+esc(c.reply):''}${esc(moved)}</span>`:'')+btns}
   const notes=[];
+  const keep=c.receipt?rcptHtml(c.receipt):'keep' in c&&!old?(canEdit?`<label class="lrule keep${c.keep?'':' off'}"><input type="checkbox" data-keep="${c.id}"${c.keep?' checked':''}><span>Keep as a rule for ${esc(S.style_name||'your style')}</span></label>`
+    :c.keep?`<span class="nmeta">Kept as a rule for ${esc(S.style_name||'your style')}</span>`:''):'';
   if(c.moved&&!old)notes.push(c.moved==='words'?`Moved from ${fmtx(c.t_was)} to where the same words are said`:`Same time as in the last round. The cut changed, so check it`);
   const meta=[nv?(c.alt==='*'?(nv===1?'Both':'All')+' versions':esc(c.alt||mainName(viewRound()))+' only'):'',c.edited&&!old?'Edited':''].filter(Boolean);
   if(meta.length)notes.push(meta.join(' · '));
@@ -765,7 +771,7 @@ function noteHtml(c){
   if(canEdit)acts.push(`<button data-del="${c.id}">Delete</button>`);
   if(!said&&!canEdit&&c.round===S.round&&c.stage===S.stage&&S.sent&&!c.queued)acts.push('<span>Sent</span>');
   return `<div class="note${old?' old':''}${ed?' editing':''}${done?' done':''}${wont?' wont':''}" data-t="${t}" data-old="${old?1:0}"${why?` title="${esc(why)}"`:''}><div class="bub">${said?'':thumb}<div class="nb"><div class="nh">${done?`<span class="okt" aria-label="done">${TICK}</span>`:''}<span class="tchip num">${tm}</span>${said?lead:quote}</div>
-    ${body}${rep}${notes.map(x=>`<span class="nmeta">${x}</span>`).join('')}${acts.length&&!ed?`<div class="acts">${acts.join('')}</div>`:''}</div></div></div>`;
+    ${body}${rep}${keep}${notes.map(x=>`<span class="nmeta">${x}</span>`).join('')}${acts.length&&!ed?`<div class="acts">${acts.join('')}</div>`:''}</div></div></div>`;
 }
 function workHtml(){
   const p=pending(),e=S.events[S.events.length-1],picked=!!(S.sent&&e&&e.handled);
@@ -795,6 +801,12 @@ function cutHtml(c){
   const li=c.steps.map(x=>`<li class="${x.state==='done'?'ok':x.state}"><span class="ic">${x.state==='done'?TICK:x.state==='now'&&c.state==='taken'?SPIN:'<i></i>'}</span>${esc(x.text)}</li>`).join('');
   return `<div class="claude"><div><b>Claude</b><p>${esc(head)}</p>${c.state==='queued'&&!cl.opened&&cl.command?`<code class="cmd">${esc(cl.command)}</code>`:''}</div><ol class="steps">${li}</ol></div>`;
 }
+// a rule Claude saved from a note or the Teach panel: "Saved to <style>: <rule>. Undo" (Undo only for a rule this save added)
+function rcptHtml(id){
+  const r=(S.receipts||[]).find(x=>x.id===id);if(!r)return '';
+  if(r.undone)return `<div class="rcpt off">Removed from ${esc(r.style)}: ${esc(r.rule)}.</div>`;
+  return `<div class="rcpt">${TICK}<span>${r.status==='added'?'Saved to':'Already in'} ${esc(r.style)}: ${esc(r.rule)}.${r.status==='added'?` <button data-undo="${r.id}">Undo</button>`:''}</span></div>`;
+}
 // the final approve: Claude's rules from this video's notes, each ticked, into the style on Update
 let untick=new Set(),introOff=false;
 function learnHtml(){
@@ -807,6 +819,8 @@ function learnHtml(){
   if(open)return `<div class="learn"><div>${head}<p>From your notes. Untick anything it should not keep.</p></div>${rows}
     <div class="erow"><button class="go" data-lsave${rs.every(([,i])=>untick.has(i))?' disabled':''}>Update my style</button><button data-lskip>Not now</button></div></div>`;
   if(L.state==='chosen')return `<div class="learn">${head}${rows}<p class="wait"><i></i>Saving to ${esc(L.style)}...</p></div>`;
+  if(L.receipts&&L.receipts.length){const kept=(S.receipts||[]).filter(r=>L.receipts.includes(r.id)&&!r.undone).length;
+    return `<div class="learn">${head}<div class="lrules">${L.receipts.map(rcptHtml).join('')}</div><p>${kept?`Your next video uses ${kept>1?'them':'it'}. Every rule is listed on the style's page.`:'Your style stays as it was.'}</p></div>`}
   return `<div class="learn">${head}${rows}<p class="ok">${TICK}${esc(L.summary||'Saved.')}</p></div>`;
 }
 const EDIT_STEPS={captions:'Writing the captions',visuals:'Finding the visuals',plan:'Planning zooms, cards and sound',render:'Rendering the edit'};
@@ -892,10 +906,14 @@ async function saveEdit(){const c=S.comments.find(c=>c.id===editing.id);if(!c){e
   editing=null;if(!r.ok)alert((await r.json().catch(()=>({}))).error||'Could not save the note');await load(true)}
 function editFiles(fs){[...fs].filter(f=>/^image\/(png|jpeg|gif|webp)$/.test(f.type)).slice(0,6-editing.images.length).forEach(f=>{const r=new FileReader();r.onload=()=>{if(editing){editing.images.push(r.result);renderList()}};r.readAsDataURL(f)})}
 $('editpic').onchange=e=>{if(editing)editFiles(e.target.files);e.target.value=''};
-$('list').addEventListener('change',e=>{const cb=e.target.closest('[data-li]');if(!cb)return;
+$('list').addEventListener('change',async e=>{const kb=e.target.closest('[data-keep]');
+  if(kb){const r=await fetch('/keep',{method:'POST',body:JSON.stringify({id:+kb.dataset.keep,keep:kb.checked})});if(!r.ok)alert('This note is with Claude now.');return load(true)}
+  const cb=e.target.closest('[data-li]');if(!cb)return;
   cb.checked?untick.delete(+cb.dataset.li):untick.add(+cb.dataset.li);renderList()});
 $('introx').onclick=()=>{introOff=true;document.body.classList.remove('intro');post('/intro',{})};
 $('list').addEventListener('click',async e=>{
+  const ub=e.target.closest('[data-undo]');
+  if(ub){ub.disabled=true;const r=await fetch('/undo',{method:'POST',body:JSON.stringify({id:+ub.dataset.undo})});if(!r.ok)alert('That rule was already taken out.');return load(true)}
   if(e.target.closest('[data-lsave],[data-lskip]')){const L=S.learn,save=!!e.target.closest('[data-lsave]');
     await post('/learn',save?{chosen:L.rules.map((r,i)=>i).filter(i=>!untick.has(i))}:{skip:true});return load(true)}
   if(e.target.closest('.editing')){

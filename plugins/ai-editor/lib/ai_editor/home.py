@@ -18,6 +18,10 @@ for it, and reports back with `status`:
         JOB video takes=DIR/edits/a/takes.txt as=mine aspect=9:16 edit=DIR/edits/a root=DIR
                                                  (several clips as one video: join them in the listed order)
                                                  (either may end with script=DIR/edits/a/script.md before root=)
+        JOB video ... skill=<name> chain=motion   a skill style; chain= is the style's "What runs" when not the default
+        JOB style-change @handle style=DIR/creator-teardowns/handle/style.json text=<the user's words>
+        JOB skill-change <skill> path=<its SKILL.md> text=<the user's words>   Skills: Improve with feedback (skill-improver)
+        JOB skill-new [text=<what it should do>]  Skills: Make a new skill (skill-maker)
         JOB cancel teardown                       the user pressed Cancel
         ALREADY ...                               another wait is running: nothing to do
         GONE ...                                  (--job) that job is done, cancelled or another Claude's
@@ -86,7 +90,7 @@ from review import disposition, download_name, load, now, save, set_theme, theme
 HTML = Path(__file__).with_name("home.html")
 SETUP = Path(__file__).resolve().parents[2] / "skills" / "setup" / "scripts" / "setup.py"
 BEAT_S = 6
-JOBS = ("teardown", "skill", "video", "modal", "modal-test", "setup", "style-change", "update")
+JOBS = ("teardown", "skill", "video", "modal", "modal-test", "setup", "style-change", "update", "skill-change", "skill-new")
 TAKE = ("captions", "pace", "graphics", "sound")          # the page's parts; editplan.py --take names
 # The page's "graphics" box is her visuals as a whole: what she shows, how it moves in and where it sits.
 EDITPLAN_PARTS = {"graphics": ("graphics", "entrances", "layout")}
@@ -672,8 +676,49 @@ def editing_skills(root):
                 f = find_skill(root, n)
                 # ponytail: keyword match on name + first sentence; a skill can opt in by naming "video" or "edit"
                 if re.search(r"\b(edits?|editing|editor|videos?|reels?|footage|clips?)\b", n.replace("-", " ") + " " + f["description"], re.I):
-                    out[n] = {"name": n, "description": f["description"]}
+                    out[n] = skill_info(root, n, f)
     return list(out.values())
+
+
+def skill_info(root, n, f=None):
+    """A skill as the Skills view shows it: its first sentence, whether this editor may write its learned rules
+    (a skill in the user's own folders, never a plugin's) and how many it has."""
+    from ai_editor import skillrules
+    f = f or find_skill(root, n)
+    own = skillrules.find_skill(n)
+    return {"name": n, "description": f["description"], "found": f["found"], "own": bool(own),
+            "rules": len(skillrules.learned(own.read_text(encoding="utf-8"))) if own else 0}
+
+
+def skill_rules(root, sk):
+    """A skill style's learned rules, from that skill's own file: [{rule, why, date, video}], and whether the
+    page may remove them (the user's own skill)."""
+    from ai_editor import skillrules
+    md = skillrules.find_skill(sk) or (Path(find_skill(root, sk)["path"]) if find_skill(root, sk)["found"] else None)
+    if not md:
+        return [], False
+    return skillrules.listing(md.read_text(encoding="utf-8", errors="replace")), md == skillrules.find_skill(sk)
+
+
+def chain_steps(sp, sk, motion):
+    """The steps a style runs, in order, as the style page shows them: the cut, real logos (logo-pack), animations
+    (the motion skill) and the edit itself (its skill, or captions, zooms and cards). on/off where it can change."""
+    _, ss = _taste()
+    c = ss.chain(sp)
+    return [{"key": "cut", "name": "Cut", "what": "Takes out the mistakes and long pauses."},
+            {"key": "logos", "name": "Real logos", "what": "The real logo of every app or tool you name.", "on": c["logos"]},
+            {"key": "motion", "name": "Animations", "what": "Moving graphics made for the lines that need one.",
+             "on": c["motion"] if sk else bool(motion and motion["amount"] > 0)},
+            {"key": "edit", "name": f"/{sk}" if sk else "Captions, zooms and cards",
+             "what": "Your skill makes the captions, visuals and the finished video." if sk else "Then the finished video."}]
+
+
+def chain_arg(sp, sk):
+    """A video job's chain= (home.md): the extra skills Claude runs around the edit, when not the default (logo-pack)."""
+    _, ss = _taste()
+    c = ss.chain(sp)
+    steps = (["logo-pack"] if c["logos"] else []) + (["motion"] if sk and c["motion"] else [])
+    return None if steps == ["logo-pack"] else ",".join(steps) or "none"
 
 
 def style_cards(root):
@@ -897,11 +942,16 @@ def style_page(root, sid):
     sc = ss.scope(sp)
     rules = [{"id": r["id"], "rule": r["rule"], "setting": r.get("setting"), "value": r.get("value"),
               "said": len(r["corrections"]), "last": (r["corrections"][-1]["at"][:10] if r["corrections"] else None),
+              "video": next((c["edit"] for c in reversed(r["corrections"]) if c.get("edit")), None),
               "applied": r.get("applied", 0), "regressions": len(r.get("regressions") or [])}
              for r in (taste.load_rules() if taste.rules_path().exists() else []) if r["scope"] == sc]
     sk = skill_of(st) if sp else None
     if sk:   # a skill style: its skill does the edit, so the page shows the skill and no controls
+        srules, removable = skill_rules(root, sk)   # its learned rules live in the skill's own file
+        rules = [{"id": None, "rule": r["rule"], "why": r["why"], "last": r["date"], "video": r["video"], "said": 1,
+                  "removable": removable} for r in srules]
         return {"id": sid, "kind": "skill", "name": shown_name(sp), "base": base, "rules": rules, "style_path": str(sp),
+                "chain": chain_steps(sp, sk, None),
                 "skill": {"name": sk, **find_skill(root, sk, calls=True)}, "cover": cover_of(root, sid), "face": face_of(root, base),
                 "own": bool(st.get("own")), "videos": st.get("videos"), "sample": bool(st.get("sample")),
                 "references": references(sp.parent) if not st.get("own") else {"videos": [], "profile": None},
@@ -916,9 +966,10 @@ def style_page(root, sid):
         vals["sfx"] = (prof.get("sound") or {}).get("sfx", True) if sp is None else st.get("sfx", True)
     copies = ss.copies(st) if sp else [f"@{base}'s style" if base else "the default style", "your corrections"]
     job = next((j for j in reversed(read()["jobs"]) if j["type"] == "style-change" and j["args"].get("style") == sid), None)
+    motion = motion_state(st, changed)
     return {"id": sid, "name": shown_name(sp), "use_for": ss.use_for(sp), "base": base, "values": vals, "sample": bool(st.get("sample")),
             "changed": [k for k in CONTROLS if dig(changed, k) is not None], "look": look(st), "facts": facts(st),
-            "motion": motion_state(st, changed),
+            "motion": motion, "chain": chain_steps(sp, None, motion),
             "copies": copies, "rules": rules, "style_path": str(sp) if sp else None, "presets": preset_state(root, sid, st, base, changed),
             "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid), "face": face_of(root, base),
             "own": sid == "mine" or bool(st.get("own")), "videos": st.get("videos"), "warnings": st.get("warnings") or [],
@@ -1398,7 +1449,12 @@ def job_line(j, root):
         src = f"takes={a['takes']}" if a.get("takes") else a["path"]
         return f"JOB video {src} as={a['as']} aspect={a['aspect']}" + (f" edit={a['edit']}" if a.get("edit") else "") + \
             (f" script={a['script']}" if a.get("script") else "") + (f" skill={a['skill']}" if a.get("skill") else "") + \
+            (f" chain={a['chain']}" if a.get("chain") else "") + \
             (f" assets={Path(a['edit']) / 'assets.json'}" if a.get("edit") and (Path(a["edit"]) / "assets.json").exists() else "") + f" root={root}"
+    if j["type"] == "skill-change":
+        return f"JOB skill-change {a['skill']} path={a['path']} text={a['text']}"
+    if j["type"] == "skill-new":
+        return "JOB skill-new" + (f" text={a['text']}" if a.get("text") else "")
     if j["type"] == "style-change":
         return f"JOB style-change {'my-style' if a['style'] == 'mine' else a['style']}" + \
             (f" style={a['path']}" if a.get("path") else "") + f" text={a['text']}"
@@ -1910,6 +1966,29 @@ def make_handler(token):
                 except KeyError:
                     return self.send(404, {"error": "no such saved animation"})
                 return self.send(200, {"ok": True, "library": motion_state({}, {})["library"]})
+            if path == "/style/chain":   # a step of the style's chain on or off
+                root = read()["root"]
+                try:
+                    sid, step = str(body.get("id") or "mine"), body.get("step")
+                    sp, st, _ = style_of(root, sid)
+                    if step == "motion" and not skill_of(st):   # a settings style's animations are its motion setting
+                        set_control(root, sid, "motion.amount", 0.5 if body.get("on") else 0)
+                    else:
+                        _taste()[1].set_chain(sp, step, body.get("on"))
+                    return self.send(200, style_page(root, sid))
+                except KeyError:
+                    return self.send(404, {"error": "no such style"})
+                except (ValueError, TypeError) as e:
+                    return self.send(400, {"error": str(e)})
+            if path in ("/skill/open", "/skill/reveal"):   # the Skills view: its file in the text editor, or in Finder
+                root = read()["root"]
+                n = str(body.get("name") or "")
+                f = find_skill(root, n) if skill_of({"skill": n}) else {"found": False}
+                if not f["found"]:
+                    return self.send(404, {"error": "That skill is not here any more."})
+                cmd = library.open_cmd(f["path"]) if path == "/skill/open" else library.reveal_cmd(f["path"])
+                subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return self.send(200, {"ok": True})
             if path in ("/style/set", "/style/forget", "/style/reveal", "/style/reset"):
                 root = read()["root"]
                 try:
@@ -1925,6 +2004,13 @@ def make_handler(token):
                     elif path == "/style/forget":
                         taste, ss = _taste()
                         page = style_page(root, sid)
+                        if page.get("kind") == "skill":   # Remove on a skill style: the line comes out of its skill's file
+                            from ai_editor import skillrules
+                            md = skillrules.find_skill(page["skill"]["name"])
+                            if not md or str(body.get("text") or "") not in [r["rule"] for r in page["rules"]]:
+                                return self.send(400, {"error": "not a rule of this style"})
+                            skillrules.remove(md, body["text"])
+                            return self.send(200, style_page(root, sid))
                         if int(body.get("rule", -1)) not in [r["id"] for r in page["rules"]]:
                             return self.send(400, {"error": "not a rule of this style"})
                         taste.forget(int(body["rule"]))
@@ -2096,6 +2182,18 @@ def make_handler(token):
                 if not text:
                     return self.send(400, {"error": "say what to change"})
                 args = {"style": b.get("style") or "mine", "path": str(sp) if sp else "", "text": text}
+            elif kind == "skill-change":   # Skills, "Improve with feedback": skill-improver turns the words into learned rules
+                from ai_editor import skillrules
+                text = re.sub(r"\s+", " ", str(b.get("text") or "")).strip()[:400]
+                n = str(b.get("skill") or "")
+                md = skillrules.find_skill(n) if skill_of({"skill": n}) else None
+                if not md:
+                    return self.send(400, {"error": "That skill came with a plugin, so it can't be changed here."})
+                if not text:
+                    return self.send(400, {"error": "Say what to change."})
+                args = {"skill": n, "path": str(md), "text": text}
+            elif kind == "skill-new":   # Skills, "Make a new skill": skill-maker, step by step with the user
+                args = {"text": re.sub(r"\s+", " ", str(b.get("text") or "")).strip()[:400]}
             else:
                 return self.send(400, {"error": "unknown job"})
             j = update(lambda d: queue(d, kind, args))
@@ -2120,10 +2218,13 @@ def make_handler(token):
                     skill = skill_of(json.loads((Path(d["root"]) / "creator-teardowns" / h / "style.json").read_text(encoding="utf-8")))
                 except (OSError, ValueError):
                     pass
+                chain = chain_arg(Path(d["root"]) / "creator-teardowns" / h / "style.json", skill)
             elif want in ("mine", "defaults"):
                 style = want
+                chain = chain_arg(None, None) if want == "mine" else None
             else:   # the first-run page: its creator once the study is done
                 style = f"@{td['args']['handle']}" if td and td["state"] == "done" else "defaults"
+                chain = None
             aspect = "16:9" if b.get("aspect") == "16:9" else "9:16"
             script = str(b.get("script") or "").strip()
             if len(script.encode("utf-8")) > SCRIPT_MAX:
@@ -2140,7 +2241,7 @@ def make_handler(token):
             for g in groups:
                 edit = new_edit(Path(d["root"]), g[0]["name"])
                 args = {"path": g[0]["path"], "paths": [p["path"] for p in g], "as": style, "aspect": aspect, "edit": str(edit),
-                        **({"skill": skill} if skill else {})}
+                        **({"skill": skill} if skill else {}), **({"chain": chain} if chain else {})}
                 if len(g) > 1:
                     t = edit / "takes.txt"
                     t.write_text("\n".join(p["path"] for p in g) + "\n", encoding="utf-8")
@@ -3022,8 +3123,59 @@ def demo():
     kj = post("/job", {"type": "video", "path": str(vid), "as": "@own-skilled", "aspect": "9:16"})["id"]
     kj = next(j for j in read()["jobs"] if j["id"] == kj)
     assert kj["args"]["skill"] == "my-edit-style" and " skill=my-edit-style root=" in job_line(kj, root), kj
+    assert " chain=" not in job_line(kj, root) and [x["key"] for x in kp["chain"]] == ["cut", "logos", "motion", "edit"], kp["chain"]
     update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["id"] != kj["id"]]))   # not Claude's to take here
     shutil.rmtree(kj["args"]["edit"])
+    # the chain: logos off and animations on for this skill style; the next video's job carries it (home.md)
+    assert post("/style/chain", {"id": "@own-skilled", "step": "motion", "on": True})["chain"][2]["on"] is True
+    kp = post("/style/chain", {"id": "@own-skilled", "step": "logos", "on": False})
+    assert [x.get("on") for x in kp["chain"]] == [None, False, True, None] and kp["chain"][3]["name"] == "/my-edit-style", kp["chain"]
+    kj = post("/job", {"type": "video", "path": str(vid), "as": "@own-skilled", "aspect": "9:16"})["id"]
+    kj = next(j for j in read()["jobs"] if j["id"] == kj)
+    assert " skill=my-edit-style chain=motion root=" in job_line(kj, root), job_line(kj, root)
+    update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["id"] != kj["id"]]))
+    shutil.rmtree(kj["args"]["edit"])
+    try:
+        post("/style/chain", {"id": "@own-skilled", "step": "nope", "on": True})
+        raise AssertionError("an unknown chain step")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    # a settings style's animations step is its motion setting
+    assert post("/style/chain", {"id": "mine", "step": "motion", "on": True})["chain"][2]["on"] is True
+    assert post("/style/chain", {"id": "mine", "step": "motion", "on": False})["chain"][2]["on"] is False
+    # a skill in the user's own skills folder: its learned rules on the page, with the video each came from; Remove
+    from ai_editor import skillrules
+    own = tmp / "skills" / "own-cuts" / "SKILL.md"
+    own.parent.mkdir(parents=True)
+    own.write_text("---\nname: own-cuts\ndescription: Edits my reels with quick cuts.\n---\n\n# Own cuts\n", encoding="utf-8")
+    skillrules.add(own, "Fewer zooms", "you said: always use fewer zooms", edit=str(root / "edits" / "take"), today="2026-10-13")
+    (kd / "style.json").write_text(json.dumps({"own": True, "skill": "own-cuts"}), encoding="utf-8")
+    kp = get("/style?id=@own-skilled")
+    assert kp["rules"] == [{"id": None, "rule": "Fewer zooms", "why": "you said: always use fewer zooms", "last": "2026-10-13",
+                            "video": "take", "said": 1, "removable": True}], kp["rules"]
+    ki = next(x for x in get("/skills")["skills"] if x["name"] == "own-cuts")
+    assert ki["own"] and ki["rules"] == 1 and ki["found"], ki
+    try:
+        post("/style/forget", {"id": "@own-skilled", "text": "Not a rule"})
+        raise AssertionError("removed a rule that is not there")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    assert post("/style/forget", {"id": "@own-skilled", "text": "Fewer zooms"})["rules"] == [] and "Fewer zooms. Why" not in own.read_text(encoding="utf-8")
+    # Improve with feedback and Make a new skill: jobs for Claude (skill-improver, skill-maker); a plugin's skill is refused
+    j = post("/job", {"type": "skill-change", "skill": "own-cuts", "text": "never  zoom in the first second"})
+    jj = next(x for x in read()["jobs"] if x["id"] == j["id"])
+    assert job_line(jj, root) == f"JOB skill-change own-cuts path={own} text=never zoom in the first second", job_line(jj, root)
+    for bad in ({"skill": "my-edit-style", "text": "x"}, {"skill": "own-cuts", "text": " "}, {"skill": "../x", "text": "x"}):
+        try:
+            post("/job", {"type": "skill-change", **bad})
+            raise AssertionError(f"skill-change {bad}")
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+    j2 = post("/job", {"type": "skill-new", "text": "captions that pop"})
+    assert job_line(next(x for x in read()["jobs"] if x["id"] == j2["id"]), root) == "JOB skill-new text=captions that pop"
+    update(lambda d: d.__setitem__("jobs", [x for x in d["jobs"] if x["id"] not in (j["id"], j2["id"])]))
+    assert library.open_cmd("/a/b.md", "Darwin") == ["open", "-t", "/a/b.md"]
+    shutil.rmtree(own.parent)
     (kd / "style.json").write_text(json.dumps({"own": True, "skill": "gone-skill"}), encoding="utf-8")
     kc = next(c for c in get("/library")["styles"] if c["id"] == "@own-skilled")
     assert kc["kind"] == "skill" and kc["found"] is False and kc["description"] == "", kc

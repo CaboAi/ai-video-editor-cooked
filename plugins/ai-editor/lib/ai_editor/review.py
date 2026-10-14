@@ -38,6 +38,11 @@ product video). Notes save with the edit, never in the plugin:
                                      show "Saved to <style>. Next video uses it."
     python3 review.py demo                         self-check on a generated 6 s clip
 
+A note that reads as a lasting preference ("always ...", "never ...", "too many zooms") is offered as a rule: the page
+ticks "Keep as a rule for <style>" (POST /keep unticks it) and `wait` marks it [keep as a rule for <style>]. Every
+rule `learn` saves (a note at a style scope, or the Teach panel's `--done`) adds a receipt to review.json
+("receipts"): the page shows "Saved to <style>: <rule>. Undo", and POST /undo takes a rule that save added out again.
+
 Each round also gets review/data-<stage><round>.json for the page, built from the edit folder when
 the files are there: the cut's transcript with every cut word and pause struck (decisions.json +
 words.raw.json), the timeline's segments (cut points, or chapters.txt on the edit), and the edit's
@@ -363,6 +368,41 @@ def seen(folder):
             set_ui(videos=vs + [str(folder)])
     except (OSError, TimeoutError):
         pass
+
+
+# A note that reads as a lasting preference: the page offers it as a rule for the style ("Keep as a rule").
+# ponytail: a word list, not a model; Claude still judges every kept note when it saves it
+RULE_WORDS = re.compile(r"\b(always|never|every time|from now on|by default|in general|i prefer|prefer|i (?:don'?t |do not )?like|"
+                        r"i hate|i'?d rather|i want (?:all|every|my)|too (?:many|much|few|little|big|small|long|short|fast|slow|loud|quiet)|"
+                        r"fewer|stop (?:adding|using|putting))\b", re.I)
+
+
+def looks_like_rule(text):
+    return bool(RULE_WORDS.search(text or ""))
+
+
+def receipt(d, style, rule, status, kind, ref, note=None, src="note"):
+    """One saved rule the page shows as "Saved to <style>: <rule>. Undo" (Undo only for a rule this save added).
+    kind "settings": ref is the rules.json id; "skill": ref is that skill's SKILL.md."""
+    r = {"id": max([x["id"] for x in d.get("receipts") or []] + [0]) + 1, "style": style, "rule": rule, "status": status,
+         "kind": kind, "ref": ref, "note": note, "from": src, "at": now()}
+    d.setdefault("receipts", []).append(r)
+    return r
+
+
+def undo_receipt(folder, rid):
+    """The page's Undo: the rule comes out of the style again (taste.forget, or skillrules.remove). The message, or None."""
+    from ai_editor import skillrules, taste
+    r = next((x for x in load(folder / "review.json").get("receipts") or [] if x["id"] == rid), None)
+    if not r or r.get("undone") or r["status"] != "added":
+        return None
+    ok = skillrules.remove(r["ref"], r["rule"]) if r["kind"] == "skill" else taste.forget(int(r["ref"])) is not None
+    def f(d):
+        for x in d.get("receipts") or []:
+            if x["id"] == rid:
+                x["undone"] = now()
+    update(folder / "review.json", f)
+    return f"Removed from {r['style']}." if ok else f"It was no longer in {r['style']}."
 
 
 def intro(folder, d):
@@ -793,6 +833,7 @@ def make_handler(folder, token):
                 d["home"] = home_url()   # the Home button: back to the editor's window, or how to start it
                 d["jobs"] = home_jobs() if d["home"] else 0   # the rail's Making ring
                 d["intro"] = intro(folder, d)
+                d["style_name"] = style_label(folder)   # "Keep as a rule for <style>" and the receipts
                 d["assets"] = assets.load(folder)   # "Anything to add?": the images and links added to this video
                 if d.get("raw"):   # the cut is being made: every step it takes, from the home window's job
                     d["cut_steps"] = cut_steps(folder, d)
@@ -859,6 +900,20 @@ def make_handler(folder, token):
             if path == "/intro":   # "Got it" on the first-edit notice: never again
                 set_ui(intro_off=True)
                 return self.send(200, {})
+            if path == "/keep":   # "Keep as a rule for <style>" ticked or unticked on an open note
+                def kp(d):
+                    for c in d["comments"]:
+                        if c["id"] == body.get("id") and editable(d, c):
+                            c["keep"], c["keep_set"] = bool(body.get("keep")), True
+                            return True
+                    return False
+                return self.send(200, {}) if update(rj, kp) else self.send(409, {"error": "this note is with Claude"})
+            if path == "/undo":   # a receipt's Undo: the saved rule comes out of the style
+                try:
+                    msg = undo_receipt(folder, int(body.get("id")))
+                except (TypeError, ValueError):
+                    msg = None
+                return self.send(200, {"msg": msg}) if msg else self.send(409, {"error": "nothing to undo"})
             if path == "/learn":   # the learn panel: the ticked rules, or Not now. `wait` hands them to Claude
                 def lc(d):
                     lr = d.get("learn") or {}
@@ -974,6 +1029,8 @@ def make_handler(folder, token):
                  "words": words_at(src.get("transcript"), t, te if te is not None else t),
                  "card": card_at(d.get("plan"), t) if d["stage"] == "edit" else None,
                  "frame": frame, "images": images, "status": "open", "reply": None, "new_t": None, "at": now()}
+            if looks_like_rule(text):   # offered as a rule, ticked: the user unticks it on the page
+                c["keep"] = True
             if queued:
                 c["queued"] = True
             update(rj, lambda d: d["comments"].append(c))
@@ -1023,6 +1080,10 @@ def make_handler(folder, token):
             new = dict(c)
             if "text" in body:
                 new["text"] = str(body["text"] or "").strip()
+                if "keep_set" not in c:
+                    new.pop("keep", None)
+                    if looks_like_rule(new["text"]):
+                        new["keep"] = True
             if "alt" in body:
                 new["alt"] = body["alt"] or None
             if "images" in body:
@@ -1427,7 +1488,8 @@ def cmd_wait(folder, poll=1.0):
             f" [{r.get('label') or 'main'}]" if r.get("alts") else "")
         k = c.get("card")
         card = f" [card {k['i']} {k['kind']} '{k['trigger_word'] or ''}']" if k else ""
-        print(f"#{c['id']} {span} ({c['t']}s){ver}{card}: {c['text']}\n    said: \"{c['words']}\""
+        keep = f" [keep as a rule for {style_label(folder)}]" if c.get("keep") else ""
+        print(f"#{c['id']} {span} ({c['t']}s){ver}{card}: {c['text']}{keep}\n    said: \"{c['words']}\""
               f"\n    frame: {folder / 'review' / c['frame']}"
               + "".join(f"\n    image: {folder / 'review' / x}" for x in c.get("images") or []))
     added = assets.load(folder)
@@ -1438,7 +1500,7 @@ def cmd_wait(folder, poll=1.0):
     if e["type"] == "approve" and d.get("learn"):
         print(learn_prompt(folder, d))
     elif cs:
-        print(learn_hint(folder))
+        print(learn_hint(folder, [c["id"] for c in cs if c.get("keep")]))
     return e["type"]
 
 
@@ -1525,8 +1587,9 @@ def learn_prompt(folder, d):
             lines += ["  " + ln for ln in skillrules.learned(Path(tg["path"]).read_text(encoding="utf-8"))] or ["  (none yet)"]
     for c in sorted(session_notes(d), key=lambda c: (c["stage"] != "cut", c["round"], c["t"])):
         saved = f" [saved as rule {c['taste']}]" if isinstance(c.get("taste"), int) else ""
+        keep = " [the user asked to keep this as a rule: propose it]" if c.get("keep") and not saved else ""
         lines.append(f"#{c['id']} {stage_name(c['stage'])} r{c['round']}: {c['text']}"
-                     + (f" -> reply: {c['reply']}" if c.get("reply") else "") + saved)
+                     + (f" -> reply: {c['reply']}" if c.get("reply") else "") + saved + keep)
     return "\n".join(lines)
 
 
@@ -1584,23 +1647,29 @@ def learn_done(folder, summary):
     if lr.get("state") != "chosen":
         sys.exit("nothing ticked to save: run `wait` for the user's pick first")
     sp = edit_style(folder)
+    style = styleskill.display(sp)
     from ai_editor import skillrules
     tg = skillrules.target(folder)
+    saved = []   # (rule, status, kind, ref) for the receipts
     if tg["kind"] == "skill":   # a skill style: its skill made the edit, so the rules go into its SKILL.md
         if not tg["path"]:
             sys.exit(f"the {tg['skill']} skill is not in your skill folders; nothing saved")
         for r in (lr["rules"][i] for i in lr["chosen"]):
             status, line = skillrules.add(tg["path"], r["rule"], r.get("why") or f"from the notes on {folder.name}",
                                           r.get("replace"), edit=str(folder))
+            saved.append((skillrules.rule_of(line), status, "skill", tg["path"]))
             print(f"{status}: {line} ({tg['path']})")
     for r in (lr["rules"][i] for i in lr["chosen"] if tg["kind"] == "settings"):
         setting, _, raw = (r.get("set") or "").partition("=")
         status, x = styleskill.learn(sp, r["section"], r["rule"], setting or None, taste.parse(raw) if setting else None,
                                      edit=folder, source="review")
+        saved.append((x["rule"], status, "settings", x["id"]))
         print(f"{status} rule #{x['id']} {x['section']}: {x['rule']} (skill {styleskill.name(sp)})")
-    style = styleskill.display(sp)
-    update(folder / "review.json", lambda d: d["learn"].update(state="done", style=style,
-                                                                 summary=summary or f"Saved to {style}. Next video uses it."))
+
+    def done(d):
+        d["learn"].update(state="done", style=style, summary=summary or f"Saved to {style}. Next video uses it.",
+                          receipts=[receipt(d, style, *x, src="teach")["id"] for x in saved])
+    update(folder / "review.json", done)
     print(f"saved to {style}")
 
 
@@ -1612,13 +1681,19 @@ def edit_style(folder):
     return src[0] if len(src) == 1 else None
 
 
-def learn_hint(folder):
+def learn_hint(folder, kept=()):
     sp = edit_style(folder)
     scopes = "this-style|style|video|everyone" if sp else "style|video|everyone"
-    return (f"LEARN: pick the notes that are preferences, ask the scope once for all of them"
-            + (f" (this edit used @{sp.parent.name}'s style: \"This style\" first)" if sp else "") + ", then run:\n"
-            f"  python3 {Path(__file__).resolve()} {folder} learn --scope {scopes}"
-            f" --rule <id> <section> \"<rule>\" [key=value] ...   (no preferences: learn --none)")
+    out = (f"LEARN: pick the notes that are preferences, ask the scope once for all of them"
+           + (f" (this edit used @{sp.parent.name}'s style: \"This style\" first)" if sp else "") + ", then run:\n"
+           f"  python3 {Path(__file__).resolve()} {folder} learn --scope {scopes}"
+           f" --rule <id> <section> \"<rule>\" [key=value] ...   (no preferences: learn --none)")
+    if kept:   # the user already said yes and named the style: no scope question for these
+        out += (f"\n  Notes {', '.join('#' + str(i) for i in kept)} are marked \"keep as a rule for {style_label(folder)}\": the user"
+                f" said yes on the page. Save each with --scope {'this-style' if sp else 'style'} (no question), one short rule"
+                " in the user's words with its setting when the taste table maps (\"fewer zooms\" -> zoom.per_min); the page"
+                " then shows a receipt with Undo.")
+    return out
 
 
 def learned_round(d):
@@ -1675,13 +1750,16 @@ def cmd_learn(a, folder):
                 value = taste.parse(raw) if setting else None
                 if skill_md:
                     status, line = skillrules.add(skill_md, rule, f"review note: {c['text']}", edit=str(folder))
-                    c.update(rule=rule, taste="skill")
+                    c.update(rule=rule, taste="skill",
+                             receipt=receipt(d, styleskill.display(sp), skillrules.rule_of(line), status, "skill", str(skill_md), c["id"])["id"])
                     out.append(f"#{c['id']} -> {status}: {line} ({skill_md})"
                                + (f"; {setting} not saved (a skill style has no settings)" if setting else ""))
                     continue
                 scope = f"video:{d['name']}" if a.scope == "video" else styleskill.scope(sp)
                 status, r = taste.add(section, rule, setting, value, scope, folder, source="review", style=sp)
                 c.update(rule=rule, taste={"style": r["id"], "this-style": r["id"], "video": "video-only"}.get(a.scope, "suggested"))
+                if a.scope != "video":
+                    c["receipt"] = receipt(d, styleskill.display(sp), r["rule"], status, "settings", r["id"], c["id"])["id"]
                 if a.scope == "everyone":
                     taste.suggest(c["text"], rule, f"review note ({r['section']})", note=f"{d['name']}#{c['id']}")
                 out.append(f"#{c['id']} -> {status} rule #{r['id']} {r['section']}: {rule}"
@@ -1972,6 +2050,17 @@ def demo():
     c3 = post("/comment", {"t": 5.1, "text": "louder here", "alt": "wide"})
     assert c3["alt"] == "wide" and c3["words"] == "later", c3
     c4 = post("/comment", {"t": 1.0, "text": "on all of them", "alt": "*"})
+    # a note that reads as a lasting preference is offered as a rule, ticked; the user can untick it
+    assert looks_like_rule("Too many zooms") and looks_like_rule("I prefer bigger captions") and not looks_like_rule("cut the um at 0:12")
+    c5 = post("/comment", {"t": 2.0, "text": "always use fewer zooms"})
+    assert c5.get("keep") is True and not c4.get("keep"), (c5, c4)
+    post("/keep", {"id": c5["id"], "keep": False})
+    c5b = next(x for x in load(folder / "review.json")["comments"] if x["id"] == c5["id"])
+    assert c5b["keep"] is False and c5b["keep_set"], c5b
+    assert post("/edit", {"id": c5["id"], "text": "never zoom"}).get("keep") is False   # the user's choice stays
+    assert json.loads(get("/state").read())["style_name"] == "My style"
+    assert "keep as a rule for My style" in learn_hint(folder, [c5["id"]]) and "--scope style (no question)" in learn_hint(folder, [c5["id"]])
+    post("/delete", {"id": c5["id"]})
     post("/scope", {"id": c3["id"], "alt": "*"})
     assert next(x for x in load(folder / "review.json")["comments"] if x["id"] == c3["id"])["alt"] == "*"
     post("/scope", {"id": c3["id"], "alt": "wide"})
@@ -2009,6 +2098,10 @@ def demo():
         learn(scope="everyone", rule=[[str(c4["id"]), "captions", "Captions stay inside the safe zone"]])
     cs = {c["id"]: c for c in load(folder / "review.json")["comments"]}
     rid = next(r["id"] for r in taste.load_rules() if r["rule"] == "Cards fill the space they have")
+    rc = {r["id"]: r for r in load(folder / "review.json")["receipts"]}   # the page shows one per saved rule
+    assert rc[cs[c2["id"]]["receipt"]]["style"] == "My style" and rc[cs[c2["id"]]["receipt"]]["status"] == "added", rc
+    assert "receipt" not in cs[c3["id"]] and rc[cs[c4["id"]]["receipt"]]["ref"] == next(
+        r["id"] for r in taste.load_rules() if r["rule"] == "Captions stay inside the safe zone"), rc
     assert cs[c2["id"]]["taste"] == rid and cs[c3["id"]]["taste"] == "video-only", cs
     assert cs[c4["id"]]["taste"] == "suggested" and cs[c4["id"]]["rule"] == "Captions stay inside the safe zone", cs
     assert "Cards fill the space they have" in taste.load_md()["Visuals"] and "sfx_db" not in taste.read_json()
@@ -2093,6 +2186,21 @@ def demo():
     assert not any(r["rule"] == "Captions two lines at most" for r in taste.load_rules())
     assert json.loads((sp.parent / "style.overrides.json").read_text(encoding="utf-8"))["captions"]["size_pct"] == 4
     assert "Logos beside" not in (tmp / "skills" / "edit-like-alice" / "SKILL.md").read_text(encoding="utf-8")
+    # Undo on a receipt: the rule comes out of the skill (or the style's rules) again, once
+    d = load(folder / "review.json")
+    sr = d["receipts"][next(c for c in d["comments"] if c["id"] == c2["id"])["receipt"] - 1]
+    assert sr["kind"] == "skill" and sr["style"] == "@alice" and sr["rule"] == "Captions two lines at most", sr
+    assert post("/undo", {"id": sr["id"]})["msg"] == "Removed from @alice."
+    assert "Captions two lines at most" not in sk_md.read_text(encoding="utf-8").split("## Log")[0]
+    try:
+        post("/undo", {"id": sr["id"]})
+        raise AssertionError("undo twice")
+    except urllib.error.HTTPError as e:
+        assert e.code == 409
+    tr_ = next(x for x in d["receipts"] if x["from"] == "teach" and x["rule"] == "Keep the pauses short")
+    assert tr_["kind"] == "settings" and tr_["style"] == "@alice", tr_
+    post("/undo", {"id": tr_["id"]})
+    assert not any(r["rule"] == "Keep the pauses short" for r in taste.load_rules())
     if old_skills is None:
         os.environ.pop("AI_EDITOR_SKILLS", None)
     else:

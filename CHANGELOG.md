@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.10, creator-teardown 2.7.10 (2026-10-14)
+
 - Skills: every skill has a ⋯ menu with Hide from this list and Delete. Delete moves the skill to the Trash, only from
   your own skills folder, and says which styles use it. Skills that don't edit video sit under Other skills. A style
   whose skill was deleted says so and lets you pick another skill or archive it.

@@ -404,6 +404,18 @@ def write_style(edit_dir, root=Path("."), out=None, src=None, as_=None):
     return out, style
 
 
+def picked(style, as_):
+    """None when style.json is the style the user picked for the video (the home page's as=: @handle, defaults or
+    mine), else the handle it holds instead. An as= of anything else: None (nothing to compare)."""
+    if as_ == "mine":
+        cs = [c.get("handle") for c in load().get("creators") or [] if c.get("handle")]
+        want = "+".join(cs) if cs else "default"
+    else:
+        want = "default" if as_ == "defaults" else as_[1:] if isinstance(as_, str) and as_.startswith("@") else None
+    got = (style or {}).get("handle") or "default"
+    return None if want is None or got == want else got
+
+
 def set_pairs(prof, pairs):
     """Each (dotted key, text) into prof; the text is parsed as JSON if it can be."""
     for key, text in pairs:
@@ -440,6 +452,8 @@ def demo():
         out, st = write_style(d, out=Path(d) / "style.json")
         assert out.exists() and st["zoom"]["per_min"] == presets.ZOOM["smooth"]["zoom"]["per_min"] and st["captions"]["effect"] == "karaoke", st
         assert json.loads(out.read_text(encoding="utf-8"))["handle"] == "default"
+        assert picked({"handle": "default"}, "defaults") is None and picked({"handle": "default"}, "@sample-motion-design") == "default"
+        assert picked({"handle": "sample-motion-design"}, "@sample-motion-design") is None and picked({}, "defaults") is None
         save({"creators": [], "captions": {"on": True, "style": "creator"}})   # the recommended answer: plain white TikTok Sans
         cap = write_style(d, out=Path(d) / "style.json")[1]["captions"]
         assert cap["font_match"] == "TikTok Sans" and cap["size_pct"] < 5.5 and 600 <= cap["weight"] <= 700, cap

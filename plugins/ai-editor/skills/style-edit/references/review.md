@@ -143,7 +143,8 @@ answers 409); a change then is a new note or **fix it anyway**.
 The page has a **Stop** button while Claude works. When the user presses it, the round's notes open
 again (queued notes join them) and the next `status` exits 3 with `STOPPED`: stop the work, say so in one line, run `wait`.
 
-Answer every note, then open the round with the new render:
+Answer every note, then open the round with the new render. The answer goes in `--reply`, never in `status`:
+a `status` line is work in progress, not an answer to a note.
 
 ```bash
 python3 "$R" edits/<name> resolve 1 fixed --reply "pause is 0.10 s now" --new-t 2.4

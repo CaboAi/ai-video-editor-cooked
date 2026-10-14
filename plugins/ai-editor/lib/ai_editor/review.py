@@ -1499,7 +1499,7 @@ def serve(folder, port=0, open_browser=True):
         f.write(url)   # private: the token in it lets a page in
     if os.name != "nt":
         os.chmod(last, 0o600)
-    askhook.register(srv, url, "review", asker(folder, askhook.session()), lambda sid: folder / "review")
+    askhook.register(srv, url, "review", asker(folder, askhook.session()), lambda sid: folder / "review", folder)
     if open_browser:
         show(url, folder)
     return srv, url
@@ -1784,7 +1784,8 @@ def timings(folder):
     was added, Make, the cut's script steps with their clock times) and review.json (each round's time, the user's
     approves, the render step). Never an estimate: a stage shows once it has happened. Writes <folder>/timings.json
     (times kept from an earlier write when the job has since left state.json) and returns it.
-    "made" = the machine's time only (the cut, the edit up to the stills, the render), not the user's two reviews."""
+    "made" = the machine's time only (the cut, the edit up to the stills, the render), not the user's turns: their
+    reviews, each earlier draft until they sent notes, and a question of Claude's while it was open."""
     folder = Path(folder)
     f = folder / "timings.json"
     try:   # the home job's times only: everything else is read again from review.json
@@ -1830,9 +1831,37 @@ def timings(folder):
         except ValueError:
             pass
     gap = lambda a, b: round(t[b] - t[a], 1) if t.get(a) is not None and t.get(b) is not None and t[b] >= t[a] else None
-    t["stages"] = {k: v for k, v in (("cut", gap("make", "cut_ready")), ("your_review", gap("cut_ready", "cut_approved")),
-                                     ("edit", gap("cut_approved", "stills_ready")), ("your_stills_check", gap("stills_ready", "stills_approved")),
-                                     ("render", gap("stills_approved", "render_end")),
+    # the user's turns inside a machine stage: a question open (askhook asks.jsonl) and each draft until they sent notes
+    # or approved. Merged, then taken out of the cut, the edit and the render, so "Made in" is the machine's time only
+    waits = []
+    try:
+        waits = [(float(w["start"]), float(w["end"])) for w in map(json.loads, (folder / "review" / "asks.jsonl").read_text(
+            encoding="utf-8").splitlines()) if w.get("end")]
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    acts = sorted(_epoch(e.get("at")) or 0 for e in ev if e.get("type") in ("send", "approve"))
+    for (sg_, n), r in sorted(rounds.items()):
+        a = _epoch(r.get("at"))
+        b = next((x for x in acts if a is not None and x >= a), None)
+        if n >= 1 and a is not None and b is not None:
+            waits.append((a, b))
+    merged = []
+    for a, b in sorted(waits):
+        if merged and a <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], b)
+        else:
+            merged.append([a, b])
+    t["waits_s"] = round(sum(b - a for a, b in merged), 1)
+
+    def busy(a, b):
+        g = gap(a, b)
+        if g is None:
+            return None
+        lo, hi = t[a], t[b]
+        return round(g - sum(max(0, min(hi, y) - max(lo, x)) for x, y in merged), 1)
+    t["stages"] = {k: v for k, v in (("cut", busy("make", "cut_ready")), ("your_review", gap("cut_ready", "cut_approved")),
+                                     ("edit", busy("cut_approved", "stills_ready")), ("your_stills_check", gap("stills_ready", "stills_approved")),
+                                     ("render", busy("stills_approved", "render_end")),
                                      ("transcribe", gap("transcribe_start", "transcribe_end"))) if v is not None}
     sg = t["stages"]
     if all(k in sg for k in ("cut", "edit", "render")):
@@ -2353,6 +2382,17 @@ def demo_timings(tmp):
     save(f / "review.json", {"rounds": [{"stage": "cut", "round": 1, "at": at(190)}], "events": []})
     t = timings(f)
     assert "line" not in t and set(t["stages"]) == {"cut", "transcribe"}, "a stage shows once it has happened"
+    # QA round 3: "render 9:05", 8 min of it a question; and an earlier draft of the stills waiting on the user's notes
+    save(f / "review.json", {"rounds": [{"stage": "cut", "round": 1, "at": at(190)}, {"stage": "edit", "round": 1, "at": at(400), "stills": True},
+                                        {"stage": "edit", "round": 2, "at": at(700), "stills": True}, {"stage": "edit", "round": 3, "at": at(1300)}],
+                             "events": [{"type": "approve", "stage": "cut", "round": 1, "at": at(300)},
+                                        {"type": "send", "stage": "edit", "round": 1, "at": at(550)},
+                                        {"type": "approve", "stage": "edit", "round": 2, "at": at(760), "stills": True}]})
+    (f / "review").mkdir(exist_ok=True)
+    (f / "review" / "asks.jsonl").write_text(json.dumps({"start": 1_800_000_800, "end": 1_800_001_280}) + "\n", encoding="utf-8")
+    t = timings(f)
+    assert t["stages"]["render"] == 60 and t["stages"]["edit"] == 250 and t["waits_s"] == 110 + 150 + 60 + 480, t["stages"]
+    assert t["line"] == "Made in 8 min (cut 3:10, edit 4:10, render 1:00)", t["line"]
     assert mmss(70) == "1:10" and mmss(5) == "0:05"
     assert speculate(f, None) == "no renderer", "no renderer installed: nothing starts"
     os.environ["AI_EDITOR_NO_SPECULATE"] = "1"

@@ -773,6 +773,17 @@ def demo():
                             "g = check.stream(sys.argv[2], 'null', 64, 64); next(g); g.close()", str(Path(__file__).parent),
                             str(v)], capture_output=True, text=True)
         assert r.returncode == 0 and "Broken pipe" not in r.stderr and not r.stderr.strip(), r.stderr
+    import os   # the style the user picked (the home job's as=) is the edit's style.json, or the plan check fails
+    with tempfile.TemporaryDirectory() as d:
+        old = os.environ.get("AI_EDITOR_HOME")
+        os.environ["AI_EDITOR_HOME"] = d
+        (Path(d) / "home").mkdir()
+        (Path(d) / "home" / "state.json").write_text(json.dumps({"jobs": [{"type": "video", "args": {
+            "edit": str(Path(d) / "e"), "as": "@sample-motion-design"}}]}), encoding="utf-8")
+        bad = style_pick(Path(d) / "e", {"handle": "default"})
+        assert len(bad) == 1 and bad[0]["level"] == "FAIL" and "@sample-motion-design" in bad[0]["fix"], bad
+        assert style_pick(Path(d) / "e", {"handle": "sample-motion-design"}) == [] and style_pick(Path(d) / "x", {}) == []
+        os.environ.pop("AI_EDITOR_HOME") if old is None else os.environ.__setitem__("AI_EDITOR_HOME", old)
     fp = {"captions": {"style": {"font_match": "TikTok Sans"}, "chunks": [{}]}, "look": {"font": "Proxima Nova"}}
     got = font_findings(fp, {"TikTok Sans", "Inter"})
     assert len(got) == 1 and got[0]["what"].startswith("look font 'Proxima Nova'"), got
@@ -1013,6 +1024,28 @@ def prof():
         return {}
 
 
+def style_pick(edit, style):
+    """FAIL when the edit's style.json is not the style the user picked for this video (the home job's as=): a Claude
+    that skipped `profile.py style --as` styles it as the default instead (QA round 3, Motion design)."""
+    try:
+        import os
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
+        from ai_editor import profile
+        home = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor")
+        jobs = json.loads((home / "home" / "state.json").read_text(encoding="utf-8")).get("jobs") or []
+        j = next((j for j in reversed(jobs) if j.get("type") == "video" and (j.get("args") or {}).get("edit")
+                  and Path(j["args"]["edit"]).resolve() == Path(edit).resolve()), None)
+        as_ = (j or {}).get("args", {}).get("as")
+        got = profile.picked(style, as_) if as_ else None
+    except Exception:   # no home window, no job: nothing to compare
+        return []
+    if got is None:
+        return []
+    return [finding("FAIL", None, f"style.json is {got}, but the user picked {as_} for this video",
+                    f"python3 {Path(__file__).resolve().parents[3] / 'lib' / 'ai_editor' / 'profile.py'} style {edit} --as {as_}, "
+                    "then captions, plan and stills again")]
+
+
 def brand():
     """The profile's brand kit (a tell the user's own brand names is only a warning)."""
     return prof().get("brand") or {}
@@ -1050,6 +1083,7 @@ def main():
                           sum(bool(x.get("want")) for x in rd("beats.json") or []), str(edit))
         found += user_assets(edit, plan, rd("visuals.json") or [])
         found += music_findings(str(edit), plan, style, prof())
+        found += style_pick(edit, rd("style.json") or {})
     else:
         video = edit / f"render{tag}.mp4"
         if not video.exists():

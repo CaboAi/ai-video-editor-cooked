@@ -28,6 +28,8 @@ for s in "$T/fetch.py demo" "$T/editplan.py demo" "$T/visual.py demo" "$T/graphi
 done
 echo "== logo-pack/scripts/logos.mjs demo"
 node "$A/logo-pack/scripts/logos.mjs" demo || failed+=("logos.mjs demo")
+echo "== motion/scripts/verify.mjs demo"
+node "$A/motion/scripts/verify.mjs" demo || failed+=("verify.mjs demo")
 echo "== tests/test_record.mjs"
 node tests/test_record.mjs || failed+=("tests/test_record.mjs")
 if ((${#failed[@]})); then printf 'FAILED: %s\n' "${failed[@]}"; exit 1; fi

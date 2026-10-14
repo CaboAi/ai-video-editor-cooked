@@ -34,6 +34,11 @@ What changed for every user, newest first.
   A new video starts a matching beat from one, re-timed and changed for its words, never copied unchanged;
   archived ones are never used.
 - A note on one animation ("make the counter bigger") rebuilds only that clip and re-renders only its span.
+- A new sample style, 50/50: the visual owns the top of the frame and you the bottom, on a paper ground, an
+  animation built for each line filling the top panel edge to edge, your face back full frame within 8 seconds.
+  `layout.variant: "cutout"` makes your head break out of your card onto the paper. Each panel animation passes a
+  ground and fill check and four frame-by-frame proofs (nothing clipped, nothing in the side rails, no two beats
+  at once, every line on screen long enough to read).
 
 ## ai-editor 2.6.10 (2026-10-13)
 

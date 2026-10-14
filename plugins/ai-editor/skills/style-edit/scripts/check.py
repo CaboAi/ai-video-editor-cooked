@@ -334,7 +334,7 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
                            "show the page that published it (a capture), or only the words the speaker says"))
     # the AI-made look (references/ai-tells.md): BAN -> FAIL, WARN -> WARN
     from ai_tells import check_plan as ai_tells, for_brand
-    for f in for_brand(ai_tells(plan, visuals), brand):
+    for f in for_brand(ai_tells(plan, visuals), brand, plan.get("allow_tells")):
         out.append(finding("FAIL" if f["level"] == "BAN" else "WARN", None, f"AI tell '{f['tell']}': {f['where']}", f["fix"]))
     return out
 

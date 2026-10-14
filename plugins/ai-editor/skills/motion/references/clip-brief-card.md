@@ -78,6 +78,9 @@ Numbers only as the speaker said them. A counter counts up to the said number.
 | spike | delta > 4x local median AND > 3x global (warn only with `<img>`/`<video>`) |
 | frame-0 flash | frame 0 ink > 15% of mid-clip ink |
 | ground | over half the frame at 3/4 of the clip is a cream paper colour (a banned tell in this editor), unless the look's ground is one |
+| tells | a banned generated look on a settled frame (style-edit `ai-tells.md`: neon on black, purple-blue, glow, gradient ground, accent rule, dead centre) |
+| panel (50/50) | the corners are not the panel's ground, the ink band covers under 55% of the panel, or its centre is over 2% off the panel's |
+| proofs | `verify.mjs`: clipped, rails, neighbour, reading (0.25 s + 0.30 s a word). Blocking in the 50/50 panel, advisory on a card |
 | composition | advisory: dead band > 0.25, dead strip > 0.30, coverage < 6%, < 3 stroke weights |
 
 Warn only: `fromTo` count > `immediateRender` count, `fromTo` with no CSS from-state, any `.set()`, numeric

@@ -51,7 +51,8 @@ ROUNDS = 3                 # check rounds a clip-builder gets before the beat fa
 DEFAULT_LOOK = {"name": "default", "ground": "#FFFFFF", "paper": "#FDF8EC", "ink": "#171614", "muted": "#6B6862",
                 "accent": None, "stop": "#FF3040", "ok": "#3DDC84", "font": "TikTok Sans", "radius": 28,
                 "stroke": {"container": 6, "connector": 3, "texture": 1.2}}
-PRESETS = {  # remotion/src/look.tsx, the parts a clip uses
+PRESETS = {  # remotion/src/look.tsx, the parts a clip uses; "paper" is the 50/50 style's ground
+    "paper": {"ground": "#FDF8EC", "ink": "#171614"},
     "editorial": {"ground": "#F2EEE6", "ink": "#141414", "accent": "#E5482C"},
     "editorial-dark": {"ground": "#151413", "ink": "#F2EEE6", "accent": "#FF5A36"},
     "mono": {"ground": "#FFFFFF", "ink": "#0A0A0A", "font": "IBM Plex Sans"},
@@ -181,6 +182,17 @@ def card_size(face, start, end, aspect="9:16"):
     return [1200, int(round(1200 / ar / 2)) * 2]
 
 
+def panel_size(style):
+    """The 50/50 (split layout) panel's art box as a clip canvas, or None for an overlay style. plan.py
+    split_art_box: x 13-87%, y 13.1% to 2% above the seam. The clip fills it edge to edge on the panel's ground."""
+    lay = (style or {}).get("layout") or {}
+    if lay.get("mode") != "split":
+        return None
+    seam = float(lay.get("seam", 50))
+    w_px, h_px = 0.74 * 1080, (seam - 2 - 13.1) / 100 * 1920
+    return [1200, int(round(1200 * h_px / w_px / 2)) * 2]
+
+
 def fill_template(beat, look, gsap=None):
     w, h = beat["size"]
     html = (SKILL / "template" / "index.html").read_text(encoding="utf-8")
@@ -198,8 +210,7 @@ scripts' source. First render within about 10 minutes, then iterate on `check` o
 
 - Folder (yours alone): `{dir}`. Edit `index.html` only, plus files you add under `assets/`.
 - Canvas {w}x{h}, {dur} s, 30 fps. It plays as a card about {cw} px wide in the band above the speaker's head,
-  over the footage, popping in {lead} s before its word. Fill the card edge to edge: no inner margin of ground.
-  Its bottom fifth may sit behind the speaker's hair: nothing that must be read goes there.
+  {placement}
 - The look: {look}
 - The line: "{line}"
   Before it: "{before}"  After it: "{after}"
@@ -245,6 +256,18 @@ def pick(edit, max_n=8):
     cfg = motion_cfg(style)
     face = json.loads((edit / "face.json").read_text(encoding="utf-8")) if (edit / "face.json").exists() else None
     beats = beats_for([v.get("fallback") or v for v in visuals], words, aspect, max_n, images, allowed_types(cfg), cfg["amount"], face)
+    pj = edit / "plan.json"
+    if pj.exists() and pj.stat().st_mtime >= (edit / "visuals.json").stat().st_mtime:   # the plan dropped some beats
+        kept = {(c.get("trigger_word") or "").lower() for c in json.loads(pj.read_text(encoding="utf-8")).get("cards", [])}
+        gone = [b for b in beats if b["word"].lower() not in kept]
+        if gone:
+            print("not in the plan, no clip: " + ", ".join(f"'{b['word']}'" for b in gone))
+        beats = [b for b in beats if b["word"].lower() in kept]
+    panel = panel_size(style)
+    if panel:   # the 50/50 panel: every clip is the panel's own shape, on the panel's ground
+        look = {**look, "ground": (style.get("layout") or {}).get("ground") or look["ground"]}
+        for b in beats:
+            b.update(size=panel, panel=True)
     if cfg["engine"] != "clips":
         print("style.json motion.engine is \"templates\": no clips, the template formats stay")
     gsap = home() / "motion" / "node_modules" / "gsap" / "dist" / "gsap.min.js"
@@ -273,7 +296,12 @@ def pick(edit, max_n=8):
         w, h = b["size"]
         (d / "brief.md").write_text(BRIEF.format(
             id=b["id"], card=SKILL / "references" / "clip-brief-card.md", dir=d.resolve(), w=w, h=h, dur=b["dur"],
-            cw=800 if aspect == "9:16" else 760, lead=CARD_LEAD_S, look=json.dumps(look), line=b["line"],
+            cw=800 if aspect == "9:16" else 760, lead=CARD_LEAD_S,
+            placement=("over the footage, popping in {lead} s before its word. Fill the card edge to edge: no inner margin of "
+                       "ground.\n  Its bottom fifth may sit behind the speaker's hair: nothing that must be read goes there."
+                       ).format(lead=CARD_LEAD_S) if not b.get("panel") else
+                      ("in the 50/50 panel: the top of the frame, above the speaker, the whole panel. Its ground is the panel's own "
+                       f"({look['ground']}), so it has no edge: no card, border or shadow round the exhibit. Fill at least 55% of it."), look=json.dumps(look), line=b["line"],
             before=b["before"], after=b["after"], words=json.dumps(b["words"]), type=b["type"], props=json.dumps(b["props"]),
             images=", ".join(str((edit / "images" / p).resolve()) for p in pics) or "none", motion=Path(__file__).resolve(), rounds=ROUNDS,
             env=f'AI_EDITOR_HOME="{os.environ["AI_EDITOR_HOME"]}" ' if os.environ.get("AI_EDITOR_HOME") else "",
@@ -333,6 +361,28 @@ def ground_of(video, w, h):
     return (((k >> 8) & 15) * 16 + 8, ((k >> 4) & 15) * 16 + 8, (k & 15) * 16 + 8), counts.max() / len(q)
 
 
+def panel_fill(video, ground, tol=10, min_fill=0.55):
+    """The 50/50 PANEL gate (the house check_clip_ground.py, panel mode): the corners are the panel's ground (no edge
+    for a mismatch to draw) and the ink band covers at least min_fill of the panel, sampled at 3/4 of the clip."""
+    import numpy as np
+    w, h = 240, 200
+    dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(video)],
+                               capture_output=True, text=True).stdout.strip() or 1)
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{dur * 0.75:.3f}", "-i", str(video), "-frames:v", "1", "-vf",
+                          f"scale={w}:{h}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
+    f = np.frombuffer(raw[:w * h * 3], np.uint8).reshape(h, w, 3).astype(int)
+    off = [tuple(int(v) for v in f[y, x]) for y, x in ((1, 1), (1, w - 2), (h - 2, 1), (h - 2, w - 2))
+           if max(abs(int(a) - b) for a, b in zip(f[y, x], ground)) > tol]
+    ink = np.abs(f - np.array(ground)).max(axis=2) > 24
+    rows, cols = np.where(ink.any(axis=1))[0], np.where(ink.any(axis=0))[0]
+    fill = ((rows[-1] - rows[0] + 1) * (cols[-1] - cols[0] + 1) / (w * h)) if len(rows) and len(cols) else 0.0
+    cx = ((cols[0] + cols[-1]) / 2 / w) if len(cols) else 0.5
+    msgs = ([f"the drawing's centre is {abs(cx - 0.5):.0%} of the width off the panel's centre (the render check fails 2%)"]
+            if abs(cx - 0.5) > 0.02 else []) + ([f"{len(off)} corner(s) are not the panel's ground #{''.join(f'{c:02x}' for c in ground)}: the exhibit draws an edge"]
+            if off else []) + ([f"the ink band fills {fill:.0%} of the panel (under {min_fill:.0%})"] if fill < min_fill else [])
+    return not msgs, "; ".join(msgs) or f"corners on the ground, ink band {fill:.0%} of the panel"
+
+
 def check(clip_dir):
     """Every gate on one clip, the render, the sheets. gates.json: {"pass", "round", "gates": {name: [ok, detail]}}."""
     d = Path(clip_dir).resolve()
@@ -368,6 +418,29 @@ def check(clip_dir):
         bad = share > 0.5 and cream(rgb) and not own
         g["ground"] = [not bad, f"{share:.0%} of the frame at 3/4 is #{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}" +
                        (": a cream paper ground, banned in a card; use the look's ground or the real surface" if bad else "")]
+        node = shutil.which("node")
+        if node:   # the four proofs (verify.mjs): blocking in the 50/50 panel, advisory on a card (a 1 s card is not read whole)
+            rc, out = run([node, HERE / "verify.mjs", d] + (["--rails"] if beat.get("size") == [1080, 1920] else []), timeout=600)
+            try:
+                pr = json.loads(out.strip().splitlines()[-1])
+                detail = f"clipped {pr['clipped']}, rails {pr['rails']}, neighbour {pr['neighbour']}, reading {pr['reading']}" + \
+                         (": " + "; ".join(pr["notes"][:3]) if pr["notes"] else "")
+                g["proofs" if beat.get("panel") else "proofs (advisory)"] = [pr["pass"] or not beat.get("panel"), detail]
+            except (ValueError, IndexError, KeyError):
+                g["proofs (advisory)"] = [True, "not run: " + last(out, 1)]
+        png = d / "renders" / "tells.png"   # the editor's generated-look tells on a settled frame (style-edit ai_tells.py)
+        run(["ffmpeg", "-v", "error", "-y", "-ss", f"{beat.get('dur', 2) * 0.75:.2f}", "-i", render, "-frames:v", "1", png])
+        allow = "cream-paper-ground" if own else ""
+        rc, out = run([sys.executable, PLUGIN / "lib" / "ai_editor" / "run.py", SKILL.parent / "style-edit" / "scripts" / "ai_tells.py",
+                       "still", png] + (["--allow", allow] if allow else []))
+        if "No module named" in out or "cannot read" in out:
+            g["tells (advisory)"] = [True, "not run: " + last(out, 1)]
+        else:
+            bans = [ln.split(None, 2)[1] for ln in out.splitlines() if ln.startswith("BAN")]
+            g["tells"] = [not bans, ("banned look: " + ", ".join(bans) + " (style-edit references/ai-tells.md)") if bans else "none"]
+        if beat.get("panel"):
+            ok, msg = panel_fill(render, tuple(int(lg[i:i + 2], 16) for i in (0, 2, 4)) if len(lg) == 6 else (255, 255, 255))
+            g["panel"] = [ok, msg]
         import measure_ink
         top, bot = measure_ink.ink_band(str(render))
         g["ink"] = [True, f"ink band {top:.2f}-{bot:.2f} of the height"]
@@ -394,7 +467,8 @@ def placed_beat(orig, beat, src, first, last_):
     hold = beat["dur"]
     start_s = round(max(0.0, min(first, last_ + FINISH_S - hold)), 2) if last_ else 0.0
     return {"word": beat["word"], "nth": beat["nth"], "kind": "anim", "type": "video_card", "hold_s": hold,
-            "props": {"src": src, "size": beat["size"], "start_s": start_s, "motion": beat["id"]}, "motion": beat["id"],
+            "props": {"src": src, "size": beat["size"], "start_s": start_s, "motion": beat["id"],
+                      **({"bare": True} if beat.get("panel") else {})}, "motion": beat["id"],
             "fallback": orig}
 
 
@@ -639,6 +713,13 @@ def demo():
             rc, wh = run(["ffprobe", "-v", "error", "-show_entries", "stream=width,height", "-of", "csv=p=0", e / "s.png"])
             assert wh.strip().split(",")[0] == str(16 * 60 + 15 * 2), wh
     assert cream((253, 248, 236)) and not cream((255, 255, 255)) and not cream((23, 22, 20))
+    assert panel_size({}) is None and panel_size({"layout": {"mode": "split", "seam": 50}}) == [1200, 1006]
+    with tempfile.TemporaryDirectory() as t:   # the panel gate: a full-bleed drawing passes, a small one on white fails
+        for name, vf, want in (("ok", "drawbox=x=20:y=20:w=200:h=160:color=black:t=fill", True),
+                               ("small", "drawbox=x=100:y=90:w=30:h=20:color=black:t=fill", False)):
+            v = Path(t) / f"{name}.mp4"
+            run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=0xFDF8EC:s=240x200:d=1:r=30", "-vf", vf, "-pix_fmt", "yuv444p", v])
+            assert panel_fill(v, (0xFD, 0xF8, 0xEC))[0] is want, (name, panel_fill(v, (0xFD, 0xF8, 0xEC)))
     assert motion_cfg({"graphics": {"kinds": {"animation": 55}}})["amount"] == 0.55   # a measured style's share
     assert motion_cfg({"motion": {"amount": 0}, "graphics": {"kinds": {"animation": 55}}})["amount"] == 0.0
     assert look_for({"motion": {"look": "mono"}, "look": {"preset": "editorial"}})["name"] == "mono"

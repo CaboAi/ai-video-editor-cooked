@@ -756,6 +756,12 @@ def make_handler(folder, token):
         def log_message(self, *a):
             pass
 
+        def handle(self):   # a tab that closed mid-reply (an /ask poll, a reload): nothing to log
+            try:
+                super().handle()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
         def cookie_name(self):
             return f"ave-review-{self.server.server_address[1]}"   # cookies ignore ports: one per server
 
@@ -834,6 +840,8 @@ def make_handler(folder, token):
                 d["jobs"] = home_jobs() if d["home"] else 0   # the rail's Making ring
                 d["intro"] = intro(folder, d)
                 d["style_name"] = style_label(folder)   # "Keep as a rule for <style>" and the receipts
+                if isinstance(d.get("learn"), dict):   # "Teach <style>": its name now, even renamed after the approve
+                    d["learn"]["style"] = d["style_name"]
                 d["assets"] = assets.load(folder)   # "Anything to add?": the images and links added to this video
                 if d.get("raw"):   # the cut is being made: every step it takes, from the home window's job
                     d["cut_steps"] = cut_steps(folder, d)
@@ -1134,15 +1142,25 @@ def running(folder):
 OPEN = webbrowser.open   # a new browser tab (the demo swaps it)
 
 
-def video_jobs(folder):
-    """The home page's taken video jobs for this edit folder."""
+def taken_jobs():
+    """The home page's taken jobs."""
     f = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home" / "state.json"
     try:
         jobs = json.loads(f.read_text(encoding="utf-8")).get("jobs") or []
     except (OSError, ValueError):
         return []
-    return [j for j in jobs if j.get("type") == "video" and j.get("state") == "taken" and (j.get("args") or {}).get("edit")
-            and Path(j["args"]["edit"]).resolve() == folder.resolve()]
+    return [j for j in jobs if isinstance(j, dict) and j.get("state") == "taken"]
+
+
+def job_edit(j):
+    """The edit folder a home job works on, resolved, or None."""
+    e = (j.get("args") or {}).get("edit")
+    return Path(e).resolve() if isinstance(e, str) and e else None
+
+
+def video_jobs(folder):
+    """The home page's taken video jobs for this edit folder."""
+    return [j for j in taken_jobs() if j.get("type") == "video" and job_edit(j) == folder.resolve()]
 
 
 def home_opens(folder):
@@ -1159,16 +1177,26 @@ def show(url, folder):
 def asker(folder, started):
     """Questions on this page come from the session that last ran a review.py command on this edit
     (review/.session), else the one that started the server, and from the session holding this edit's video job
-    on the home page. They name the edit."""
-    def owner(sid):
+    on the home page. A session holding any job on the home page asks only on that job's edit page, never on
+    another (a server the home window started knows no session of its own). They name the edit."""
+    def session_of(f):
         try:
-            cur = (folder / "review" / ".session").read_text(encoding="utf-8").strip()
+            return (f / "review" / ".session").read_text(encoding="utf-8").strip()
         except OSError:
-            cur = ""
-        own = cur or started
-        if not own or sid == own:   # no session known (older Claude Code): anyone
-            return folder.name
-        return folder.name if sid and any(j.get("owner") == sid for j in video_jobs(folder)) else None
+            return ""
+
+    def owner(sid):
+        held = [j for j in taken_jobs() if sid and j.get("owner") == sid]
+        if held:   # the job decides: its own edit's page, no other
+            return folder.name if any(job_edit(j) == folder.resolve() for j in held) else None
+        own = session_of(folder) or started
+        if own:
+            return folder.name if sid == own else None
+        try:   # no session known here: anyone's, unless that session is working on another edit
+            others = [f for f in folder.parent.iterdir() if f != folder and f.is_dir()]
+        except OSError:
+            others = []
+        return None if sid and any(session_of(f) == sid for f in others) else folder.name
     return owner
 
 
@@ -1406,7 +1434,7 @@ def making_style(folder):
         src = []
     if len(src) == 1:   # the name the style has on the home page ("Card edit"), never the folder id
         try:
-            n = styleskill.display(src[0])
+            n = shown_style(src[0])
         except Exception:
             n = "@" + re.sub(r"-mine$", "", src[0].parent.name)
         return f"{n}'s style" if n.startswith("@") else "your style" if n == "My style" else f"the {n} style"
@@ -1534,11 +1562,19 @@ def session_notes(d):
     return [c for c in d["comments"] if c.get("text") and not c.get("queued")]
 
 
+def shown_style(sp):
+    """A style's name as the user reads it (the home page's): the name they gave, else its own; a format analysed
+    from links and never named is "New format", never its folder id. The skill file name stays the slug."""
+    from ai_editor import styleskill
+    n = styleskill.display(sp)
+    return "New format" if n.startswith("@links-") else n
+
+
 def style_label(folder):
     """What the learn panel calls the style the edit used: its name on the home page, else My style."""
     try:
         from ai_editor import styleskill
-        return styleskill.display(edit_style(folder))
+        return shown_style(edit_style(folder))
     except Exception:
         return "My style"
 
@@ -1647,7 +1683,7 @@ def learn_done(folder, summary):
     if lr.get("state") != "chosen":
         sys.exit("nothing ticked to save: run `wait` for the user's pick first")
     sp = edit_style(folder)
-    style = styleskill.display(sp)
+    style = shown_style(sp)
     from ai_editor import skillrules
     tg = skillrules.target(folder)
     saved = []   # (rule, status, kind, ref) for the receipts
@@ -1685,7 +1721,7 @@ def learn_hint(folder, kept=()):
     sp = edit_style(folder)
     scopes = "this-style|style|video|everyone" if sp else "style|video|everyone"
     out = (f"LEARN: pick the notes that are preferences, ask the scope once for all of them"
-           + (f" (this edit used @{sp.parent.name}'s style: \"This style\" first)" if sp else "") + ", then run:\n"
+           + (f" (this edit used {shown_style(sp)}: \"This style\" first)" if sp else "") + ", then run:\n"
            f"  python3 {Path(__file__).resolve()} {folder} learn --scope {scopes}"
            f" --rule <id> <section> \"<rule>\" [key=value] ...   (no preferences: learn --none)")
     if kept:   # the user already said yes and named the style: no scope question for these
@@ -1751,7 +1787,7 @@ def cmd_learn(a, folder):
                 if skill_md:
                     status, line = skillrules.add(skill_md, rule, f"review note: {c['text']}", edit=str(folder))
                     c.update(rule=rule, taste="skill",
-                             receipt=receipt(d, styleskill.display(sp), skillrules.rule_of(line), status, "skill", str(skill_md), c["id"])["id"])
+                             receipt=receipt(d, shown_style(sp), skillrules.rule_of(line), status, "skill", str(skill_md), c["id"])["id"])
                     out.append(f"#{c['id']} -> {status}: {line} ({skill_md})"
                                + (f"; {setting} not saved (a skill style has no settings)" if setting else ""))
                     continue
@@ -1759,7 +1795,7 @@ def cmd_learn(a, folder):
                 status, r = taste.add(section, rule, setting, value, scope, folder, source="review", style=sp)
                 c.update(rule=rule, taste={"style": r["id"], "this-style": r["id"], "video": "video-only"}.get(a.scope, "suggested"))
                 if a.scope != "video":
-                    c["receipt"] = receipt(d, styleskill.display(sp), r["rule"], status, "settings", r["id"], c["id"])["id"]
+                    c["receipt"] = receipt(d, shown_style(sp), r["rule"], status, "settings", r["id"], c["id"])["id"]
                 if a.scope == "everyone":
                     taste.suggest(c["text"], rule, f"review note ({r['section']})", note=f"{d['name']}#{c['id']}")
                 out.append(f"#{c['id']} -> {status} rule #{r['id']} {r['section']}: {rule}"
@@ -1874,6 +1910,15 @@ def demo():
     had = hs.read_bytes() if hs.exists() else None
     hs.write_text(json.dumps({"jobs": [{"type": "video", "state": "taken", "owner": "sess-job", "args": {"edit": str(folder)}}]}), encoding="utf-8")
     assert asker(folder, "sess-review")("sess-job") == "demo" and asker(folder, "sess-review")("sess-anyone") is None
+    # a server the home window started (no session of its own): another video's Claude never asks here
+    other = folder.parent / "demo-other"
+    hs.write_text(json.dumps({"jobs": [{"type": "video", "state": "taken", "owner": "sess-job", "args": {"edit": str(folder)}},
+                                       {"type": "video", "state": "taken", "owner": "sess-two", "args": {"edit": str(other)}}]}), encoding="utf-8")
+    assert asker(folder, "")("sess-job") == "demo" and asker(folder, "")("sess-two") is None, "the job's own edit page only"
+    (other / "review").mkdir(parents=True, exist_ok=True)
+    (other / "review" / ".session").write_text("sess-three", encoding="utf-8")
+    assert asker(folder, "")("sess-three") is None and asker(folder, "")("sess-old") == "demo", "working on another edit: not here"
+    shutil.rmtree(other)
     hs.write_bytes(had) if had is not None else hs.unlink()
     os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-review"
     post("/ask", {"id": "q1", "questions": qs, "session": "sess-review"})

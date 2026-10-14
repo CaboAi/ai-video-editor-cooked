@@ -362,6 +362,21 @@ def took(style, part):
     return take is None or part in take
 
 
+MUSIC_PCT = 50   # the creator runs a bed under this share of her videos or more: the edit gets one too
+
+
+def music_wanted(style, prof):
+    """A music bed for this edit? The style page's switch ("music" in the effective style), else the user's
+    profile sound.music, else the creator's measure: a bed in MUSIC_PCT% of her videos or more."""
+    if "music" in style:
+        return bool(style["music"])
+    pm = ((prof or {}).get("sound") or {}).get("music")
+    if pm is not None:
+        return bool(pm)
+    m = ((style.get("sound") or {}).get("music") or {}) if took(style, "sound") else {}
+    return (m.get("present_pct") or 0) >= MUSIC_PCT
+
+
 def graphics(style, part):
     """style.json "graphics" when `part` was taken, else {}."""
     return (style.get("graphics") or {}) if took(style, part) else {}
@@ -2758,6 +2773,12 @@ def demo_punch():
 
 
 def demo():
+    # music follows the creator (a bed in half her videos or more) unless the profile or the style page says otherwise
+    snd = {"sound": {"music": {"present_pct": 100}}}
+    assert music_wanted(snd, {}) is True and music_wanted(snd, {"sound": {"sfx": True}}) is True, "QA round 2: no bed"
+    assert music_wanted(snd, {"sound": {"music": False}}) is False and music_wanted({**snd, "music": False}, {"sound": {"music": True}}) is False
+    assert music_wanted({"sound": {"music": {"present_pct": 30}}}, {}) is False and music_wanted({}, {"sound": {"music": True}}) is True
+    assert music_wanted({**snd, "blend": {"take": ["captions"]}}, {}) is False, "sound not taken from that creator"
     demo_punch()
     hy = [{"text": t, "start": i * 0.3, "end": i * 0.3 + 0.25} for i, t in enumerate(["one", "-for", "-one", "deal"])]
     got = [c["text"] for c in chunk_captions(hy, 3, "sentence")]
@@ -3585,16 +3606,20 @@ def main():
         print(line, file=sys.stderr)
     if a.no_sfx or (prof.get("sound") or {}).get("sfx") is False:
         plan["sfx"] = []
-    want_music = style["music"] if "music" in style else (prof.get("sound") or {}).get("music")   # the style page's switch wins
-    if (edit_dir / ".sfx" / "music.wav").exists() and want_music is not False:
-        plan["music"] = {"src": ".sfx/music.wav"}   # sfx.py music: the bed, ducked under the speech
+    want_music = music_wanted(style, prof)   # the style page's switch, else the profile, else the creator
     music = ((style.get("sound") or {}).get("music") or {}) if took(style, "sound") else {}
-    if music.get("present_pct") is not None and music["present_pct"] < 50 and "music" in plan:
+    bed = edit_dir / ".sfx" / "music.wav"
+    if want_music and not bed.exists():   # nobody laid one (the Sound step was skipped): a generated bed at her level
+        try:
+            import sfx
+            sfx.music(edit_dir, under_db=music.get("level_db"))
+        except Exception as e:   # noqa: BLE001  no numpy outside the venv, no ffprobe: say so, check.py fails the plan
+            print(f"music: this edit should have a bed and none could be made ({e}); run sfx.py music {edit_dir}", file=sys.stderr)
+    if bed.exists() and want_music is not False:
+        plan["music"] = {"src": ".sfx/music.wav"}   # sfx.py music: the bed, ducked under the speech
+    if music.get("present_pct") is not None and music["present_pct"] < MUSIC_PCT and "music" in plan:
         print(f"music: the creator runs a bed under only {music['present_pct']}% of her videos; the bed in .sfx/music.wav "
               "is not her look: delete it and plan again unless the user asked for music", file=sys.stderr)
-    if music.get("present_pct") and "music" not in plan:   # guidance only: the renderer lays no music (references/visuals.md "From the teardown")
-        print(f"music: the creator runs a bed under {music['present_pct']}% of her videos, {abs(music.get('level_db') or 0):.0f} dB "
-              "under the voice; sfx.py music lays one at that level (the style-edit Sound step)", file=sys.stderr)
     from preview import apply_overrides   # edits/<name>/overrides.json, written by the preview page
     plan = apply_overrides(plan, edit_dir, out.name)
     allow = (style.get("look") or {}).get("allow") or []

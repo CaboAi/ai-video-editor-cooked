@@ -434,6 +434,9 @@ def doctor():
     print(f"{'ok ' if disk_ok else 'FIX'}  {'free disk':<20} {detail}")
     if not disk_ok:
         print("     empty the Trash, delete old renders or move large files, then run doctor again")
+    cut = (models.DIR / MATTE).exists()   # optional: it downloads the first time cards go behind the speaker
+    print(f"{'ok ' if cut else '-- '}  {'cutout model':<20} " + ("installed: cards behind you" if cut else
+          f"downloads the first time cards go behind you: {'py' if OS == 'Windows' else 'python3'} \"{Path(__file__).resolve()}\" matte"))
     certs_ok, detail, cmd = certs_row()
     print(f"{'ok ' if certs_ok else 'FIX'}  {'secure web':<20} {detail}")
     if not certs_ok:

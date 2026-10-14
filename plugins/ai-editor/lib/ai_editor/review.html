@@ -406,7 +406,7 @@ body.making #making{display:flex}
   #stage{flex:none;height:min(380px,48vh)}
   body.compare #p2{display:none}body.compare .pl{width:min(100cqw,calc(100cqh * var(--arw) / var(--arh)))}
   body.compare .pl figcaption{display:none}body.compare #p1 .player{outline:0}
-  body.withTx #tx{display:none}body.withTx .pl,body.withTx:not(.vertical) .pl{width:min(100cqw,calc(100cqh * var(--arw) / var(--arh)));height:auto}
+  body.withTx #tx{display:none}body.withTx #pair{flex:1 1 auto}body.withTx .pl,body.withTx:not(.vertical) .pl{width:min(100cqw,calc(100cqh * var(--arw) / var(--arh)));height:auto}
   body.withTx:not(.vertical) #stage{flex-direction:row}body.withTx:not(.vertical) .player{aspect-ratio:var(--arw)/var(--arh);height:auto}
   .transport{padding:10px 16px 0;height:auto;gap:12px}
   #play{width:36px;height:36px}
@@ -642,7 +642,8 @@ function listenText(S){
   if(picked&&e.type==='approve')return e.stills?'Claude is rendering the edit':e.stage==='cut'?(S.stage==='cut'&&!S.final?'Claude is making the edit':'The cut is approved'):'Approved';
   if(picked)return S.raw?(S.cut_steps&&S.cut_steps.state==='queued'?((S.cut_steps.claude||{}).opened?'Claude is working in its own Terminal window':'Waiting for Claude'):'Claude is making the cut'):e.type==='edits'?'Claude is applying your changes':'Claude is working on round '+(S.round+1);
   if(S.sent)return e&&e.type==='edits'?'Changes sent':e&&e.type==='approve'?(e.stills?'Stills approved':e.stage==='cut'?'Cut approved':'Approved'):'Notes sent';
-  if(S.listening)return S.round>1&&!S.comments.some(c=>c.stage===S.stage&&c.round===S.round)?'Round '+S.round+' is ready':'Claude is listening';
+  const first=!(S.rounds||[]).some(r=>r.stage===S.stage&&r.round>=1&&r.round<S.round&&!r.stills);   // the first video of the cut or the edit (the stills before it are not one)
+  if(S.listening)return S.round>1&&!S.comments.some(c=>c.stage===S.stage&&c.round===S.round)?(first?(S.stage==='edit'?(S.stills?'The stills are ready':'The edit is ready'):'The cut is ready'):'Round '+S.round+' is ready'):'Claude is listening';
   if(S.busy)return 'Claude is working. Notes you send now are next.';
   return 'Claude is not listening. Notes still save.';
 }
@@ -785,7 +786,7 @@ function workHtml(){
     return `<div class="claude"><div><b>Claude</b><p>${esc(m.idle?ok+m.idle:ok+(S.stills?'Claude is rendering the edit in ':'Claude is making the edit in ')+m.style+'.')}</p></div><ol class="steps">${li}</ol>${m.at&&!m.idle?`<span class="since" data-since="${esc(m.at)}">Working for ${dur((Date.now()-new Date(m.at))/1000)}</span>`:''}</div>`}
   if(p==='approve')return `<div class="claude"><div><b>Claude</b><p>${S.stage==='cut'?'The cut is approved. It is the finished video.':'Approved. The edit is finished.'}</p></div></div>`+learnHtml();
   if(S.raw&&S.cut_steps)return cutHtml(S.cut_steps);
-  if(p!=='send'&&!live)return '';
+  if(p!=='send'&&(!live||S.stage==='cut'))return '';   // the cut is ready: what Claude does next is the edit's prep, not this round
   const ed=editsSent()?S.events[S.events.length-1]:null,nch=ed?plural(ed.n,'transcript change'):'';
   const head=S.raw?'Making the cut. Your clip plays meanwhile. Notes you leave now go on the cut.':ed?(act.length?`Claude is applying your changes (${nch}). Round ${S.round+1} lands here.`:picked?`Claude has your ${nch} and is starting round ${S.round+1}.`:S.listening||S.busy?`${nch} saved. Waiting for Claude to pick them up.`:`${nch} saved in spans.json, but Claude is not listening. Ask Claude in the terminal to apply them.`):p==='send'?(act.length?`Making round ${S.round+1}.`:picked?`Claude has your notes and is starting round ${S.round+1}.`:'Notes sent. Waiting for Claude to pick them up.'+(S.listening||!S.busy?'':' Claude is finishing something and takes them next.')):'Still coming in this round:';
   const li=act.map(x=>x.done?`<li><span class="ic">${TICK}</span>${esc(x.text)}</li>`

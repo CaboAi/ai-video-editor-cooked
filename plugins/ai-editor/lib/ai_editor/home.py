@@ -99,7 +99,8 @@ TOOLS = {"python": ("Python", "runs the editor"), "ffmpeg": ("ffmpeg", "cuts and
          "node": ("Node", "draws captions and zooms"), "git": ("git", "for the installers"),
          "python packages": ("Python packages", "pinned versions"),
          "transcription model": ("Transcription model", "500 MB, runs offline"),
-         "renderer": ("The renderer", "700 MB"), "free disk": ("Free disk", "3 GB or more")}
+         "renderer": ("The renderer", "700 MB"), "motion clips": ("Motion tools", "animations, 500 MB"),
+         "cutout model": ("Cutout model", "cards behind you, 15 MB"), "free disk": ("Free disk", "3 GB or more")}
 TOP, CONTROL, SPARE = 5, 2, 2   # creator-teardown quick mode: 5 most viewed + 2 closest to the median + 2 spares
 PORT = 47821              # the fixed address; the next free one up to PORT + 19 when it is taken
 REVIEW = Path(__file__).with_name("review.py")
@@ -514,7 +515,9 @@ def measured(root, handle):
                 f"{num(wpc)} word{'' if wpc == 1 else 's'} at a time"
                 + (f", {num(round(c['y_pct']))}% down the frame." if c.get("y_pct") is not None else "."),
                 c.get("case") and f"{c['case'].capitalize()} case" + (f", weight {c['weight']}" if c.get("weight") else "") + ".",
-                c.get("color") and f"{c['color']}" + (f" on a {c['box_color']} box" if c.get("box") else "") + ".",
+                c.get("color") and f"{c['color']}" + ((f" on a {c['box_color']} box" if c.get("box_color") else " on a box") if c.get("box") else "")
+                + "".join(f", keywords {h}" for h in [c.get("emphasis_color") or c.get("highlight_color")]   # the plan's keyword colour too
+                          if h and str(h).upper() != str(c["color"]).upper()) + ".",
                 c.get("entrance") and f"Enters: {c['entrance']}.") if x)
     gpm, gsh = (g.get(k + "_measured", g.get(k)) for k in ("per_min", "share_pct"))   # graphics.py's count wins, as in look.md
     if gpm is not None or gsh is not None:
@@ -748,7 +751,8 @@ def style_cards(root):
         made = next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None) if sp else None
         changed = taste.rules_path().stat().st_mtime if n and taste.rules_path().exists() else None
         sk = skill_of(st) if sp else None   # a skill style: making a video runs that skill, no settings of ours
-        out.append({"id": sid, "name": shown_name(sp), "facts": [] if sk else facts(st), "look": look(st), "base": base,
+        fresh = sid == "mine" and not base   # My style with no creator: the defaults, nothing measured, so no facts
+        out.append({"id": sid, "name": shown_name(sp), "facts": [] if sk or fresh else facts(st), "look": look(st), "base": base,
                     "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "learned_from": vids, "made": made, "changed": changed, "cover": cover_of(root, sid), "face": face_of(root, base),
                     "own": sid == "mine" or bool(st.get("own")),
                     "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False,
@@ -1071,8 +1075,11 @@ def update_info():
     except (OSError, ValueError, KeyError):
         mine = None
     newer = bool(mine and _UPD["latest"] and vtuple(_UPD["latest"]) > vtuple(mine))
+    plug, cache = PLUGIN_JSON.resolve().parents[1], (Path.home() / ".claude" / "plugins" / "cache").resolve()
+    up = [q for q in [plug, *plug.parents] if cache in q.parents] if cache in plug.parents else [plug, *plug.parents]
+    dev = any((q / ".git").exists() for q in up if q != cache)   # a git checkout (a clone or worktree): git updates it
     return {"installed": mine, "latest": _UPD["latest"], "newer": newer, "notes": _UPD["notes"] if newer else [],
-            "checking": _UPD["busy"], "checked": _UPD["at"] or None}
+            "checking": _UPD["busy"], "checked": _UPD["at"] or None, "dev": dev}
 
 
 def trash(p):
@@ -1287,7 +1294,8 @@ def doctor_rows(text):
         if m and m[2].strip() in TOOLS:
             name, what = TOOLS[m[2].strip()]
             v = re.search(r"(?:version )?v?(\d+\.\d+)", m[3]) if m[2].strip() in ("python", "ffmpeg", "node") else None
-            out.append({"id": m[2].strip(), "ok": m[1] == "ok ", "name": f"{name} {v[1]}" if v else name, "what": what})
+            out.append({"id": m[2].strip(), "ok": m[1] != "FIX", "name": f"{name} {v[1]}" if v else name,   # "--": optional, not here yet
+                        "what": "downloads the first time it is needed" if m[1] == "--" else what})
     return out
 
 
@@ -1677,6 +1685,12 @@ def make_handler(token):
     class H(BaseHTTPRequestHandler):
         def log_message(self, *a):   # never log a request: a key travels in one
             pass
+
+        def handle(self):   # a tab that closed mid-reply (an /ask poll, a reload): nothing to log
+            try:
+                super().handle()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
 
         def cookie_name(self):
             return f"ave-home-{self.server.server_address[1]}"
@@ -2644,6 +2658,7 @@ def demo():
         post("/update/check", {})
     time.sleep(0.1)
     assert not seen and get("/state")["update"]["checked"] == u["checked"], seen
+    assert get("/state")["update"]["dev"] is any((q / ".git").exists() for q in PLUGIN_JSON.resolve().parents), "a git checkout: update with git"
     _UPD["at"] -= 61   # a minute later: one press checks again
     post("/update/check", {})
     for _ in range(50):
@@ -2722,8 +2737,9 @@ def demo():
                                                "zoom": {"kind": "punch", "per_min": 6.0, "scale": 1.12},
                                                "captions": {"present": True, "words_per_caption": 2, "y_pct": 62.4,
                                                             "case": "upper", "color": "#FFFFFF", "box": True,
-                                                            "box_color": "#000000", "entrance": "pop"}}), encoding="utf-8")
+                                                            "box_color": "#000000", "entrance": "pop", "highlight_color": "#EFDC33"}}), encoding="utf-8")
     m = get("/state")["jobs"][-1]["measured"]
+    assert "#FFFFFF on a #000000 box, keywords #EFDC33." in m["rows"]["captions"], m["rows"]["captions"]   # both colours
     assert [x["big"] for x in m["tiles"]] == ["1.9 s", "1.12x", "186"], m["tiles"]
     assert m["rows"]["captions"].startswith("2 words at a time, 62% down") and "graphics" not in m["rows"], m["rows"]
     ns_dir = td.parent / "no.scale"   # a zoom with no scale measured: no "to Nonex"
@@ -3233,6 +3249,7 @@ def demo():
     assert st["@sample.creator"]["facts"] == [["Cut every", "1.9 s"], ["Zooms", "Punch, 6 a minute"], ["Captions", "2 words at a time"]]
     assert st["@sample.creator"]["look"]["box_color"] == "#000000" and st["mine"]["line"].startswith("The default")
     assert st["mine"]["learned_from"] == 0, "no feedback yet: no \"Learned from N videos\""
+    assert st["mine"]["facts"] == [], "a fresh My style shows nothing measured (no \"Every 2.4 s\")"
     (tmp / "home" / "profile.json").write_text(json.dumps({"creators": [{"handle": "sample.creator"}]}), encoding="utf-8")
     mine = get("/library")["styles"][0]
     assert mine["line"].startswith("Your saved style. Started from @sample.creator.") and mine["facts"][0] == ["Cut every", "1.9 s"]

@@ -49,8 +49,11 @@ const bar=document.createElement('button');bar.id='askbar';bar.type='button';bar
 bar.onclick=()=>{bar.classList.remove('on');el.classList.add('on');el.querySelector('button,input')?.focus()};document.body.appendChild(bar);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&A&&el.classList.contains('on')){e.preventDefault();e.stopPropagation();fold()}},true);
 function fold(){el.classList.remove('on');bar.classList.add('on')}
-// the page's header says so while a question is open (review.html reads data-ask, redraws on "askchange")
-function flag(on){const r=document.documentElement;if(!!r.dataset.ask===on)return;on?r.dataset.ask='1':delete r.dataset.ask;dispatchEvent(new Event('askchange'))}
+// the page's header says so while a question is open (review.html reads data-ask, redraws on "askchange").
+// window.askq: the open question {about, elsewhere}; elsewhere (Home only): the video's editor has it as the card, so
+// Home shows a row "Claude is asking about <video>" whose Open calls window.askOpen()
+function flag(on){const r=document.documentElement;window.askq=on&&A?{about:A.about||'',elsewhere:!!A.elsewhere}:null;if(!!r.dataset.ask===on)return;on?r.dataset.ask='1':delete r.dataset.ask;dispatchEvent(new Event('askchange'))}
+window.askOpen=()=>{if(!A)return;bar.classList.remove('on');el.classList.add('on');el.querySelector('button,input')?.focus()};
 let A=null,i=0,ans=[],imgs=[],pics=[],sel=new Set(),title=null;
 // images on this answer: picked, pasted or dropped; data urls until Send
 function showPics(){const b=el.querySelector('.aq-pics');if(!b)return;b.innerHTML=pics.map((p,k)=>`<span><img src="${p}" alt="attached image ${k+1}"><button data-rm="${k}" aria-label="remove image" title="remove">×</button></span>`).join('');el.querySelector('#asko')?.dispatchEvent(new Event('input'))}
@@ -59,7 +62,7 @@ el.addEventListener('paste',e=>{const fs=[...(e.clipboardData?.files||[])];if(A&
 el.addEventListener('dragover',e=>{if(!A)return;e.preventDefault();el.querySelector('.aq-card')?.classList.add('aq-drag')});
 el.addEventListener('dragleave',e=>{if(!el.contains(e.relatedTarget))el.querySelector('.aq-card')?.classList.remove('aq-drag')});
 el.addEventListener('drop',e=>{if(!A)return;e.preventDefault();el.querySelector('.aq-card')?.classList.remove('aq-drag');addFiles(e.dataTransfer.files)});
-const TITLE='(1) Claude has a question';
+const TITLE='(1) Claude is asking';   // a background tab shows it in its title
 function chime(){try{const c=new AudioContext(),o=c.createOscillator(),g=c.createGain();o.frequency.value=660;g.gain.setValueAtTime(.0001,c.currentTime);
   g.gain.exponentialRampToValueAtTime(.06,c.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+.35);o.connect(g).connect(c.destination);o.start();o.stop(c.currentTime+.4)}catch(e){}}
 async function send(b){try{await fetch('/ask/answer',{method:'POST',body:JSON.stringify(Object.assign({id:A.id},b))})}catch(e){}}
@@ -91,7 +94,7 @@ function draw(){
   $o.onkeydown=e=>{if(e.key==='Enter'&&!$s.disabled)$s.click()};
   $s.onclick=()=>{if(value()||pics.length)next(value())};
   el.querySelector('#askt').onclick=()=>{send({terminal:true});close('Answer it in Claude Code.')};
-  if(!bar.classList.contains('on'))el.classList.add('on');
+  if(!bar.classList.contains('on')&&!(A.elsewhere&&!el.classList.contains('on')))el.classList.add('on');
 }
 async function poll(){
   let a=null;

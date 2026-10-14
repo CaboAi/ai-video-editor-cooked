@@ -117,7 +117,7 @@ Writes `edits/<name>/plan.json`. Read every warning. It ends with the **style ch
 each `style:` line is a way the plan differs from the creator. Fix each (style.json, visuals.json,
 images.json) and plan again before the stills; what the user changed is already the target.
 
-1. **Music** follows the style unless the user set it (`references/plan.md` "Music"), then plan.py again. Sound cues need nothing: plan.py adds them.
+1. **Music** follows the style unless the user set it (`references/plan.md` "Music"; plan.py lays the creator's bed itself), then plan.py again. Sound cues need nothing: plan.py adds them.
 2. **Behind the speaker:** if the profile says `"behind": true`, run `matte.py` after the last plan.py run and
    again after any later one (it cuts only new frames); say its `--estimate` first (`references/plan.md`).
 3. **Check the plan:**

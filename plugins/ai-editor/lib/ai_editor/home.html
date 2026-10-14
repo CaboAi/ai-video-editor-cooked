@@ -593,6 +593,8 @@ main.pg>*{max-height:none}main.pg>:not(.pgc){padding-bottom:56px}main.pg>.pgc::a
 .sb-sp{flex:1 1 0;min-height:8px}
 .sb-job{background:var(--panel)!important;border:1px solid var(--line)!important;border-radius:10px;padding:12px!important;display:flex;flex-direction:column;gap:10px;flex-shrink:0;width:100%;cursor:pointer}
 .sb-job:hover{border-color:var(--ring)!important}
+.askrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border:1px solid var(--line);border-radius:12px;font-size:15px;line-height:20px;color:var(--t2)}.askrow b{color:var(--ink);font-weight:600}
+.sb-job .tx u{color:var(--ink);text-underline-offset:3px}
 .sb-job .tp{display:flex;align-items:center;justify-content:space-between;gap:8px}.sb-job .tp b{font-size:13px;line-height:16px;font-weight:600;display:flex;align-items:center;gap:8px}
 .sb-job .tp span{font-size:12px;line-height:16px;color:var(--t3);font-variant-numeric:tabular-nums}
 .sb-job .tx{font-size:13px;line-height:18px;color:var(--t2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
@@ -917,7 +919,7 @@ body.rail .sb-theme{margin-top:2px}
 @media (max-width:900px){.spg{align-items:stretch}}
 .tlist{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:12px}.tlist b{font-weight:600;color:var(--ink)}
 /* the sidebar's Getting started block */
-.sb-gs{background:var(--panel)!important;border:1px solid var(--line)!important;border-radius:10px;padding:12px!important;display:flex;flex-direction:column;gap:8px;flex-shrink:0;width:100%;margin-top:6px}
+.sb-gs{background:var(--panel)!important;border:1px solid var(--line)!important;border-radius:10px;padding:12px!important;display:flex;flex-direction:column;gap:8px;flex-shrink:0;width:100%;margin-top:6px;cursor:pointer;box-sizing:border-box;text-align:left}
 .sb-gs .tp{display:flex;justify-content:space-between;align-items:center}.sb-gs .tp b{font-size:13px;font-weight:600}.sb-gs .tp span{font-size:12px;color:var(--t3)}
 .gr{display:flex;align-items:center;gap:10px;font-size:13px;line-height:18px;color:var(--t2)}.gr span{flex:1}.gr em{font-style:normal;font-size:12px;color:var(--t2)}
 .gr.cur{color:var(--ink);font-weight:600}.gr.cur>i{border-color:var(--ink);background:radial-gradient(circle,var(--ink) 4px,transparent 4.5px)}.gr>i,.gr .okd{width:18px;height:18px}
@@ -1032,6 +1034,7 @@ function mBody(){
     ${!testing&&t&&t.state==='failed'?`<div class="msg bad">${CROSS}<span>${esc(t.error||'The test render failed.')}</span></div>`:''}`;
 }
 async function mGo(what){await post('/modal/'+what,{});await load();render()}
+async function skip(names){await post('/later',{names});toast('Saved for later. Connect it here any time.');await load()}   // Modal's Later
 async function queue(b){const r=await post('/job',b);if(!r._ok)alert(r.msg||r.error||'That did not work.');await load();return r}
 
 // ---------------------------------------------------------------- several links, one row each
@@ -1750,10 +1753,12 @@ function gsBlock(){
   if(gsDone())return '';
   const g=GS(),rows=[['setup','Set up'],['style','Analyse a format'],['video','Make your first video']],cur=Math.max(0,rows.findIndex(([k])=>!g[k]));
   const sj=latest('setup'),pct=sj&&sj.state==='taken'?readyPct():null,frac=(rows.filter(([k])=>g[k]).length+(cur===0&&pct!=null?pct/100:0))/3;
-  return `<button class="sb-gs" onclick="goHome()"><div class="tp"><b>Getting started</b><span>${cur+1} of 3</span></div>
-    ${rows.map(([k,l],i)=>`<div class="gr ${g[k]?'done':i===cur?'cur':''}">${g[k]?OKDOT:'<i></i>'}<span>${l}</span>${i===cur&&k==='setup'&&pct!=null?`<em>${pct}%</em>`:''}</div>`).join('')}
-    <div class="trk"><i style="width:${Math.round(frac*100)}%"></i></div></button>`;
+  const nd=rows.filter(([k])=>g[k]).length,early=!g.setup&&!g.style&&pct!=null;   // setup running: step 2 can start now
+  return `<div class="sb-gs" role="button" tabindex="0" onclick="goHome()" onkeydown="if(event.key==='Enter'&&event.target===this)goHome()"><div class="tp"><b>Getting started</b><span>${nd} of 3 done</span></div>
+    ${rows.map(([k,l],i)=>`<div class="gr ${g[k]?'done':i===cur?'cur':''}">${g[k]?OKDOT:'<i></i>'}<span>${l}</span>${i===cur&&k==='setup'&&pct!=null?`<em>${pct}%</em>`:''}${k==='style'&&early?`<button class="ul q" onclick="event.stopPropagation();obAnalyseNow()">Start</button>`:''}</div>`).join('')}
+    <div class="trk"><i style="width:${Math.round(frac*100)}%"></i></div></div>`;
 }
+function obAnalyseNow(){ui.obOn=true;ui.ob=null;rgo('home')}   // step 2 while setup keeps going
 function obView(){
   const g=GS(),sj=latest('setup'),td=S.jobs.filter(j=>j.type==='teardown').pop();
   if(ui.ob==='keys')return obKeys();
@@ -1783,7 +1788,8 @@ function obSetup(sj){
     <div class="obc"><div class="obnow"><div class="row" style="justify-content:space-between"><span class="cap">Now</span><b>${sj.state==='taken'?pct+'%':''}</b></div><div class="big">${esc(now)}</div><div class="trk ${sj.state==='queued'?'indet':''}" style="height:6px;border-radius:3px"><i style="width:${pct}%;height:6px"></i></div>
       ${sj.state==='failed'?`<div class="msg bad">${CROSS}<span>${esc(sj.error||'Something did not install.')}</span></div><button class="b2" style="align-self:flex-start" onclick="queue({type:'setup'})">Try again</button>`:sj.state==='queued'&&!S.listening?`<div class="t2" style="white-space:normal">${connectHTML('',`Type ${CMD} in Terminal, or say "set up the editor" in Claude Code.`)}</div>`:''}</div>
       <div class="obrs">${obRows(SETUP_PLAN,sj.steps)}</div></div>
-    <div class="obnext"><div><span class="cap">Next, while this runs</span><b>Two optional keys</b><p>They make your edits better. ElevenLabs hears every um and retake, so the cut is cleaner. Gemini reads the fonts and colours when it analyses a format.</p><p>Both are free and optional. Skip them and Claude does those jobs instead.</p></div><button class="b1" onclick="ui.ob='keys';render()">Add keys now</button></div></div>`;
+    <div class="obnext"><div><span class="cap">Next, while this runs</span><b>Analyse a format</b><p>Paste 3 to 6 videos edited the same way. Setup keeps going in the background.</p></div><button class="b1" onclick="obAnalyseNow()">Analyse a format</button></div>
+    <div class="obnext"><div><span class="cap">Optional</span><b>Two free keys</b><p>They make your edits better. ElevenLabs hears every um and retake, so the cut is cleaner. Gemini reads the fonts and colours when it analyses a format. Skip them and Claude does those jobs instead.</p></div><button class="b2" onclick="ui.ob='keys';render()">Add keys now</button></div></div>`;
 }
 const OBK=[{id:'gemini',tag:'reads the look',d:'Names the fonts and colours when it analyses a format.',skip:'Skip it: Claude looks at the frames, which uses more of your Claude plan. Free, no card.'},
   {id:'elevenlabs',tag:'exact words',d:'Keeps every "um" and false start, so the cut finds your retakes.',skip:'Skip it: the free transcriber on this computer does it, and tidies some retakes away. Free plan: a few hours a month.'}];
@@ -1839,8 +1845,9 @@ function obReady(td){
       <div class="obf">${(rows.length?rows:fact3(c)).map(([i,l,v])=>`<div>${ic(i)}<span class="k">${esc(l)}</span><span>${esc(v)}</span></div>`).join('')}</div><div class="bar ok"></div></div>
     <div class="obnext"><div><span class="cap">Next</span><b>Make your first video</b><p>Drop a talking-head clip. Claude edits it in ${esc(dname(c))}.</p></div><button class="b1" onclick="nv.style=${J(id)};nv.picked=1;ui.ob='drop';render()">Make a video with it</button></div></div>`;
 }
-function obPick(path){nv.sel=[path];if(!nv.picked){const td=S.jobs.filter(j=>j.type==='teardown'&&j.state==='done').pop();nv.style=td?'@'+td.args.handle:(L.default_style||'mine')}ui.ob=null;rgo('style')}
-async function obFiles(fs){await chooseFiles(fs);if(nv.sel.length){ui.ob=null;rgo('style')}}
+// the first video goes through step 1 like any other (the clip picked, Add your script and Add images or links), then step 2
+function obPick(path){nv.sel=[path];if(!nv.picked){const td=S.jobs.filter(j=>j.type==='teardown'&&j.state==='done').pop();nv.style=td?'@'+td.args.handle:(L.default_style||'mine')}ui.ob=null;rgo('new')}
+async function obFiles(fs){ui.ob=null;rgo('new');await chooseFiles(fs)}
 function obDrop(){
   const rec=(R?R.videos:[]).slice(0,3);
   return `<div class="pgc obw"><div class="ph"><h1>Make your first video</h1><p>Drop a talking-head clip. Claude cuts the mistakes first, then you check it.</p></div>
@@ -1944,7 +1951,7 @@ function jobInfo(){
   const how=S.new_claude?'':` Type ${CMD} in Terminal.`,own=(j.claude||{}).opened,text=j.state==='queued'?(own?'Claude is working on this video in its own Terminal window.':S.listening?'Claude is picking this up.':'Waiting for Claude.'+how)
     :j.owner!=='home'&&!S.listening&&!own&&age>60?'Claude is not listening.'+how:(s?tdStep(j,s.text):'Getting started')+what;
   const name=JOBNAME[j.type]||'Working',go=j.type==='video'?"ui.fold.videos=null;rgo('videos')":j.type==='teardown'||j.type==='skill'?"rgo('mystyle')":j.type==='skill-change'||j.type==='skill-new'?"rgo('skills')":j.type==='setup'?'goHome()':j.type==='update'||j.owner==='home'?"rgo('settings')":'';
-  return {label:j.type==='video'||j.type==='teardown'?`${name} ${n}`:name,short:j.type==='video'||j.type==='teardown'?name:'Working',n:j.type==='video'||j.type==='teardown'?n:'',text,frac:j.state==='queued'?0:jobFrac(j),since:s&&!s.done?s.t:jobStart(j),go};
+  return {label:j.type==='video'||j.type==='teardown'?`${name} ${n}`:name,short:j.type==='video'||j.type==='teardown'?name:'Working',n:j.type==='video'||j.type==='teardown'?n:'',text,frac:j.state==='queued'?0:jobFrac(j),since:jobStart(j),go};   // the whole job's time, not the step's
 }
 const ringSvg=f=>{const C=2*Math.PI*10;return `<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="var(--line)" stroke-width="2.5"/><circle cx="12" cy="12" r="10" fill="none" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-(f==null?.25:f))).toFixed(1)}" transform="rotate(-90 12 12)"/></svg>`};
 function openFold(id,k='videos'){ui.fold[k]=id;rgo(k==='videos'?'videos':'mystyle')}
@@ -1992,10 +1999,14 @@ function sideHTML(){
     <div class="sb-fold"><div class="sb-fh">Folders<button class="sb-add" title="New folder" aria-label="New folder" onclick="newFolder(null,null,rv==='mystyle'||rv==='stylepage'?'styles':'videos')">${ic('plus',12,2.4)}</button></div>
       <div class="sb-flist">${fd('videos').folders.map(f=>frow('videos',f)).join('')}${fd('styles').folders.map(f=>frow('styles',f)).join('')}${nf}</div></div>
     <div class="sb-sp"></div>
-    ${ji?`<button class="sb-job" onclick="${ji.go}"><div class="tp"><b>${SPIN}${esc(ji.label)}</b>${ji.since?`<span data-since="${ji.since}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-ji.since)))}</span>`:''}</div><div class="tx">${esc(ji.text)}</div><div class="trk ${ji.frac==null?'indet':''}"><i style="width:${Math.round((ji.frac||0)*100)}%"></i></div></button>`:''}
+    ${ji?`<button class="sb-job" onclick="${askAbout()?'askOpen()':ji.go}"><div class="tp"><b>${SPIN}${esc(ji.label)}</b>${ji.since?`<span data-since="${ji.since}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-ji.since)))}</span>`:''}</div><div class="tx">${askAbout()?`Claude is asking about ${esc(askAbout())}: <u>Open</u>`:esc(ji.text)}</div><div class="trk ${ji.frac==null?'indet':''}"><i style="width:${Math.round((ji.frac||0)*100)}%"></i></div></button>`:''}
     ${gsBlock()}
     <div class="sb-bot"><button class="sb-row ${cur==='settings'?'on':''}" onclick="rgo('settings')" ${upd?'title="A new version is out"':''}>${ic('gear')}<span class="lb">Settings</span>${upd?'<span class="sdot"></span>':''}</button>${thm}</div>`;
 }
+// a question for a video whose editor tab has it (askhook "elsewhere"): one row on Home and in the sidebar job card
+const askAbout=()=>{const q=window.askq;return q&&q.elsewhere?q.about||'your video':null};
+function askRow(){const a=askAbout();return a?`<div class="askrow"><span>Claude is asking about <b>${esc(a)}</b></span><button class="b1 s" onclick="askOpen()">Open</button></div>`:''}
+addEventListener('askchange',()=>{if(S)render()});
 function paintSide(){
   if(!S)return;const rail=isRail();document.body.classList.toggle('rail',rail);document.body.style.setProperty('--sw',(rail?80:232)+'px');
   paint($('#side'),sideHTML(),'side');
@@ -2106,9 +2117,10 @@ function stUpdate(){
   const line=u.checking?'Checking...':u.newer?'A new version is out':u.latest?'Up to date':u.checked?'Could not reach GitHub':'';
   return `<div class="scd"><div class="hd"><b>Updates</b><span class="ss">${ok?OKTICK:''}${line}</span></div>
     <div class="kvs"><div><span>Installed</span><b>${esc(u.installed||'?')}</b></div><div><span>Latest</span><b>${esc(u.latest||'?')}</b></div></div>
-    <div class="t2" style="white-space:normal">Turn on auto-updates: type <b>/plugin</b>, open Marketplaces, pick nextwork, choose Enable auto-update.</div>
+    ${u.dev?'':'<div class="t2" style="white-space:normal">Turn on auto-updates: type <b>/plugin</b>, open Marketplaces, pick nextwork, choose Enable auto-update.</div>'}
     ${u.newer&&(u.notes||[]).length?`<div><div class="t2">What changed</div>${u.notes.map(n=>`<div class="dash">${esc(n)}</div>`).join('')}</div>`:''}
-    <div class="lks">${u.newer?`<button class="b1 s" ${busy?'disabled':''} onclick="queue({type:'update'})">${busy?'Updating...':'Update'}</button>`:`<button class="b2 s" ${u.checking?'disabled':''} onclick="stCheckUpd()">Check now</button>`}<a href="https://github.com/nextwork-projects/ai-video-editor-cooked/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Full changelog</a></div>
+    ${u.dev?'<div class="t2" style="white-space:normal">Developer copy: update with git.</div>':''}
+    <div class="lks">${u.newer&&!u.dev?`<button class="b1 s" ${busy?'disabled':''} onclick="queue({type:'update'})">${busy?'Updating...':'Update'}</button>`:`<button class="b2 s" ${u.checking?'disabled':''} onclick="stCheckUpd()">Check now</button>`}<a href="https://github.com/nextwork-projects/ai-video-editor-cooked/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Full changelog</a></div>
     ${wq?`<div class="msg">${connectHTML('Waiting for Claude.')}</div>`:st?`<div class="msg ${j.state==='failed'?'bad':''}">${esc(st)}</div>`:''}</div>`;
 }
 async function stCheckUpd(){await post('/update/check',{});await load();render();setTimeout(async()=>{await load();render()},2500)}
@@ -2177,7 +2189,8 @@ const ZOOMILL={none:'<i class="zb"></i>',smooth:'<i class="zb dash"></i><i class
 const CUTILL={relaxed:[22,16,26,14,18],natural:[24,7,28,6,20],tight:[26,0,30,0,22]};
 function rrender(){
   if(rv==='settings'&&!(ui.diskAt>Date.now()-10000)){ui.diskAt=Date.now();loadDisk()}   // free space is live: read again every 10 s
-  const h=rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='skills'?vSkills():rv==='settings'?vSettings():vHome();
+  let h=(rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='skills'?vSkills():rv==='settings'?vSettings():vHome());
+  if(rv==='home'&&askRow())h=h.replace(/^\s*(<div class="pgc[^"]*">)/,'$1'+askRow());   // Home's first row
   $('#main').classList.toggle('pg',['home','videos','settings','mystyle','style','stylepage'].includes(rv));
   paint($('#main'),h,rv+'|'+ui.sp);$('#main').classList.toggle('spwrap',rv==='stylepage');
   const md=ui.del?delModal():ui.create?createModal():'';paint($('#modal'),md,'m');document.documentElement.style.overflow=md?'hidden':'';$('#main').classList.toggle('hmain',rv==='home');

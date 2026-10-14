@@ -1024,17 +1024,40 @@ function h1(){
   <div class="panel grow">
     <div class="between" style="padding:22px 24px 16px;align-items:flex-start"><div><div class="h">Optional keys</div><div class="sub" style="margin-top:4px">Each one makes edits cheaper or better. Skip any: Claude does that job instead.</div></div><div class="lock">${LOCK}Saved on this computer only. Never sent to the chat.</div></div>
     ${KEYS.map(keyRow).join('')}
-    <div class="krow"><div class="kl"><div class="row" style="gap:8px">${latest('modal')&&latest('modal').state==='done'?TICK:TODO}${logo('modal')}<span class="kname">Modal</span><span class="muted">cloud renders</span></div><div style="color:var(--t2)">Splits a long video across many computers so it finishes faster. You see the time and cost before every render.</div><div class="row" style="gap:14px"><span class="muted">$30 free credit a month</span><a class="muted" style="color:var(--ink)" href="https://modal.com/signup" target="_blank" rel="noopener">Sign up</a></div></div>
+    <div class="krow"><div class="kl"><div class="row" style="gap:8px">${mState().ready?TICK:TODO}${logo('modal')}<span class="kname">Modal</span><span class="muted">cloud renders</span></div><div style="color:var(--t2)">Splits a long video across many computers so it finishes faster. You see the time and cost before every render.</div><div class="row" style="gap:14px"><span class="muted">$30 free credit a month</span></div></div>
       <div class="kr">${modalRow()}</div></div>
     <div class="foot"><span></span><div class="row" style="gap:8px"><button class="btn quiet" onclick="skip(${esc(JSON.stringify(unset))})">Skip, add later</button><button class="btn" onclick="go(1)">Next: pick a creator</button></div></div>
   </div>`;
 }
-function modalRow(){
-  const m=latest('modal');
-  const done=m&&m.state==='done',busy=m&&(m.state==='queued'||m.state==='taken');
-  return `<div class="row" style="gap:8px"><button class="small" style="flex:1;width:auto;color:var(--ink)" ${busy||done?'disabled':''} onclick="queue({type:'modal'})">${done?'Logged in':busy?'Claude is opening Modal...':'Log in with your browser'}</button><button class="small" style="border:0;background:none;color:var(--t3);font-weight:400" onclick="skip(['modal'])">Later</button></div>
-    <div class="msg"><span>${done?'Cloud renders are set up.':busy&&m.steps.length?esc(m.steps.at(-1).text):'Not set. No key to paste: you approve this computer on Modal.'}</span></div>`;
+// Modal: Connect and Test render run in the window's own server (setup.py modal-connect / modal-test), no Claude
+// needed. Modal's CLI keeps the login itself; the page only ever sees the step names.
+function mState(){
+  const c=latest('modal'),t=latest('modal-test'),m=S.modal||{},run=j=>!!j&&j.state==='taken';
+  return {c,t,busy:run(c),testing:run(t),in:!!m.logged_in,ready:!!m.logged_in&&!!c&&c.state==='done'};
 }
+const since=t=>{const s=Math.max(0,Math.round(Date.now()/1000-t));return s<90?s+' s':Math.round(s/60)+' min'};
+function mSteps(j){
+  const login=j.result&&j.result.login,cur=j.steps.at(-1);
+  return `<div style="display:flex;flex-direction:column;gap:8px">${j.steps.map(s=>`<div class="row" style="gap:8px;font-size:13px;line-height:18px">${s.done?TICK:TODO}<span style="flex:1;min-width:0;color:${s.done?'var(--t3)':'var(--ink)'}">${esc(s.text)}</span><span class="muted">${s.done?s.secs+' s':since(s.t)}</span></div>`).join('')}
+    ${login&&cur&&!cur.done&&/browser/.test(cur.text)?`<div class="lks"><span class="q2">Browser did not open?</span><a href="${esc(login)}" target="_blank" rel="noopener">Open the Modal login page</a></div>`:''}</div>`;
+}
+function mBody(){
+  const {c,t,busy,testing,in:on,ready}=mState();
+  if(busy)return mSteps(c);
+  const fail=c&&c.state==='failed'&&!ready?`<div class="msg bad">${CROSS}<span>${esc(c.error||'That did not work.')}</span></div>`:'';
+  if(!on)return `<div class="lks"><button class="b2 s" onclick="mGo('connect')">Connect Modal</button><button class="ul q" onclick="skip(['modal'])">Later</button></div>${fail}
+    <div class="msg"><span>Opens Modal in your browser to log in or sign up. No key to paste.</span></div>`;
+  if(!ready)return `<div class="lks"><button class="b2 s" onclick="mGo('connect')">Connect Modal</button></div>${fail}
+    <div class="msg"><span>Logged in. One more step builds the render machine on Modal, so your first render starts fast.</span></div>`;
+  const credit=c.result&&c.result.credit,tr=t&&t.state==='done'&&t.result&&t.result.time;
+  const [secs,usd]=(tr||'').split(' ');
+  return `${credit?`<div class="msg"><span>${esc(credit[0].toUpperCase()+credit.slice(1))}.</span></div>`:''}
+    ${testing?mSteps(t):`<div class="lks"><button class="b2 s" onclick="mGo('test')">Test render</button><span class="q2">Renders 5 seconds on Modal</span></div>`}
+    ${!testing&&tr?`<div class="msg"><span>Test render: 5 seconds of video took ${esc(secs)} s on Modal${usd?`, about $${esc(usd)}`:''}.</span></div>`:''}
+    ${!testing&&t&&t.state==='failed'?`<div class="msg bad">${CROSS}<span>${esc(t.error||'The test render failed.')}</span></div>`:''}`;
+}
+async function mGo(what){await post('/modal/'+what,{});await load();render()}
+function modalRow(){return `<div style="display:flex;flex-direction:column;gap:10px">${mBody()}</div>`}
 async function skip(names){await post('/later',{names});if(names.length>1)go(1);else load()}
 async function queue(b){const r=await post('/job',b);if(!r._ok)alert(r.msg||r.error||'That did not work.');await load();return r}
 
@@ -2013,7 +2036,7 @@ function jobFrac(j){
   const done=j.steps.filter(s=>s.done).length,cur=j.steps.find(s=>!s.done);
   return Math.min(1,(done+(cur?(cur.progress!=null?cur.progress:.3):0))/n);
 }
-const JOBNAME={video:'Making',teardown:'Analysing',skill:'Building a skill',setup:'Setting up',update:'Updating',modal:'Opening Modal','style-change':'Changing a style'};
+const JOBNAME={video:'Making',teardown:'Analysing',skill:'Building a skill',setup:'Setting up',update:'Updating',modal:'Connecting Modal','modal-test':'Testing Modal','style-change':'Changing a style'};
 // the sidebar's live card: the job being worked on, from the real job state
 function jobInfo(){
   const act=S.jobs.filter(j=>j.state==='queued'||j.state==='taken'),j=busyJob(),mk=(L?L.videos:[]).filter(v=>v.status==='making'||v.status==='cutting');
@@ -2023,8 +2046,8 @@ function jobInfo(){
   const last=Math.max(j.u||0,s?s.t||0:0,S.claude_seen||0)||jobStart(j),age=Math.max(0,Math.round(Date.now()/1000-last));
   const what=j.type==='video'&&j.args.edit?' in '+j.args.edit.split(/[\\/]/).pop():j.type==='teardown'&&j.args.handle?' · @'+j.args.handle:'';
   const how=S.new_claude?'':` Type ${CMD} in Terminal.`,text=j.state==='queued'?(S.listening?'Claude is picking this up.':'Waiting for Claude.'+how)
-    :!S.listening&&age>60?'Claude is not listening.'+how:(s?s.text:'Getting started')+what;
-  const name=JOBNAME[j.type]||'Working',go=j.type==='video'?"ui.fold.videos=null;rgo('videos')":j.type==='teardown'||j.type==='skill'?(inApp()?"rgo('mystyle')":'go(2)'):j.type==='setup'?'ui.onboard=true;go(0)':j.type==='update'?"rgo('settings')":'';
+    :j.owner!=='home'&&!S.listening&&age>60?'Claude is not listening.'+how:(s?s.text:'Getting started')+what;
+  const name=JOBNAME[j.type]||'Working',go=j.type==='video'?"ui.fold.videos=null;rgo('videos')":j.type==='teardown'||j.type==='skill'?(inApp()?"rgo('mystyle')":'go(2)'):j.type==='setup'?'ui.onboard=true;go(0)':j.type==='update'||j.owner==='home'?"rgo('settings')":'';
   return {label:j.type==='video'||j.type==='teardown'?`${name} ${n}`:name,short:j.type==='video'||j.type==='teardown'?name:'Working',n:j.type==='video'||j.type==='teardown'?n:'',text,frac:j.state==='queued'?0:jobFrac(j),since:s&&!s.done?s.t:jobStart(j),go};
 }
 const ringSvg=f=>{const C=2*Math.PI*10;return `<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="var(--line)" stroke-width="2.5"/><circle cx="12" cy="12" r="10" fill="none" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-(f==null?.25:f))).toFixed(1)}" transform="rotate(-90 12 12)"/></svg>`};
@@ -2175,9 +2198,8 @@ function stKey(k){
   return `<div class="sk"><div class="tp"><span class="lt" style="background:${KLT[k.id]||'var(--soft)'}">${logo(k.id,18)}</span><div style="min-width:0;flex:1"><div class="nm">${k.name}</div><div class="ds">${KDS[k.id]||k.tag}</div></div><span class="ss ${cls}">${state}</span></div>${body}</div>`;
 }
 function stModal(){
-  const m=latest('modal'),done=m&&m.state==='done',busy=m&&(m.state==='queued'||m.state==='taken');
-  return `<div class="sk"><div class="tp"><span class="lt" style="background:#0C0A09">${logo('modal',20)}</span><div style="flex:1;min-width:0"><div class="nm">Modal</div><div class="ds">Cloud renders. No key to paste.</div></div><span class="ss ${done?'ok':''}">${done?OKTICK+'Logged in':busy?'Opening...':'Not set'}</span></div>
-    ${done?'<div class="ds">Cloud renders are set up.</div>':`<div class="lks" style="gap:16px"><button class="b2" ${busy?'disabled':''} onclick="queue({type:'modal'})">${busy?'Claude is opening Modal...':'Log in with your browser'}</button><button class="ul q" onclick="skip(['modal'])">Later</button></div>${busy&&m.steps.length?`<div class="ds">${esc(m.steps.at(-1).text)}</div>`:''}`}</div>`;
+  const {busy,in:on,ready}=mState();
+  return `<div class="sk"><div class="tp"><span class="lt" style="background:#0C0A09">${logo('modal',20)}</span><div style="flex:1;min-width:0"><div class="nm">Modal</div><div class="ds">Cloud renders. $30 free credit a month.</div></div><span class="ss ${ready?'ok':''}">${ready?OKTICK+'Connected':busy?'Connecting...':on?'Logged in':'Not connected'}</span></div>${mBody()}</div>`;
 }
 async function stCheck(id){ui.keys[id]={busy:1};render();await post('/key/check',{name:id});ui.keys[id]={};await load();render()}
 async function stRemove(id){const r=await post('/key/remove',{name:id});ui.strm=null;ui.keys[id]=r._ok?{}:{bad:1,edit:1,msg:r.msg||'Not removed.'};await load();render()}

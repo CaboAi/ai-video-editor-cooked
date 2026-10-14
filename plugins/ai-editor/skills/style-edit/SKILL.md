@@ -156,19 +156,23 @@ python3 "$S/edit.py" estimate edits/<name>
 ```
 
 Prints `Laptop:`, `Modal:` and two `Other:` lines (GitHub Actions, Lambda) with this video's time and
-cost. `render` in the profile: render there, no question; say it in one line with the time ("say 'render
-on Modal' to change"). Not set: ask once, three options in this order with the printed numbers, none
-recommended (only the user knows their time and money), then `profile.py set render='"laptop|modal|github|lambda"'`.
+cost, then `Recommended:`: Modal once it is connected, the video is over a minute and Modal is quicker; the
+laptop otherwise. `render` in the profile: render there, no question; say it in one line with the time ("say
+'render on Modal' to change"). Not set: ask once, three options in this order with the printed numbers, the
+`Recommended:` one marked (Recommended), then `profile.py set render='"laptop|modal|github|lambda"'`.
 
 1. **Laptop**: its time, free.
-2. **Modal**: its time and cost ($30 free credit a month); say `Not set up yet` if so.
+2. **Modal**: its time and cost ($30 free credit a month). Not connected: label it **Connect Modal** ("one
+   login in the browser"); on that pick run
+   `python3 "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.py" modal-connect` in the background (the setup skill's
+   Modal step), say each `STEP` line, then render on Modal once it prints `Connected.`
 3. **Other: GitHub Actions or AWS Lambda**: both `Other:` lines in the description. On this pick, ask
    a second question with the two. GitHub Actions: free, needs `gh` logged in, the footage goes into
    a **private** repo in their account; ask before creating the repo. Lambda: their own AWS account.
    No `cloud_cleanup` in the profile: ask once "Delete the uploaded footage from <GitHub|AWS> after
    rendering?" (Yes (Recommended) / No, keep it there), then `profile.py set cloud_cleanup=true|false`.
 
-Modal picked but not set up: the setup skill's Modal step first. Lambda picked and
+Modal picked but not connected: `setup.py modal-connect` first (above). Lambda picked and
 `aws sts get-caller-identity` fails: the setup skill's Lambda section first.
 
 ## 7. Render and check

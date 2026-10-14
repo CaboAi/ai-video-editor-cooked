@@ -2,7 +2,7 @@
 """Render a plan on Modal (modal.com): the bundle goes up once, chunks of frames render in parallel,
 the pieces come back and join on this computer with the GitHub Actions join (edit.py JOIN).
 
-Runs in the editor venv, where `setup.py modal` installs the modal package. edit.py calls it:
+Runs in the editor venv, where `setup.py modal-connect` installs the modal package. edit.py calls it:
 
     ~/.ai-video-editor/venv/bin/python modal_render.py render <bundleDir> <plan.json> <out.mp4>
     ~/.ai-video-editor/venv/bin/python modal_render.py held <publicDir>   footage bytes Modal does not hold yet

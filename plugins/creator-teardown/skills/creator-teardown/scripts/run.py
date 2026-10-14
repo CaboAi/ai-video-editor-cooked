@@ -1,7 +1,7 @@
 """Run a script with the editor's venv Python, wherever AI_EDITOR_HOME puts it. Stdlib only.
 
     python3 run.py <script.py> [args]      (`py` instead of `python3` on Windows)
-    python3 run.py -m modal token new
+    python3 run.py -m modal setup
     python3 run.py demo                    self-check
 
 The venv is $AI_EDITOR_HOME/venv (default ~/.ai-video-editor/venv), bin/python or Scripts\\python.exe.

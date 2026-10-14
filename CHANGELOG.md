@@ -4,6 +4,14 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Modal is one button. Settings (and the first-run keys page) has **Connect Modal**: it installs Modal, opens
+  Modal's own login page in the browser (log in or sign up there), builds the render machine once in the
+  background with each step shown, and says what this month has cost. No terminal, no Claude needed.
+  **Test render** renders 5 seconds on Modal and shows the time. Errors are one plain sentence: not logged
+  in, out of credit, the render machine did not build.
+- The render question recommends Modal for a video over a minute once Modal is connected and quicker,
+  the laptop otherwise. A saved choice is kept.
+
 ## ai-editor 2.6.9 (2026-10-13)
 
 - Card edit: cards move. Most beats are now animations built from what is said: a like counter ticking with

@@ -13,33 +13,29 @@ Say these three things first:
   a month**. The whole 3.4-minute sample take, rendered uncut, cost **$0.18** on the bill; its
   44.9-second styled cut about **$0.03**. A 60-second video comes to about **$0.06** and a 10-minute
   video about **$0.54** (estimates), so the credit covers about fifty 10-minute videos a month. Every render measures the speed and the next quote uses it.
-- **The card:** a third-party listing says Modal gives $1 of credit at sign-up and the rest once a
-  card is added. Say that, and that the sign-up page shows the current terms.
+- **The card:** sign-up is free with GitHub, Google or SSO. Third-party listings say Modal may ask for a
+  card before giving the whole $30; the sign-up page shows the current terms.
 
-Then, one step at a time, checking each:
+Then one step. The best place is the editor's window: **Settings, Modal, Connect Modal** (also on the
+first-run keys page). It needs no Claude. From the chat, run the same thing in the background:
 
-1. **Account.** Open https://modal.com/signup, sign in with GitHub or Google. Check: they see the
-   Modal dashboard.
-2. **Install Modal into the editor's Python.**
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/setup.py" modal-connect
+```
 
-   ```bash
-   python3 "${CLAUDE_SKILL_DIR}/scripts/setup.py" modal
-   ```
+It prints `STEP` lines as it goes:
 
-   Check: it prints `Modal installed.` On `Run the venv step first.`, run SKILL.md step 3 first.
-3. **Log in this computer.** Run `python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/run.py" -m modal token new`
-   (`py` for `python3` on Windows) in the background. It opens
-   the browser: they approve the new token on the Modal page. If no browser opens, give them the
-   link it printed. Check: it says the token was verified and saved.
-4. **Prove it works.**
+1. Installs Modal into the editor's Python (skipped when it is there).
+2. Runs `modal setup`, which opens the browser on Modal's "Authorize Modal" page: log in or sign up with
+   GitHub, Google or SSO. Modal's CLI saves the token in `~/.modal.toml` itself; nothing here reads or
+   prints it. No browser? It prints `LOGIN <url>`: give the user that link.
+3. Builds the render machine in their Modal account once (Node, the renderer, Chrome; about 3 to 5 minutes)
+   and caches it, so the first real render starts in seconds.
+4. Prints `CREDIT` (what this month has cost so far, from `modal billing summary`), then `Connected.`
 
-   ```bash
-   python3 "${CLAUDE_SKILL_DIR}/scripts/setup.py" modal-check
-   ```
-
-   The first run takes a few minutes (say so): it builds the render machine in their Modal account
-   (Node, the renderer, Chrome) and caches it, so later renders start in seconds. Check:
-   `Tested: Modal works.`
+On failure the last line is `FAIL <one plain sentence>`: not logged in, out of credit, the render machine did
+not build, or no connection. Say that sentence. `setup.py modal-test` renders a 5-second test video on Modal and
+prints `TIME <seconds> <usd>` (the window's **Test render** button).
 
 Doctor shows `ok modal` once it is logged in. The style-edit skill quotes the time and cost before
 every Modal render.

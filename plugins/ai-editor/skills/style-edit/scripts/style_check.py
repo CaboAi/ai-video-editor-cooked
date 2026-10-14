@@ -66,7 +66,7 @@ def check(plan, style):
             out.append((f"caption size {cs.get('size_pct')}%, {h} {want['size_pct']}%", "set captions.size_pct in style.json"))
         _, top, _, bottom = SAFE["9:16" if plan.get("height", 1920) > plan.get("width", 1080) else "16:9"]
         y = min(max(want.get("y_pct") or 70, top + 5), 100 - bottom - 4)   # plan.py keeps them clear of the app's UI
-        if abs((cs.get("y_pct") or 70) - y) > 3 and plan.get("layout", {}).get("mode") != "split":
+        if abs((cs.get("y_pct") or 70) - y) > 3 and plan.get("layout", {}).get("mode") != "split" and not cs.get("off_face_from"):
             out.append((f"captions {cs.get('y_pct')}% down, {h} {want.get('y_pct')}%", "set captions.y_pct"))
         if want.get("words_per_caption") and chunks:
             n = sorted(len(c["text"].split()) for c in chunks)[len(chunks) // 2]
@@ -86,8 +86,9 @@ def check(plan, style):
                             "the footage behind them is bright; keep it unless a darker spot near her y_pct exists"))
     z = style.get("zoom") or {}
     zs = plan.get("zooms") or []
-    if z.get("per_min") is not None and off(len(zs), z["per_min"], dur):
-        out.append((f"{per_min(len(zs), dur)} zooms a minute, {h} {z['per_min']}", "plan again; zoom.per_min sets it"))
+    nz = sum(2 if x.get("travel_s") else 1 for x in zs)   # a creator punch comes back by itself: two of her measured zooms
+    if z.get("per_min") is not None and off(nz, z["per_min"], dur):
+        out.append((f"{per_min(nz, dur)} zooms a minute, {h} {z['per_min']}", "plan again; zoom.per_min sets it"))
     if zs and z.get("kind") and any(x.get("kind") != z["kind"] for x in zs):
         out.append((f"zoom kind {zs[0].get('kind')}, {h} {z['kind']}", "set zoom.kind"))
     g = graphics(style, "graphics")

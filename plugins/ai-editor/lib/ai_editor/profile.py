@@ -280,7 +280,7 @@ def fill_transitions(style, warn=print):
 # is its own part (claimed by nobody in the profile, so it comes from the first creator, as every unclaimed part does).
 PARTS = {"captions": ("captions",), "pace": ("pace", "zoom", "cuts", "motion", "transitions", "camera"),
          "visuals": ("graphics", "look", "layout", "cats", "events", "face", "hook", "per_min", "first_in_s", "gap_s", "behind",
-                     "cards", "card_kinds"),
+                     "cards", "card_kinds", "grade"),
          "sound": ("sound", "sfx")}
 HOME_TAKE = {"captions", "pace", "graphics", "sound"}   # the home page's four boxes (home.py TAKE)
 

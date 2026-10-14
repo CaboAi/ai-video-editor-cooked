@@ -180,7 +180,7 @@ def render(plan_path):
 # camera goes with pace and hook with visuals, as style-edit reads them (took "pace" / "graphics")
 PARTS = {"captions": ["captions"], "pace": ["pace", "zoom", "camera", "motion", "transitions"],
          "visuals": ["graphics", "face", "look", "cats", "per_min", "first_in_s", "gap_s", "events",
-                     "layout", "hook"],
+                     "layout", "hook", "grade"],
          "sound": ["sound"]}
 
 
@@ -236,7 +236,7 @@ TAKE = {"captions": ["captions"],
         "graphics": ["graphics.kinds", "graphics.kinds_source", "graphics.per_min", "graphics.share_pct",
                      "graphics.hold_s", "graphics.palette", "graphics.crop_palette", "graphics.per_min_measured",
                      "graphics.hold_s_measured", "graphics.measured", "graphics.blur_behind_pct", "cats", "events",
-                     "per_min", "first_in_s", "gap_s"],
+                     "per_min", "first_in_s", "gap_s", "grade"],
         "entrances": ["graphics.entrances", "graphics.exits", "graphics.secondary_motion", "graphics.ease_in_s"],
         "layout": ["graphics.layout", "face", "layout"],
         "sound": ["sound"]}

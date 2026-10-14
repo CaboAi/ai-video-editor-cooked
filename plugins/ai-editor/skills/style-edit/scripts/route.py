@@ -207,7 +207,30 @@ def demo():
     hl = rank_highlight(["Pricing starts at $5.", "It answers in 40 ms, 200x faster than a frontier model."],
                         "it's 40 to 200 times faster")
     assert hl[0].startswith("It answers") and len(hl) == 2, hl
+    # what only a beat copies: a title at the open, and full-frame cut-aways for a creator mostly off screen
+    hs = style_hints({"hook": {"title_on_screen_pct": 80}, "face": {"present_pct": 44}})
+    assert len(hs) == 2 and "title" in hs[0] and "56%" in hs[1], hs
+    assert style_hints({"hook": {"title_on_screen_pct": 20}, "face": {"present_pct": 95}}) == []
+    assert style_hints({"hook": {"title_on_screen_pct": 80}, "blend": {"take": ["captions"]}}) == []
     print("route ok")
+
+
+def style_hints(style):
+    """What the creator does that only a visuals.json beat can copy: words on screen at the open (report.py
+    hook.title_on_screen_pct) and cut-aways that take the whole frame (look.py face.present_pct)."""
+    from plan import took
+    out = []
+    if not took(style, "graphics"):
+        return out
+    pct = (style.get("hook") or {}).get("title_on_screen_pct")
+    if pct and pct >= 50:
+        out.append(f"the creator opens with words on screen in {pct}% of her videos: add a \"title\" beat at the open, "
+                   "a few of the speaker's own words of the hook (shapes.md)")
+    face = (style.get("face") or {}).get("present_pct")
+    if face is not None and face < 70:
+        out.append(f"the creator is off screen {100 - face:.0f}% of the time: plan.py shows the picture cards full "
+                   "frame (scenes) to reach it, so give every want a picture (capture, post, github, video_card)")
+    return out
 
 
 def main():
@@ -252,6 +275,8 @@ def main():
         if n:
             print(f"the creator's rate: {pm:g} cards a minute, so {n} in this video; \"want\" marks the sentences to give one"
                   + (f", placed at the {where(style)}" if where(style) else "") + " (SKILL.md step 3, \"Pacing\")")
+        for line in style_hints(style):
+            print(line)
         for b in beats:
             b["pick"] = None   # Claude routes each sentence
             b["motion"] = motion_kind(b["text"])   # a hint: the motion skill builds a clip where the pick is a moving format

@@ -84,14 +84,15 @@ def zoom_state(t, zooms):
     for i, z in enumerate(zs):
         nxt = zs[i + 1]["start"] if i + 1 < len(zs) else float("inf")
         push = z.get("kind") == "push" and z.get("ease_s", 0) > 0
-        tail = 0 if push else min(PUNCH_S, max(0, nxt - z["end"]))
+        travel = z.get("travel_s") or PUNCH_S
+        tail = 0 if push else min(travel, max(0, nxt - z["end"]))
         if not z["start"] <= t < z["end"] + tail:
             continue
         if push:
             e = min(max(PUSH_MIN_S, z["ease_s"]), (z["end"] - z["start"]) / 2)
             p = sine((t - z["start"]) / e) if t < z["start"] + e else sine((z["end"] - t) / e) if t > z["end"] - e else 1
         else:
-            p = out2(min(1, (t - z["start"]) / PUNCH_S)) if t < z["end"] else 1 - out2(min(1, (t - z["end"]) / PUNCH_S))
+            p = out2(min(1, (t - z["start"]) / travel)) if t < z["end"] else 1 - out2(min(1, (t - z["end"]) / travel))
         return z["scale"] ** max(0.0, min(1.0, p)), tuple(z.get("origin") or ZOOM_ORIGIN)
     return 1.0, ZOOM_ORIGIN
 
@@ -188,7 +189,7 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
         name = f"'{c['trigger_word']}' {c.get('src') or c['anim']['type']}"
         x, y, w, h = c["box"]
         word = re.sub(r"[^\w'-]+", "", c["trigger_word"]).lower()
-        if c.get("layout") == "scene" and beats is not None and not any(
+        if c.get("layout") == "scene" and beats is not None and c.get("scene_by") != "creator" and not any(
                 b.get("layout") in ("scene", "split") and re.sub(r"[^\w'-]+", "", b.get("word") or "").lower() == word for b in beats):
             out.append(finding("FAIL", c["start"], f"{name} is a full-frame scene nobody asked for: the speaker leaves the frame",
                                "make it an overlay: plan again with no \"layout\": \"scene\" on that beat (a scene only when "
@@ -811,6 +812,8 @@ def demo():
     unasked = [f for f in check_plan(fl, face, beats=[{"word": "task", "kind": "anim", "type": "flow"}]) if "nobody asked" in f["what"]]
     assert unasked and unasked[0]["level"] == "FAIL" and "overlay" in unasked[0]["fix"], unasked
     assert not any("nobody asked" in f["what"] for f in check_plan(fl, face, beats=[{"word": "Task.", "layout": "scene"}]))
+    fl["cards"][0]["scene_by"] = "creator"   # plan.py made it a cut-away: the copied creator is off screen that much
+    assert not any("nobody asked" in f["what"] for f in check_plan(fl, face, beats=[{"word": "task", "kind": "anim", "type": "flow"}]))
     # logo_cluster: logos laid round the head (no band) FAIL on vertical; plan.py's centred band passes, one logo does not
     lc = {**plan, "cards": [{"anim": {"type": "logo_cluster", "props": {"logos": [{"src": "a"}, {"src": "b"}]}}, "start": 0.5,
                              "end": 2, "trigger_word": "l", "box": [0, 0, 100, 100]}]}

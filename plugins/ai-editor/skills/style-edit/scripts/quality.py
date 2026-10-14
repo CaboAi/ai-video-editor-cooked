@@ -704,7 +704,7 @@ def zoom_moves(video, plan, w=270, h=480, behind=None, cuts=()):
 
     out = []
     for z in plan["zooms"]:
-        e = max(0.8, z.get("ease_s") or 0) if z.get("kind") == "push" and z.get("ease_s") else 0.16
+        e = max(0.8, z.get("ease_s") or 0) if z.get("kind") == "push" and z.get("ease_s") else z.get("travel_s") or 0.16
         for t in (z["start"], z["end"] - (e if z.get("kind") == "push" and z.get("ease_s") else 0)):
             if any(a <= t < b for a, b in scenes):
                 continue

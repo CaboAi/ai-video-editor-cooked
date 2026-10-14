@@ -17,7 +17,7 @@ Every question to the user goes in the question box: call the AskUserQuestion to
 `creator-teardowns/<handle>/`: `teardown.md` (the analysis), `teardown.html` (the page the user looks
 at), `look.md` (what Claude reads), `style.json` (every measured number, for editing in this style),
 plus the per-video files listed in `${CLAUDE_SKILL_DIR}/references/outputs.md`. An edit plan goes to
-`edit-plans/<name>/`.
+`edit-plans/<name>/`. Whether an edit in this style matches: `scripts/match.py` (`references/outputs.md` "Match check").
 
 ## First: doctor
 

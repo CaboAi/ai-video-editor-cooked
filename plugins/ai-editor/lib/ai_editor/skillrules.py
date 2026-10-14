@@ -33,10 +33,42 @@ STOP = set("a an the to of in on at for and or but is are be it its this that wi
            "every each more less than so".split())
 
 
+def claude_dir():
+    """Claude Code's own folder: $CLAUDE_CONFIG_DIR, else ~/.claude."""
+    return Path(os.environ.get("CLAUDE_CONFIG_DIR", "").strip() or Path.home() / ".claude").expanduser()
+
+
 def skill_dirs():
     """Where the user's own skills live (read-write): $AI_EDITOR_SKILLS, the project's, the user's."""
     env = [Path(x) for x in os.environ.get("AI_EDITOR_SKILLS", "").split(os.pathsep) if x]
-    return env + [Path.cwd() / ".claude" / "skills", Path.home() / ".claude" / "skills"]
+    return env + [Path.cwd() / ".claude" / "skills", claude_dir() / "skills"]
+
+
+# Is a skill for editing videos? Its name and whole description: at least one strong word (video, captions,
+# thumbnail...) or three weak ones (cut, logo, sound...), and off-topic words (Notion, AWS, email...) count against it.
+# Weak words alone are common outside video ("edit", "render", "style"), so one or two of them never list a skill.
+EDIT_WORDS = {2: r"videos?|reels?|captions?|captioning|subtitles?|footage|b-?roll|thumbnails?|overlays?|tiktoks?|shorts|youtube|"
+                 r"remotion|hyperframes|animations?|animate|animated|motion graphics?|keyframes?|jump cuts?|talking-head|"
+                 r"bgm|sfx|sound effects?|voice-?over",
+              1: r"cuts?|cutting|clips?|logos?|sound|music|audio|zooms?|transitions?|render|rendering|edits?|editing|editor|"
+                 r"frames|scenes?|camera|colou?r grade|luts?|title cards?|beats?|gsap|instagram|style|format",
+              -2: r"notion|e-?mail|gmail|slack|linear|posthog|aws|sql|postgres|database|supabase|pull requests?|"
+                  r"code review|commit|invoices?|finance|crm"}
+EDIT_RE = {w: re.compile(r"\b(" + p + r")\b", re.I) for w, p in EDIT_WORDS.items()}
+EDIT_ANY = re.compile("|".join(f"(?:{r.pattern})" for w, r in EDIT_RE.items() if w > 0), re.I)   # the fast pre-filter
+
+
+def edit_words(name, description):
+    """{2: strong words, 1: weak, -2: off-topic}, each distinct word once."""
+    text = name.split(":")[-1].replace("-", " ") + " " + (description or "")
+    if not EDIT_ANY.search(text):
+        return {2: set(), 1: set(), -2: set()}
+    return {w: {m.lower() for m in r.findall(text)} for w, r in EDIT_RE.items()}
+
+
+def for_editing(name, description):
+    w = edit_words(name, description)
+    return bool(w[2] or len(w[1]) >= 3) and sum(k * len(v) for k, v in w.items()) >= 2
 
 
 def find_skill(name):
@@ -216,6 +248,13 @@ def demo():
         # find_skill: the user's folders only, never a plugin skill
         os.environ["AI_EDITOR_SKILLS"] = tmp
         assert find_skill("my-edit") == md and find_skill("ai-editor:style-edit") is None and find_skill("../x") is None
+    # for_editing: what the Skills page lists. A real video word is enough; "edit" alone or an off-topic word is not
+    for n, d in (("card-edit", "Edits the user's video in the Card edit style."), ("media-use", "Resolve BGM, SFX or a logo."),
+                 ("hyperframes-cli", "The HyperFrames CLI loop: lint, render."), ("captions-pop", "")):
+        assert for_editing(n, d), n
+    for n, d in (("notion-editing", "Edit existing Notion pages reliably."), ("carousel-gen", "Instagram carousel slides."),
+                 ("aws-cdk", "Deploys AWS infrastructure."), ("caveman", "Ultra-compressed communication mode.")):
+        assert not for_editing(n, d), n
     print("skillrules ok")
 
 

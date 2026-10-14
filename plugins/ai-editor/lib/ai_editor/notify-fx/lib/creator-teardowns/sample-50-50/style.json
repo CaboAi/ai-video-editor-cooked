@@ -1,0 +1,23 @@
+{
+ "handle": "sample-50-50",
+ "name": "50/50",
+ "sample": true,
+ "about": "A sample style. The visual owns the top of the frame and you the bottom, beat by beat, on a paper ground: an animation built for each line fills the top panel, then your face takes the whole frame again within 8 seconds. A number you say becomes a counter climbing to it. A real page only where it proves the line. Captions are one plain white word at the seam. Set \"variant\": \"cutout\" under layout and your head breaks out of your card onto the paper.",
+ "format": "talking-head videos split in half: the visual above, the speaker below",
+ "aspect": "9:16",
+ "layout": {"mode": "split", "ground": "#FDF8EC", "seam": 50, "face_every_s": 8, "variant": "panel"},
+ "look": {"allow": ["cream-paper-ground"]},
+ "card_kinds": ["animation", "capture", "logo"],
+ "transitions": [],
+ "motion": {"engine": "clips", "amount": 1, "look": "paper",
+            "kinds": {"counter": true, "list": true, "flow": true, "before_after": true, "ui_demo": true, "curve": true, "logo": true}},
+ "zoom": {"per_min": 3, "kind": "push", "scale": 1.06, "duration_s": 0.8, "on": "sentence_start", "max_hold_s": 6.0},
+ "captions": {"present": true, "words_per_caption": 1, "size_pct": 4.4, "case": "lower",
+              "font_match": "TikTok Sans", "weight": 700, "color": "#FFFFFF", "highlight_color": "#FFFFFF",
+              "stroke": false, "box": true, "shadow": false, "treat": false, "animation": "none"},
+ "cats": {"card": {"hold_s": 2.6}},
+ "graphics": {
+  "per_min": 16,
+  "kinds": {"animation": 75, "real screenshot": 15, "logo": 10}
+ }
+}

@@ -1122,7 +1122,10 @@ const total=()=>nv.sel.reduce((a,p)=>a+(clipOf(p).duration||0),0);
 const styleName=id=>((L&&L.styles||[]).find(c=>c.id===id)||{}).name||(id==='mine'?'My style':id==='defaults'?'the default style':/^@links-/.test(id)?'New format':id);
 function rgo(v){rv=v;setHash();ui.forceR=true;ui.cmenu=null;if(v==='new'||v==='home')loadRecent();if(v==='skills')loadSkills();render();window.scrollTo(0,0)}
 const SMP=/^@sample-/;   // a sample keeps its id after the user changes it, so it stays a sample on every page
-async function loadLib(){try{const r=await fetch('/library');if(r.ok){L=await r.json();for(const c of [...L.styles,...(L.archived_styles||[])])if(SMP.test(c.id))c.sample=true;render()}}catch(e){}}
+let PH=null;   // each video's phase at the last read: a video that leaves Claude's work chimes once (none on the first read)
+function watchDone(){const A=window.aveAlert;if(!A)return;const now=Object.fromEntries(L.videos.map(v=>[v.dir,vPh(v)]));if(!PH){PH=now;return}
+  const r=A.finished(PH,now);PH=r.next;for(const d of r.done){const v=L.videos.find(x=>x.dir===d);A.alert(now[d]==='done'?'Video ready':'Draft ready',v?v.name:'')}}
+async function loadLib(){try{const r=await fetch('/library');if(r.ok){L=await r.json();watchDone();for(const c of [...L.styles,...(L.archived_styles||[])])if(SMP.test(c.id))c.sample=true;render()}}catch(e){}}
 const whereAgo=v=>v.where==='Your videos'?'Added '+ago(v.mtime):[v.where,ago(v.mtime)].filter(Boolean).join(' · ');   // a clip you added: "Added today"
 async function loadRecent(){try{const r=await fetch('/recent');if(r.ok){R=await r.json();for(const v of R.videos)nv.clips[v.path]=v;render()}}catch(e){}}
 
@@ -2033,9 +2036,10 @@ function jobInfo(){
   if(!j){if(!mk.length)return null;return {label:`Making ${mk.length}`,short:'Making',n:mk.length,text:`${{notes:'Claude is fixing your notes in',stills:'Claude is making the preview for',rendering:'Claude is finishing'}[vPh(mk[0])]||'Claude is making'} ${mk[0].name}`,frac:null,since:null,go:"ui.fold.videos=null;rgo('videos')"}}
   const n=j.type==='video'?nv2:act.filter(x=>x.type===j.type).length,s=farStep(j);
   const last=Math.max(j.u||0,s?s.t||0:0,S.claude_seen||0)||jobStart(j),age=Math.max(0,Math.round(Date.now()/1000-last));
+  const vn=j.type==='video'&&j.args.edit&&(((L?L.videos:[]).find(v=>v.dir===j.args.edit)||{}).name||j.args.edit.split(/[\\/]/).pop());
   const what=j.type==='video'&&j.args.edit?' in '+j.args.edit.split(/[\\/]/).pop():j.type==='teardown'&&j.args.handle?' · '+styleName('@'+j.args.handle):'';
   const how=S.new_claude?'':` Type ${CMD} in Terminal.`,own=(j.claude||{}).opened,text=j.state==='queued'?(own?'Claude is working on this video in its own Terminal window.':S.listening?'Claude is picking this up.':'Waiting for Claude.'+how)
-    :j.owner!=='home'&&!S.listening&&!own&&age>60?'Claude is not listening.'+how:(s?tdStep(j,s.text):'Starting')+what;
+    :j.owner!=='home'&&!S.listening&&!own&&age>60?'Claude is not listening.'+how:vn?`Claude is working on ${vn}: ${s?s.text:'Starting'}`:(s?tdStep(j,s.text):'Starting')+what;
   const name=JOBNAME[j.type]||'Working',go=j.type==='video'?"ui.fold.videos=null;rgo('videos')":j.type==='teardown'||j.type==='skill'?"rgo('mystyle')":j.type==='skill-change'||j.type==='skill-new'?"rgo('skills')":j.type==='setup'?'goHome()':j.type==='update'||j.owner==='home'?"rgo('settings')":'';
   return {label:j.type==='video'||j.type==='teardown'?`${name} ${n}`:name,short:j.type==='video'||j.type==='teardown'?name:'Working',n:j.type==='video'||j.type==='teardown'?n:'',text,frac:j.state==='queued'?0:jobFrac(j),since:jobStart(j),go};   // the whole job's time, not the step's
 }
@@ -2238,9 +2242,16 @@ function stLook(){
 function vSettings(){
   return `<div class="pgc"><div class="ph"><h1>Settings</h1><p>Keys, updates, where your videos live, and the look.</p></div><div class="sgrid">
     <div class="scol"><div class="scd" style="gap:16px"><div class="hd"><b>Keys</b><span class="st-lock">${ic('lock',14)}Saved on this computer only</span></div>${KEYS.map(stKey).join('')}${stModal()}</div></div>
-    <div class="scol">${stUpdate()}${stFolder()}${stLook()}
+    <div class="scol">${stUpdate()}${stFolder()}${stLook()}${stAlerts()}
       <div class="scd"><label class="srow" style="cursor:pointer"><div><div>Recent clips</div><div class="t2">From Movies, Desktop and Downloads</div></div><input type="checkbox" class="st-check" ${R&&R.scan_home?'checked':''} onchange="scanHome(this.checked)"></label>
         ${toolsRow()}</div></div></div></div>`;
+}
+// Alerts: the chime (this browser only) and system notices while the tab is hidden; permission only from the button
+function stAlerts(){
+  const A=window.aveAlert,N=window.Notification?Notification.permission:'none';
+  const line={granted:'On. Shown when Claude asks or a draft is ready and this tab is hidden.',denied:'Blocked. Allow notifications for this page in your browser.',none:'This browser cannot show them.'}[N]||'A notice when Claude asks or a draft is ready and this tab is hidden.';
+  return `<div class="scd" id="st-alerts"><label class="srow" style="cursor:pointer"><div><div>Sound when Claude asks or finishes</div><div class="t2">A soft chime</div></div><input type="checkbox" class="st-check" ${!A||A.soundOn()?'checked':''} onchange="aveAlert.setSound(this.checked)"></label>
+    <div class="srow"><div style="min-width:0"><div>Alerts</div><div class="t2" style="white-space:normal">${line}</div></div>${N==='default'?'<button class="b2 s" onclick="Notification.requestPermission().then(()=>render())">Turn on alerts</button>':''}</div></div>`;
 }
 // Tools on this computer: Check runs setup.py doctor here (POST /recheck) and lists what it found, in place
 function toolsRow(){
@@ -2372,6 +2383,7 @@ function render(){
   document.body.classList.toggle('rh',true);paintSide();
   if(!rv||rv==='making')rv=L.videos.length||firstRun()?'home':'new';
   rrender();
+  const ji=jobInfo(),tt=ji?`${ji.label} · cooked.`:'cooked.';if(document.title!==tt&&!document.documentElement.dataset.ask)document.title=tt;
   if(keep){const e=document.getElementById(keep);if(e&&'value' in e&&!e.matches(':focus')){if(e.type!=='file')e.value=val;e.focus();try{e.setSelectionRange(pos,end??pos)}catch(x){}}}
 }
 setInterval(tickClocks,1000);

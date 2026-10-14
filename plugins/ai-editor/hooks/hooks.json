@@ -20,7 +20,7 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/askhook.py\" 2>/dev/null || py \"${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/askhook.py\" 2>/dev/null || true",
-            "timeout": 900,
+            "timeout": 86400,
             "statusMessage": "Asking in the editor window"
           }
         ]

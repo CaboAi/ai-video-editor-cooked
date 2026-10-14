@@ -1467,7 +1467,7 @@ def phase(e):
     r = library._review(Path(e["dir"])) or {}
     last = (r.get("events") or [{}])[-1]
     try:   # Claude's question waits on the user (askhook.mark): their turn, whatever the step
-        if e["status"] != "done" and time.time() - (Path(e["dir"]) / "review" / "asking").stat().st_mtime < askhook.KEEP_S:
+        if e["status"] != "done" and time.time() - (Path(e["dir"]) / "review" / "asking").stat().st_mtime < askhook.MARK_S:
             return "ask"
     except OSError:
         pass

@@ -7,7 +7,8 @@ in the page: the hook returns the answers as the tool's input (permissionDecisio
 with "answers", the documented way to answer AskUserQuestion from a hook), so the terminal box never shows.
 
     python3 askhook.py           the hook (stdin: hook JSON). Prints nothing and exits 0 when no page is
-                                 showing, on "Answer in Claude Code instead", on timeout and on any error:
+                                 showing, on "Answer in Claude Code instead", once every page that had the
+                                 question closed (never on time alone while one is open) and on any error:
                                  Claude Code then shows its own question box
     python3 askhook.py demo      self-check against a throwaway server
 
@@ -66,8 +67,12 @@ from pathlib import Path
 
 JS = Path(__file__).with_name("ask.js")
 LIVE_S = 90          # a page polled this recently is open (a background tab polls about once a minute)
-TIMEOUT_S = 600      # then the terminal box shows (hooks.json gives the hook 900 s)
-KEEP_S = TIMEOUT_S + 60   # a question whose hook was stopped (Esc in Claude Code) leaves the pages by then
+# No timeout while a page that has the question is open (polled in the last LIVE_S): the user answers there, however
+# long they take (hooks.json gives the hook a day). Only once every such page closed does the terminal box show.
+# AI_EDITOR_ASK_TIMEOUT (seconds) caps it anyway (the self-check).
+KEEP_S = 120         # a question whose hook stopped polling (Esc in Claude Code) leaves the pages by then
+CHECK_S = 20         # how often the waiting hook looks for an open page
+MARK_S = 120         # <edit>/review/asking older than this: its hook stopped (the hook touches it while it waits)
 MAX_IMAGE = 15 << 20      # an attached image (review notes and answers)
 MAX_IMAGES = 6
 MAX_BODY = MAX_IMAGES * MAX_IMAGE * 4 // 3 + (1 << 20)   # a POST carrying that many, base64
@@ -165,13 +170,15 @@ def route(h, method, path, query, body=None):
     asks = getattr(srv, "asks", None)
     if asks is None:
         srv.asks = asks = {}
-    for k in [k for k, a in asks.items() if time.time() - a["at"] > KEEP_S]:
+    for k in [k for k, a in asks.items() if time.time() - a.get("polled", a["at"]) > KEEP_S]:
         asks.pop(k, None)
     if method == "GET" and path == "/ask.js":
         h.send(200, JS.read_bytes(), "text/javascript; charset=utf-8")
     elif method == "GET" and path == "/ask":
         if query.get("id"):
             a = asks.get(query["id"])
+            if a:   # the hook still waits on it: it stays
+                a["polled"] = time.time()
             h.send(200 if a else 404, {"result": a and a.get("result")})
         else:
             if getattr(srv, "ask_url", None):   # open, showing or in a background tab
@@ -386,9 +393,19 @@ def relay(payload, timeout=None, poll=0.5):
     t0, result = time.time(), None
     if about:
         mark(about, t0)
-    end = time.time() + (timeout or float(os.environ.get("AI_EDITOR_ASK_TIMEOUT") or TIMEOUT_S))
+    cap = timeout or float(os.environ.get("AI_EDITOR_ASK_TIMEOUT") or 0)
+    end, beat = time.time() + cap if cap else None, 0
     try:
-        while result is None and time.time() < end:
+        while result is None and (end is None or time.time() < end):
+            if time.time() - beat > CHECK_S:
+                beat = time.time()
+                if not set(sent) & set(live()):   # every page that had it closed: the terminal box
+                    break
+                if about:
+                    try:
+                        os.utime(Path(about) / "review" / "asking")
+                    except OSError:
+                        pass
             for u in list(sent):
                 try:
                     result = _call(u, "/ask?id=" + qid).get("result")
@@ -671,6 +688,19 @@ def demo():
         s_.shutdown()
         s_.server_close()
         (pages() / str(s_.server_address[1])).unlink()
+    # no time limit while the page is open: a question waits there; the terminal box only once that page closed
+    global CHECK_S
+    CHECK_S, box = 0.2, {}
+    _call(url, "/ask?v=1")
+    th = threading.Thread(target=lambda: box.update(r=relay(payload)))
+    th.start()
+    page()
+    time.sleep(1)
+    assert th.is_alive(), "still waiting on the open page"
+    os.utime(pages() / str(srv.server_address[1]), (0, 0))   # the tab closed
+    th.join(10)
+    assert not th.is_alive() and box["r"] is None and not srv.asks, "every page closed: the terminal box"
+    CHECK_S = 20
     # the page went away (not polled for LIVE_S): silent again
     os.utime(pages() / str(srv.server_address[1]), (time.time() - LIVE_S - 1,) * 2)
     assert live() == [] and relay(payload) is None

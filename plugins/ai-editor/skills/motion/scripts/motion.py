@@ -51,8 +51,9 @@ ROUNDS = 3                 # check rounds a clip-builder gets before the beat fa
 DEFAULT_LOOK = {"name": "default", "ground": "#FFFFFF", "paper": "#FDF8EC", "ink": "#171614", "muted": "#6B6862",
                 "accent": None, "stop": "#FF3040", "ok": "#3DDC84", "font": "TikTok Sans", "radius": 28,
                 "stroke": {"container": 6, "connector": 3, "texture": 1.2}}
-PRESETS = {  # remotion/src/look.tsx, the parts a clip uses; "paper" is the 50/50 style's ground
+PRESETS = {  # remotion/src/look.tsx, the parts a clip uses; "paper" is the 50/50 style's ground, "board" Motion design's
     "paper": {"ground": "#FDF8EC", "ink": "#171614"},
+    "board": {"ground": "#0B0B0D", "ink": "#F4F6FA"},   # the Motion design style's canvas: near-black, silver-white ink
     "editorial": {"ground": "#F2EEE6", "ink": "#141414", "accent": "#E5482C"},
     "editorial-dark": {"ground": "#151413", "ink": "#F2EEE6", "accent": "#FF5A36"},
     "mono": {"ground": "#FFFFFF", "ink": "#0A0A0A", "font": "IBM Plex Sans"},
@@ -161,7 +162,7 @@ def beats_for(visuals, words, aspect="9:16", max_n=8, images=(), types=MOTION_TY
                     "size": card_size(face, start, start + dur, aspect), "words": said,
                     "line": sents[si]["text"] if si is not None else "",
                     "before": sents[si - 1]["text"] if si else "", "after": sents[si + 1]["text"] if si is not None and si + 1 < len(sents) else ""})
-    n = min(max_n, round(len(out) * max(0.0, min(1.0, amount))))
+    n = min(max_n, int(len(out) * max(0.0, min(1.0, amount)) + 0.5))   # half up: 1 beat at "some" is 1 clip, not 0
     if len(out) > n:   # keep the longest windows: a bespoke clip pays off most where it holds longest
         keep = {b["id"] for b in sorted(out, key=lambda b: -b["dur"])[:n]}
         out = [b for b in out if b["id"] in keep]
@@ -191,6 +192,14 @@ def panel_size(style):
     seam = float(lay.get("seam", 50))
     w_px, h_px = 0.74 * 1080, (seam - 2 - 13.1) / 100 * 1920
     return [1200, int(round(1200 * h_px / w_px / 2)) * 2]
+
+
+def board_size(style):
+    """A board-layout style (Motion design): the clip is an overlay beside the speaker, in plan.py BOARD_OVERLAY_BOX
+    (42% x 60% of a 16:9 frame, 806 x 648 px), so its canvas is that shape. None for any other layout."""
+    if ((style or {}).get("layout") or {}).get("mode") != "board":
+        return None
+    return [1200, int(round(1200 * 648 / 806 / 2)) * 2]
 
 
 def fill_template(beat, look, gsap=None):
@@ -255,7 +264,10 @@ def pick(edit, max_n=8):
     aspect = style.get("aspect", "9:16")
     cfg = motion_cfg(style)
     face = json.loads((edit / "face.json").read_text(encoding="utf-8")) if (edit / "face.json").exists() else None
-    beats = beats_for([v.get("fallback") or v for v in visuals], words, aspect, max_n, images, allowed_types(cfg), cfg["amount"], face)
+    types = allowed_types(cfg)
+    if board_size(style):   # Motion design: logos and flows land as tiles on the canvas, never as clips
+        types = tuple(t for t in types if t not in ("logo_cluster", "flow"))
+    beats = beats_for([v.get("fallback") or v for v in visuals], words, aspect, max_n, images, types, cfg["amount"], face)
     pj = edit / "plan.json"
     if pj.exists() and pj.stat().st_mtime >= (edit / "visuals.json").stat().st_mtime:   # the plan dropped some beats
         kept = {(c.get("trigger_word") or "").lower() for c in json.loads(pj.read_text(encoding="utf-8")).get("cards", [])}
@@ -268,6 +280,9 @@ def pick(edit, max_n=8):
         look = {**look, "ground": (style.get("layout") or {}).get("ground") or look["ground"]}
         for b in beats:
             b.update(size=panel, panel=True)
+    if board_size(style):   # Motion design: an overlay on one side of the wide frame, the speaker moved to the other
+        for b in beats:
+            b.update(size=board_size(style), board=True)
     if cfg["engine"] != "clips":
         print("style.json motion.engine is \"templates\": no clips, the template formats stay")
     gsap = home() / "motion" / "node_modules" / "gsap" / "dist" / "gsap.min.js"
@@ -299,7 +314,11 @@ def pick(edit, max_n=8):
             cw=800 if aspect == "9:16" else 760, lead=CARD_LEAD_S,
             placement=("over the footage, popping in {lead} s before its word. Fill the card edge to edge: no inner margin of "
                        "ground.\n  Its bottom fifth may sit behind the speaker's hair: nothing that must be read goes there."
-                       ).format(lead=CARD_LEAD_S) if not b.get("panel") else
+                       ).format(lead=CARD_LEAD_S) if not b.get("panel") and not b.get("board") else
+                      ("beside the speaker, on one side of a 16:9 frame (the speaker is moved to the other side), popping in "
+                       f"{CARD_LEAD_S} s before its word. Its ground is the canvas's own near-black ({look['ground']}): dark "
+                       "silver-rimmed tiles, real logos, lowercase labels in the speaker's words, 2 px dashed connectors. "
+                       "Fill it edge to edge.") if b.get("board") else
                       ("in the 50/50 panel: the top of the frame, above the speaker, the whole panel. Its ground is the panel's own "
                        f"({look['ground']}), so it has no edge: no card, border or shadow round the exhibit. Fill at least 55% of it."), look=json.dumps(look), line=b["line"],
             before=b["before"], after=b["after"], words=json.dumps(b["words"]), type=b["type"], props=json.dumps(b["props"]),
@@ -714,6 +733,8 @@ def demo():
             assert wh.strip().split(",")[0] == str(16 * 60 + 15 * 2), wh
     assert cream((253, 248, 236)) and not cream((255, 255, 255)) and not cream((23, 22, 20))
     assert panel_size({}) is None and panel_size({"layout": {"mode": "split", "seam": 50}}) == [1200, 1006]
+    assert board_size({}) is None and board_size({"layout": {"mode": "board"}}) == [1200, 964]
+    assert look_for({"motion": {"look": "board"}})["ground"] == "#0B0B0D"
     with tempfile.TemporaryDirectory() as t:   # the panel gate: a full-bleed drawing passes, a small one on white fails
         for name, vf, want in (("ok", "drawbox=x=20:y=20:w=200:h=160:color=black:t=fill", True),
                                ("small", "drawbox=x=100:y=90:w=30:h=20:color=black:t=fill", False)):

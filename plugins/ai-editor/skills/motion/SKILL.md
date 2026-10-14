@@ -125,6 +125,12 @@ A split-layout style (style.json `layout.mode: "split"`, the sample `50/50`): ev
 art box on the panel's ground and plays edge to edge; the `panel` gate (ground at the corners, ink over 55%) and
 the four proofs (`verify.mjs`) block. Variants, rules and the cutout: `references/fifty-fifty.md`.
 
+## The Motion design style
+
+A board-layout style (style.json `layout.mode: "board"`, the sample `Motion design`, 16:9): clips are overlays
+beside the speaker, 1200x964 in the `board` look (near-black ground, silver-white ink). Logos are not clips: they
+land as tiles on the canvas. The rules: `references/board.md`.
+
 ## Skill styles
 
 A user's own style skill gets bespoke animations with one line: "Animations: use the motion skill".
@@ -144,6 +150,6 @@ A user's own style skill gets bespoke animations with one line: "Animations: use
 - `template/`: the HyperFrames composition every clip starts from.
 - `scripts/verify.mjs`: the four proofs (clipped, rails, neighbour, reading), frame by frame in Chrome.
 - `references/`: `clip-brief-card.md` (the core every agent reads), `visual-system.md`, `build-loop.md`,
-  `scenes.md`, `looks.md`, `fifty-fifty.md`.
+  `scenes.md`, `looks.md`, `fifty-fifty.md`, `board.md`.
 - HyperFrames is Apache-2.0 (github.com/heygen-com/hyperframes), GSAP is under its standard no-charge licence
   (gsap.com/standard-license); both are installed from npm by setup, not shipped here.

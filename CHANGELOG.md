@@ -41,6 +41,11 @@ What changed for every user, newest first.
 - No render question when no cloud is connected: it renders on your computer and says so.
 - Update leaves a developer copy (a git checkout) alone.
 - A cut whose last source frame is stamped late no longer comes out one frame short.
+- A new sample style, **Motion design**, for wide videos. One near-black canvas a camera drags across. When you
+  name a tool, a dark tile with a silver rim and its real logo lands on the word, joined to the last by a dashed
+  line, under a heading in your words. A question you ask sits big in the middle, then the camera pans down and it
+  rises into the heading. Between boards you have the whole frame, the camera easing in and moving you left or
+  right, so each animation lands on the other side. Soft sound cues on the moves, two whooshes a minute at most.
 
 ## ai-editor 2.6.11 (2026-10-13)
 

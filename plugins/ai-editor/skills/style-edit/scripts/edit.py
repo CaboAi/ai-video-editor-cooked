@@ -125,6 +125,7 @@ def prepare_public(edit, plan, tag):
     rels += [plan["music"]["src"]] if plan.get("music") else []   # the music bed, from sfx.py music
     rels += [plan["cover"]["src"]] if plan.get("cover") else []   # an audio clip's cover, from clips.py trim
     rels += [plan["layout"]["card"]["src"]] if (plan.get("layout") or {}).get("card") else []   # the letterbox photo
+    rels += [t["src"] for b in (plan.get("layout") or {}).get("boards") or [] for t in b["tiles"]]   # the board's logo tiles
     for c in plan.get("cutouts", []):   # the speaker cut out for behind cards: a folder of PNGs from matte.py
         if not (edit / c["src"]).is_dir():
             sys.exit(f"ERROR: {edit / c['src']} missing (run matte.py)")
@@ -169,6 +170,14 @@ def still_frames(plan):
             prev = [p for p in cards[:i] if p.get("lane") != "logo"]
             if prev and 0 <= c["start"] - prev[-1]["end"] < 1.2:
                 frames[f"{4 + i}-swap"] = c["start"] + 0.12
+    lay = plan.get("layout") or {}
+    for i, b in enumerate(lay.get("boards") or [] if lay.get("mode") == "board" else []):
+        # a board: its question centred before the rise, then settled with every tile landed
+        if b.get("question"):
+            frames[f"b{i + 1}-question"] = b["rise"] - 0.1
+        frames[f"b{i + 1}-board"] = min(b["end"] - 0.2, b["tiles"][-1]["at"] + 1.2)
+    for i, q in enumerate(lay.get("questions") or [] if lay.get("mode") == "board" else []):
+        frames[f"q{i + 1}-question"] = min(q["end"] - 0.3, q["words"][-1][1] + 0.4)
     return {k: min(last, round(t * fps)) for k, t in frames.items()}
 
 

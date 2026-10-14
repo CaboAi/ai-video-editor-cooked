@@ -16,7 +16,9 @@ the browser, and when no Claude is listening (`home.py wait`), connect() opens o
 window. Otherwise Claude Code starts in the library folder (library.py)
 with one first prompt, PROMPT, and opens the page there, so Claude is listening behind it. The user's
 permission settings apply as always: nothing is bypassed. The session gets one extra settings layer
-(--settings, allow_rules): the editor's own commands run without an Allow prompt, nothing else.
+(--settings, allow_rules): the editor's own commands run without an Allow prompt, nothing else, and the plugin's
+own files cannot be edited (deny_rules; guard.py blocks the same, with a plain message, for window jobs and for any session on the
+installed copy).
 """
 import json
 import os
@@ -91,6 +93,22 @@ def allow_rules(plugin=PLUGIN):
     return own + ["Bash(ffmpeg *)", "Bash(ffprobe *)", "Bash(npx remotion *)"]
 
 
+def deny_rules(plugin=PLUGIN):
+    """Edit deny on the plugin folder: a job from the window never changes the editor itself. Edit rules cover
+    Write and NotebookEdit too (Write(...) path rules are never consulted). `//` anchors at the filesystem root;
+    Windows paths match in POSIX form, C:/x as /c/x."""
+    root = Path(plugin).as_posix()
+    if len(root) > 1 and root[1] == ":":
+        root = "/" + root[0].lower() + root[2:]
+    return [f"Edit(/{root}/**)"]
+
+
+def settings(plugin=PLUGIN):
+    """The one extra settings layer: the narrow Allow rules, the Edit deny, and AI_EDITOR_WINDOW=1 so guard.py
+    explains the block in plain words."""
+    return {"permissions": {"allow": allow_rules(plugin), "deny": deny_rules(plugin)}, "env": {"AI_EDITOR_WINDOW": "1"}}
+
+
 def plan(os_name=None, plugin=PLUGIN, claude=None, prompt=PROMPT):
     """The Claude Code command. A plugin installed through /plugin lives under ~/.claude/plugins and loads
     by itself; a checkout of this repo loads for this session with --plugin-dir (its plugins/ folder, so
@@ -100,7 +118,7 @@ def plan(os_name=None, plugin=PLUGIN, claude=None, prompt=PROMPT):
     cmd = [claude]
     if "/.claude/plugins/" not in Path(plugin).as_posix() + "/":
         cmd += ["--plugin-dir", str(Path(plugin).parent)]
-    return cmd + ["--settings", json.dumps({"permissions": {"allow": allow_rules(plugin)}}), prompt]
+    return cmd + ["--settings", json.dumps(settings(plugin)), prompt]
 
 
 def show(cmd, os_name):
@@ -237,7 +255,9 @@ def demo():
         rules = json.loads(cmd[cmd.index("--settings") + 1])["permissions"]["allow"]
         assert "Bash(python3 /repo/plugins/ai-editor/*)" in rules and "Bash(ffmpeg *)" in rules, rules
         assert all(r.startswith("Bash(") and r != "Bash(*)" and len(r) > 12 for r in rules), "never broad Bash"
-        assert set(json.loads(cmd[cmd.index("--settings") + 1])) == {"permissions"}, "only Allow rules"
+        perms = json.loads(cmd[cmd.index("--settings") + 1])
+        assert perms["env"] == {"AI_EDITOR_WINDOW": "1"} and set(perms["permissions"]) == {"allow", "deny"}, perms
+        assert perms["permissions"]["deny"] == ["Edit(//repo/plugins/ai-editor/**)"], perms
         cached = plan(os_name, plugin=Path.home() / ".claude/plugins/cache/nextwork/ai-editor/2.3.0", claude="claude")
         assert "--plugin-dir" not in cached, cached
         o = io.StringIO()
@@ -247,6 +267,7 @@ def demo():
         q = '"' if os_name == "Windows" else "'"
         assert lines[0] == f"cd {q}{library.path(make=False)}{q}" and lines[1].endswith(f"{q}{PROMPT}{q}"), lines
         print(f"{os_name:<8} {lines[0]}  &&  {lines[1]}")
+    assert deny_rules("C:/Users/a/.claude/plugins/cache/n/ai-editor/2.3.0") == ["Edit(//c/Users/a/.claude/plugins/cache/n/ai-editor/2.3.0/**)"]
     assert not (tmp / "My Videos").exists(), "a dry run makes nothing"
     # a Claude of its own for a new video: the window it would open, per OS (recorded, never run)
     for os_name in ("Darwin", "Windows", "Linux"):

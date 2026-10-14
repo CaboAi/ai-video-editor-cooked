@@ -4,6 +4,10 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- A Claude making a video can no longer edit the editor's own files. On the installed plugin a hook blocks
+  Edit and Write inside it with a plain message, and Claude sessions the window opens get an Edit deny rule on
+  the plugin folder. A checkout or fork you own is not blocked outside the window. The start, cut and
+  style-edit skills say to report a wrong script and use a supported override instead.
 ## ai-editor 2.7.10, creator-teardown 2.7.10 (2026-10-14)
 
 - Skills: every skill has a ⋯ menu with Hide from this list and Delete. Delete moves the skill to the Trash, only from

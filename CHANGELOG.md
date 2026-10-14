@@ -4,6 +4,19 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.1 (2026-10-14)
+
+- Video cards say whose turn it is: "Your turn: watch the cut", "Your turn: approve the stills", "Your turn: watch
+  the edit". Done only after you approve the final edit. Home and Your videos count the same way.
+- Settings > Check runs in place. The old five-step setup screen is gone, and the logo, Home and Getting started
+  always take you somewhere.
+- Works on a phone-width window: no text one letter per line, the keys box no longer collapses below 1180 px,
+  and the style page stacks.
+- A style's name shows the same everywhere after a rename. "Use your own skill" works with its suggested name.
+- Green only means done. The video shape follows the clip you picked. No fixed time or cost estimates, and no
+  stock photos of strangers in place of a creator.
+- The nextwork-editor command is only ever pointed at the installed plugin, never at a copy someone is testing.
+
 ## ai-editor 2.7.0 (2026-10-14)
 
 - Motion graphics built for your video. A new `motion` skill gives each moment that needs an animation (a number,

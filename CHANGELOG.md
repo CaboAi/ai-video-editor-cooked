@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.6.11 (2026-10-13)
+
 - Modal is one button. Settings (and the first-run keys page) has **Connect Modal**: it installs Modal, opens
   Modal's own login page in the browser (log in or sign up there), builds the render machine once in the
   background with each step shown, and says what this month has cost. No terminal, no Claude needed.

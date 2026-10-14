@@ -478,7 +478,7 @@ def plan_changes(a, b, music=False):
             out_ += [(str(w.get("text", "")).strip(), w.get("start", ch.get("start", 0))) for w in ws if str(w.get("text", "")).strip()]
         return out_
     wa, wb = cwords(ca), cwords(cb)
-    norm = lambda ws: [re.sub(r"[^\w']", "", w.lower()) for w, _ in ws]
+    norm = lambda ws: [re.sub(r"[^\w']", "", w) for w, _ in ws]   # "song" -> "SONG" is a fix; "reels." -> "reels" is not
     say = lambda ws: " ".join(w for w, _ in ws[:6]) + (" ..." if len(ws) > 6 else "")
     for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, norm(wa), norm(wb), autojunk=False).get_opcodes():
         if op == "replace":

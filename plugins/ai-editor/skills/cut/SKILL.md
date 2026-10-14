@@ -146,10 +146,10 @@ One fix cycle (the same chain), then show the user what is left.
 
 ## 6. The user approves
 
-Every render goes on the review page (`../style-edit/references/review.md`); the chain opened it.
-`serve` and `wait` in the background. Say the seconds cut. `wait` exits with the notes. "keep <line>": narrow or delete that span; "cut <line>": add one; pauses
-off: `--max-pause`. Then the step 4-5 chain ending `round --video edits/<name>/cut.mp4`
-(a second `start` hides queued notes), then `resolve`.
+The chain opened the review page (`../style-edit/references/review.md`). `serve` and `wait` in the
+background. Say the seconds cut. Notes: "keep <line>": narrow or delete that span; "cut <line>": add one; pauses
+off: `--max-pause`. Then steps 4-5, `resolve` each note (`--reply`: what changed), last
+`round --video edits/<name>/cut.mp4` (never a second `start`), then ask any learn question.
 
 After approval, in one Bash call: `python3 "$S/trend.py" log edits/<name>` (`tally`: trend) and the hook check. Then hook variants if `hooks.json` exists (`references/retake-detection.md`); called by start, ask that in the same question box as style-edit's stills approval, not before it.
 

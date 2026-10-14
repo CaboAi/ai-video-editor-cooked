@@ -71,6 +71,9 @@ def gained(edit_dir, src, db):
     return out
 
 
+ZOOM_MATCH_S = 0.4   # a dropped zoom is found again after a re-plan by its start, within this
+
+
 def apply_overrides(plan, edit_dir, plan_name=None):
     """plan with edits/NAME/overrides.json applied. Idempotent: applying to an already applied plan
     changes nothing, so it is safe after plan.py and again on the preview server."""
@@ -108,6 +111,9 @@ def apply_overrides(plan, edit_dir, plan_name=None):
             else:
                 c[k] = v
         c["override"] = key
+    gone = [float(k) for k, o in (ov.get("zooms") or {}).items() if (o or {}).get("deleted")]   # "no zoom here" (plan.py beat zoom@T --drop)
+    if gone:
+        plan["zooms"] = [z for z in plan.get("zooms") or [] if not any(abs(z["start"] - t) < ZOOM_MATCH_S for t in gone)]
     words = ov.get("words") or {}
     if words:
         for ch in plan["captions"]["chunks"]:
@@ -391,6 +397,11 @@ def demo():
     again = apply_overrides(json.loads(json.dumps(got)), d, "plan.json")
     assert again == got, "apply_overrides must be idempotent"
     assert apply_overrides(base(), d, "plan-split.json")["cards"][0]["start"] == 0.5   # another plan's overrides stay out
+    dz = Path(tempfile.mkdtemp())   # "no zoom here": a re-planned zoom a little off its old start stays out
+    (dz / "overrides.json").write_text(json.dumps({"zooms": {"7.180": {"deleted": True}}}), encoding="utf-8")
+    zs = apply_overrides({**base(), "zooms": [{"start": 0.0, "end": 3.6}, {"start": 7.3, "end": 10.9}]}, dz)["zooms"]
+    assert zs == [{"start": 0.0, "end": 3.6}], zs
+    shutil.rmtree(dz)
     s = Session(d, "plan.json")
     (d / "plan.json").write_text(json.dumps(base()), encoding="utf-8")
     s.change({"kind": "word", "key": "0.400", "from": "is", "to": "was", "action": "fix", "text": "caption 'is' -> 'was'"})

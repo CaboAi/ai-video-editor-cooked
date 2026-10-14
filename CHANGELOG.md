@@ -15,6 +15,14 @@ What changed for every user, newest first.
   3 MB) from any finished edit, for new samples and styles built here. It skips blinks and half-shut eyes
   (the face finder's eye points, judged against the speaker's own usual openness) and prefers a built card
   to a lone logo. Creator styles keep the creator's account picture.
+- Easier to change an edit. Click a card, caption, title or zoom on the video, or select words in the
+  transcript, and the note starts with what it is ("Card at 0:04: the tiktok.com page on "reels"."), timed to it.
+- Each draft shows "Changed in this draft": every note with Claude's one-line answer, then everything else that
+  changed (cards swapped, removed or resized, zooms, caption words and size, the title, the music, words cut or
+  put back). Click a line to jump there.
+- The Drafts tab plays any draft at the same moment, compares two side by side, and goes back to an earlier draft
+  in one click: its files and video return as a new draft, with no wait for Claude.
+- "No zoom here" stays fixed when the edit is planned again, and a draft no longer opens with its notes unanswered.
 
 ## ai-editor 2.7.6, creator-teardown 2.7.6 (2026-10-14)
 

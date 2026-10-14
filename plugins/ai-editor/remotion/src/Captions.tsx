@@ -160,7 +160,10 @@ export const Captions: React.FC<{ style: CaptionStyle; chunks: Chunk[]; t: numbe
   const lightFamily = useFamily(style.light_font ?? style.font_match, 400);
   const chunk = chunks.find((c) => t >= c.start && t < c.end);
   // the band stays down across a short gap between pages, so it never flashes on and off between words
-  const near = chunk ?? chunks.find((c) => c.treat === "band" && t >= c.start - BAND_HOLD_S && t < c.end + BAND_HOLD_S);
+  // the nearest page, not the first in range: an earlier page about to drop out would fade the band for a frame
+  const gap = (c: Chunk) => Math.max(c.start - t, t - c.end);
+  const near = chunk ?? chunks.filter((c) => c.treat === "band" && t >= c.start - BAND_HOLD_S && t < c.end + BAND_HOLD_S)
+    .sort((a, b) => gap(a) - gap(b))[0];
   if (!family || !lightFamily || !near || style.present === false) return null;
   // size_pct is measured on vertical video, where height is the long side; the long side keeps a 16:9
   // render as readable on a phone as a vertical one.

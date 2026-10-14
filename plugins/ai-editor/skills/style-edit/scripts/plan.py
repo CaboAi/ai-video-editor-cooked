@@ -654,7 +654,7 @@ def text_items(visuals, words, duration, cards, face=None, cap_y=66.0):
                 continue
             start = max(0.0, t - CARD_LEAD_S) if t else 0.0
             x = {"kind": "title", "text": v["text"], "start": round(start, 3), "end": round(min(duration, start + (v.get("hold_s") or TITLE_HOLD_S)), 3),
-                 "y_pct": 0, "size_pct": TITLE_SIZE}
+                 "y_pct": 0, "size_pct": v.get("size_pct") or TITLE_SIZE}
             x["y_pct"] = round(TITLE_BOTTOM - title_bottom(x), 1)
             out.append(x)
         elif k == "cta" and v.get("text") and v.get("word"):
@@ -3437,7 +3437,7 @@ def beat_cmd(argv):
     ap = argparse.ArgumentParser(prog="plan.py cards|beat")
     ap.add_argument("cmd", choices=["cards", "beat"])
     ap.add_argument("edit")
-    ap.add_argument("ref", nargs="?", help="card:3, 0:15 or 15.4s, word or word@2")
+    ap.add_argument("ref", nargs="?", help="card:3, 0:15 or 15.4s, word or word@2; zoom@7.2 with --drop: no zoom there")
     ap.add_argument("sets", nargs="*", help="key=value (JSON, or plain text); props.label=x sets inside; key=null removes")
     ap.add_argument("--drop", action="store_true", help="remove the beat")
     ap.add_argument("--add", nargs="+", metavar="FILE", help="beats (a JSON list, e.g. a template-filler's) into visuals.json in spoken order")
@@ -3470,6 +3470,17 @@ def beat_cmd(argv):
                 vis.insert(k, b)
                 changed.append(f"added {b.get('kind')} {b.get('type') or b.get('brand') or ''} on '{b.get('word')}'".replace("  ", " "))
         (edit / "visuals.json").write_text(json.dumps(vis, indent=1), encoding="utf-8")
+    elif a.ref and a.ref.startswith("zoom@") and a.drop:   # "no zoom here": kept in overrides.json, so every re-plan keeps it out
+        mm, _, sec = a.ref[5:].rstrip("s").rpartition(":")
+        t = (int(mm) * 60 if mm else 0) + float(sec)
+        z = min(plan.get("zooms") or [], key=lambda z: 0 if z["start"] <= t < z["end"] else min(abs(z["start"] - t), abs(z["end"] - t)), default=None)
+        if z is None or not (z["start"] - 1.5 <= t < z["end"] + 1.5):
+            sys.exit(f"no zoom at {a.ref[5:]}: plan.json has " + (", ".join(f"{x['start']:.1f}-{x['end']:.1f}s" for x in plan.get("zooms") or []) or "none"))
+        f = edit / "overrides.json"
+        ov = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+        ov.setdefault("zooms", {})[f"{z['start']:.3f}"] = {"deleted": True}
+        f.write_text(json.dumps(ov, indent=1), encoding="utf-8")
+        changed.append(f"dropped the zoom {z['start']:.1f}-{z['end']:.1f}s (overrides.json)")
     elif a.ref:
         hits = find_beats(a.ref, plan, words, sources)
         if not hits:

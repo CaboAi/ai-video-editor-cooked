@@ -23,6 +23,9 @@ product video). Notes save with the edit, never in the plugin:
                                      fills the page's "Making the edit" bar (the scripts report their own, step())
     python3 review.py <folder> resolve <id> fixed|wontfix|open [--reply "..."] [--new-t 12.3]
     python3 review.py <folder> round --video v2.mp4 [--stage cut|edit] [--transcript ..] [--plan ..] [--note ".."]
+                                     [--changed "Captions one size smaller" ...]   anything changed beyond the notes
+    python3 review.py <folder> back <n>             "Go back to draft N" (the Drafts tab does the same): that round's files
+                                     (review/snap-<stage><n>/) and its render return as a new round
     python3 review.py <folder> alt <name> --video other.mp4 [--transcript ..]   another video in this round
     python3 review.py <folder> learn --scope this-style|style|video|everyone --rule <id> <section> "<rule>" [key=value] ...
                                      the round's preference notes into the user's taste (taste.py add); --none if
@@ -47,6 +50,11 @@ Every round also rewrites <folder>/timings.json: each stage's real time (the cut
 the stills, the stills check, the render) from the home job and review.json, and once the edit is back the line
 the page shows under it, "Made in 6 min (cut 3:10, edit 1:40, render 0:52)". `round --stills` starts the laptop
 render in the background (edit.py render --speculative); notes sent on the stills, or Stop, end it.
+Every round snapshots the edit's own files (top-level .json/.txt under 2 MB, .sfx/music.wav and the card files plan.json shows) into
+review/snap-<stage><round>/, so the page can show what changed ("Changed in this draft": the notes Claude answered,
+then cards, zooms, captions, title, music and cut words that differ from the round before, plus each --changed line)
+and go back to any round. On the edit, a click on a card, caption, title or zoom on the frame starts a note naming it
+(the round's data "items"), and `wait` prints what is on screen at each note ([caption '...'], [zoom ...]).
 Each round also gets review/data-<stage><round>.json for the page, built from the edit folder when
 the files are there: the cut's transcript with every cut word and pause struck (decisions.json +
 words.raw.json), the timeline's segments (cut points, or chapters.txt on the edit), and the edit's
@@ -72,6 +80,7 @@ the notes or press send.
 import argparse
 import base64
 import contextlib
+import difflib
 import hashlib
 import hmac
 import io
@@ -266,8 +275,9 @@ def upgrade_transcript(folder, p):
         pass
 
 
-def round_data(folder, video, stage, rnd, plan):
-    """review/data-<stage><round>.json: what the page draws beside the video. Every part optional."""
+def round_data(folder, video, stage, rnd, plan, prev=None):
+    """review/data-<stage><round>.json: what the page draws beside the video. Every part optional.
+    prev: the round before on this stage ({"data", "snap"}), for "Changed in this round" (changes)."""
     dur = duration(video)
     d = {"duration": dur}
     tx = cut_transcript(folder, dur)
@@ -285,9 +295,241 @@ def round_data(folder, video, stage, rnd, plan):
         span = lambda xs: [[round(x["start"], 2), round(x["end"], 2)] for x in xs or [] if "start" in x and "end" in x]
         d["tracks"] = {"cards": span(p.get("cards")), "zooms": span(p.get("zooms")),
                        "captions": span((p.get("captions") or {}).get("chunks"))}
+        d["items"] = screen_items(folder, p)
+    if prev:
+        old = data_of(folder, prev.get("data"))
+        if stage == "cut":
+            d["changes"] = cut_changes(old.get("transcript"), d.get("transcript"))
+        else:
+            d["changes"] = plan_changes(snap_file(folder, prev.get("snap"), "plan.json"), p,
+                                        music=snap_sha(folder, prev.get("snap")) != music_sha(folder))
+        if old.get("duration") and dur and abs(old["duration"] - dur) >= 0.1:
+            d["changes"].append({"t": None, "text": f"{abs(old['duration'] - dur):.1f} s {'shorter' if dur < old['duration'] else 'longer'}"})
     name = f"data-{stage}{rnd}.json"
     (folder / "review" / name).write_text(json.dumps(d), encoding="utf-8")
     return name
+
+
+def _host(url):
+    return re.sub(r"^www\.", "", urlsplit(str(url)).netloc) or str(url)
+
+
+def screen_items(folder, p):
+    """What the page can click on the frame, from plan.json: each card's box and what it shows ("the github.com page"),
+    the caption chunks and where captions sit, the zooms and the title texts. Boxes are % of the frame."""
+    names = {}   # a card's src, or its word, -> what it shows (images.json / visuals.json)
+    for f in ("images.json", "visuals.json"):
+        try:
+            xs = load(folder / f)
+        except (OSError, ValueError):
+            continue
+        for x in xs if isinstance(xs, list) else []:
+            if not isinstance(x, dict):
+                continue
+            what = (f"the {x['brand']} logo" if x.get("brand") else f"the {_host(x['url'])} page" if x.get("url")
+                    else f"the {x['type']} animation" if x.get("kind") == "anim" and x.get("type") else None)
+            if what and x.get("src"):
+                names.setdefault(x["src"], what)
+            if what and x.get("word"):
+                names.setdefault(str(x["word"]).lower(), what)
+    cards = []
+    for i, c in enumerate(p.get("cards") or []):
+        if "start" not in c or "end" not in c:
+            continue
+        w, an = (c.get("trigger_word") or "").strip(), c.get("anim") or {}
+        what = (names.get(c.get("src")) or ("the motion clip" if an.get("type") == "video_card" else f"the {an['type']} animation" if an.get("type") else None)
+                or names.get(w.lower()) or (f"the {c['format']}" if c.get("format") in ("logo", "browser", "post") else "the picture"))
+        box = c.get("box") if isinstance(c.get("box"), list) and len(c["box"]) == 4 else [0, 0, 100, 50] if c.get("layout") == "split" else [0, 0, 100, 100]
+        cards.append({"i": i, "s": round(c["start"], 2), "e": round(c["end"], 2), "box": [round(float(v), 1) for v in box],
+                      "label": what + (f' on "{w}"' if w else "")})
+    cap = (p.get("captions") or {}).get("style") or {}
+    size = float(cap.get("size_pct") or 6) * max(p.get("width") or 1, p.get("height") or 1) / (p.get("height") or 1)
+    texts = []
+    for x in p.get("texts") or []:   # Texts.tsx: a title or cta across the middle 74%, a list from its x_pct
+        if "start" not in x or "end" not in x:
+            continue
+        items = [str(i.get("text") or "") for i in x.get("items") or [] if isinstance(i, dict)]
+        text = ", ".join(items) if items else str(x.get("text") or "")
+        lines = len(items) if items else 1 + text.count("\n")
+        size = float(x.get("size_pct") or 4) * (2 if items else 1.3) * max(1, lines)
+        texts.append({"s": round(x["start"], 2), "e": round(x["end"], 2), "kind": x.get("kind") or "text", "text": text,
+                      "box": [float(x.get("x_pct") or 6), float(x.get("y_pct") or 10), 60, round(size, 1)] if items
+                      else [13, float(x.get("y_pct") or 10), 74, round(size, 1)]})
+    return {"cards": cards, "texts": texts,
+            "captions": [{"s": round(x["start"], 2), "e": round(x["end"], 2), "text": str(x.get("text") or "")}
+                         for x in (p.get("captions") or {}).get("chunks") or [] if "start" in x and "end" in x],
+            "cap": None if cap.get("present") is False else {"y": float(cap.get("y_pct") or 70), "h": round(size * 2.2, 1),
+                                                               "w": float(cap.get("width_pct") or 86)},
+            "zooms": [{"s": round(z["start"], 2), "e": round(z["end"], 2)} for z in p.get("zooms") or [] if "start" in z and "end" in z]}
+
+
+SNAP_MAX = 2 << 20   # a snapshot keeps the edit's small files; a bigger one is media, never a setting
+
+
+def clone(src, dst):
+    """A copy that costs no disk on a Mac (APFS clone, cp -c) until one side changes; a plain copy elsewhere."""
+    dst.unlink(missing_ok=True)
+    if sys.platform != "darwin" or subprocess.run(["cp", "-c", str(src), str(dst)], capture_output=True).returncode:
+        shutil.copyfile(src, dst)
+
+
+def snapshot(folder, stage, rnd):
+    """review/snap-<stage><round>/: the edit's own files as this round was made (every top-level .json and .txt under
+    2 MB, and the music bed), so "Go back to round N" can put them back. The render is the round's kept video."""
+    dst = folder / "review" / f"snap-{stage}{rnd}"
+    shutil.rmtree(dst, ignore_errors=True)
+    dst.mkdir(parents=True)
+    for f in folder.iterdir():
+        if f.is_file() and f.suffix in (".json", ".txt") and f.name != "review.json" and f.stat().st_size <= SNAP_MAX:
+            clone(f, dst / f.name)
+    if (folder / ".sfx" / "music.wav").is_file():
+        clone(folder / ".sfx" / "music.wav", dst / "music.wav")
+    try:   # the pictures and clips the plan shows: a fix can rebuild one in place (a motion clip, a capture)
+        p = load(folder / "plan.json")
+    except (OSError, ValueError):
+        p = {}
+    for c in p.get("cards") or [] if isinstance(p, dict) else []:
+        for rel in (c.get("src"), ((c.get("anim") or {}).get("props") or {}).get("src")):
+            f = folder / str(rel or "-")
+            if rel and f.is_file() and folder.resolve() in f.resolve().parents:
+                (dst / "files" / rel).parent.mkdir(parents=True, exist_ok=True)
+                clone(f, dst / "files" / rel)
+    return dst.name
+
+
+def snap_file(folder, snap, name):
+    try:
+        return load(folder / "review" / Path(snap).name / name) if snap else None
+    except (OSError, ValueError):
+        return None
+
+
+def music_sha(folder, f=None):
+    f = f or folder / ".sfx" / "music.wav"
+    try:
+        return hashlib.sha1(f.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def snap_sha(folder, snap):
+    return music_sha(folder, folder / "review" / Path(snap).name / "music.wav") if snap else music_sha(folder)
+
+
+def _said(w):
+    w = (w or "").strip()
+    return f' on "{w}"' if w else ""
+
+
+def plan_changes(a, b, music=False):
+    """What changed between two plan.json: cards swapped, removed, added, bigger, moved or retimed; zooms; the
+    caption look and words; the title; the music. [{"t": seconds or None, "text"}], in time order."""
+    if not isinstance(a, dict) or not isinstance(b, dict):
+        return []
+    out = []
+    key = lambda c: (c.get("src") or (c.get("anim") or {}).get("type") or c.get("format") or "card", (c.get("trigger_word") or "").strip().lower())
+    A = {key(c): c for c in a.get("cards") or [] if "start" in c}
+    B = {key(c): c for c in b.get("cards") or [] if "start" in c}
+    gone, new = [c for k, c in A.items() if k not in B], [c for k, c in B.items() if k not in A]
+    for c in list(new):   # the same word, another picture: a swap
+        o = next((g for g in gone if key(g)[1] and key(g)[1] == key(c)[1]), None)
+        if o:
+            gone.remove(o)
+            new.remove(c)
+            out.append((c["start"], "Swapped the card" + _said(c.get("trigger_word"))))
+    out += [(c["start"], "Removed the card" + _said(c.get("trigger_word"))) for c in gone]
+    out += [(c["start"], "Added a card" + _said(c.get("trigger_word"))) for c in new]
+    area = lambda c: (c.get("box") or [0, 0, 100, 100])[2] * (c.get("box") or [0, 0, 100, 100])[3]
+    px = lambda c: (lambda z: z[0] * z[1] if isinstance(z, list) and len(z) == 2 else 0)(c.get("size") or ((c.get("anim") or {}).get("props") or {}).get("size"))
+    shows = lambda c: ((c.get("props") or {}).get("url"), c.get("format"), ((c.get("anim") or {}).get("props") or {}).get("motion"))
+    grew = lambda f, x, y: f(x) and f(y) and abs(f(y) - f(x)) > 0.05 * f(x)
+    for k in A.keys() & B.keys():
+        x, y, w = A[k], B[k], _said(B[k].get("trigger_word"))
+        if shows(x) != shows(y):   # the same file name, another page or clip in it
+            out.append((y["start"], "Swapped the card" + w))
+        elif grew(area, x, y) or grew(px, x, y):   # the box on the frame, else the picture inside it
+            big = area(y) > area(x) if grew(area, x, y) else px(y) > px(x)
+            out.append((y["start"], f"Made the card{w} {'bigger' if big else 'smaller'}"))
+        elif x.get("box") != y.get("box"):
+            out.append((y["start"], f"Moved the card{w}"))
+        elif abs(x["start"] - y["start"]) >= 0.05 or abs(x.get("end", 0) - y.get("end", 0)) >= 0.05:
+            out.append((y["start"], f"Retimed the card{w}"))
+        elif x != y:
+            out.append((y["start"], f"Changed the card{w}"))
+    za = {round(z["start"], 1): z for z in a.get("zooms") or [] if "start" in z}
+    zb = {round(z["start"], 1): z for z in b.get("zooms") or [] if "start" in z}
+    out += [(t, f"Removed the zoom at {fmt(t)}") for t in za.keys() - zb.keys()]
+    out += [(t, f"Added a zoom at {fmt(t)}") for t in zb.keys() - za.keys()]
+    out += [(t, f"Zoom at {fmt(t)} {'stronger' if zb[t].get('scale', 1) > za[t].get('scale', 1) else 'softer'}")
+            for t in za.keys() & zb.keys() if abs(zb[t].get("scale", 1) - za[t].get("scale", 1)) >= 0.01]
+    ca, cb = a.get("captions") or {}, b.get("captions") or {}
+    sa, sb = ca.get("style") or {}, cb.get("style") or {}
+    if (sa.get("size_pct") or 0) != (sb.get("size_pct") or 0) and sa.get("size_pct") and sb.get("size_pct"):
+        out.append((None, f"Captions {'bigger' if sb['size_pct'] > sa['size_pct'] else 'smaller'}"))
+    rest = sorted(k for k in sa.keys() | sb.keys() if k != "size_pct" and sa.get(k) != sb.get(k))
+    if rest:
+        out.append((None, "Caption look changed: " + ", ".join(k.replace("_pct", "").replace("_", " ") for k in rest[:4])))
+    # the caption words in order, both rounds: a word fixed reads differently, words cut or put back go or come
+    # (by order, not time: a cut moves every later caption)
+    def cwords(cap):
+        out_ = []
+        for ch in cap.get("chunks") or []:
+            ws = ch.get("words") or [{"text": w, "start": ch.get("start", 0)} for w in str(ch.get("text", "")).split()]
+            out_ += [(str(w.get("text", "")).strip(), w.get("start", ch.get("start", 0))) for w in ws if str(w.get("text", "")).strip()]
+        return out_
+    wa, wb = cwords(ca), cwords(cb)
+    norm = lambda ws: [re.sub(r"[^\w']", "", w) for w, _ in ws]   # "song" -> "SONG" is a fix; "reels." -> "reels" is not
+    say = lambda ws: " ".join(w for w, _ in ws[:6]) + (" ..." if len(ws) > 6 else "")
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, norm(wa), norm(wb), autojunk=False).get_opcodes():
+        if op == "replace":
+            out.append((wb[j1][1], f'Caption now reads "{say(wb[j1:j2])}"'))
+        elif op == "insert":
+            out.append((wb[j1][1], f'Put back "{say(wb[j1:j2])}"'))
+        elif op == "delete":
+            out.append((wb[j1][1] if j1 < len(wb) else wa[i1][1], f'Cut "{say(wa[i1:i2])}"'))
+    xa, xb = a.get("texts") or [], b.get("texts") or []
+    for i in range(max(len(xa), len(xb))):
+        x, y = (xa[i] if i < len(xa) else None), (xb[i] if i < len(xb) else None)
+        kind = ((y or x).get("kind") or "text").capitalize()
+        if x and not y:
+            out.append((x.get("start"), f"Removed the {kind.lower()}"))
+        elif y and not x:
+            out.append((y.get("start"), f'Added a {kind.lower()}: "{y.get("text", "")}"'))
+        elif str(x.get("text", "")).split() != str(y.get("text", "")).split():
+            out.append((y.get("start"), f'{kind} now reads "{y.get("text", "")}"'))
+        elif (y.get("size_pct") or 0) != (x.get("size_pct") or 0) and x.get("size_pct") and y.get("size_pct"):
+            out.append((y.get("start"), f"{kind} {'bigger' if y['size_pct'] > x['size_pct'] else 'smaller'}"))
+        elif x != y:
+            out.append((y.get("start"), f"Changed the {kind.lower()}"))
+    if ("music" in a) != ("music" in b):
+        out.append((None, "Added music" if "music" in b else "Removed the music"))
+    elif music and "music" in b:
+        out.append((None, "Changed the music"))
+    out = [{"t": None if t is None else round(t, 2), "text": x.replace("\n", " ")} for t, x in out]
+    return sorted(out, key=lambda c: (c["t"] is not None, c["t"] or 0))
+
+
+def cut_changes(old, new):
+    """Words the new cut takes out or puts back against the round before (both cut transcripts come from words.raw.json,
+    so word n is the same word). [{"t", "text"}]; nothing when the two cannot be lined up."""
+    flat = lambda tx: [x for ln in tx["lines"] for x in ln["tokens"] if "w" in x]
+    if not old or not new or len(flat(old)) != len(flat(new)):
+        return []
+    a, b, out, k = flat(old), flat(new), [], 0
+    while k < len(b):
+        was, now = a[k].get("t") is not None, b[k].get("t") is not None
+        if was == now:
+            k += 1
+            continue
+        j = k
+        while j + 1 < len(b) and (a[j + 1].get("t") is not None) == was and (b[j + 1].get("t") is not None) == now:
+            j += 1
+        words = [x["w"] for x in b[k:j + 1]]
+        said = " ".join(words[:6]) + (" ..." if len(words) > 6 else "")
+        t = b[k]["t"] if now else next((x["t"] for x in b[j + 1:] if x.get("t") is not None), None)
+        out.append({"t": t, "text": f'{"Put back" if now else "Cut"} "{said}"'})
+        k = j + 1
+    return out
 
 
 def words_of(transcript):
@@ -314,6 +556,21 @@ def card_at(plan, t):
             return {"i": i, "kind": kind, "trigger_word": c.get("trigger_word"), "src": c.get("src"),
                     "start": c["start"], "end": c["end"]}
     return None
+
+
+def on_screen(plan, t):
+    """For `wait`: the caption, title and zoom on screen at t (the card is card_at's), so a note like "this word is
+    wrong" or "no zoom here" names what it is about."""
+    try:
+        p = load(plan)
+    except (OSError, ValueError, TypeError):
+        return ""
+    at = lambda xs: next((x for x in xs or [] if x.get("start", 0) <= t < x.get("end", 0)), None)
+    cap, z = at((p.get("captions") or {}).get("chunks")), at(p.get("zooms"))
+    tx = [x for x in p.get("texts") or [] if x.get("start", 0) <= t < x.get("end", 0)]
+    return ("".join(f" [{x.get('kind') or 'text'} '{str(x.get('text') or '').replace(chr(10), ' ')}']" for x in tx)
+            + (f" [caption '{cap.get('text', '')}']" if cap else "") + (f" [zoom {z.get('start', 0):.1f}-{z.get('end', 0):.1f}s]" if z else "")
+            + (" [music on]" if p.get("music") else ""))
 
 
 def grab(video, t, out):
@@ -515,7 +772,8 @@ def log_round(d):
     """Every round's video is kept, so the page has a tab per round."""
     rs = [r for r in d.setdefault("rounds", []) if (r["stage"], r["round"]) != (d["stage"], d["round"])]
     old = next((r for r in d["rounds"] if (r["stage"], r["round"]) == (d["stage"], d["round"])), {})
-    d["rounds"] = rs + [{**{k: d.get(k) for k in ("stage", "round", "video", "note", "label", "alts", "data", "stills")},
+    d["rounds"] = rs + [{**{k: d.get(k) for k in ("stage", "round", "video", "note", "label", "alts", "data", "stills",
+                                                       "snap", "src", "changed", "back_to")},
                          "at": old.get("at") or now()}]
 
 
@@ -946,6 +1204,12 @@ def make_handler(folder, token):
                     except (TypeError, ValueError):
                         return self.send(400, {"error": "remove takes an index"})
                 return self.send(200, {"items": assets.add(folder, body.get("add") if isinstance(body.get("add"), list) else [])})
+            if path == "/back":   # the Rounds tab's "Go back to round N"
+                try:
+                    d = go_back(folder, int(body.get("round")))
+                except (TypeError, ValueError) as e:
+                    return self.send(409, {"error": str(e) or "cannot go back"})
+                return self.send(200, {"round": d["round"]})
             if path == "/comment":
                 return self.comment(body)
             if path == "/edit":
@@ -1253,9 +1517,7 @@ def keep(folder, video, stage, rnd, name=None):
         # A Mac clones on APFS (cp -c: no extra disk until one side changes, and a rewrite of the cut
         # never reaches the clone); anything else, or a cp -c refused off APFS, copies.
         # ponytail: Linux btrfs/xfs could reflink with cp --reflink=auto if disk use matters there
-        dst.unlink(missing_ok=True)
-        if sys.platform != "darwin" or subprocess.run(["cp", "-c", str(src), str(dst)], capture_output=True).returncode:
-            shutil.copyfile(src, dst)
+        clone(src, dst)
     return str(dst)
 
 
@@ -1280,6 +1542,8 @@ def cmd_start(a, folder):
         d["events"].append({"type": "send", "stage": d["stage"], "round": 0, "at": now(), "handled": True, "raw": True})
     # the raw clip is a source, never rewritten: played where it is, not copied (it can be gigabytes)
     d["video"] = d["video"] if raw else keep(folder, a.video, d["stage"], d["round"])
+    d.update(src=None if raw else str(Path(a.video).resolve()), snap=None if raw else snapshot(folder, d["stage"], d["round"]),
+             changed=list(getattr(a, "changed", None) or []), back_to=None)
     d["data"] = round_data(folder, d["video"], d["stage"], d["round"], d["plan"])
     log_round(d)
     save(rj, d)
@@ -1295,32 +1559,35 @@ def cmd_start(a, folder):
     print(f"{rj}: {stage_name(d['stage'], d.get('stills'))}, round {d['round']}")
 
 
-def cmd_round(a, folder):
-    d0 = load(folder / "review.json")
-    if a.stage == "edit" and d0["stage"] == "cut" and d0.get("stopped"):
-        print(f"STOPPED: the user pressed Stop on the page at {d0['stopped']}, which took the cut's approve back. "
-              f"Do not open the edit: say so in one line and run `wait` again.")
-        sys.exit(3)
-    if d0.get("stopped"):
-        sys.exit("STOPPED: the user pressed Stop on the page. Do not open a round; run `wait` for their next send.")
-
+def open_round(folder, video, stage=None, transcript=None, plan=None, note="", stills=False, name=None, changed=(),
+               back_to=None, src=None, check=None):
+    """The next round: the new render kept, the edit's files snapshotted, notes queued meanwhile moved onto it.
+    check(d) runs under the lock first and may refuse (raise ValueError) before anything changes."""
     def f(d):
-        if a.stage and a.stage != d["stage"]:
-            d["stage"], d["round"] = a.stage, 1
+        if check:
+            check(d)
+        prev = None if stage and stage != d["stage"] else next(
+            (r for r in d.get("rounds", []) if (r["stage"], r["round"]) == (d["stage"], d["round"])), None)
+        if stage and stage != d["stage"]:
+            d["stage"], d["round"] = stage, 1
         else:
             d["round"] += 1
-        d["video"] = keep(folder, a.video, d["stage"], d["round"])
-        d["vertical"] = probe(a.video)
-        if a.transcript:
-            d["transcript"] = str(Path(a.transcript).resolve())
-        if a.plan:
-            d["plan"] = str(Path(a.plan).resolve())
-        d["note"], d["sent"], d["alts"] = a.note or "", False, []   # versions belong to a round: add them again
-        d["stills"] = bool(getattr(a, "stills", False))   # the stills (edit.py storyboard) before the render
-        d["label"] = a.name or d.get("label")
+        d["video"] = keep(folder, video, d["stage"], d["round"])
+        d["vertical"] = probe(video)
+        if transcript:
+            d["transcript"] = str(Path(transcript).resolve())
+        if plan:
+            d["plan"] = str(Path(plan).resolve())
+        d["note"], d["sent"], d["alts"] = note or "", False, []   # versions belong to a round: add them again
+        d["stills"] = bool(stills)   # the stills (edit.py storyboard) before the render
+        d["label"] = name or d.get("label")
+        own = (folder / "review").resolve() in Path(video).resolve().parents   # a kept round's copy: never written back to
+        d.update(src=src or (None if own else str(Path(video).resolve())), snap=snapshot(folder, d["stage"], d["round"]),
+                 changed=[str(x) for x in changed or []], back_to=back_to)
         old = data_of(folder, d.get("data"))
         raw = d.pop("raw", False)
-        d["data"] = round_data(folder, d["video"], d["stage"], d["round"], d.get("plan"))
+        d["data"] = round_data(folder, d["video"], d["stage"], d["round"], d.get("plan"),
+                               prev=prev if prev and prev.get("round") and not raw else None)
         new = data_of(folder, d["data"])
         for c in d["comments"]:   # notes queued while Claude worked open on this round, where their words are said
             if c.pop("queued", None):
@@ -1336,11 +1603,11 @@ def cmd_round(a, folder):
                 if c["t_end"] is not None:
                     c["t_end"] = round(c["t_end"] + nt - c["t"], 2)
                 c.update(round=d["round"], stage=d["stage"], t=nt, frame=f"r{d['stage']}{d['round']}-c{c['id']}.jpg")
-                src = alt_of(d, c["alt"] if c["alt"] != "*" else None)
+                src_ = alt_of(d, c["alt"] if c["alt"] != "*" else None)
                 if c["alt"] not in (None, "*"):   # versions belong to a round: its version is gone, so the main video
-                    c["alt"], src = None, alt_of(d, None)
-                grab(src["video"], nt, folder / "review" / c["frame"])
-                c["words"] = words_at(src.get("transcript"), nt, c["t_end"] if c["t_end"] is not None else nt)
+                    c["alt"], src_ = None, alt_of(d, None)
+                grab(src_["video"], nt, folder / "review" / c["frame"])
+                c["words"] = words_at(src_.get("transcript"), nt, c["t_end"] if c["t_end"] is not None else nt)
                 c["card"] = card_at(d.get("plan"), nt) if d["stage"] == "edit" else None
         d.pop("stopped", None)
         for x in d.get("activity", []):
@@ -1349,6 +1616,29 @@ def cmd_round(a, folder):
         return d
     d = update(folder / "review.json", f)
     seen(folder)
+    return d
+
+
+def cmd_round(a, folder):
+    d0 = load(folder / "review.json")
+    if a.stage == "edit" and d0["stage"] == "cut" and d0.get("stopped"):
+        print(f"STOPPED: the user pressed Stop on the page at {d0['stopped']}, which took the cut's approve back. "
+              f"Do not open the edit: say so in one line and run `wait` again.")
+        sys.exit(3)
+    if d0.get("stopped"):
+        sys.exit("STOPPED: the user pressed Stop on the page. Do not open a round; run `wait` for their next send.")
+    if d0.get("sent") and getattr(a, "stage", None) in (None, d0["stage"]):
+        unanswered = [c for c in d0["comments"] if (c["stage"], c["round"]) == (d0["stage"], d0["round"])
+                      and c["status"] == "open" and not c.get("reply") and not c.get("queued")]
+        if unanswered:   # the page shows each note done with its reply: a round with silent notes reads as ignored
+            q = shlex.quote(str(Path(__file__).resolve()))
+            sys.exit("REFUSED: answer every note of this round first, one line each on what you did, then run this `round` "
+                     "again (the render is kept):\n" + "\n".join(
+                         f"  python3 {q} {shlex.quote(str(folder))} resolve {c['id']} fixed --reply \"<what you changed>\"   "
+                         f"# {c['text'][:60]}" for c in unanswered)
+                     + "\n  (wontfix --reply \"<why>\" when you left it as is)")
+    d = open_round(folder, a.video, a.stage, a.transcript, a.plan, a.note, getattr(a, "stills", False), a.name,
+                   getattr(a, "changed", None))
     still = [str(c["id"]) for c in d["comments"]
              if c["status"] == "open" and c["stage"] == d["stage"] and c["round"] < d["round"]]
     print(f"{stage_name(d['stage'], d.get('stills'))}, round {d['round']}" + (f"; still open: {', '.join(still)}" if still else ""))
@@ -1362,6 +1652,38 @@ def cmd_round(a, folder):
     noted(folder)
     if not running(folder):
         print("the page is not running: start it with `serve`")
+
+
+def go_back(folder, n):
+    """"Go back to draft N": that round's files (its snapshot) and its render return, as a new round of the same stage.
+    The open round's unsent notes move onto it. ValueError says why it cannot."""
+    d0 = load(folder / "review.json")
+    r = next((r for r in d0.get("rounds", []) if (r["stage"], r["round"]) == (d0["stage"], n)), None)
+    if not r or n < 1 or r.get("stills") or n == d0["round"]:
+        raise ValueError(f"no round {n} to go back to")
+    snap = folder / "review" / Path(r.get("snap") or "-").name
+    if not r.get("snap") or not snap.is_dir() or not Path(r["video"]).is_file():
+        raise ValueError("this round was made before rounds could be restored")
+
+    def check(d):   # under the lock: Claude may have taken the round meanwhile
+        if d.get("sent") or d.get("raw") or d.get("stopped"):
+            raise ValueError("Claude has this round" if d.get("sent") else "this round cannot go back now")
+        for c in d["comments"]:   # the open round's notes go with the user onto the restored round
+            if c["stage"] == d["stage"] and c["round"] == d["round"] and c["status"] == "open":
+                c["queued"] = True
+        for f in snap.rglob("*"):   # the files come back before the new round snapshots them
+            if f.is_file():
+                rel = f.relative_to(snap)
+                out_ = folder / ".sfx" / "music.wav" if rel.name == "music.wav" and len(rel.parts) == 1 else \
+                    folder / Path(*rel.parts[1:]) if rel.parts[0] == "files" else folder / rel
+                out_.parent.mkdir(parents=True, exist_ok=True)
+                clone(f, out_)
+        out = Path(r.get("src") or "-")
+        if r.get("src") and folder.resolve() in out.resolve().parents and (folder / "review").resolve() not in out.resolve().parents:
+            # the render the next fix starts from (cut.mp4, render.mp4)
+            clone(Path(r["video"]), out)
+        d["events"].append({"type": "back", "stage": d["stage"], "round": d["round"] + 1, "to": n, "at": now(), "handled": True})
+    return open_round(folder, r["video"], note=f"Back to draft {n}", back_to=n, src=r.get("src"), check=check)
 
 
 def cmd_resolve(a, folder):
@@ -1696,12 +2018,16 @@ def cmd_wait(folder, poll=1.0):
           f"{len(cs)} note{'' if len(cs) == 1 else 's'}. video {r['video']}")
     for x in r.get("alts") or []:
         print(f"  also {x['name']}: {x['video']}")
+    if r.get("back_to"):
+        print(f"  this round is round {r['back_to']} again: the user pressed Go back, which put that round's files "
+              f"(plan.json, spans.json, visuals.json, ...) and its render back. Fix from these files.")
     for c in cs:
         span = fmt(c["t"]) + (f"-{fmt(c['t_end'])}" if c["t_end"] is not None else "")
         ver = " [all videos]" if c.get("alt") == "*" else f" [{c['alt']}]" if c.get("alt") else (
             f" [{r.get('label') or 'main'}]" if r.get("alts") else "")
         k = c.get("card")
         card = f" [card {k['i']} {k['kind']} '{k['trigger_word'] or ''}']" if k else ""
+        card += on_screen(r.get("plan") or d.get("plan"), c["t"]) if e["stage"] == "edit" else ""
         keep = f" [keep as a rule for {style_label(folder)}]" if c.get("keep") else ""
         print(f"#{c['id']} {span} ({c['t']}s){ver}{card}: {c['text']}{keep}\n    said: \"{c['words']}\""
               f"\n    frame: {folder / 'review' / c['frame']}"
@@ -2756,6 +3082,81 @@ def demo():
     apply_edits(f, [], [[1, 1.2]])
     toks_ = [t for t in load(f / "words.raw.json") if t.get("type") in ("word", "audio_event")]
     assert load(f / "spans.json")[0]["occurrence"] == 3 and build_timeline.resolve_spans(load(f / "spans.json"), toks_)[0]["start"] == 1
+    # what changed between two rounds: the plan's cards, zooms, captions, title and music; the cut's words
+    A = {"cards": [{"src": "a.png", "trigger_word": "notion", "start": 1, "end": 2, "box": [10, 10, 40, 20]},
+                   {"src": "b.png", "trigger_word": "github", "start": 3, "end": 4},
+                   {"src": "c.png", "trigger_word": "react", "start": 5, "end": 6, "box": [0, 0, 50, 50]}],
+         "zooms": [{"start": 0.5, "end": 1.5, "scale": 1.2}], "texts": [{"kind": "title", "text": "old", "start": 0, "end": 1}],
+         "captions": {"style": {"size_pct": 4}, "chunks": [{"text": "hello wrold", "start": 0.2, "end": 0.8}]}, "music": {"src": "m"}}
+    B = json.loads(json.dumps(A))
+    B["cards"][0]["src"] = "a2.png"                       # swapped
+    del B["cards"][1]                                      # removed
+    B["cards"][1]["box"] = [0, 0, 80, 80]                  # bigger
+    B["zooms"], B["texts"][0]["text"] = [], "new"
+    B["captions"]["style"]["size_pct"], B["captions"]["chunks"][0]["text"] = 5, "hello world"
+    got = [c["text"] for c in plan_changes(A, B, music=True)]
+    for want in ('Swapped the card on "notion"', 'Removed the card on "github"', 'Made the card on "react" bigger',
+                 "Removed the zoom at 0:00.5", 'Title now reads "new"', "Captions bigger", 'Caption now reads "world"',
+                 "Changed the music"):
+        assert want in got, (want, got)
+    assert plan_changes(A, A) == [] and plan_changes(None, A) == []
+    tok = lambda w, t: {"w": w, "t": t, "s": 0, "e": 0}
+    o = {"lines": [{"t": 0, "tokens": [tok("a", 0), tok("b", 1), tok("c", None), tok("d", 2)]}]}
+    n = {"lines": [{"t": 0, "tokens": [tok("a", 0), tok("b", None), tok("c", 1), tok("d", 2)]}]}
+    assert cut_changes(o, n) == [{"t": 1, "text": 'Cut "b"'}, {"t": 1, "text": 'Put back "c"'}], cut_changes(o, n)
+    it = screen_items(tmp, {"width": 1080, "height": 1920, "cards": A["cards"] + [{"anim": {"type": "notes"}, "start": 7, "end": 8, "layout": "split"}],
+                            "captions": {"style": {"size_pct": 4, "y_pct": 66}, "chunks": A["captions"]["chunks"]}, "zooms": A["zooms"], "texts": A["texts"]})
+    assert it["cards"][0]["label"] == 'the picture on "notion"' and it["cards"][1]["box"] == [0, 0, 100, 100], it["cards"]
+    assert it["cards"][3]["label"] == "the notes animation" and it["cards"][3]["box"] == [0, 0, 100, 50]
+    assert it["cap"]["y"] == 66 and it["captions"][0]["text"] == "hello wrold" and it["zooms"] == [{"s": 0.5, "e": 1.5}]
+    # go back: round 1's files and render return as round 3; the open note moves onto it
+    gb = tmp / "edits" / "goback"
+    gb.mkdir(parents=True)
+    (gb / "plan.json").write_text(json.dumps(A), encoding="utf-8")
+    (gb / "a.png").write_text("old", encoding="utf-8")
+    shutil.copy(vid, gb / "render.mp4")
+    with contextlib.redirect_stdout(io.StringIO()):
+        cmd_start(ns(video=str(gb / "render.mp4"), stage="edit", transcript=None, plan=str(gb / "plan.json"), note=None, name=None), gb)
+        (gb / "plan.json").write_text(json.dumps(B), encoding="utf-8")
+        cmd_round(ns(video=str(gb / "render.mp4"), stage=None, transcript=None, plan=None, note=None, name=None,
+                     changed=["Captions one size bigger"]), gb)
+    d2 = load(gb / "review.json")
+    assert d2["rounds"][-1]["changed"] == ["Captions one size bigger"] and d2["rounds"][-1]["snap"] == "snap-edit2"
+    assert 'Swapped the card on "notion"' in [c["text"] for c in data_of(gb, d2["data"])["changes"]]
+    d2["comments"].append({"id": 1, "round": 2, "stage": "edit", "t": 1.0, "t_end": None, "alt": None, "text": "x", "words": "",
+                           "card": None, "frame": "f.jpg", "images": [], "status": "open", "reply": None, "new_t": None, "at": now()})
+    save(gb / "review.json", d2)
+    for bad in (2, 9):
+        try:
+            go_back(gb, bad)
+            raise AssertionError(f"went back to round {bad}")
+        except ValueError:
+            pass
+    (gb / "a.png").write_text("new", encoding="utf-8")   # round 2 rebuilt round 1's picture in place
+    d3 = go_back(gb, 1)
+    assert (gb / "a.png").read_text(encoding="utf-8") == "old", "the picture round 1 showed is back"
+    assert d3["round"] == 3 and d3["back_to"] == 1 and load(gb / "plan.json") == A, "round 1's plan is back"
+    assert d3["comments"][0]["round"] == 3 and "queued" not in d3["comments"][0], "the open note moved onto the restored round"
+    assert 'Swapped the card on "notion"' in [c["text"] for c in data_of(gb, d3["data"])["changes"]], "round 3 shows the undo"
+    assert d3["events"][-1]["type"] == "back" and Path(d3["video"]).name == "v-edit3.mp4" and Path(d3["video"]).exists()
+    update(gb / "review.json", lambda d: d.update(sent=True))
+    try:
+        go_back(gb, 2)
+        raise AssertionError("went back while Claude has the round")
+    except ValueError:
+        pass
+    # a round whose sent notes nobody answered is refused, with the resolve lines; answered, it opens
+    rnd = ns(video=str(gb / "render.mp4"), stage=None, transcript=None, plan=None, note=None, name=None, changed=None)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            cmd_round(rnd, gb)
+        raise AssertionError("opened a round over an unanswered note")
+    except SystemExit as e:
+        assert "REFUSED" in str(e) and "resolve 1 fixed" in str(e), e
+    with contextlib.redirect_stdout(io.StringIO()):
+        cmd_resolve(ns(id=1, status="fixed", reply="did it", new_t=None), gb)
+        cmd_round(rnd, gb)
+    assert load(gb / "review.json")["round"] == 4
     srv3.shutdown()
     srv3.server_close()
     srv2.shutdown()
@@ -2794,6 +3195,10 @@ def main():
     s.add_argument("--plan")
     s.add_argument("--note")
     s.add_argument("--name")
+    s.add_argument("--changed", action="append", metavar="TEXT",
+                   help='anything changed beyond the notes, one line each: "Captions one size smaller" (repeat)')
+    s = sp.add_parser("back", help="go back to an earlier round of this stage: its files and render return as a new round")
+    s.add_argument("n", type=int, metavar="ROUND")
     s = sp.add_parser("status")
     s.add_argument("text", nargs="?", default="")
     s.add_argument("--log", help="a render log; the page shows the last N/M in it as progress")
@@ -2849,6 +3254,12 @@ def main():
         cmd_round(a, folder)
     elif a.cmd == "resolve":
         cmd_resolve(a, folder)
+    elif a.cmd == "back":
+        try:
+            d = go_back(folder, a.n)
+        except ValueError as e:
+            sys.exit(str(e))
+        print(f"{stage_name(d['stage'])}, round {d['round']}: round {a.n} again")
     elif a.cmd == "alt":
         cmd_alt(a, folder)
     elif a.cmd == "status":

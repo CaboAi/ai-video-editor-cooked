@@ -148,8 +148,27 @@ Answer every note, then open the round with the new render:
 ```bash
 python3 "$R" edits/<name> resolve 1 fixed --reply "pause is 0.10 s now" --new-t 2.4
 python3 "$R" edits/<name> resolve 2 wontfix --reply "<why>" --new-t 8.0
-python3 "$R" edits/<name> round --video edits/<name>/cut.mp4
+python3 "$R" edits/<name> round --video edits/<name>/cut.mp4 --changed "Captions one size smaller"
 ```
+
+What each kind of note changes, so the fix survives the next re-plan (plan.py rewrites plan.json, so never
+hand-edit plan.json alone):
+
+| The note | Change it in | Then |
+|---|---|---|
+| a caption word is wrong | `overrides.json` `words` (preview.py), or the word in captions.json | plan, stills, render |
+| bigger / smaller captions, caption colour | the taste setting (`captions.size_pct`, ...) for this video or the style | plan, stills, render |
+| cut this pause, keep this bit, cut these words | the cut skill: spans.json / keep.json, rebuild, render, verify | style-edit again on the new cut |
+| a card: swap, remove, bigger, move | overlays skill: `plan.py beat` (visuals.json, images.json) | capture if new, plan, patch render |
+| no zoom here | `plan.py beat edits/<name> zoom@7.2 --drop` (kept in overrides.json) | plan, render |
+| quieter / louder music | `sfx.py music edits/<name> --under-db N` | plan, render |
+| a motion clip: colour, words | motion skill `note` | plan, render |
+| the title | the `title` beat in visuals.json (`plan.py beat`) | plan, render |
+
+Every `--reply` is one plain line saying what you did ("Swapped it for the notion.so page"), never "done".
+`--changed` (repeat it) lists anything you changed that no note asked for. The page shows both under
+**Changed in this draft**, with what the files themselves say changed (cards swapped, removed, added or
+bigger, zooms, caption look and words, the title, the music, cut words), each one a link to its moment.
 
 A note resolved `fixed` turns green on the next round ("Done in round N: <reply>"); `wontfix` turns grey with the reply. `--new-t` pins the note on the new render's timeline (a cut moves later moments). `wontfix` shows as
 **left as is** with the reply as the reason; the user can press **fix it anyway**, which comes back
@@ -173,6 +192,15 @@ tab follows the new round by itself; `round` never opens another.
   `round --stage edit --video edits/<name>/render.mp4 --transcript edits/<name>/words.json --plan edits/<name>/plan.json`.
   Approve there finishes the video. Stop the background `serve`.
 
+## Going back
+
+The **Drafts** tab plays any round at the same moment, compares two side by side, and has **Go back to
+this draft** on earlier rounds of the open stage. It needs no Claude: review.py puts that round's files
+back (`review/snap-<stage><n>/`: plan.json, spans.json, visuals.json and the other top-level .json/.txt, and
+`.sfx/music.wav`, and every picture and clip its plan.json shows) and its render (`cut.mp4`, `render.mp4`), and opens them as a new round, "Back to draft N".
+The user's unsent notes move onto it. The next `wait` says `this round is round N again`: fix from those
+files. In the terminal, "go back to round 2" is `python3 "$R" edits/<name> back 2`.
+
 ## Several videos in one round
 
 Both shapes of one edit, or every clip of a long video, go on one page as tabs over the player:
@@ -193,7 +221,7 @@ The cut stage shows the transcript beside the video: every word, cut words and r
 through, the line playing now highlighted (built from `decisions.json` and `words.raw.json` when they
 add up to the video). The timeline is split at the cut points, or at `chapters.txt` on the edit, and
 the edit adds Cards / Zooms / Captions tracks from `plan.json`. A missing file leaves that part out.
-**Compare** plays an earlier round (or another version) beside this one, in sync. The **Rounds** tab
+**Compare** plays an earlier round (or another version) beside this one, in sync. The **Drafts** tab
 replays every earlier render. The page follows the system's light or dark setting; the switch beside
 the help button picks one and the browser remembers it. The timeline has a pin per note, and last round's notes
 pinned where `--new-t` put them. A vertical render gets a **safe zone** button (`z`) that shades

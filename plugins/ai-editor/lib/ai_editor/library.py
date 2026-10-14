@@ -16,6 +16,7 @@ Inside: videos/ (dropped files), edits/<name>/, clips/<name>/, product/<name>/, 
 uploads, and the review page's copies of each round older than the last two. Never a source, cut.mp4,
 the render, joined.mp4 or review.json.
 """
+import filecmp
 import hashlib
 import json
 import os
@@ -119,21 +120,30 @@ def entries():
 
 
 SAMPLES = Path(__file__).resolve().parents[2] / "presets" / "styles"
+# sha256 of the cover.jpg older releases shipped with a sample (Card edit twice, 50/50 once): a seeded copy of one is
+# removed, so the sample's thumb.jpg shows instead. A cover the user picked (any other bytes) stays.
+OLD_COVERS = {"95481f6eae0efdec8eb8d6d47f771d007f33863da2505d058ed7a828e5816abe",
+              "096846c01eb101daa99cd003391d8ae47b91f710daeca5c5891fe64dd47759b3",
+              "80ebc9ce6d578891c46ebd51ac181d8e8510dd5a30f91df1dae7cce8149b27db"}
 
 
 def seed_samples(lib):
-    """The sample styles the plugin ships (presets/styles/<id>/) into <library>/creator-teardowns/<id>/, so they
-    list, pick and edit like a studied creator. style.json is kept current (the user's changes live in
-    style.overrides.json beside it); any other file (the cover) only when missing, so an image the user picked stays."""
+    """The sample styles the plugin ships (presets/styles/<id>/: style.json, thumb.jpg, thumb.json, example.mp4) into
+    <library>/creator-teardowns/<id>/, so they list, pick and edit like a studied creator. Every shipped file is kept
+    current except cover.jpg (Motion design ships its drawn board), copied only when missing so an image the user
+    picked stays; the user's other changes live beside them (style.overrides.json)."""
     for src in SAMPLES.glob("*/style.json"):
         d = Path(lib) / "creator-teardowns" / src.parent.name
         try:
             for f in src.parent.iterdir():
                 t = d / f.name
-                if t.exists() and (f.name != "style.json" or t.read_bytes() == f.read_bytes()):
+                if t.exists() and (f.name == "cover.jpg" or filecmp.cmp(f, t)):   # copy2 keeps the mtime, so this is a stat check after the first copy
                     continue
                 d.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(f, t)
+                shutil.copy2(f, t)
+            c = d / "cover.jpg"
+            if c.is_file() and hashlib.sha256(c.read_bytes()).hexdigest() in OLD_COVERS:
+                c.unlink()
         except OSError:
             pass
 

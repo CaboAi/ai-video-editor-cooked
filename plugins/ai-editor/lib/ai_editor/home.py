@@ -764,7 +764,7 @@ def style_cards(root):
         sk = skill_of(st) if sp else None   # a skill style: making a video runs that skill, no settings of ours
         fresh = sid == "mine" and not base   # My style with no creator: the defaults, nothing measured, so no facts
         out.append({"id": sid, "name": shown_name(sp), "facts": [] if sk or fresh else facts(st), "look": look(st), "base": base,
-                    "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "learned_from": vids, "made": made, "changed": changed, "cover": cover_of(root, sid), "face": face_of(root, base),
+                    "videos": st.get("videos"), "line": line, "skill": ss.name(sp), "changes": n, "learned_from": vids, "made": made, "changed": changed, "cover": cover_of(root, sid), **thumb_of(root, sid), "face": face_of(root, base),
                     "own": sid == "mine" or bool(st.get("own")),
                     "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False,
                     "sample": bool(st.get("sample")), **naming(sid, sp, base), "kind": "skill" if sk else "settings"})
@@ -967,7 +967,7 @@ def style_page(root, sid):
                   "removable": removable} for r in srules]
         return {"id": sid, "kind": "skill", "name": shown_name(sp), "base": base, "rules": rules, "style_path": str(sp),
                 "chain": chain_steps(sp, sk, None),
-                "skill": {"name": sk, **find_skill(root, sk, calls=True)}, "cover": cover_of(root, sid), "face": face_of(root, base),
+                "skill": {"name": sk, **find_skill(root, sk, calls=True)}, "cover": cover_of(root, sid), **thumb_of(root, sid), "face": face_of(root, base),
                 "own": bool(st.get("own")), "videos": st.get("videos"), "sample": bool(st.get("sample")),
                 "references": references(sp.parent) if not st.get("own") else {"videos": [], "profile": None},
                 "made": next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None),
@@ -986,7 +986,7 @@ def style_page(root, sid):
             "changed": [k for k in CONTROLS if dig(changed, k) is not None], "look": look(st), "facts": facts(st),
             "motion": motion, "chain": chain_steps(sp, None, motion),
             "copies": copies, "rules": rules, "style_path": str(sp) if sp else None, "presets": preset_state(root, sid, st, base, changed),
-            "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid), "face": face_of(root, base),
+            "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid), **thumb_of(root, sid), "face": face_of(root, base),
             "own": sid == "mine" or bool(st.get("own")), "videos": st.get("videos"), "warnings": st.get("warnings") or [],
             "references": references(sp.parent) if sp and not st.get("own") else {"videos": [], "profile": None},
             "made": next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None) if sp else None,
@@ -1126,6 +1126,23 @@ def cover_of(root, sid):
     d = style_dir(root, sid)
     f = d / "cover.jpg" if d else None
     return f"/style/cover?id={quote(sid)}&v={int(f.stat().st_mtime)}" if f and f.is_file() else None
+
+
+def thumb_of(root, sid):
+    """A style's own picture and example video (thumbs.py make: thumb.jpg, thumb.json, example.mp4), with the
+    focus the window crops it around (CSS object-position, x/y %). Empty when the style has none."""
+    d = style_dir(root, sid)
+    f = d / "thumb.jpg" if d else None
+    if not f or not f.is_file():
+        return {"thumb": None, "focus": None, "example": None}
+    try:
+        fx, fy = json.loads((d / "thumb.json").read_text(encoding="utf-8"))["focus"]
+        focus = [max(0, min(100, float(fx))), max(0, min(100, float(fy)))]
+    except (OSError, ValueError, KeyError, TypeError):
+        focus = None
+    ex = d / "example.mp4"
+    return {"thumb": f"/style/thumb?id={quote(sid)}&v={int(f.stat().st_mtime)}", "focus": focus,
+            "example": f"/style/example?id={quote(sid)}&v={int(ex.stat().st_mtime)}" if ex.is_file() else None}
 
 
 def references(d):
@@ -1837,9 +1854,24 @@ def make_handler(token):
                 with open(f, "rb") as fh:
                     shutil.copyfileobj(fh, self.wfile)
                 return
-            if path in ("/style/cover", "/style/face"):
+            if path in ("/style/cover", "/style/face", "/style/thumb", "/style/example"):
                 d = style_dir(read()["root"], q.get("id", [""])[0])
-                f = face_pic(d) if path.endswith("face") else d / "cover.jpg" if d else None
+                f = face_pic(d) if path.endswith("face") else d / {"/style/cover": "cover.jpg", "/style/thumb": "thumb.jpg",
+                                                                     "/style/example": "example.mp4"}[path] if d else None
+                if path.endswith("example") and f and f.is_file():   # a small clip, but Safari plays only with 206 ranges
+                    b = f.read_bytes()
+                    m = re.match(r"bytes=(\d*)-(\d*)", self.headers.get("Range") or "")
+                    if not (m and (m[1] or m[2])):
+                        return self.send(200, b, "video/mp4", cache="private, max-age=86400")
+                    a, z = (int(m[1]), int(m[2]) if m[2] else len(b) - 1) if m[1] else (len(b) - int(m[2]), len(b) - 1)
+                    z = min(z, len(b) - 1)
+                    self.send_response(206)
+                    self.send_header("Content-Range", f"bytes {a}-{z}/{len(b)}")
+                    self.send_header("Accept-Ranges", "bytes")
+                    self.send_header("Content-Type", "video/mp4")
+                    self.send_header("Content-Length", str(z - a + 1))
+                    self.end_headers()
+                    return self.wfile.write(b[a:z + 1])
                 return self.send(200, f.read_bytes(), "image/jpeg", cache="private, max-age=86400") if f and f.is_file() else self.send(404, {})
             if path in ("/style/tile", "/style/clip"):   # a preset's rendered still, a cut preview clip (presets.py cache)
                 k = q.get("k", [""])[0]
@@ -3372,7 +3404,16 @@ def demo():
     st = {c["id"]: c for c in lib["styles"]}
     assert list(st) == ["mine", "@sample.creator", "@sample-50-50", "@sample-card-edit", "@sample-motion-design", "@newbie"], list(st)
     sm = st["@sample-card-edit"]   # the sample style the plugin ships: listed for every user, by its own name
-    assert sm["sample"] and sm["name"] == "Card edit" and sm["line"].startswith("A sample style") and sm["cover"], sm
+    assert sm["sample"] and sm["name"] == "Card edit" and sm["line"].startswith("A sample style") and not sm["cover"], sm
+    assert sm["thumb"].startswith("/style/thumb?id=") and sm["example"].startswith("/style/example?id=") and len(sm["focus"]) == 2, sm
+    assert urllib.request.urlopen(base + sm["thumb"] + "&t=" + tok).read()[:2] == b"\xff\xd8", "the sample's picture is a jpeg"
+    rq = urllib.request.urlopen(urllib.request.Request(base + sm["example"] + "&t=" + tok, headers={"Range": "bytes=0-99"}))
+    assert rq.status == 206 and len(rq.read()) == 100 and rq.headers["Content-Type"] == "video/mp4", "the example seeks (206)"
+    assert st["@sample.creator"]["thumb"] is None and st["mine"]["example"] is None, "only a style with a demo edit has one"
+    s5 = st["@sample-50-50"]   # 50/50: a frame of its own edit of the public sample take, no stock photo
+    assert s5["thumb"] and s5["example"] and not s5["cover"], s5
+    md = st["@sample-motion-design"]   # 16:9: its drawn board stays the picture, no example from the vertical take
+    assert md["cover"] and not md["example"], md
     assert sm["facts"][1] == ["Captions", "1 word at a time"] and not st["@sample.creator"]["sample"], sm["facts"]
     assert st["@sample.creator"]["facts"] == [["Cut every", "1.9 s"], ["Zooms", "Punch, 6 a minute"], ["Captions", "2 words at a time"]]
     assert st["@sample.creator"]["look"]["box_color"] == "#000000" and st["mine"]["line"].startswith("The default")

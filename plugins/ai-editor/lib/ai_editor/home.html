@@ -787,7 +787,15 @@ body.rail .sb-theme{margin-top:2px}
 /* Pick a style */
 .pc{position:relative;display:flex;gap:16px;padding:16px;border-radius:12px;background:var(--card);border:2px solid transparent;text-align:left;color:var(--ink);min-width:0;cursor:pointer}
 .pc:hover{border-color:var(--ring)}.pc.on{border-color:var(--ink);background:var(--panel)}
-.pc .pic{width:84px;height:150px;border-radius:8px;background:#45403C center/cover;flex-shrink:0}
+.pc .pic{position:relative;overflow:hidden;width:84px;height:150px;border-radius:8px;background:#45403C center/cover;flex-shrink:0}
+/* a style's example video: plays muted over its picture while the card is hovered or focused */
+video.ex{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .2s;pointer-events:none}
+.vplay video.ex{opacity:1}
+.vmark{position:absolute;left:8px;bottom:8px;width:24px;height:24px;border-radius:12px;background:#0C0A09B3;display:grid;place-items:center;pointer-events:none;transition:opacity .2s}
+.pc .vmark{left:6px;bottom:6px;width:20px;height:20px}
+.vplay .vmark{opacity:0}
+.spex{width:132px;aspect-ratio:9/16;border-radius:8px;background:#0C0A09;object-fit:cover;flex-shrink:0;display:block}
+@media (max-width:760px){.sphd:has(.spex){flex-wrap:wrap}.sphd:has(.spex)>.sptx{flex-basis:100%!important}.spex{width:160px}}
 .pc .tx{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1;padding:4px 28px 0 0}
 .pc .ttl{display:flex;align-items:center;gap:8px;font-size:17px;line-height:22px;font-weight:600;min-width:0}
 .pc .nm1{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pc .ttl .tagc{flex-shrink:0}
@@ -1264,7 +1272,12 @@ const bgUrl=u=>u?`background-image:url('${esc(u)}')`:'';
 const rawThumb=()=>{const c=nv.sel.length?clipOf(nv.sel[0]):null;return (c&&c.raw!==false&&c.thumb)||((R?R.videos:[]).find(v=>v.raw&&v.thumb)||{}).thumb||null};
 // a creator's style shows the creator (their account picture, else a frame of their video); My style its base creator's, else the user's own clip
 // My style never shows its base creator's frame: it is the user's style, not theirs
-const picOf=(c,i)=>c.cover?{url:c.cover,mine:1}:c.id!=='mine'&&c.face?{url:c.face,face:!c.face.includes('&a=1')}:c.id==='mine'&&rawThumb()?{url:rawThumb(),clip:1}:{url:'',none:1};
+const picOf=(c,i)=>c.cover?{url:c.cover,mine:1}:c.thumb?{url:c.thumb,pos:c.focus?`${c.focus[0]}% ${c.focus[1]}%`:''}:c.id!=='mine'&&c.face?{url:c.face,face:!c.face.includes('&a=1')}:c.id==='mine'&&rawThumb()?{url:rawThumb(),clip:1}:{url:'',none:1};
+// the example video (thumbs.py) over a card's picture, and the play mark that says it is one; vhov plays it
+const bgPic=p=>bgUrl(p.url)+(p.pos?`;background-position:${p.pos}`:'');
+const exVid=(c,pic)=>c.example&&!c.cover?`<video class="ex" src="${esc(c.example)}" poster="${esc(c.thumb)}" muted loop playsinline preload="none" style="${pic.pos?`object-position:${pic.pos}`:''}"></video><span class="vmark">${'<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2.5 1.5v7l6-3.5z" fill="#fff"/></svg>'}</span>`:'';
+const vhovAttrs=c=>c.example&&!c.cover?'onmouseenter="vhov(this,1)" onmouseleave="vhov(this,0)" onfocus="vhov(this,1)" onblur="vhov(this,0)"':'';
+function vhov(el,on){const v=el.querySelector('video.ex');if(!v)return;el.classList.toggle('vplay',!!on);if(on){v.currentTime=0;v.play().catch(()=>{})}else v.pause()}
 function picBtns(c){return c.studying?'':`<div class="picbtns"><button onclick="event.stopPropagation();pickCover(${esc(JSON.stringify(c.id))})">Change image</button>${c.cover&&!c.sample?`<button onclick="event.stopPropagation();removeCover(${esc(JSON.stringify(c.id))})">Remove image</button>`:''}</div>`}
 function pickCover(id){ui.coverFor=id;$('#coverf').click()}
 async function setCover(f){
@@ -1327,7 +1340,7 @@ function fact3(c){
 const factList=c=>c.kind==='skill'?`<div class="fl"><div class="fr2"><span class="v" style="color:var(--t3);font-weight:400;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal">${esc(c.description||'')}</span></div></div>`:`<div class="fl">${fact3(c).map(([i,k,v])=>`<div class="fr2">${ic(i)}<span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join('')||'<div class="fr2"><span class="v" style="color:var(--t3);font-weight:400">The default style</span></div>'}</div>`;
 const handleOf=c=>c.id.startsWith('@')&&!c.own?c.id.slice(1):'';
 const avaHTML=(url,px=32)=>`<span class="ava" style="width:${px}px;height:${px}px;border-radius:${px/2}px;${url?`background-image:url('${esc(url)}')`:''}">${url?'':SIL}</span>`;
-const framePic=u=>!u?'':`<i style="background-image:url('${esc(u)}')"></i><img src="${esc(u)}" alt="" loading="lazy" onload="if(this.naturalWidth>this.naturalHeight)this.parentElement.classList.add('wd')">`;
+const framePic=(u,pos)=>!u?'':`<i style="background-image:url('${esc(u)}')"></i><img src="${esc(u)}" alt="" loading="lazy" ${pos?`style="object-position:${pos}" `:''}onload="if(this.naturalWidth>this.naturalHeight)this.parentElement.classList.add('wd')">`;
 const dname=c=>c.name;   // home.py shown_name: the user's name, else the style's own, else "New format"
 const origin=c=>c.kind==='skill'?(c.found?`Runs /${c.skill}`:'Skill not found here'):c.sample?'Sample':c.id==='mine'?(c.learned_from?`Learned from ${c.learned_from} edit${c.learned_from>1?'s':''}`:'Your own style. It learns from every edit you approve.'):c.own?'Built by you':c.studying?'Being analysed now':(handleOf(c).startsWith('links-')?'From several creators':`From @${handleOf(c)}`)+(c.videos?` · ${c.videos} videos`:'');
 const isDefault=c=>(L&&L.default_style||'mine')===c.id;
@@ -1348,8 +1361,8 @@ function studyCard(c){
 function crCard(c,i){
   if(c.studying)return studyCard(c);
   const pic=picOf(c,i);
-  return `<div class="cs" id="sc-${esc(c.id)}" role="button" tabindex="0" onclick="openStyle(${J(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)this.click()" ${dragAttrs('styles',c.id,c.name,pic.url)}>
-    <div class="pic">${framePic(pic.url)}${sMenu(c)}</div>
+  return `<div class="cs" id="sc-${esc(c.id)}" role="button" tabindex="0" onclick="openStyle(${J(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)this.click()" ${vhovAttrs(c)} ${dragAttrs('styles',c.id,c.name,pic.url)}>
+    <div class="pic">${framePic(pic.url,pic.pos)}${exVid(c,pic)}${sMenu(c)}</div>
     <div class="who">${c.own||c.sample?`<span class="ict">${ic('styles',16)}</span>`:avaHTML(c.face)}<div style="min-width:0;flex:1"><div class="nm">${esc(dname(c))}</div><div class="t2">${esc(origin(c))}</div></div>${isDefault(c)?'<span class="tagc dflt">Default</span>':''}</div>
     ${factList(c)}</div>`;
 }
@@ -1357,7 +1370,7 @@ function mineCard(c,i){
   const n=c.changes||0,pic=picOf(c,i);
   const line=[n?`${n} change${n>1?'s':''} from your feedback`:'',c.changed&&n?'last '+madeAgo(c.changed):'',c.learned_from?`Learned from ${c.learned_from} video${c.learned_from>1?'s':''}`:''].filter(Boolean).join(' · ');
   const b=c.base&&(L.styles.find(x=>x.id==='@'+c.base)||{});
-  return `<div class="cs big" id="sc-${esc(c.id)}" role="button" tabindex="0" onclick="openStyle(${J(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)this.click()"><div class="pic" style="${bgUrl(pic.url)}">${sMenu(c)}</div>
+  return `<div class="cs big" id="sc-${esc(c.id)}" role="button" tabindex="0" onclick="openStyle(${J(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)this.click()"><div class="pic" style="${bgPic(pic)}">${sMenu(c)}</div>
     <div class="info"><div><div class="ttl">${esc(c.name)}${isDefault(c)?'<span class="tagc">Default</span>':''}</div><div class="sub2">${isDefault(c)?'Used on every video unless you pick another.':'Your style. Pick it for a video, or make it the default.'}</div></div>
       ${c.base?`<span class="schip">${avaHTML(b&&b.face,20)}Started from @${esc(c.base)}</span>`:''}
       ${line?`<div class="chg">${esc(line)}</div>`:'<div class="t2" style="white-space:normal">No changes yet. Your notes on videos change it.</div>'}
@@ -1536,7 +1549,7 @@ async function studyLink(){
 // ---- Pick a style (New video, step 2): radio cards, Your styles then Creator styles
 function pickCard(c,i){
   const on=nv.style===c.id,f=fact3(c)[0],pic=picOf(c,i),chip=isDefault(c)?'Default':'';
-  return `<button class="pc ${on?'on':''}" id="sc-${esc(c.id)}" role="radio" aria-checked="${on}" onclick="nv.style=${J(c.id)};nv.picked=1;render()"><span class="pic" style="${bgUrl(pic.url)}"></span>
+  return `<button class="pc ${on?'on':''}" id="sc-${esc(c.id)}" role="radio" aria-checked="${on}" ${vhovAttrs(c)} onclick="nv.style=${J(c.id)};nv.picked=1;render()"><span class="pic" style="${bgPic(pic)}">${exVid(c,pic)}</span>
     <span class="tx"><span class="ttl"><span class="nm1">${esc(dname(c))}</span>${chip?`<span class="tagc">${chip}</span>`:''}</span><span class="t2">${esc(c.studying?'Being analysed now. The cut starts first.':origin(c))}</span>${f?`<span class="pf">${ic(f[0])}${esc(f[2])}</span>`:''}</span><span class="rd ${on?'on':''}"></span></button>`;
 }
 function vStyle(){
@@ -1569,7 +1582,8 @@ function spPreview(P){
     :`${C.big?`<img src="${esc(C.big)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`:''}
       <span class="ptag">${P.presets.pic==='Your video'?'Shown on your video':esc(P.presets.pic)}${C.big?'':C.big_err?' · the preview did not load':' · loading'}</span>
       ${C.off?'':`<div class="sp-drag" style="top:${y}%" onpointerdown="spDrag(event)" title="Drag to move the captions" aria-label="Caption height, drag to move"></div>`}`;
-  return `<div class="pic sprev2" style="${bgUrl(C.big||pic.url)}">${inner}</div>`;
+  const ground=C.big||(pic.url===P.thumb?(P.presets.pic==='Your video'&&rawThumb()||''):pic.url);   // a sample's picture has its caption burned in
+  return `<div class="pic sprev2" style="${bgUrl(ground)}">${inner}</div>`;
 }
 const spTag=(tag,sec)=>tag==='you changed this'?`<span class="row" style="gap:10px;font-size:13px"><b style="font-weight:600">You changed this</b><button class="ul" onclick="resetSec('${sec}')">Reset</button></span>`:`<span class="t2" style="font-size:12px">${tag==='default'?'default':/^from @/.test(tag)&&!(ui.spage||{}).own?'measured':esc(tag)}</span>`;
 const spSwitch=(on,key,lbl)=>`<button class="sw ${on?'on':''}" role="switch" aria-checked="${on}" aria-label="${lbl}" onclick="setCtl('${key}',${!on})"><i></i></button>`;
@@ -1618,14 +1632,14 @@ function vStylePage(){
   const size=+((C.tiles.find(x=>x.id===C.sel)||{}).block||{}).size_pct||C.size,h=P.own?'':handleOf({...P,own:false});
   const editing=ui.edit&&ui.edit.kind==='name'&&ui.edit.id===P.id,n=card.changes||0;
   const meta=P.own?`<div class="row" style="gap:12px;flex-wrap:wrap">${P.base?`<span class="schip">${avaHTML(P.face,20)}Started from @${esc(P.base)}</span>`:''}<span class="chg">${[n?`${n} change${n>1?'s':''} from your feedback`:'No changes yet',card.changed&&n?'last '+madeAgo(card.changed):'',card.learned_from?`Learned from ${card.learned_from} video${card.learned_from>1?'s':''}`:''].filter(Boolean).join(' · ')}</span></div>`
-    :`<div class="row" style="gap:8px">${avaHTML(P.face,24)}<span style="color:var(--t2);font-size:14px">${h.startsWith('links-')?'From several creators':'From @'+esc(h)}${P.videos?` · measured from ${P.videos} videos`:''}${P.made?' · analysed '+ago(P.made):''}</span></div>`;
+    :P.sample?`<span style="color:var(--t2);font-size:14px">Sample style. The video shows it on a real edit.</span>`:`<div class="row" style="gap:8px">${avaHTML(P.face,24)}<span style="color:var(--t2);font-size:14px">${h.startsWith('links-')?'From several creators':'From @'+esc(h)}${P.videos?` · measured from ${P.videos} videos`:''}${P.made?' · analysed '+ago(P.made):''}</span></div>`;
   const pic=picOf(P,0);
   const capName=t=>t.id===''?(P.own?'Yours':'Their captions'):t.name;
   return `<div class="spg"><div class="spl"><button class="back" style="text-decoration:none;font-size:14px" onclick="rgo('mystyle')">${ic('back',14,2)}Styles</button>${spPreview(P)}
       ${ui.covermsg&&ui.covermsg.id===P.id?`<div class="msg bad">${CROSS}<span>${esc(ui.covermsg.msg)}</span></div>`:''}
       <button class="b1" style="width:100%" onclick="nv.style=${J(P.id)};nv.picked=1;rgo('new')">Make a video with this style</button></div>
-    <div class="spr"><div class="row" style="gap:20px;align-items:flex-start">${P.own?'':`<span class="sth" style="${bgUrl(pic.url)}"></span>`}
-        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px"><div class="row" style="justify-content:space-between;gap:12px"><span class="row" style="gap:8px;min-width:0;flex:1">${editing?'':`<h1 class="sname">${esc(dname(P))}</h1>`}${editField('name',P.id,P.name,'font-size:24px;font-weight:600')}</span><span class="pgdots">${sMenu(card)}</span></div>
+    <div class="spr"><div class="row sphd" style="gap:20px;align-items:flex-start">${P.example&&!P.cover?`<video class="spex" src="${esc(P.example)}" poster="${esc(P.thumb)}" controls playsinline preload="metadata" aria-label="Example video in this style"></video>`:P.own?'':`<span class="sth" style="${bgPic(pic)}"></span>`}
+        <div class="sptx" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px"><div class="row" style="justify-content:space-between;gap:12px"><span class="row" style="gap:8px;min-width:0;flex:1">${editing?'':`<h1 class="sname">${esc(dname(P))}</h1>`}${editField('name',P.id,P.name,'font-size:24px;font-weight:600')}</span><span class="pgdots">${sMenu(card)}</span></div>
           ${meta}${useFor(P)}</div></div>
       ${rulesSec(P)}${chainSec(P)}
       <div class="ssec">${secHd('caption','Captions',(fact3(card).find(f=>f[0]==='caption')||[])[2],C.tag,'captions')}
@@ -1877,7 +1891,7 @@ function vHome(){
   const sw=innerWidth<=760?W:(W-40)*1.4/2.4,ns=Math.max(1,Math.floor((sw+12)/162)),tw=Math.floor((sw-(ns-1)*12)/ns);
   const clip=v=>`<div class="hd-clip" role="button" tabindex="0" title="${esc(v.name)}" onclick="nv.sel=[${P(v.path)}];rgo('new')" onkeydown="if(event.key==='Enter'&&event.target===this){nv.sel=[${P(v.path)}];rgo('new')}"><div class="th" style="background-image:url('${esc(v.thumb)}')"></div><div style="min-width:0"><div class="t1">${esc(v.name)}</div><div class="t2">${esc(v.where)} · ${ago(v.mtime)}</div></div>
     <button class="more2" aria-label="More for this clip" aria-expanded="${ui.clipmenu===v.path}" title="More" onclick="event.stopPropagation();ui.cmenu=null;ui.clipmenu=ui.clipmenu===${P(v.path)}?null:${P(v.path)};render()">${DOTS}</button>${ui.clipmenu===v.path?`<div class="cmenu" onclick="event.stopPropagation()"><button onclick="clipAct('hide',${P(v.path)})">${ic('minus',16)}<span class="lb">Remove from this list</span></button><button onclick="ui.clipmenu=null;ui.cliptrash=${P(v.path)};rgo('new')">${ic('trash',16)}<span class="lb">Move to Trash</span></button></div>`:''}</div>`;
-  const stl=(c,i)=>`<div class="stl" style="width:${tw}px" ${c.studying?'aria-disabled="true"':`role="button" tabindex="0" onclick="openStyle(${P(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)openStyle(${P(c.id)})"`}><div class="pic" style="${bgUrl(picOf(c,i).url)}">${sMenu(c)}</div><div class="t1">${esc(c.name)}</div></div>`;
+  const stl=(c,i)=>`<div class="stl" style="width:${tw}px" ${c.studying?'aria-disabled="true"':`role="button" tabindex="0" onclick="openStyle(${P(c.id)})" onkeydown="if(event.key==='Enter'&&event.target===this)openStyle(${P(c.id)})"`}><div class="pic" style="${bgPic(picOf(c,i))}">${sMenu(c)}</div><div class="t1">${esc(c.name)}</div></div>`;
   const crow=c=>`<button class="cr" ${c.studying?'disabled':''} onclick="openStyle(${P(c.id)})"><span class="ava" style="${c.face?`background-image:url('${esc(c.face)}')`:''}">${c.face?'':SIL}</span><span style="min-width:0"><span class="t1" style="display:block">${esc(c.name)}</span><span class="t2" style="display:block">${c.studying?'Being analysed now':c.videos?`Analysed from ${c.videos} videos`:'Analysed'}</span></span></button>`;
   const shelves=()=>`<div class="sec2"><div class="sh"><b>Built by you</b>${seeAllGo(own.length,ns,"ui.fold.styles=null;ui.stab='own';rgo('mystyle')")}</div><div class="sts">${own.slice(0,ns).map(c=>stl(c,st.indexOf(c))).join('')||'<div class="none">No styles yet. Build one with the captions, zooms and sound you want.</div><button class="b2 s" style="align-self:flex-start" onclick="buildYourself()">Build a style</button>'}</div></div>
     <div class="sec2"><div class="sh"><b>From creators</b>${seeAllGo(cr.length,3,"ui.fold.styles=null;ui.stab='cr';rgo('mystyle')")}</div><div class="crs">${cr.slice(0,3).map(crow).join('')||'<div class="none">No creator styles yet. Paste a few of their videos to copy how they edit.</div><button class="b2 s" style="align-self:flex-start" onclick="openCreate()">Analyse a format</button>'}</div></div>`;

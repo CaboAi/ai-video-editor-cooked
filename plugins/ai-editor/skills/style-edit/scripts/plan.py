@@ -1431,6 +1431,7 @@ def with_sfx(build):
 
 # Split layout: the visual owns a top panel, the speaker a window under the seam. In percent of the frame.
 SPLIT = {"seam": 50, "ground": "#F4F4F2"}
+CUTOUT_BREAKOUT = 10.6  # 50/50 cutout: the speaker's head rises this far (% of the frame) above the window's top edge
 SPLIT_GAP = 2          # art stops this far above the seam
 SPLIT_CAP_BELOW = 4.5  # captions sit this far under the seam, over the top of the speaker's window
 HEAD_ROOM = 4          # the top of the head (hair included) sits this far into the window
@@ -1447,7 +1448,7 @@ def split_art_box(seam):
     return [m, t, 100 - 2 * m, seam - SPLIT_GAP - t]
 
 
-def speaker_frame(face, seam):
+def speaker_frame(face, seam, head_room=HEAD_ROOM):
     """How the cut sits in the window under the seam: scaled so the head is at least MIN_HEAD tall,
     moved so the hair sits HEAD_ROOM below the window's top and the head is centred left to right.
     x, y: how far the scaled video's top-left is pulled left and up, in % of the frame. origin: the
@@ -1461,11 +1462,38 @@ def speaker_frame(face, seam):
     bottom = q([b[1] + b[3] for b in bs], 0.9)
     cx = q([b[0] + b[2] / 2 for b in bs], 0.5)
     k = min(max(1, MIN_HEAD / max(1, bottom - top)), MAX_SPEAKER_SCALE)
-    y = min(max(0, k * top - HEAD_ROOM), k * 100 - win)
+    y = min(max(0, k * top - head_room), k * 100 - win)
     x = min(max(0, k * cx - 50), k * 100 - 100)
     if k * bottom - y > win:
         print("warning: the head is taller than the split window; the chin is cut off", file=sys.stderr)
     return {"scale": round(k, 3), "x": round(x, 1), "y": round(y, 1), "origin": [round(cx, 1), round((top + bottom) / 2, 1)]}
+
+
+FACE_GAP_S = 1.5      # a face beat between two panel runs: long enough for the panel to close and open (2 x PANEL_T + a hold)
+BRIDGE_S = 1.2        # StyleEdit.tsx: the panel stays open across a gap this short
+
+
+def face_every(cards, max_run):
+    """The 50/50 rule (layout.face_every_s): the speaker's face has the whole frame again within max_run seconds of the
+    panel opening. A card that would keep the panel open past it starts FACE_GAP_S after the run ends instead, or is
+    dropped when that leaves it under MIN_CARD_S."""
+    out, run0, run1 = [], None, None
+    for c in sorted(cards, key=lambda c: c["start"]):
+        if run1 is not None and c["start"] - run1 < BRIDGE_S and c["end"] - run0 > max_run:
+            start = round(run1 + FACE_GAP_S, 3)
+            if c["end"] - start < MIN_CARD_S:
+                print(f"warning: '{c.get('trigger_word')}' card dropped: the face comes back within {max_run:g} s "
+                      "(layout.face_every_s)", file=sys.stderr)
+                continue
+            c = {**c, "start": start}
+        if run1 is None or c["start"] - run1 >= BRIDGE_S:
+            run0 = c["start"]
+        run1 = max(run1 or 0, c["end"])
+        out.append(c)
+    for a, b in zip(out, out[1:]):   # the panel is never open and empty: a card holds until the next lands
+        if 0 < b["start"] - a["end"] < BRIDGE_S:
+            a["end"] = b["start"]
+    return out
 
 
 def split_cards(cards, art):
@@ -1961,8 +1989,12 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         # a logo is dropped while a scene or a panel card is up (the frame is already showing the visual)
         rest = split_cards(rest + [{**c, "lane": None} for c in scenes], art)
         rest = readable_captures([c for c in rest if c.get("_f") != "scene"], aspect, pictures_only(style))
+        if lay.get("face_every_s"):
+            rest = face_every(rest, float(lay["face_every_s"]))
         out = {**head, "layout": {"mode": "split", "ground": lay["ground"], "seam": seam, "art": art,
-                                  "speaker": speaker_frame(face, seam), "caption_full_y": full_y}}
+                                  "speaker": speaker_frame(face, seam, -(CUTOUT_BREAKOUT - 2) if lay.get("variant") == "cutout" else HEAD_ROOM),
+                                  "caption_full_y": full_y,
+                                  **({"variant": "cutout", "breakout": CUTOUT_BREAKOUT} if lay.get("variant") == "cutout" else {})}}
     else:
         near = lambda c: c.get("lane") == "logo" and any(sc["start"] - 0.5 < c["end"] and c["start"] < sc["end"] + 0.5 for sc in scenes)
         for c in filter(near, rest):
@@ -2963,8 +2995,20 @@ def effective_style(sp, prof, edit_dir, count=True):
                                     lambda m: print(f"note: {m}", file=sys.stderr))
 
 
+def demo_face_every():
+    cs = [{"start": 0.0, "end": 4.0, "trigger_word": "a"}, {"start": 4.5, "end": 7.0, "trigger_word": "b"},
+          {"start": 7.5, "end": 11.0, "trigger_word": "c"}, {"start": 11.2, "end": 11.8, "trigger_word": "d"}]
+    out = face_every(cs, 8)
+    assert [c["trigger_word"] for c in out] == ["a", "b", "c", "d"] and out[2]["start"] == 8.5, out   # c waits for a face beat
+    assert face_every([*cs[:2], {"start": 7.5, "end": 9.8, "trigger_word": "e"}], 8)[-1]["start"] == 8.5
+    assert len(face_every([*cs[:2], {"start": 7.5, "end": 8.6, "trigger_word": "f"}], 8)) == 2   # too short after the wait
+    held = face_every([dict(c) for c in cs[:2]], 8)
+    assert held[0]["end"] == 4.5 and held[1]["end"] == 7.0, held   # held across the 0.5 s gap, never an empty panel
+
+
 def main():
     if sys.argv[1:] == ["demo"]:
+        demo_face_every()
         import os
         os.environ["AI_EDITOR_LIBRARY"] = tempfile.mkdtemp(prefix="plan_demo_lib_")   # never the user's custom/ folder
         return demo()
@@ -3017,6 +3061,9 @@ def main():
               "under the voice; sfx.py music lays one at that level (the style-edit Sound step)", file=sys.stderr)
     from preview import apply_overrides   # edits/<name>/overrides.json, written by the preview page
     plan = apply_overrides(plan, edit_dir, out.name)
+    allow = (style.get("look") or {}).get("allow") or []
+    if allow:   # the AI tells this style asks for by name (ai_tells.for_brand): the 50/50's paper ground
+        plan["allow_tells"] = list(allow)
     import matte   # a re-plan keeps the speaker's cutout wherever matte.py already cut every frame it needs
     if matte.behind_ranges(plan):
         plan["cutouts"] = matte.kept(plan, edit_dir)
@@ -3026,7 +3073,7 @@ def main():
     keep_rendered(out)
     out.write_text(json.dumps(plan, indent=1), encoding="utf-8")
     from ai_tells import check_plan as ai_tells, for_brand   # the AI-made look (references/ai-tells.md)
-    for f in for_brand(ai_tells(plan, visuals), prof.get("brand")):
+    for f in for_brand(ai_tells(plan, visuals), prof.get("brand"), plan.get("allow_tells")):
         print(f"{'error' if f['level'] == 'BAN' else 'warning'}: AI tell '{f['tell']}': {f['where']} -> {f['fix']}", file=sys.stderr)
     print(f"{out}: {plan['width']}x{plan['height']}, {plan['durationInFrames'] / plan['fps']:.1f} s, "
           f"{len(plan['captions']['chunks'])} captions, {len(plan['zooms'])} zooms, {len(plan['cards'])} cards")

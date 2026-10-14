@@ -106,6 +106,8 @@ def kept(plan, edit):
 def behind_ranges(plan):
     """Inclusive frame ranges [a, b] that need the cutout: every behind card plus HANDLE_S, merged."""
     fps, last = plan["fps"], plan["durationInFrames"] - 1
+    if (plan.get("layout") or {}).get("variant") == "cutout":   # the 50/50 cutout: the head breaks out of its card all along
+        return [[0, last]]
     spans = sorted((max(0, round((c["start"] - HANDLE_S) * fps)), min(last, round((c["end"] + HANDLE_S) * fps)))
                    for c in plan["cards"] if c.get("layer") == "behind")
     out = []

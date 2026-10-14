@@ -11,3 +11,5 @@ commercial use included, no attribution required. Credited here anyway.
 | `person-1.jpg` | Maiye Jeremiah (@seyce) | https://unsplash.com/photos/11efYUexOYM |
 | `person-2.jpg` | Brooke Cagle (@brookecagle) | https://unsplash.com/photos/nNj_e121IbI |
 | `person-3.jpg` | Joseph Gonzalez (@miracletwentyone) | https://unsplash.com/photos/iFgRcqHznqg |
+
+`person-1.jpg` is also the speaker in `presets/styles/sample-50-50/cover.jpg` (the 50/50 sample style's card).

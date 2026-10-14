@@ -63,6 +63,8 @@ type Layout = {
   art: [number, number, number, number];
   speaker: { scale: number; x: number; y: number; origin: [number, number] };
   caption_full_y: number;
+  variant?: "cutout"; // 50/50 cutout: the speaker's head rises out of the window onto the ground (matte.py cutouts)
+  breakout?: number; // how far above the window's top edge, % of the frame
 };
 // "letterbox": black 9:16, the landscape cut as a band, a title above it, one photo over the opening line. % of the frame.
 type Letterbox = {
@@ -400,7 +402,7 @@ export const StyleEdit: React.FC<Plan> = ({ video, captions, zooms, cards, layou
   return (
     <AbsoluteFill style={{ backgroundColor: layout.ground }}>
       <Texture look={look} w={width} h={height} id="ground" />
-      {behindViews /* split has no cutout: the panel art sits clear of the window anyway */}
+      {behindViews /* split: the panel art sits clear of the window; the cutout variant's head is drawn over it below */}
       {cardViews}
       <div style={{ position: "absolute", left: 0, top, width, height: height - top, overflow: "hidden",
         borderRadius: `${r}px ${r}px 0 0`, boxShadow: o > 0 ? `0 ${-height * 0.004}px ${height * 0.02}px rgba(0,0,0,${0.12 * o})` : undefined }}>
@@ -409,6 +411,18 @@ export const StyleEdit: React.FC<Plan> = ({ video, captions, zooms, cards, layou
           {video ? <OffthreadVideo src={staticFile(video)} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
         </div>
       </div>
+      {layout.variant === "cutout" ? (() => {
+        // the same frames, cut out (matte.py), in a window that starts `breakout` higher: the head rises out of the card
+        const c = (cutouts ?? []).find((k) => frame >= k.from && frame <= k.to);
+        const b = ((layout.breakout ?? 10.6) / 100) * height * o;
+        return c && o > 0 ? (
+          <div style={{ position: "absolute", left: 0, top: top - b, width, height: height - top + b, overflow: "hidden" }}>
+            <div style={{ position: "absolute", left: -(x / 100) * width * o, top: -(y / 100) * height * o + b, width: width * k,
+              height: height * k, transform: `translateX(${footageX(t, cards, width, m)}px) scale(${zoomScale(t, zooms)})`, transformOrigin: `${origin[0]}% ${origin[1]}%` }}>
+              <Img src={staticFile(`${c.src}/${String(frame).padStart(6, "0")}.png`)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            </div>
+          </div>) : null;
+      })() : null}
       {sceneViews}
       {texts?.length ? <Texts items={texts} t={t} width={width} height={height} font={captions.style.font_match} /> : null}
       <AbsoluteFill style={{ opacity: capFade }}>

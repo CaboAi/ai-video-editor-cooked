@@ -129,8 +129,8 @@ clip's `source.mp4` its audio over the podcast's own cover (the cover blurred an
 the sharp cover above the captions; no artwork: black), and `clip.json` says `audio_only`. With a cover, the
 render moves it: a slow push on the cover, the ground drifting against it, a small punch on each sentence start. For those,
 don't ask a layout: overlay, reframe no, no cutout, captions on (`profile.py style` keeps them on). Say once
-that each clip is the audio over the show's cover with the speaker's words as captions. Before the clips run, ask the music question once for all of them
-(style-edit `references/plan.md` "Music"; skip it when the profile says `sound.music: false`).
+that each clip is the audio over the show's cover with the speaker's words as captions. Before the clips run, settle music once for all of them
+(style-edit `references/plan.md` "Music"; the style decides unless the user set `sound.music`).
 
 **All clips at once** (Claude Code, or any agent with subagents): launch one `clip-editor` agent
 (`ai-editor:clip-editor`) per clip, **all in one message** so they run at the same time. Give each

@@ -490,6 +490,21 @@ def page(handle, outdir, style, videos, hooks, comp, tells, gfx_rows):
 
 # ---------- one creator ----------
 
+FACE_COVER_PCT = 20   # graphics over the face this share of their time: worth a line
+
+
+def warnings(fmt, style):
+    """Plain lines the home page shows on the style and the finished analysis: the videos are not one
+    format, graphics sit on the face. Measured only; [] when nothing is off."""
+    out = []
+    if fmt.get("line") and (fmt.get("left_out") or not fmt.get("consistent", True)):
+        out.append(fmt["line"])
+    cover = ((style.get("graphics") or {}).get("layout") or {}).get("covers_face_pct")
+    if cover is not None and cover >= FACE_COVER_PCT:
+        out.append(f"Their graphics cover the face {cover}% of the time they are on screen.")
+    return out
+
+
 def build(outdir, at=None):
     meta = load(outdir / "videos.json") or {"videos": []}
     by_id = {v["id"]: v for v in meta["videos"]}
@@ -525,6 +540,7 @@ def build(outdir, at=None):
                         "differs": [sentence(c) for c in sorted(comp, key=lambda c: not c["verdict"].endswith("every winner"))
                                     if c["verdict"].startswith("differs")]}
     style["ai_tells"] = {k: v for k, v in tells.items() if k != "look_checked"}
+    style["warnings"] = warnings(fmt, style)
     if fmt.get("applied") and fmt.get("groups"):
         style["format"] = fmt["groups"][0]["name"]   # the kept group comes first
     else:
@@ -561,6 +577,11 @@ def cmd_build(a):
 # ---------- self-check ----------
 
 def demo():
+    assert warnings({"line": "These 4 videos do not share one format, so the style mixes them.", "consistent": False, "left_out": []},
+                    {"graphics": {"layout": {"covers_face_pct": 33}}}) == [
+        "These 4 videos do not share one format, so the style mixes them.",
+        "Their graphics cover the face 33% of the time they are on screen."]
+    assert warnings({"line": "All 4 videos share one format: x.", "consistent": True, "left_out": []}, {}) == []
     rows = [{"role": "winner", "fields": {"first graphic (s)": x, "cuts a minute": 12}} for x in (1.0, 1.2, 1.5)]
     rows += [{"role": "control", "fields": {"first graphic (s)": x, "cuts a minute": 12.5}} for x in (3.0, 3.8)]
     c = {r["field"]: r for r in compare(rows)}

@@ -1153,6 +1153,7 @@ async function study(){
 
 // ---------------------------------------------------------------- H3 / H4
 function curVideo(td){const s=td.steps.filter(s=>!s.done).at(-1)||{};const m=/video (\d+) of (\d+)/.exec(s.detail||'');return m?[+m[1],+m[2]]:null}
+const warnBox=ws=>ws&&ws.length?`<div class="ssec"><div class="shd"><b>Worth knowing</b><span class="t2">From the analysis</span></div>${ws.map(w=>`<div class="msg bad" style="font-size:14px;line-height:20px">${esc(w)}</div>`).join('')}</div>`:'';   // report.py's warnings
 // creator-teardown's format check (format.json): the links left out (only when it applied: a majority of 3+)
 const leftOut=td=>{const f=td.format;return f&&f.applied&&Array.isArray(f.left_out)?f.left_out:[]};
 function fmtLine(td){   // the check's own line, whenever some videos differ (left out, or a mix it could not split)
@@ -1202,6 +1203,7 @@ function h4(td){
   return `<div class="col grow" style="min-width:0;padding:16px 28px 0 14px">
     <h1>What makes @${esc(td.args.handle)} work</h1>
     <div class="between" style="margin-top:10px;margin-bottom:28px"><span class="sub" style="font-size:15px">Measured from ${m.videos||'their'} videos: the top 5 and 2 median.</span>${m.report?`<a href="/td/${esc(td.args.handle)}/teardown.html" target="_blank" rel="noopener" style="font-size:15px">Open the full study</a>`:''}</div>
+    ${(m.warnings||[]).length?`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:24px">${m.warnings.map(w=>`<div class="msg bad" style="font-size:14px;line-height:20px">${esc(w)}</div>`).join('')}</div>`:''}
     ${m.tiles.length?`<div class="stats">${m.tiles.map(t=>`<div><b>${esc(t.big)}</b><span>${esc(t.label)}</span></div>`).join('')}</div>`:'<div class="empty">Nothing measured.</div>'}
     <div class="pair" style="display:flex;gap:44px;margin-top:36px">
       ${top[0]&&top[0].thumbnail?`<div class="thumb" style="width:212px;flex-shrink:0"><div style="aspect-ratio:2/3;border-radius:16px;background:#45403C url('${esc(top[0].thumbnail)}') center/cover"></div><div class="muted" style="margin-top:12px;line-height:18px">Their most viewed video</div></div>`:''}
@@ -1819,6 +1821,7 @@ function vStylePage(){
         <div><div class="shd"><span class="row" style="gap:10px">${ic('sound')}<b>Sound</b></span>${Z.sound.tag==='you changed this'?spTag(Z.sound.tag,'sound'):''}</div>
           <div class="srow2"><span style="color:var(--ink)">Sound effects</span>${spSwitch(Z.sound.sfx,'sfx','Sound effects')}</div>
           <div class="srow2"><span style="color:var(--ink)">Background music</span>${spSwitch(Z.sound.music,'music','Background music')}</div></div></div>
+      ${warnBox(P.warnings)}
       ${P.references&&P.references.videos.length?`<div class="ssec"><div class="shd"><b>Analysed from</b>${P.references.profile?`<a href="${esc(P.references.profile)}" target="_blank" rel="noopener" style="font-size:13px">Their profile</a>`:''}</div>
         <div class="refs">${P.references.videos.map(v=>{const pl=platOf(v.url),h=linkHandle(v.url);return `<a class="ref" href="${esc(v.url)}" target="_blank" rel="noopener"><span class="rth" style="${v.thumbnail?`background-image:url('${esc(v.thumbnail)}')`:''}">${v.thumbnail?'':pl?logo(pl,16):LINKG}</span><span style="min-width:0;flex:1"><span class="t1" style="display:block">${esc(v.title||shortLink(v.url))}</span><span class="t2" style="display:flex;gap:6px;align-items:center">${pl?logo(pl,12):''}${h?'@'+esc(h):esc(shortLink(v.url))}</span></span></a>`}).join('')}</div></div>`:''}
       <div class="ssec two"><div><div class="shd"><b>Its skill</b></div><div class="row" style="gap:10px;flex-wrap:wrap"><span style="font:500 14px var(--mono)">/${esc(P.skill.name)}</span><button class="b2 s" onclick="post('/style/reveal',{id:ui.sp}).then(loadStyle)">Open the skill file</button></div><div class="t2" style="white-space:normal;margin-top:8px">Say "/${esc(P.skill.name)}" in Claude Code to edit a video in this style.</div></div>

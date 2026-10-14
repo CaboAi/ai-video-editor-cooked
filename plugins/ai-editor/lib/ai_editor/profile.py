@@ -26,7 +26,7 @@ File: ~/.ai-video-editor/profile.json (AI_EDITOR_HOME overrides). Shape:
    "names": [{"name": "Claude", "domain": "claude.com"}],
    "avoid": {"emoji": true, "stock": true, "icons": true, "colors": ["#7B61FF"], "notes": ""},
    "captions": {"on": true, "style": "creator"},     style: creator | plain | bold | karaoke | minimal
-   "sound": {"sfx": true, "music": false},
+   "sound": {"sfx": true, "music": false},           music: unset follows the style (a bed when the creator uses one)
    "behind": true,                                     cards sit behind the speaker (style-edit matte.py)
    "cloud_cleanup": true,                              delete uploaded footage from GitHub / S3 after a cloud render
    "render": "laptop",                                 where every render goes (laptop | modal | github | lambda), asked once
@@ -57,7 +57,7 @@ VIDEO_QUESTIONS = ("audience", "names")
 QUESTIONS = STYLE_QUESTIONS + VIDEO_QUESTIONS
 DEFAULTS = {"platform": "tiktok", "aspect": "9:16", "creators": [], "liked_videos": [], "brand": {"use_creator": True},
             "assets_dir": "", "names": [], "avoid": {"emoji": True, "stock": True, "icons": True, "colors": []},
-            "captions": {"on": True, "style": "creator"}, "sound": {"sfx": True, "music": False},
+            "captions": {"on": True, "style": "creator"}, "sound": {"sfx": True},   # no "music": the style decides until the user does
             "behind": False,   # unanswered: off, so no plan needs the cutout step until the user says yes
             "past_edit": False,
             # the video questions' first options: used without asking, said on the review page, changed by a word

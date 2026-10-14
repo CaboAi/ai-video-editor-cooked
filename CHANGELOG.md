@@ -12,6 +12,10 @@ What changed for every user, newest first.
   choose images (12 at most, under 15 MB each), each with optional "Show when I say..." words. They are saved with
   the video (`edits/<name>/assets/` and `assets.json`, on your computer only) and go in first, as cards on those
   words, before Claude searches for anything. The editor's notes have an "Anything to add?" line for more.
+## ai-editor 2.6.10 (2026-10-13)
+
+- The cut renders at 1080p: a 4K take comes out 1080x1920 (or 1920x1080), never upscaled. The edit was already
+  1080p, and a 4K cut took about four times as long to encode. `render.py --max 0` keeps the source size.
 
 ## ai-editor 2.6.9 (2026-10-13)
 

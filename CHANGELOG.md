@@ -4,6 +4,17 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.6.12 (2026-10-13)
+
+- Claude's questions show in the video's editor, with "Claude is asking you something" in the header. Esc folds
+  the question into a bar that reopens it.
+- The editor has a Download button once the edit is approved. Files are named "<video> - <style>.mp4".
+- No model downloads in the middle of an edit. Setup states a model's size and the free space first.
+- Format warnings from an analysis show on the style page. Music follows the creator unless you changed it.
+- No render question when no cloud is connected: it renders on your computer and says so.
+- Update leaves a developer copy (a git checkout) alone.
+- A cut whose last source frame is stamped late no longer comes out one frame short.
+
 ## ai-editor 2.6.11 (2026-10-13)
 
 - Modal is one button. Settings (and the first-run keys page) has **Connect Modal**: it installs Modal, opens

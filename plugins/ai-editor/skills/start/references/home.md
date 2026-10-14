@@ -109,7 +109,9 @@ The page reads every number itself from `creator-teardowns/<handle>/style.json` 
 so it fills in as each script writes. `report.py build` also prints the style's skill
 (`skill edit-like-<handle> -> <path>`). Then read `look.md` and end the job with what not to copy,
 one plain sentence per BAN-level AI tell and per move the teardown rejects:
-`--result '{"reject": ["..."]}' --done`. Do not open `teardown.html`: the page links it.
+`--result '{"reject": ["..."]}' --done`. Do not open `teardown.html`: the page links it. The style's
+`warnings` (report.py: not one format, graphics on the face) show on the finished analysis and the style page by
+themselves; say them in chat as well, and never say something is on the page that the page does not show.
 
 A step that stops: say why with `--failed`, in the words of the skill's "If a script stops" table.
 
@@ -247,8 +249,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/update/scripts/update.py" market
 
 Exit 0: `status update --done`, then tell the user to type `/reload-plugins`. Exit 1 (no `claude`
 command, or it failed): `status update --failed "Type /plugin marketplace update nextwork, then /plugin update
-ai-editor@nextwork, then /reload-plugins."` and say the same lines. A git clone instead of the marketplace
-plugin: `git pull` in the plugin folder, then `--done`. Keep your background `wait` running afterwards: the
+ai-editor@nextwork, then /reload-plugins."` and say the same lines. Exit 2 (a git checkout, a developer copy):
+`status update --failed "This is a developer copy; update it with git yourself."`, say the same, and run no git
+command in that folder (no pull, checkout or merge). Keep your background `wait` running afterwards: the
 update never ends listening.
 
 ### `JOB cancel teardown`

@@ -81,7 +81,7 @@ import library  # noqa: E402
 import links  # noqa: E402
 import live  # noqa: E402
 import presets  # noqa: E402
-from review import load, now, save, set_theme, theme, themed  # noqa: E402  (atomic write; review.py's server owns the rest)
+from review import disposition, download_name, load, now, save, set_theme, theme, themed  # noqa: E402  (atomic write; review.py's server owns the rest)
 
 HTML = Path(__file__).with_name("home.html")
 SETUP = Path(__file__).resolve().parents[2] / "skills" / "setup" / "scripts" / "setup.py"
@@ -518,7 +518,7 @@ def measured(root, handle):
         rows["winners"] = " ".join(win["differs"][:2]) + \
             f" ({win.get('n_winners')} top against {win.get('n_control')} median: a lead, not proof.)"
     rows = {k: v for k, v in rows.items() if v}
-    return {"tiles": tiles, "rows": rows, "videos": s.get("videos"),
+    return {"tiles": tiles, "rows": rows, "videos": s.get("videos"), "warnings": s.get("warnings") or [],   # report.py's
             "report": (Path(root) / "creator-teardowns" / handle / "teardown.html").exists()}
 
 
@@ -843,7 +843,8 @@ def preset_state(root, sid, st, base, changed):
     cpm = dig(st, "cards.per_min")   # what caps the cards (plan.py thin_cards): the user's pick, or the default style's 4
     rate = cpm if cpm is not None else dig(st, "graphics.per_min")   # shown: the cap, else the style's measured rate
     sfx = (prof.get("sound") or {}).get("sfx", True) if sid == "mine" and st.get("sfx") is None else st.get("sfx", True)
-    music = st["music"] if "music" in st else bool((prof.get("sound") or {}).get("music"))
+    pm = (prof.get("sound") or {}).get("music")   # unset: the creator decides (a bed in half their videos or more)
+    music = st["music"] if "music" in st else pm if pm is not None else (((creator.get("sound") or {}).get("music") or {}).get("present_pct") or 0) >= 50
     clips = newest_edit(("report.json", "words.raw.json"), entries)
     return {"pic": what,
             "captions": {"tiles": tiles, "sel": sel, "tag": tag(("captions.",), sel == ""), "size": pick["block"]["size_pct"] or 4.2,
@@ -892,7 +893,7 @@ def style_page(root, sid):
             "motion": motion_state(st, changed),
             "copies": copies, "rules": rules, "style_path": str(sp) if sp else None, "presets": preset_state(root, sid, st, base, changed),
             "skill": {"name": ss.name(sp), "path": str(md), "exists": md.exists()}, "job": job, "cover": cover_of(root, sid), "face": face_of(root, base),
-            "own": sid == "mine" or bool(st.get("own")), "videos": st.get("videos"),
+            "own": sid == "mine" or bool(st.get("own")), "videos": st.get("videos"), "warnings": st.get("warnings") or [],
             "references": references(sp.parent) if sp and not st.get("own") else {"videos": [], "profile": None},
             "made": next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None) if sp else None,
             "delete_note": f"My style started from @{base}. It goes back to the default style." if sp and base and style_of(root, "mine")[2] == base else None,
@@ -1696,7 +1697,13 @@ def make_handler(token):
                 self.send_response(200)
                 self.send_header("Content-Type", "video/mp4")
                 self.send_header("Content-Length", str(f.stat().st_size))
-                self.send_header("Content-Disposition", f'attachment; filename="{quote(f.name)}"')
+                rj = f.parent.parent / "review.json"
+                try:   # the edit's latest video: "<video> - <style>.mp4", like the editor's Download
+                    d = load(rj) if f.parent.name == "review" and rj.is_file() else None
+                    nm = download_name(rj.parent, d) if d and Path(d.get("video") or "").resolve() == f else f.name
+                except (OSError, ValueError):
+                    nm = f.name
+                self.send_header("Content-Disposition", disposition(nm))
                 self.end_headers()
                 with open(f, "rb") as fh:
                     shutil.copyfileobj(fh, self.wfile)

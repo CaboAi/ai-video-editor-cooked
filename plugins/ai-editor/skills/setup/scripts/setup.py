@@ -355,6 +355,19 @@ def disk_row(free_bytes):
                    "writes about 0.5 MB a frame (about 0.9 GB a minute at 30 fps)")
 
 
+MODEL_MB = {"tiny": 75, "base": 145, "small": 484, "medium": 1530, "large-v3": 3100, "crisper": 1000}   # download sizes
+SPARE_GB = 1   # left free after a model lands, for the edits
+
+
+def room(what, mb, free=None):
+    """Before a model download: says its size and the free space, and stops when it would leave under SPARE_GB."""
+    gb = (free_bytes() if free is None else free) / 1e9
+    if gb < mb / 1000 + SPARE_GB:
+        sys.exit(f"Not downloading {what} (about {mb} MB): {gb:.1f} GB free, and it needs {mb / 1000 + SPARE_GB:.1f} GB "
+                 "with room for the edits. Free some space and run it again.")
+    print(f"Downloading {what}, about {mb} MB ({gb:.1f} GB free).", flush=True)
+
+
 def free_bytes():
     p = HOME
     while not p.exists():
@@ -597,6 +610,7 @@ def install_crisper():
         sys.exit("CrisperWhisper needs Python 3.10 or newer in the venv. Keep using Whisper, or "
                  f"install a newer Python ({fix('python')}), delete {VENV} and run the venv step again.")
     # The PyTorch build runs on Mac, Windows and Linux, CPU or GPU. The faster ct2 build is NVIDIA-only.
+    room("CrisperWhisper", MODEL_MB["crisper"])
     pip_optional("crisperwhisper")
     env = dict(os.environ, HF_HOME=str(HOME / "models"))
     name = os.environ.get("AI_EDITOR_CRISPER_MODEL", "small")
@@ -670,6 +684,9 @@ def step_model(force=False, tick=None):
     rec = env_load().get("models", {})
     fresh = not model_cached() or not (models.DIR / "yunet.onnx").exists()
     check = force or any(rec.get(r) != v for r, v in pins.items())
+    if not model_cached():
+        room(f"the {MODEL} transcription model", MODEL_MB.get(MODEL, 1500))
+
     def hook(blocks, size, total):   # the big file (model.bin, about 480 MB) is the bar
         if tick and total > 5e6:
             tick(min(1, blocks * size / total), f"{min(blocks * size, total) // 10**6} of {total // 10**6} MB")
@@ -1285,6 +1302,12 @@ def demo():
     assert browser_line(True, "/usr/bin/chromium").startswith("ok ")
     # Free disk: FIX under 3 GB, with the reason
     assert disk_row(5e9) == (True, "5.0 GB free")
+    room("the small transcription model", 484, free=5e9)   # says the size, goes on
+    try:   # 858 MB free: no 1.5 GB download
+        room("the medium transcription model", 1530, free=858e6)
+        raise AssertionError("downloaded into a full disk")
+    except SystemExit as e:
+        assert "about 1530 MB" in str(e) and "0.9 GB free" in str(e), e
     ok, why = disk_row(2.9e9)
     assert not ok and "need 3 GB" in why and "1.5 GB" in why and "0.5 MB a frame" in why, why
     assert free_bytes() > 0

@@ -83,7 +83,7 @@ import webbrowser
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(1, str(Path(__file__).resolve().parent.parent))   # `from ai_editor import ...` (styleskill, taste)
@@ -743,8 +743,8 @@ def make_handler(folder, token):
             self.end_headers()
             self.wfile.write(body)
 
-        def file(self, p, ctype):
-            # Range requests: without 206 the browser cannot seek a long mp4
+        def file(self, p, ctype, name=None):
+            # Range requests: without 206 the browser cannot seek a long mp4. name: a download, saved as that
             size = p.stat().st_size
             start, end = 0, size - 1
             m = re.match(r"bytes=(\d*)-(\d*)", self.headers.get("Range") or "")
@@ -756,6 +756,8 @@ def make_handler(folder, token):
             else:
                 self.send_response(200)
             self.send_header("Content-Type", ctype)
+            if name:
+                self.send_header("Content-Disposition", disposition(name))
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Content-Length", str(end - start + 1))
             self.end_headers()
@@ -812,6 +814,10 @@ def make_handler(folder, token):
                 r = next((r for r in d.get("rounds", []) if f"{r['stage']}-{r['round']}" == q.get("k")), d)
                 p = Path(alt_of(d, q.get("alt", ""), r)["video"])
                 return self.file(p, "video/mp4") if p.exists() else self.send(404, {})
+            if path == "/download":   # the finished video, named "<video name> - <style name>.mp4"
+                d = load(rj)
+                p = Path(alt_of(d, q.get("alt", ""), d)["video"])
+                return self.file(p, "video/mp4", download_name(folder, d)) if p.exists() else self.send(404, {})
             if path == "/data":   # the round's transcript, segments and tracks (round_data)
                 d = load(rj)
                 r = next((r for r in d.get("rounds", []) if f"{r['stage']}-{r['round']}" == q.get("k")), None)
@@ -1067,17 +1073,20 @@ def running(folder):
 OPEN = webbrowser.open   # a new browser tab (the demo swaps it)
 
 
-def home_opens(folder):
-    """True when a showing home window holds this edit's video job: it goes to this page in its own tab."""
-    if not askhook.live("home"):
-        return False
+def video_jobs(folder):
+    """The home page's taken video jobs for this edit folder."""
     f = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home" / "state.json"
     try:
         jobs = json.loads(f.read_text(encoding="utf-8")).get("jobs") or []
     except (OSError, ValueError):
-        return False
-    return any(j.get("type") == "video" and j.get("state") == "taken" and (j.get("args") or {}).get("edit")
-               and Path(j["args"]["edit"]).resolve() == folder.resolve() for j in jobs)
+        return []
+    return [j for j in jobs if j.get("type") == "video" and j.get("state") == "taken" and (j.get("args") or {}).get("edit")
+            and Path(j["args"]["edit"]).resolve() == folder.resolve()]
+
+
+def home_opens(folder):
+    """True when a showing home window holds this edit's video job: it goes to this page in its own tab."""
+    return bool(askhook.live("home")) and bool(video_jobs(folder))
 
 
 def show(url, folder):
@@ -1088,14 +1097,17 @@ def show(url, folder):
 
 def asker(folder, started):
     """Questions on this page come from the session that last ran a review.py command on this edit
-    (review/.session), else the one that started the server. They name the edit."""
+    (review/.session), else the one that started the server, and from the session holding this edit's video job
+    on the home page. They name the edit."""
     def owner(sid):
         try:
             cur = (folder / "review" / ".session").read_text(encoding="utf-8").strip()
         except OSError:
             cur = ""
         own = cur or started
-        return folder.name if not own or sid == own else None   # no session known (older Claude Code): anyone
+        if not own or sid == own:   # no session known (older Claude Code): anyone
+            return folder.name
+        return folder.name if sid and any(j.get("owner") == sid for j in video_jobs(folder)) else None
     return owner
 
 
@@ -1469,6 +1481,21 @@ def style_label(folder):
         return "My style"
 
 
+def download_name(folder, d=None):
+    """What the finished video is saved as: "<video name> - <style name>.mp4" ("<video name>.mp4" for a cut)."""
+    d = d or load(folder / "review.json")
+    base = d.get("name") or folder.name
+    if d.get("stage") == "edit":
+        base += " - " + style_label(folder)
+    return (re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", base).strip() or "video") + ".mp4"
+
+
+def disposition(name):
+    """A Content-Disposition that keeps spaces and accents in the saved name (RFC 6266), with a plain fallback."""
+    plain = name.encode("ascii", "ignore").decode().replace('"', "").replace("\\", "") or "video.mp4"
+    return f"attachment; filename=\"{plain}\"; filename*=UTF-8''{quote(name)}"
+
+
 def learn_prompt(folder, d):
     """The final approve: Claude turns the whole session's notes into rules the page offers with checkboxes."""
     if d["learn"]["state"] == "none":
@@ -1764,6 +1791,12 @@ def demo():
     (folder / "review" / ".session").unlink(missing_ok=True)
     assert asker(folder, "")("sess-anyone") == "demo", "no session known (older Claude Code): any question"
     assert asker(folder, "sess-review")("sess-anyone") is None
+    hs = Path(os.environ["AI_EDITOR_HOME"]) / "home" / "state.json"   # the home page's job for this video: its Claude asks here
+    hs.parent.mkdir(parents=True, exist_ok=True)
+    had = hs.read_bytes() if hs.exists() else None
+    hs.write_text(json.dumps({"jobs": [{"type": "video", "state": "taken", "owner": "sess-job", "args": {"edit": str(folder)}}]}), encoding="utf-8")
+    assert asker(folder, "sess-review")("sess-job") == "demo" and asker(folder, "sess-review")("sess-anyone") is None
+    hs.write_bytes(had) if had is not None else hs.unlink()
     os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-review"
     post("/ask", {"id": "q1", "questions": qs, "session": "sess-review"})
     assert json.loads(get("/ask?v=1").read())["ask"] == {"id": "q1", "questions": qs, "about": "demo"} and askhook.live() == [url]
@@ -1772,6 +1805,9 @@ def demo():
     assert json.loads(get("/ask").read())["ask"] is None
     post("/ask/clear", {"id": "q1"})
     assert not srv.asks
+    r = get("/download")   # the finished video, saved under its own name
+    assert r.headers["Content-Disposition"] == "attachment; filename=\"demo.mp4\"; filename*=UTF-8''demo.mp4" and r.read()
+    assert disposition("My take - Café edit.mp4").endswith("filename*=UTF-8''My%20take%20-%20Caf%C3%A9%20edit.mp4")
     r = get("/video?k=cut-1", Range="bytes=10-19")
     assert r.status == 206 and len(r.read()) == 10 and r.headers["Content-Range"].endswith(f"/{vid.stat().st_size}")
     # a note: its words, its frame still; an attached image (a non-image is dropped); delete

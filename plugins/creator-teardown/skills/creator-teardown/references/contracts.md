@@ -60,5 +60,5 @@ Existing keys (card events, from `editplan.py style`) stay. The visual pass adds
   - `graphics.secondary_motion`: % of graphics that are `still`, `drift`, `push` or `video` while up. `graphics.blur_behind_pct`: % shown over blurred footage. `graphics.crop_palette`: colours of the graphics themselves.
   - `sound`: `{"sfx_per_min", "kinds": {"whoosh" | "pop" | "click" | "riser" | "impact" | "ding" | "other": %}, "on_cut_pct", "on_graphic_pct", "in_voice_pct", "music": {"present_pct", "level_db" (under the voice)}}`.
   - `hook`: medians for `winner` and `control` of `first_cut_s`, `first_graphic_s`, `first_text_s`, `first_caption_s`, `first_word_s`, `face_pct`; `title_on_screen_pct`.
-  - `winners`: `{"n_winners", "n_control", "differs": [sentences with both medians and n]}`. `ai_tells`: `{"ran", "found": [ai_tells.py findings], "bans", "warns"}`.
+  - `winners`: `{"n_winners", "n_control", "differs": [sentences with both medians and n]}`. `ai_tells`: `{"ran", "found": [ai_tells.py findings], "bans", "warns"}`. `warnings`: plain lines for the home page (the videos are not one format, graphics cover the face 20%+ of their time), `[]` when nothing is off.
   - `blend.take`: the parts the user chose to copy (`captions`, `pace`, `graphics`, `entrances`, `layout`, `sound`); a part left out is absent and style-edit uses its own default.

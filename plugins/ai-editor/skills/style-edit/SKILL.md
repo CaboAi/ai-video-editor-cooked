@@ -117,8 +117,7 @@ Writes `edits/<name>/plan.json`. Read every warning. It ends with the **style ch
 each `style:` line is a way the plan differs from the creator. Fix each (style.json, visuals.json,
 images.json) and plan again before the stills; what the user changed is already the target.
 
-1. **Music:** unless the profile says `sound.music: false`, ask the music question and lay the bed
-   (`references/plan.md` "Music"), then run plan.py again. Sound cues need nothing: plan.py adds them.
+1. **Music** follows the style unless the user set it (`references/plan.md` "Music"), then plan.py again. Sound cues need nothing: plan.py adds them.
 2. **Behind the speaker:** if the profile says `"behind": true`, run `matte.py` after the last plan.py run and
    again after any later one (it cuts only new frames); say its `--estimate` first (`references/plan.md`).
 3. **Check the plan:**
@@ -159,9 +158,10 @@ python3 "$S/edit.py" estimate edits/<name>
 
 Prints `Laptop:`, `Modal:` and two `Other:` lines (GitHub Actions, Lambda) with this video's time and
 cost, then `Recommended:`: Modal once it is connected, the video is over a minute and Modal is quicker; the
-laptop otherwise. `render` in the profile: render there, no question; say it in one line with the time ("say
-'render on Modal' to change"). Not set: ask once, three options in this order with the printed numbers, the
-`Recommended:` one marked (Recommended), then `profile.py set render='"laptop|modal|github|lambda"'`.
+laptop otherwise. `render` in the profile, or `Recommended: Laptop`: render there with no question, one line
+with the time ("Rendering on your laptop, about 14 s. Say 'render on Modal' to change"). Not set and
+`Recommended: Modal`: ask once, three options in this order with the printed numbers, Modal marked
+(Recommended), then `profile.py set render='"laptop|modal|github|lambda"'`.
 
 1. **Laptop**: its time, free.
 2. **Modal**: its time and cost ($30 free credit a month). Not connected: label it **Connect Modal**; on that

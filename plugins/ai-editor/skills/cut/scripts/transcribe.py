@@ -29,7 +29,11 @@ CrisperWhisper skips them.
 Audio is pulled out with ffmpeg first (16 kHz mono WAV), so a multi-GB 4K file
 costs one fast audio demux, never a video decode.
 
-Exit codes: 0 ok, 1 error, 2 usage or missing key, 3 HTTP error
+Models never download here (an edit is no time for a 1.5 GB surprise): only what setup installed is used, and a
+model that is not installed exits 4 (the re-check is skipped). setup.py model / crisper download, with the size
+said and the free space checked first.
+
+Exit codes: 0 ok, 1 error, 2 usage or missing key, 3 HTTP error, 4 that model is not installed
 """
 import argparse
 import json
@@ -113,6 +117,27 @@ def with_spacing(words):
 EDIT = None   # the edit folder main() writes into
 
 
+def installed_whisper(name):
+    """The folder of a faster-whisper model already on disk (setup.py model, or faster-whisper's own cache for a
+    size with no pin). Never downloads: not installed exits 4."""
+    if Path(name).is_dir():
+        return name
+    got = models.whisper_dir(name)
+    if not got and name not in models.WHISPER:
+        try:
+            from faster_whisper.utils import download_model
+            got = download_model(name, local_files_only=True, cache_dir=str(HOME / "models"))
+        except Exception:   # noqa: BLE001  not in its cache (any repo name: distil-large-v3, an org/model id)
+            got = None
+    if not got:
+        print(f"ERROR: the {name} transcription model is not installed, and models never download during an edit. "
+              "Skip this re-check and say so, or use the installed model (no AI_EDITOR_WHISPER_MODEL) or Scribe "
+              "(--engine scribe). A model is added only by setup (setup.py model), which says its size and checks "
+              "free space first.", file=sys.stderr)
+        sys.exit(4)
+    return str(got)
+
+
 def run_whisper(wav, lang, terms=()):
     os.environ.setdefault("HF_HOME", str(HOME / "models"))
     try:
@@ -122,18 +147,8 @@ def run_whisper(wav, lang, terms=()):
                  "the editor's venv (the setup skill installs it).")
     name = os.environ.get("AI_EDITOR_WHISPER_MODEL", "small")
     print(f"whisper model {name} (cpu, int8)", flush=True)
-    # The pinned model (setup.py model); a size with no pin downloads from the Hub as before.
-    said = None
-    if name not in models.WHISPER and not Path(name).is_dir():   # a size with no pin: faster-whisper downloads it
-        from faster_whisper.utils import download_model
-        try:
-            download_model(name, local_files_only=True, cache_dir=str(HOME / "models"))
-        except Exception:   # noqa: BLE001  not in its cache yet (any repo name: distil-large-v3, an org/model id)
-            said = models.announce(f"the {name} transcription model", EDIT, bar=False)
-    model = WhisperModel(str(models.whisper(name, check=False, edit=EDIT) or name), device="cpu", compute_type="int8",
-                         download_root=str(HOME / "models"))
-    if said:
-        said.done()
+    model = WhisperModel(installed_whisper(name), device="cpu", compute_type="int8", download_root=str(HOME / "models"),
+                         local_files_only=True)
     prompt = whisper_prompt(list(terms))
     # condition_on_previous_text=False: with it on, whisper tends to collapse a
     # repeated line into one, and repeated lines are exactly the retakes.
@@ -197,6 +212,7 @@ def run_crisper(wav, lang, terms=()):   # no prompt option: keyterms skipped
         sys.exit("ERROR: CrisperWhisper missing. Install it with the setup skill: setup.py crisper")
     name = os.environ.get("AI_EDITOR_CRISPER_MODEL", "small")
     print(f"crisperwhisper {name} (verbatim; weights licensed for non-commercial use)", flush=True)
+    os.environ["HF_HUB_OFFLINE"] = "1"   # only the weights setup.py crisper downloaded: never a download mid-edit
     r = CrisperWhisperModel(name).transcribe(str(wav), language=lang, word_timestamps=True)
     words = []
     for w in r.words or []:
@@ -249,6 +265,11 @@ def demo():
     assert clean_keyterms(["a<b", "x" * 50, "one two three four five six", "Jev", "jev", " Claude  Code "]) == ["Jev", "Claude Code"]
     assert len(clean_keyterms([f"T{i}" for i in range(300)])) == MAX_KEYTERMS
     assert whisper_prompt([]) == FILLER_PROMPT and whisper_prompt(["Jev"]).endswith(" Jev.")
+    try:   # a model that is not installed: exit 4, never a download
+        installed_whisper("no-such-size-demo")
+        raise AssertionError("a missing model went on")
+    except SystemExit as e:
+        assert e.code == 4, e.code
     print("transcribe demo ok")
 
 

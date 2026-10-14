@@ -69,8 +69,8 @@ A script (or `--keyterm Name`, repeatable) gets names and jargon right (+20% on 
 Say the time first: Whisper 1-4 min for a 3-min take, CrisperWhisper about the take's length. It picks
 Scribe when a key is saved, else CrisperWhisper if installed, else the free local Whisper (`--engine whisper|crisper|scribe` overrides), which drops
 some ums and false starts. With neither, say once that
-setup can add one (CrisperWhisper's weights are non-commercial only). A take full of retakes:
-`AI_EDITOR_WHISPER_MODEL=medium` hears them better (1.5 GB, twice as slow). Step 5 catches the rest.
+setup can add one (CrisperWhisper's weights are non-commercial only). Never download a model mid-edit: a
+re-check needing one not installed (exit 4) is skipped and said in the round's note.
 
 **Never read `words.raw.json`**: step 2 writes `transcript.txt`, 1/12 the size.
 

@@ -144,7 +144,14 @@ minute, kinds) sets the budget and the cues (visuals.md "From the teardown").
 
 ## Music
 
-Unless the profile says `sound.music: false`, ask once in the question box: **Generated for this
+The style decides; the profile overrides only when the user set `sound.music`:
+
+- `sound.music: false`: no music, no question.
+- not set, and the style's `sound.music.present_pct` is 50 or more (the creator runs a bed): lay a generated
+  bed (`sfx.py music edits/<name>`, at the creator's level) without asking, and say it in one line on the
+  review page ("Music like <creator>. Leave a note to change or drop it").
+- not set, and the creator has no bed (or no creator): no music, no question.
+- `sound.music: true`, or the user asks for music: ask once in the question box: **Generated for this
 cut (Recommended)** / **Your own track** (a file) / **A YouTube link** (or any link yt-dlp reads) /
 **None**. For a link, ask for an optional start and end, then who holds the rights: "It's my own
 track" / "YouTube Audio Library or Creative Commons (I'll credit it)" / "Licensed (Epidemic, Artlist

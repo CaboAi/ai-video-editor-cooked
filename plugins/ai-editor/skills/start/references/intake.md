@@ -38,7 +38,7 @@ says what was used; the user changes them by saying so. Keep these calls and the
 
 | id | question | options |
 |---|---|---|
-| `sound` | Sound effects and music? | subtle sound effects, no music / no sound effects / sound effects and I'll add music myself |
+| `sound` | Sound effects and music? | subtle sound effects, music like the creator / sound effects, no music / no sound effects / sound effects and I'll add music myself |
 | `behind` | Let graphics sit behind you? (screenshots and logos tuck behind your head and shoulders) | Yes / No, keep them beside and above me |
 | `past_edit` | Have a raw take and the version you posted? I can learn how you cut. | No, use the default cut / Yes, I'll give both paths (run the taste skill's "Learn from a past edit", then save `true`) |
 
@@ -57,7 +57,7 @@ python3 "$P" set assets_dir '"/Users/me/Pictures/screens"'
 python3 "$P" set names '[{"name": "Jev", "domain": "typesafe.ai"}, {"name": "Claude", "domain": "claude.com"}]'
 python3 "$P" set avoid '{"emoji": true, "stock": true, "icons": true, "colors": ["#7B61FF"]}'
 python3 "$P" set captions '{"on": true, "style": "creator"}'   # creator | plain | bold | karaoke | minimal; "on": false for none
-python3 "$P" set sound '{"sfx": true, "music": false}'
+python3 "$P" set sound '{"sfx": true}'                  # music like the creator; '{"sfx": true, "music": false}' for none
 python3 "$P" set behind true                              # false: cards stay beside and above, no cutout step
 python3 "$P" set past_edit false                          # true once taste learn.py has run on their edit
 ```

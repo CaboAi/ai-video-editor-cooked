@@ -3,6 +3,7 @@
 
     python3 update.py where              which install this is, and how it updates
     python3 update.py market             the official plugin: runs the two `claude plugin` update commands
+                                         (a git checkout of the plugin: exit 2, "update it with git yourself")
     python3 update.py add-upstream       add the `upstream` remote (ask the user first)
     python3 update.py check              fetch upstream: new commits, their CHANGELOG lines, files both sides changed
     python3 update.py merge              backup branch, then merge upstream/main (refuses a dirty tree)
@@ -77,8 +78,23 @@ SLASH = ("  /plugin marketplace update nextwork\n"
          "  /reload-plugins\n")
 
 
+DEV = "This is a developer copy; update it with git yourself."
+
+
+def dev_copy():
+    """True when this plugin runs from a git checkout (a clone, fork or worktree), not the marketplace install."""
+    root = LIB.parent.resolve()
+    if root.as_posix().startswith((Path.home() / ".claude" / "plugins").resolve().as_posix()):
+        return False   # the marketplace's own copy (itself a git clone Claude Code keeps)
+    return any((d / ".git").exists() for d in (root, *root.parents))
+
+
 def market():
-    """The official plugin: run the same two commands /plugin runs. Without the claude command, the slash lines."""
+    """The official plugin: run the same two commands /plugin runs. Without the claude command, the slash lines.
+    A developer copy (a git checkout) is never touched: exit 2 with DEV."""
+    if dev_copy():
+        print(DEV)
+        return 2
     exe = shutil.which("claude")
     for args in (["plugin", "marketplace", "update", "nextwork"], ["plugin", "update", "ai-editor@nextwork"]):
         r = subprocess.run([exe, *args], capture_output=True, text=True, timeout=600) if exe else None
@@ -319,8 +335,12 @@ def demo():
         assert g(fork, "rev-parse", "HEAD") == before and not dirty(fork)
         assert len([b for b in g(fork, "branch").split() if b.startswith("before-update-")]) == 2
     # market without the claude command falls back to the slash lines
+    # (a developer copy, such as this checkout, is left alone: exit 2 and the one line)
     r = subprocess.run([sys.executable, __file__, "market"], capture_output=True, text=True, env={**os.environ, "PATH": ""})
-    assert r.returncode == 1 and "/plugin update ai-editor@nextwork" in r.stdout, r.stdout
+    if dev_copy():
+        assert r.returncode == 2 and r.stdout.strip() == DEV, r.stdout
+    else:
+        assert r.returncode == 1 and "/plugin update ai-editor@nextwork" in r.stdout, r.stdout
     print("update demo ok")
     return 0
 

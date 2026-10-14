@@ -19,7 +19,9 @@ belongs to no session, so it never gets a question.
 
 Whose question: the hook sends its session_id with the question, and each server takes it only when that
 session is working there (srv.ask_owner, set by register): a review page, the session that last ran a
-command on that edit; the home page, a session holding one of its jobs or listening for one. A server that
+command on that edit or holds that edit's video job on the home page; the home page, a session holding one of
+its jobs or listening for one. Showing review pages (the video's editor) are asked first; the home page gets the
+question only when none of them takes it, so a question about a video shows in that video's editor tab. A server that
 knows no session at all (a Claude Code without CLAUDE_CODE_SESSION_ID) takes any question, as before. The
 card says what it is about ("Claude (team-250k-general) asks"). No server takes it: the terminal box shows.
 
@@ -246,17 +248,18 @@ def relay(payload, timeout=None, poll=0.5):
         return None
     sid = payload.get("session_id")
     sid = sid if isinstance(sid, str) else ""
-    urls = live()
-    if not urls:
-        return None
     qid = secrets.token_urlsafe(12)
     sent = []
-    for u in urls:
-        try:
-            _call(u, "/ask", {"id": qid, "questions": qs, "session": sid})
-            sent.append(u)
-        except Exception:   # 409: another session's page
-            pass
+    edit = live("review")
+    for urls in (edit, [u for u in live() if u not in edit]):   # the video's editor first; Home only when none takes it
+        for u in urls:
+            try:
+                _call(u, "/ask", {"id": qid, "questions": qs, "session": sid})
+                sent.append(u)
+            except Exception:   # 409: another session's page
+                pass
+        if sent:
+            break
     if not sent:
         return None
     result = None
@@ -337,11 +340,11 @@ def demo():
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
             route(self, "POST", path, q, body) or self.send(404, {})
 
-    def mk(sid, about):   # a page owned by one session
+    def mk(sid, about, kind="review"):   # a page owned by one session
         srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         url = f"http://127.0.0.1:{srv.server_address[1]}/?t={tok}"
-        register(srv, url, "review", owner=lambda s: about if s == sid else None)
+        register(srv, url, kind, owner=lambda s: about if s == sid else None)
         return srv, url
     srv, url = mk("sess-A", "team-250k-general")
     qs = [{"question": "Which cut?", "header": "Cut", "multiSelect": False,
@@ -444,6 +447,22 @@ def demo():
     assert page()["about"] == "team-250k-general" and _call(url2, "/ask?v=1")["ask"] is None, "A's stays off B's"
     _call(url, "/ask/answer", {"id": page()["id"], "terminal": True})
     th.join()
+    # the home page showing too, also A's: A's question shows in A's editor only; B's (no editor of its own) on Home
+    srvH, urlH = mk("sess-A", "", "home")
+    srvH.ask_owner = lambda s: "" if s in ("sess-A", "sess-D") else None
+    _call(urlH, "/ask?v=1")
+    th, box = run_hook()
+    assert page()["about"] == "team-250k-general" and not srvH.asks, "the editor, not Home"
+    _call(url, "/ask/answer", {"id": page()["id"], "terminal": True})
+    th.join()
+    th, box = run_hook(dict(payload, session_id="sess-D"))
+    d = page(urlH)
+    assert not srv.asks and not srv2.asks, "no editor takes D's: Home does"
+    _call(urlH, "/ask/answer", {"id": d["id"], "terminal": True})
+    th.join()
+    srvH.shutdown()
+    srvH.server_close()
+    (pages() / str(srvH.server_address[1])).unlink()
     # a third session with no page of its own, or no session id: the terminal box, at once
     for p in (dict(payload, session_id="sess-C"), {k: v for k, v in payload.items() if k != "session_id"}):
         t0 = time.time()

@@ -151,11 +151,12 @@ Every render goes on the review page (`../style-edit/references/review.md`); the
 off: `--max-pause`. Then the step 4-5 chain ending `round --video edits/<name>/cut.mp4`
 (a second `start` hides queued notes), then `resolve`.
 
-After approval, in one Bash call: `python3 "$S/trend.py" log edits/<name>` (`tally`: trend) and the hook check. Then hook variants if `hooks.json` exists (`references/retake-detection.md`); called by start for a whole edit, ask that question in the same question box as style-edit's stills approval, not before it, so the sheet is not held up.
+After approval, in one Bash call: `python3 "$S/trend.py" log edits/<name>` (`tally`: trend) and the hook check. Then hook variants if `hooks.json` exists (`references/retake-detection.md`); called by start, ask that in the same question box as style-edit's stills approval, not before it.
 
 Only approval finishes the cut; `cut.mp4` and `words.json` go to style-edit. On "just the
 cut first", say they can ask for the style. Never start style-edit on your own. Called by start: as
-the page opens, start the `visual-prep` agent in the background.
+the page opens, start `visual-prep` in the background; its `motion_briefs`: one background
+`clip-builder` each, at once.
 
 ## If a script stops
 

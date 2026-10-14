@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=__W__, height=__H__" />
+    <script src="assets/gsap.min.js"></script>
+    <style>
+      /* ------------------------------------------------------------------
+         Motion clip template (skills/motion). motion.py scaffold copies it and
+         fills the size, the duration, the id and the look. Author only the beat.
+         It already lints clean and avoids the gotchas in references/build-loop.md.
+
+         Text: none, unless the text IS the mechanism (a counter, a typed command,
+         a comment the speaker reads). Then add a font link for the look's type
+         and mark the element with a `real-text:` comment naming what it is.
+         ------------------------------------------------------------------ */
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        margin: 0; width: __W__px; height: __H__px;
+        overflow: hidden; background: __GROUND__;
+      }
+
+      #root {
+        position: relative; width: __W__px; height: __H__px;
+        background: __GROUND__;
+        color: __INK__;
+      }
+
+      /* Every element is TWO nodes:
+           .node  outer, positioned, carries the drop-shadow. Entrances go here.
+           .hov   inner, carries the idle float and pendulum. Drift goes here.
+         Animating both on one element makes them fight and one silently wins. */
+      .node { position: absolute; filter: drop-shadow(0 14px 18px rgba(60,45,20,0.16)); }
+      .hov  { will-change: transform; }
+
+      /* SCENES (references/scenes.md). #root stays the viewport; #scene is the
+         canvas. Three transform layers, one job each:
+           #viewport  the ZOOM, about the frame centre
+           #rail      the camera POSITION (x and y)
+           #scene     the constant crawl                                     */
+      #viewport { position: absolute; inset: 0; transform-origin: __CX__px __CY__px;
+                  will-change: transform; }
+      #rail     { position: absolute; inset: 0; will-change: transform; }
+      #scene    { position: absolute; top: 0; left: 0; }
+      .idea     { position: absolute; width: __W__px; height: __H__px; }
+
+      /* GOTCHA 12: a late `fromTo` paints the AUTHORED state until it fires.
+         Author the from-state HERE and keep immediateRender:false. Both. */
+      .enter { opacity: 0; }
+    </style>
+  </head>
+  <body>
+    <!-- The linter requires all five data attrs. data-duration must match DURATION. -->
+    <div id="root" data-hyperframes-root
+         data-composition-id="__ID__"
+         data-start="0"
+         data-duration="__DUR__"
+         data-width="__W__"
+         data-height="__H__">
+
+      <div id="viewport"><div id="rail"><div id="scene">
+        <!-- ONE idea: author straight in here.
+             <div class="node" id="n1" style="left:340px; top:120px">
+               <div class="hov"><svg ...>...</svg></div>
+             </div>
+
+             SEVERAL ideas (a scene): one .idea panel each, anywhere on the canvas,
+             then a SHOT at its centre. A REAL SCREEN is an idea too: an <img> of
+             the capture inside the look's card. -->
+
+      </div></div></div>
+    </div>
+
+    <script>
+      // 1. Set by motion.py scaffold. Everything below scales off it.
+      var DURATION = __DUR__; // seconds
+      // When each said word lands, in clip seconds (clip t=0 is the card's first frame).
+      var WORDS = __WORDS__;
+
+      var SLIDE = "power3.out";  // entrances: long settle, never a bounce
+      var MOVE  = "power2.inOut";
+
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      // 1b. The camera (references/scenes.md). A SHOT is {cx, cy, z, at}: put
+      // canvas point (cx,cy) in the middle of the frame at zoom z, arriving at `at`.
+      // Leave SHOTS empty for a single-idea clip.
+      var SHOTS = [];
+      var TRAVEL = 1.2;   // seconds per move. SHORT: the dwell takes the rest.
+      var CRAWL  = SHOTS.length ? 18 : 0;   // px/s, never stops
+
+      // #viewport scales about the frame centre C, #rail translates inside it, so
+      // centring canvas point p needs t = C - p, independent of z.
+      function railX(c) { return __CX__ - c.cx; }
+      function railY(c) { return __CY__ - c.cy; }
+
+      if (SHOTS.length) {
+        var vp = document.getElementById("viewport");
+        var rl = document.getElementById("rail");
+        vp.style.transform = "scale(" + SHOTS[0].z + ")";
+        rl.style.transform = "translate(" + railX(SHOTS[0]) + "px," + railY(SHOTS[0]) + "px)";
+        tl.to("#scene", { x: -CRAWL * DURATION, duration: DURATION, ease: "none" }, 0);
+        SHOTS.forEach(function (c, i) {
+          if (i === 0) return;
+          var from = Math.max(SHOTS[i - 1].at + 0.4, c.at - TRAVEL);
+          var dur  = c.at - from;
+          tl.to("#rail",     { x: railX(c), y: railY(c), duration: dur, ease: "sine.inOut" }, from);
+          tl.to("#viewport", { scale: c.z, duration: dur, ease: "sine.inOut" }, from);
+        });
+      }
+
+      // 2. Idle motion, DURATION-SCALED (gotcha 13). [selector, enterTime, exitTime?]
+      var FLOAT = [
+        // ["#n1", 0.2],
+      ];
+      // A SUBSET swings, never a member of a grid.
+      var SWING = [
+        // ["#n2", 0.6],
+      ];
+
+      FLOAT.forEach(function (entry, i) {
+        var sel = entry[0], enter = entry[1] || 0;
+        var live = Math.max(0.8, Math.min(entry[2] || DURATION, DURATION) - enter);
+        var reps = Math.max(1, Math.round(live / 1.5));
+        var period = live / (reps + 1);
+        var amp = Math.round(__H__ * (0.008 + (i % 4) * 0.0035)) + 6;   // visible at a glance at this size
+        tl.to(sel + " .hov", { y: -amp, duration: period, ease: "sine.inOut", yoyo: true, repeat: reps }, enter);
+      });
+
+      SWING.forEach(function (entry, i) {
+        var sel = entry[0], enter = entry[1] || 0;
+        var live = Math.max(0.8, DURATION - enter);
+        var reps = Math.max(1, Math.round(live / 1.7));
+        var period = live / (reps + 1);
+        tl.to(sel + " .hov", { rotation: i % 2 ? 6.5 : -7.5, transformOrigin: "50% -70%",
+                               duration: period, ease: "sine.inOut", yoyo: true, repeat: reps }, enter);
+      });
+
+      // 3. The beat. Entrances on the OUTER node, on their word:
+      //   tl.fromTo("#n1", { y: 40, autoAlpha: 0 },
+      //                    { y: 0, autoAlpha: 1, duration: 0.7, ease: SLIDE,
+      //                      immediateRender: false }, WORDS[0].t - 0.1);
+
+
+      // 4. Hold to the end so the last state settles.
+      tl.to({}, { duration: 0.3 }, DURATION - 0.3);
+
+      window.__timelines["__ID__"] = tl;
+    </script>
+  </body>
+</html>

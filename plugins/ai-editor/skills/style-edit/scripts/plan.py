@@ -1311,7 +1311,8 @@ def tuck_behind(cards, face, aspect):
     "key" is written for matte.py to check against the real cutout."""
     hit = lambda a, hd: a[0] < hd[2] + HEAD_GAP and a[0] + a[2] > hd[0] - HEAD_GAP and a[1] < hd[3] + HEAD_GAP and a[1] + a[3] > hd[1] - HEAD_GAP
     for c in cards:
-        if kind_of(c) not in BEHIND or c.get("layout") == "scene":
+        clip = ((c.get("anim") or {}).get("props") or {}).get("motion")   # a motion skill clip tucks like a card
+        if (kind_of(c) not in BEHIND and not clip) or c.get("layout") == "scene":
             continue
         c["layer"] = "behind"
         hd = face and head_during(face["heads"], face.get("step_s", 0.5), c["start"], c["end"])

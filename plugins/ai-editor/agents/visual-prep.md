@@ -54,6 +54,10 @@ local, so they are made now and made again if the cut changes.
    `logos`) and one `logo_cluster` per `together` group; capture.mjs keeps its files. No logos.json and two
    or more brands named: follow `<ROOT>/skills/logo-pack/SKILL.md` steps 1-4 first (free, no questions; a logo
    still failing after two rounds is left out), then `route.py beats` again.
+4b. **Motion briefs:** `python3 "<ROOT>/skills/motion/scripts/motion.py" pick EDIT`. It turns the beats that need
+   motion into clip folders under `EDIT/motion/` and prints each id. Return every `EDIT/motion/<id>/brief.md`
+   in `motion_briefs` (the caller launches the clip-builders; you never build clips). It prints `not installed`:
+   return `[]`, the template cards stay.
 5. **Fetch, face, plan and sheet**, one Bash call (face.py does not need the captures, so it runs beside them;
    `edit.py stills` runs `check.py plan` itself and stops on a FAIL):
 
@@ -79,7 +83,7 @@ local, so they are made now and made again if the cut changes.
 Stop at the first error you cannot fix in two tries and report it. Return only this JSON:
 
 ```json
-{"edit": "EDIT", "status": "ready|failed", "images": 0, "visuals": 0, "captures_failed": ["word: reason"],
+{"edit": "EDIT", "status": "ready|failed", "images": 0, "visuals": 0, "motion_briefs": ["EDIT/motion/<id>/brief.md"], "captures_failed": ["word: reason"],
  "sheet": "EDIT/stills/sheet.png or empty", "reviewed": "pass|fail|skipped", "reads_as": ["tile 4: ..."],
  "still_failing": ["item n: where, why"], "plan_warnings": ["each WARN line of check.py plan"],
  "error": "the failing command and its last line, or empty"}

@@ -19,7 +19,10 @@ sheet against the `stills-critic` list and fixes what fails, and copies its `dec
 `prep-decisions.json`. Every visual it writes names a word and which time it is said (`nth`), never a
 second. It renders no video, uploads nothing and spends nothing.
 
-Wait for its JSON if it is still running. Cut approved unchanged (`cmp decisions.json prep-decisions.json`)
+Wait for its JSON if it is still running. Its `motion_briefs` went to clip-builder agents (motion skill): wait
+for them too, then `python3 "${CLAUDE_PLUGIN_ROOT}/skills/motion/scripts/motion.py" place edits/<name>` and plan
+and stills again in one Bash call, so the sheet shows the clips (a clip that failed keeps its template card).
+Cut approved unchanged (`cmp decisions.json prep-decisions.json`)
 and `stills/sheet.png` there: go straight to step 5. With `"reviewed": "pass"` the sheet is already checked:
 look at it once and ask Approve. No second `stills-critic`, no re-plan and no reading plan.py, capture.mjs or
 the renderer's source unless you see a problem on the sheet; then fix only that (visuals.json or images.json,

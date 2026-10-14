@@ -25,11 +25,13 @@ CARD_KIND = {"shot": ("photo", "real screenshot", "meme"), "browser": ("UI recor
              "logo_cluster": ("logo",), "logo_sting": ("logo",), "video_card": ("b-roll", "UI recording"),
              "social_post": ("real screenshot",), "post": ("real screenshot",),
              **dict.fromkeys(("chat", "terminal", "toasts", "flow", "likes", "progress", "curve", "notes"), ("animation",)),
-             "side_by_side": ("animation", "real screenshot")}
+             "side_by_side": ("animation", "real screenshot"), "motion": ("animation",)}
 
 
 def card_kind(c):
     a = c.get("anim") or {}
+    if (a.get("props") or {}).get("motion"):   # a bespoke clip the motion skill built: an animation
+        return "motion"
     return c.get("format") or a.get("format") or a.get("type") or "shot"
 
 
@@ -152,6 +154,7 @@ def demo():
     plan["cards"] = [{"format": "shot", "box": [10, 12, 80, 20]}] * 2 + [{"anim": {"type": "video_card"}, "box": [10, 12, 80, 20]}]
     plan["sfx"] = [{}]
     assert check(plan, style) == [], check(plan, style)
+    assert card_kind({"anim": {"type": "video_card", "props": {"motion": "01-x"}}}) == "motion"
     # a part the blend did not take is not compared; the user's change (in the merged style) is the target
     capped = check({**plan, "cards": plan["cards"][:1]}, {**style, "cards": {"per_min": 3}})
     assert not any(" cards (" in w for w, _ in capped), capped   # 1 card in 20 s is right under the user's 3 a minute

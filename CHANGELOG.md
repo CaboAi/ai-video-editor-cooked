@@ -21,6 +21,13 @@ What changed for every user, newest first.
   choose images (12 at most, under 15 MB each), each with optional "Show when I say..." words. They are saved with
   the video (`edits/<name>/assets/` and `assets.json`, on your computer only) and go in first, as cards on those
   words, before Claude searches for anything. The editor's notes have an "Anything to add?" line for more.
+- Motion graphics are built for each line. The beats that need motion (a count, a list of notes, a before and
+  after, a command running, a render, an easing curve, a flow) each get their own animated clip, designed for
+  that sentence and landing each part on its word, built by one agent per clip while you review the cut. Every
+  clip passes lint, a layout check, a frame-to-frame motion check and a look at its contact sheets before it is
+  used; a clip that fails keeps the card template. New `motion` skill; `setup.py motion` installs its tools
+  (under a minute) and `doctor` checks them. style.json `motion` sets clips or templates, how many and which kinds.
+
 ## ai-editor 2.6.10 (2026-10-13)
 
 - The cut renders at 1080p: a 4K take comes out 1080x1920 (or 1920x1080), never upscaled. The edit was already

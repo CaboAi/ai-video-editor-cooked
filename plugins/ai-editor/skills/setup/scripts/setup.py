@@ -9,6 +9,8 @@
   python3 setup.py venv       create ~/.ai-video-editor/venv and install requirements/requirements.lock
   python3 setup.py model      download the free transcription model (about 500 MB, once, sha256 checked)
   python3 setup.py remotion   copy the renderer to ~/.ai-video-editor/remotion and npm ci it
+  python3 setup.py motion     install the motion clip tools in ~/.ai-video-editor/motion: the HyperFrames CLI and GSAP
+                              at the versions pinned in skills/motion/scripts/motion.py, and their headless Chrome
   python3 setup.py warm       pay the first edit's one-time costs now: first load of the Python libraries,
                               one test frame through the renderer (webpack's cache, the render browser's first start)
   python3 setup.py install-all [--report]   venv, model, remotion, warm, then the cutout model, never asking; a
@@ -62,6 +64,8 @@ VPY = VENV / ("Scripts/python.exe" if OS == "Windows" else "bin/python")
 PLUGIN = Path(__file__).resolve().parents[3]          # plugins/ai-editor
 REMOTION_SRC = PLUGIN / "remotion"
 REMOTION_HOME = HOME / "remotion"
+MOTION_HOME = HOME / "motion"     # the motion skill's HyperFrames CLI and GSAP (npm), not the user's global npm
+MOTION_PY = PLUGIN / "skills" / "motion" / "scripts" / "motion.py"
 LOCK = PLUGIN / "requirements" / "requirements.lock"   # uv pip compile --universal --generate-hashes
 NPM_LOCK = REMOTION_SRC / "package-lock.json"
 ENV = HOME / "env.json"           # what was installed, from which pins
@@ -233,6 +237,68 @@ def remotion_installed():
         return None
 
 
+def motion_pins():
+    """{package: version} from motion.py (HF_VERSION, GSAP_VERSION): one place pins them."""
+    text = MOTION_PY.read_text(encoding="utf-8")
+    return {"hyperframes": re.search(r'HF_VERSION = "([^"]+)"', text)[1], "gsap": re.search(r'GSAP_VERSION = "([^"]+)"', text)[1]}
+
+
+def motion_have():
+    """{package: installed version} in MOTION_HOME."""
+    have = {}
+    for name in ("hyperframes", "gsap"):
+        try:
+            have[name] = json.loads((MOTION_HOME / "node_modules" / name / "package.json").read_text(encoding="utf-8"))["version"]
+        except (OSError, ValueError, KeyError):
+            pass
+    return have
+
+
+def motion_bin():
+    return MOTION_HOME / "node_modules" / ".bin" / ("hyperframes.cmd" if OS == "Windows" else "hyperframes")
+
+
+def motion_row():
+    """(ok, detail): the pinned packages are in MOTION_HOME and the CLI finds its headless Chrome."""
+    pins, have = motion_pins(), motion_have()
+    off = [f"{k} {have.get(k, 'missing')}, pinned {v}" for k, v in pins.items() if have.get(k) != v]
+    if off:
+        return False, "; ".join(off)
+    b = run([str(motion_bin()), "browser", "path"], timeout=60) if motion_bin().exists() else None
+    if not b or b.returncode:
+        return False, "no headless Chrome for clips"
+    return True, f"hyperframes {pins['hyperframes']}, gsap {pins['gsap']}"
+
+
+def step_motion(force=False, tick=None):
+    """The motion skill's tools: `npm install` of the pinned HyperFrames CLI and GSAP into MOTION_HOME, then the
+    CLI's own headless Chrome (`hyperframes browser ensure`). About a minute and 500 MB on a first install."""
+    npm = shutil.which("npm")
+    if not npm:
+        sys.exit(f"npm missing. Install Node first: {fix('node')}")
+    MOTION_HOME.mkdir(parents=True, exist_ok=True)
+    pkg = MOTION_HOME / "package.json"
+    if not pkg.exists():
+        pkg.write_text('{"private": true, "description": "cooked. motion clip tools"}\n', encoding="utf-8")
+    done = "up to date"
+    pins = motion_pins()
+    if force or motion_have() != pins:
+        if tick:
+            tick(0.1, "the HyperFrames CLI and GSAP")
+        quiet([npm, "install", "--save-exact", "--no-audit", "--no-fund", "--loglevel=error"] +
+              [f"{k}@{v}" for k, v in pins.items()], MOTION_HOME, "installing the motion clip tools (npm install)")
+        done = "installed"
+    b = run([str(motion_bin()), "browser", "path"], timeout=60)
+    if force or b.returncode:
+        if tick:
+            tick(0.5, "the clip browser")
+        quiet([str(motion_bin()), "browser", "ensure"], MOTION_HOME, "downloading the clip browser")
+        done = "installed"
+    env_save(motion=pins)
+    print(f"Motion clip tools {done} in {MOTION_HOME}")
+    return done
+
+
 def venv_has(module):
     return VPY.exists() and run([str(VPY), "-c", f"import {module}"]).returncode == 0
 
@@ -272,6 +338,8 @@ def checks():
                  f'{py_self} "{here}" model'))
     rows.append(("renderer", bool(remo) and not d["renderer"], "; ".join(d["renderer"]) or str(REMOTION_HOME),
                  f'{py_self} "{here}" ' + ("repair" if remo else "remotion")))
+    mo_ok, mo_detail = motion_row()
+    rows.append(("motion clips", mo_ok, mo_detail, f'{py_self} "{here}" motion'))
     return rows
 
 
@@ -791,7 +859,7 @@ def bootstrap(force=False, matte=False):
               "then run this again.")
         return 1
     steps = [("python packages", step_venv), ("transcription model", step_model), ("renderer", step_remotion),
-             ("warm-up", step_warm)]
+             ("motion clips", step_motion), ("warm-up", step_warm)]
     if matte:
         steps.append(("matting model", step_matte))
     for i, (name, fn) in enumerate(steps, 1):
@@ -806,7 +874,8 @@ def bootstrap(force=False, matte=False):
 INSTALL_STEPS = [  # (doctor row, what the page says, step, share of the bar, the row it needs)
     ("python packages", "Installing the Python packages", step_venv, 0.15, None),
     ("transcription model", "Downloading the transcription model", step_model, 0.35, "python packages"),
-    ("renderer", "Installing the renderer", step_remotion, 0.15, None),
+    ("renderer", "Installing the renderer", step_remotion, 0.12, None),
+    ("motion clips", "Installing the motion clip tools", step_motion, 0.03, None),
     ("warm-up", "Warming up the editor, so your first video is as fast as the rest", step_warm, 0.30, "renderer"),
     ("cutout model", "Downloading the cutout model, for cards behind you", step_cutout, 0.05, None),
 ]
@@ -1355,7 +1424,8 @@ def demo_install_all():
         assert job["steps"][0]["progress"] == 1.0 and "rows" in st.get("doctor", {}), job
     # The real steps: one bar (shares add to 1), warming waits for the renderer, the optional two never fail the install
     assert abs(sum(x[3] for x in INSTALL_STEPS) - 1) < 1e-9 and [x[0] for x in INSTALL_STEPS] == [
-        "python packages", "transcription model", "renderer", "warm-up", "cutout model"], INSTALL_STEPS
+        "python packages", "transcription model", "renderer", "motion clips", "warm-up", "cutout model"], INSTALL_STEPS
+    assert set(motion_pins()) == {"hyperframes", "gsap"} and all(re.match(r"^\d+\.\d+\.\d+$", v) for v in motion_pins().values())
     assert dict((x[0], x[4]) for x in INSTALL_STEPS)["warm-up"] == "renderer"
     global quiet
     real_quiet, real_fetch = quiet, models.fetch
@@ -1384,7 +1454,7 @@ def demo_install_all():
 
 if __name__ == "__main__":
     cmds = {"doctor": doctor, "venv": step_venv, "model": step_model, "remotion": step_remotion,
-            "bootstrap": bootstrap, "repair": repair, "awskey": save_aws_key,
+            "motion": step_motion, "bootstrap": bootstrap, "repair": repair, "awskey": save_aws_key,
             "lambda": check_lambda, "modal": connect_modal, "modal-connect": connect_modal, "modal-check": connect_modal, "modal-test": test_modal, "matte": step_matte, "warm": step_warm,
             "demo": demo, "keys": test_keys, "certs": step_certs, "todo": todo, "crisper": install_crisper,
             "install-launcher": install_launcher, "uninstall-launcher": uninstall_launcher}

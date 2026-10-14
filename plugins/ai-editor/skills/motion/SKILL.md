@@ -1,0 +1,121 @@
+---
+name: motion
+description: Builds bespoke motion graphics for an edit, one animated clip per beat (HyperFrames + GSAP), each designed for its line and landing on the spoken word, then lays them on the footage through the style-edit render. Picks the beats that need motion (a count, a list, a flow, a before and after, a run, a mechanism), writes a brief per clip, runs one clip-builder agent per clip at once, gates every clip (lint, layout, render, a frame-to-frame motion check, contact sheets), and falls back to the template card for a clip that fails. Use when the user says "animation", "motion graphic", "animate this", "animate the part where I say X", "make a clip for", "build the animations", or when style-edit or visual-prep reaches the beats that need motion. Not for captions or zooms (style-edit), not for real screenshots and logos alone (overlays), not for a product demo film (product-video).
+license: MIT
+compatibility: Node 20+, ffmpeg and the HyperFrames CLI with GSAP, installed once by the setup skill's motion step (10-60 s, about 120 MB, plus a 200 MB headless Chrome when no Chrome is installed). Runs from the full ai-editor plugin folder.
+---
+
+# Motion
+
+Paths: `${CLAUDE_SKILL_DIR}` means the folder containing this SKILL.md, and `${CLAUDE_PLUGIN_ROOT}` the plugin folder two levels above it.
+
+Every question goes in the question box: the AskUserQuestion tool (2-4 options, recommended first).
+
+One clip per beat, built for that line, never a template filled in. The template card is the fallback.
+`M="${CLAUDE_SKILL_DIR}/scripts/motion.py"`; paths are relative to the library, like style-edit's. Run the
+scripts with `python3` on Mac and Linux, `py` on Windows.
+
+```
+visuals.json (style-edit step 3) -> motion.py pick -> motion/<id>/{index.html, brief.md, beat.json}
+  -> one clip-builder agent per clip -> motion.py check (gates + render) -> motion.py place
+  -> visuals.json video_card beats -> plan.py -> stills -> render (the clip plays on its word)
+```
+
+## 0. Ready?
+
+`python3 "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.py" doctor` shows `motion clips` ok. If not:
+`python3 "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.py" motion` (under a minute, once; say so first).
+Not installed and the user says skip: the template cards stay, nothing else changes.
+
+## 1. Pick the beats
+
+```bash
+python3 "$M" pick edits/<name>
+```
+
+Reads visuals.json (written by style-edit step 3 or the visual-prep agent) and style.json's `motion` block:
+`{"engine": "clips" | "templates", "amount": 0-1, "kinds": {"counter", "list", "flow", "before_after",
+"ui_demo", "curve", "logo": true|false}, "look": "default"}`. Every beat routed to a moving template
+(`likes`, `notes`, `flow`, `side_by_side`, `progress`, `terminal`, `chat`, `toasts`, `curve`,
+`logo_cluster`) with at least 1 s of room becomes a clip, up to `amount` of them. Each gets
+`edits/<name>/motion/<id>/`: the template with its size, duration, look and the said words' times filled,
+`beat.json` (cut clock) and `brief.md`. The look: `references/looks.md` (`default`, or the style's palette
+and font). A user asking in chat ("animate the part where I say X"): add or change that beat in
+visuals.json first (style-edit `references/shapes.md`), then pick.
+
+## 2. Build: one clip-builder agent per clip, all in one message
+
+For each `motion/<id>/brief.md` pick printed, launch the `clip-builder` agent
+(`${CLAUDE_PLUGIN_ROOT}/agents/clip-builder.md`, opus, background) with that brief's full path, every
+clip in ONE message. Each reads only its brief and `references/clip-brief-card.md`, builds `index.html`,
+and runs `motion.py check` at most 3 times. Never build the clips in the main session.
+
+During a whole edit the cut skill launches them as soon as visual-prep returns, while the user is still
+reviewing the cut, so the clips are ready when the cut is approved.
+
+## 3. Check a clip (what each agent runs)
+
+```bash
+python3 "$M" check edits/<name>/motion/<id>
+```
+
+In order: `check_clip.py` (source gotchas, free), `hyperframes lint`, `hyperframes check --at-transitions`,
+render, `check_motion.py` (no stall, no spike, no frame-0 flash), `check_composition.py` (advisory),
+`measure_ink.py`, then `renders/sheet.png` (1 fps) and `renders/strip.png` (10 fps over the first 1.2 s).
+Writes `gates.json`. Thresholds: `references/clip-brief-card.md`. Why each gotcha bites:
+`references/build-loop.md`. The full rules: `references/visual-system.md`; several ideas in one clip:
+`references/scenes.md`.
+
+## 4. Look, then place
+
+When the agents return, read each `renders/sheet.png` yourself against its line (a fresh reader who was not
+told the beat is better: does it say the line?). A clip that reads wrong: send its agent the note, one more
+round. Then:
+
+```bash
+python3 "$M" place edits/<name>
+```
+
+A passed clip becomes a `video_card` beat with the render (`images/motion-<id>.mp4`); `clip_motion.py`
+sets `start_s` so its motion finishes 0.25 s before the card leaves. A clip that did not pass after its
+rounds keeps its template beat (kept under `fallback`, restored by place). Then style-edit carries on
+from step 4 (plan, stills, render). Re-run place after any rebuild.
+
+## 5. Check it moving
+
+Stills hide flicker. After the render, strips round at least four clip entrances, with the safe zone drawn:
+
+```bash
+python3 "$M" strips edits/<name>/render.mp4 --at <t1>,<t2>,<t3>,<t4> --out edits/<name>/stills/motion-strips.png --safe
+```
+
+Each row runs 0.4 s before to 1.1 s after its time at 10 fps. Look for a part on one frame and gone, a blank
+frame between cards, a part that never moves while held, anything over the face, anything outside the box.
+
+## Notes on a clip
+
+A note on one clip ("make the counter bigger"): send it to that clip's agent (or a new clip-builder with
+the brief and the note), `motion.py check` it, `place`, then plan, stills and render as style-edit says.
+Only that clip is rebuilt.
+
+## Skill styles
+
+A user's own style skill gets bespoke animations with one line: "Animations: use the motion skill".
+
+## If a script stops
+
+| message | do |
+|---|---|
+| `the motion tools are not installed` | `setup.py motion`, then the same command |
+| a clip still `FAIL` after its checks (3 to build, 2 more per note) | leave it: place restores its template |
+| `no frames read` (strips) | the render path is wrong or the render failed: style-edit step 7 |
+
+## Files
+
+- `scripts/motion.py` (pick, check, place, status, strips), `check_clip.py`, `check_motion.py`,
+  `check_composition.py`, `measure_ink.py`, `clip_motion.py`: each with a `demo` self-check.
+- `template/`: the HyperFrames composition every clip starts from.
+- `references/`: `clip-brief-card.md` (the core every agent reads), `visual-system.md`, `build-loop.md`,
+  `scenes.md`, `looks.md`.
+- HyperFrames is Apache-2.0 (github.com/heygen-com/hyperframes), GSAP is under its standard no-charge licence
+  (gsap.com/standard-license); both are installed from npm by setup, not shipped here.

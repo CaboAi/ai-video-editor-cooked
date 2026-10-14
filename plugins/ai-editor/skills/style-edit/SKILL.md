@@ -93,8 +93,8 @@ rules, then the default look and motion (built animations over captures, big in 
    a video a `youtube`, a repo a `github`, a brand in passing a `logo`, an expert's words a clip (`references/visuals.md` "Sourced proof").
 3. **Fill the overlays:** for the overlay picks, write only the props (`references/shapes.md`). Hand it to the `template-filler` agent (haiku) with the full path of `references/shapes.md` when available, else write them. Only
    words and numbers the speaker said. There are no type cards.
-4. **Fetch:** `node "$S/capture.mjs" edits/<name>` screenshots, fetches logos, posts and
-   free sources into `images/`, hides cookie banners, measures marks. The step 5 sheet shows them.
+4. **Fetch:** `node "$S/capture.mjs" edits/<name>` fetches captures, logos, posts into `images/`, marks measured.
+5. **Motion:** moving-template beats become bespoke clips (motion skill); a failed clip keeps its card.
 
 Pacing: a copied creator's rate wins. route.py prints her cards a minute, kinds and place in the frame,
 and marks that many sentences `want` (named ones first). Give each a card of her kind with a `box` at her

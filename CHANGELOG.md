@@ -4,6 +4,11 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.12, creator-teardown 2.7.12 (2026-10-14)
+
+- The block on a Claude editing the editor's own files is gone. A Claude making a video can change the editor
+  again when a style needs it, such as see-through animations.
+
 ## ai-editor 2.7.11, creator-teardown 2.7.11 (2026-10-14)
 
 - Card edit never shows a card of words alone. A notes card now looks like real notes: your face in the header,

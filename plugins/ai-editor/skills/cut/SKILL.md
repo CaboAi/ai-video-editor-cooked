@@ -9,7 +9,7 @@ compatibility: Python 3.9+, ffmpeg and the venv the setup skill installs (faster
 
 Paths: `${CLAUDE_SKILL_DIR}` means the folder containing this SKILL.md, and `${CLAUDE_PLUGIN_ROOT}` the plugin folder two levels above it.
 
-Read `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` first. Never edit files under `${CLAUDE_PLUGIN_ROOT}`. If a script is wrong, tell the user and use a supported override.
+Read `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` first: the rules every video in this plugin follows.
 
 Every question goes in the question box: the AskUserQuestion tool (2-4 options, recommended first). Only in an agent without it, ask numbered questions in text.
 
@@ -176,3 +176,7 @@ the page opens, start `visual-prep` in the background; its `motion_briefs`: a ba
    being off-script.
 3. Never stream-copy (`-c copy`) across cuts: it lands up to 2 s off.
 4. Never hand over a render that has not been verified and approved.
+
+## Self-check
+
+`test_build_timeline.py`, `test_retakes.py`, `test_media.py` (ffmpeg); `demo` on `transcribe.py`, `trend.py`, `splice_check.py`, `script_match.py`, `mirror.py`.

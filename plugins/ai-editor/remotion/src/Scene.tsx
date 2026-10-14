@@ -26,7 +26,10 @@ export type SceneCard = { anim?: Anim; src?: string; size?: [number, number]; ma
 export const sceneGrounds = (cards: SceneCard[]) => {
   const out = new Map<SceneCard, Ground>();
   const order: Ground[] = ["ground", "ink", "accent"];
-  cards.filter((c) => c.layout === "scene").sort((a, b) => a.start - b.start).forEach((c, i) => out.set(c, c.ground ?? order[i % 3]));
+  // a dark card (notes, terminal) sits on the light ground: on ink (or a dark accent) it reads as an empty frame
+  const dark = (c: SceneCard) => ["notes", "terminal"].includes(c.anim?.type ?? "");
+  cards.filter((c) => c.layout === "scene").sort((a, b) => a.start - b.start)
+    .forEach((c, i) => out.set(c, c.ground ?? (dark(c) ? "ground" : order[i % 3])));
   return out;
 };
 
@@ -36,6 +39,8 @@ export const TR_S = 0.62; // seconds a transition takes at k = 1
 
 /** Where a scene's type lives, % of the frame: clear of the app's top bar and the captions under it. */
 export const sceneBox = (w: number, h: number): [number, number, number, number] => (h > w ? [14, 14, 72, 52] : [6, 9, 88, 70]);   // vertical: inside the app's buttons (plan.py SAFE)
+
+const WIDE_BOX: [number, number, number, number] = [6.5, 14, 80, 54];   // vertical: a scene's content, % of the frame
 
 export const phases = (c: SceneCard, t: number, m: Motion) => {
   const T = TR_S * m.k;
@@ -113,7 +118,8 @@ export const SceneView: React.FC<{ card: SceneCard; t: number; look: Look; m: Mo
         </>;
       }
     }
-    const [bx, by, bw, bh] = card.box[2] === 100 && card.box[3] === 100 ? sceneBox(W, H) : card.box;
+    // an animation or capture takes the frame's width inside the reels safe zone (x 6-87%), never a small card in the middle
+    const [bx, by, bw, bh] = card.box[2] === 100 && card.box[3] === 100 ? (H > W ? WIDE_BOX : sceneBox(W, H)) : card.box;
     const id = `sc${card.start}`;
     // the scene keeps moving after its entrance: a slow push and pan over its whole life
     const life = prog(lt, 0, Math.max(1, dur), "sine.inOut");

@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.6.12 (2026-10-13)
+
 ## ai-editor 2.6.11 (2026-10-13)
 
 - Modal is one button. Settings (and the first-run keys page) has **Connect Modal**: it installs Modal, opens

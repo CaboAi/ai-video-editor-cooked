@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.13, creator-teardown 2.7.13 (2026-10-14)
+
 - The window tells you when Claude needs you. A new question plays a soft chime once (not again on reload) and
   the tab title says so. A draft that finishes chimes too. While the tab is hidden, both show a system notice once you
   press Turn on alerts in Settings. Settings has Sound when Claude asks or finishes (on by default, this browser only).

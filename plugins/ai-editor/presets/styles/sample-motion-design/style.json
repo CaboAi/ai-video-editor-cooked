@@ -1,0 +1,21 @@
+{
+ "handle": "sample-motion-design",
+ "name": "Motion design",
+ "sample": true,
+ "about": "A sample style for wide videos. One near-black canvas that a camera drags across. When you name a tool, a dark tile with a silver rim and its real logo lands on the word, joined to the last one by a dashed line, under a heading in your own words. A question you ask sits big in the middle, then the camera pans down and it rises into the heading. Between boards you have the whole frame: the camera eases in on you and moves you left or right, so the few animations land on the other side. Soft, simple sound cues on the moves. No captions.",
+ "format": "talking-head YouTube videos: logos and questions on a dark canvas between shots of the speaker",
+ "aspect": "16:9",
+ "layout": {"mode": "board", "ground": "#0B0B0D"},
+ "card_kinds": ["animation", "capture", "logo"],
+ "transitions": [],
+ "motion": {"engine": "clips", "amount": 0.5, "look": "board",
+            "kinds": {"counter": true, "list": true, "flow": true, "before_after": true, "ui_demo": false, "curve": true, "logo": true}},
+ "captions": {"present": false, "words_per_caption": 3, "size_pct": 4.4, "case": "lower",
+              "font_match": "TikTok Sans", "weight": 700, "color": "#FFFFFF", "highlight_color": "#FFFFFF",
+              "stroke": false, "box": false, "shadow": true, "treat": false, "animation": "none"},
+ "cats": {"card": {"hold_s": 3.0}},
+ "graphics": {
+  "per_min": 6,
+  "kinds": {"logo": 60, "animation": 30, "real screenshot": 10}
+ }
+}

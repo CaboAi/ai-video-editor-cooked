@@ -25,6 +25,7 @@ import { TextItem, Texts } from "./Texts";
 import { SceneCard, SceneView, TR_S, Transition, footageX, phases, sceneGrounds } from "./Scene";
 import { captionFade, groundCovers } from "./ground";
 import { Ground, onGround } from "./look";
+import { BoardFrame, BoardLayout } from "./Board";
 
 // Shapes follow skills/style-edit/references/contracts.md "plan.json". Times are seconds on the cut's timeline.
 // origin: the top centre of the head over the zoom, % of the frame (plan.py from face.json): the face holds its place, the hair never rises into a card.
@@ -85,7 +86,7 @@ export type Plan = {
   captions: { style: CaptionStyle; chunks: Chunk[] };
   zooms: Zoom[];
   cards: Card[];
-  layout?: Layout | Letterbox;
+  layout?: Layout | Letterbox | BoardLayout;
   look?: Partial<Look>; // references/motion.md; default: the editorial look
   motion?: string | { personality?: string }; // snappy | smooth | punchy | calm
   cutouts?: Cutout[];
@@ -352,6 +353,22 @@ export const StyleEdit: React.FC<Plan> = ({ video, captions, zooms, cards, layou
   const split = layout?.mode === "split";
   const graded: React.CSSProperties = grade ? { filter: `brightness(${grade.brightness}) saturate(${grade.saturate})` } : {};
   if (layout?.mode === "letterbox") return <LetterboxView {...layout} video={video} captions={captions} t={t} m={m} font={fonts.ready ? fonts.body : null} />;
+  if (layout?.mode === "board") {
+    // the canvas and the speaker are drawn by Board.tsx; the cards left in the plan are its overlays on the speaker
+    const over = fonts.ready ? slots(cards, false).filter((s) => t >= s.from && t < s.to) : [];
+    return (
+      <AbsoluteFill>
+        <BoardFrame layout={layout} video={video} t={t} font={fonts.ready ? fonts.body : null}
+          captions={<Captions style={captions.style} chunks={captions.chunks} t={t} m={m} />}>
+          {over.map((s) => (
+            <CardView key={`${s.card.src ?? s.card.anim?.type}${s.card.start}`} card={s.card} t={t} prev={s.prev} next={s.next}
+              covered={false} light={false} look={look} m={m} fonts={fonts} />
+          ))}
+        </BoardFrame>
+        <Sfx />
+      </AbsoluteFill>
+    );
+  }
   const grounds = sceneGrounds(cards);
   const capAt = (tt: number) => sceneCaptions(captions.style, captions.chunks, cards, tt, look, grounds, m, width, height,
     split && layout ? layout.caption_full_y : captions.style.y_pct ?? 70, split);

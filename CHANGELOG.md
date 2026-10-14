@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.6.9 (2026-10-13)
+
 - Card edit: cards move. Most beats are now animations built from what is said: a like counter ticking with
   comments stacking (`likes`), a progress bar filling (`progress`), an easing curve drawing (`curve`), notes
   appearing line by line (`notes`), a before and after with an arrow (`side_by_side` `arrow`). Cards pop in,

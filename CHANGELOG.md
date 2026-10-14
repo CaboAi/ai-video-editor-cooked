@@ -4,6 +4,16 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.6, creator-teardown 2.7.6 (2026-10-14)
+
+- No footage handy? "Try it with a sample video" on the Welcome screen, on Make your first video and in Getting
+  started runs the whole flow on a public sample take, with no keys and no questions: the cut, the preview, the
+  finished video and Download in about three minutes from a fresh install.
+- Plainer words on every screen. "Stills" is now the preview, a "round" is a draft, and "Approve and render" is
+  "Approve and make the video". Every empty page has one button that says what happens.
+- Setup no longer breaks when a first video starts while it is still installing: one Claude installs, and the
+  model and render browser downloads no longer clash.
+
 ## ai-editor 2.7.5, creator-teardown 2.7.5 (2026-10-14)
 
 - Videos are made faster, and look the same. Transcription starts the moment you add a clip on New video, while

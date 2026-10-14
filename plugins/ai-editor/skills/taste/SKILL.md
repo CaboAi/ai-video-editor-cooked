@@ -31,8 +31,11 @@ replaces them. Everything the user teaches goes in the files above.
 2. Scope. After every correction, ask in the question box: "Is this about this video, your style, or
    would it help everyone?" with the options `My style (Recommended)`, `Just this video` and
    `Would help everyone`. When the edit used a creator's style (`edits/<name>/style.json` has a
-   `source`), add `This style (@handle)` first, as the recommended one. Skip the question only when they already said it ("always", "just this one").
+   `source`), add `This style (<its name>)` first, as the recommended one, by the name the home page shows ("50/50"),
+   never its folder or `@id`. Skip the question only when they already said it ("always", "just this one").
    `Would help everyone` saves it to their style too, then step 6.
+   Notes sent from the review page never get this question: only the ones the user ticked "Keep as a
+   rule" become rules, saved without asking (style-edit `references/review.md`).
 3. Save it with `add`, with the setting when one maps (table below) and the edit it was said on:
 
 ```bash

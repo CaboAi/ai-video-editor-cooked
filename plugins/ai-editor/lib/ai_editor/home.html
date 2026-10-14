@@ -908,7 +908,8 @@ video.ex{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opaci
 .obf>div{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line);font-size:15px;line-height:20px}.obf .k{width:130px;flex-shrink:0;color:var(--t2)}
 .obdrop{display:flex;flex-direction:column;align-items:center;gap:10px;padding:40px 24px;border:1.5px dashed var(--ring);border-radius:12px;cursor:pointer;text-align:center;color:var(--ink)}
 .obdrop:hover{border-color:var(--t3)}.obdrop b{font-size:17px}.obdrop .b1{margin-top:8px}
-.obhome{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:24px;align-items:stretch}
+body:has(.smprow) .sb-smp{display:none}   /* the page offers the sample itself: once only */
+.obhome{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:24px;align-items:start}
 [role=button]:not([aria-disabled=true]){cursor:pointer}
 /* narrow windows and phones: headers, tabs, key rows and fields wrap instead of squeezing words to a letter a line */
 .row:has(>.ph){flex-wrap:wrap}.row>.ph{flex:1 1 240px;min-width:0}.hact{flex-wrap:wrap}
@@ -1095,7 +1096,7 @@ function copyText(t,el){try{navigator.clipboard.writeText(t)}catch(e){}el.innerH
 // Make my video goes straight to the editor: round 0 plays the clip and lists every step of the cut (home.py videos)
 // "Try it with a sample video": the repo's public sample take, downloaded once, then the real flow with its decisions shipped
 async function trySample(){if((ui.sample||{}).busy)return;ui.sample={busy:1};render();if(!GS().setup&&!latest('setup')){await post('/job',{type:'setup'});if(!S.listening)await connectClaude()}const r=await post('/sample',{});ui.sample=r._ok?null:{msg:r.msg||'That did not work. Try again.'};await load();if(r._ok)toEditor(r);else render()}
-const sampleRow=()=>{const b=(ui.sample||{}).busy;return `<div class="row" style="gap:12px;flex-wrap:wrap"><span class="t2" style="color:var(--t2);font-size:14px">No footage handy?</span><button class="b2" ${b?'disabled':''} onclick="trySample()">${b?'Getting the sample video...':'Try it with a sample video'}</button></div>${(ui.sample||{}).msg?`<div class="msg bad">${CROSS}<span>${esc(ui.sample.msg)}</span></div>`:''}`};
+const sampleRow=()=>{const b=(ui.sample||{}).busy;return `<div class="row smprow" style="gap:12px;flex-wrap:wrap"><span class="t2" style="color:var(--t2);font-size:14px">No footage handy?</span><button class="b2" ${b?'disabled':''} onclick="trySample()">${b?'Getting the sample video...':'Try it with a sample video'}</button></div>${(ui.sample||{}).msg?`<div class="msg bad">${CROSS}<span>${esc(ui.sample.msg)}</span></div>`:''}`};
 function toEditor(r){const e=(r.edits||[])[0];if(e){location.href='/review?dir='+encodeURIComponent(e);return}loadLib().then(()=>rgo('videos'))}
 
 // ---------------------------------------------------------------- returning user (Paper "J launcher + pick")
@@ -2004,7 +2005,7 @@ function jobInfo(){
   const last=Math.max(j.u||0,s?s.t||0:0,S.claude_seen||0)||jobStart(j),age=Math.max(0,Math.round(Date.now()/1000-last));
   const what=j.type==='video'&&j.args.edit?' in '+j.args.edit.split(/[\\/]/).pop():j.type==='teardown'&&j.args.handle?' · '+styleName('@'+j.args.handle):'';
   const how=S.new_claude?'':` Type ${CMD} in Terminal.`,own=(j.claude||{}).opened,text=j.state==='queued'?(own?'Claude is working on this video in its own Terminal window.':S.listening?'Claude is picking this up.':'Waiting for Claude.'+how)
-    :j.owner!=='home'&&!S.listening&&!own&&age>60?'Claude is not listening.'+how:(s?tdStep(j,s.text):'Getting started')+what;
+    :j.owner!=='home'&&!S.listening&&!own&&age>60?'Claude is not listening.'+how:(s?tdStep(j,s.text):'Starting')+what;
   const name=JOBNAME[j.type]||'Working',go=j.type==='video'?"ui.fold.videos=null;rgo('videos')":j.type==='teardown'||j.type==='skill'?"rgo('mystyle')":j.type==='skill-change'||j.type==='skill-new'?"rgo('skills')":j.type==='setup'?'goHome()':j.type==='update'||j.owner==='home'?"rgo('settings')":'';
   return {label:j.type==='video'||j.type==='teardown'?`${name} ${n}`:name,short:j.type==='video'||j.type==='teardown'?name:'Working',n:j.type==='video'||j.type==='teardown'?n:'',text,frac:j.state==='queued'?0:jobFrac(j),since:jobStart(j),go};   // the whole job's time, not the step's
 }
@@ -2060,7 +2061,9 @@ function sideHTML(){
 }
 // a question for a video whose editor tab has it (askhook "elsewhere"): one row on Home and in the sidebar job card
 const askAbout=()=>{const q=window.askq;return q&&q.elsewhere?q.about||'your video':null};
-function askRow(){const a=askAbout();return a?`<div class="askrow"><span>Claude is asking about <b>${esc(a)}</b></span><button class="b1 s" onclick="askOpen()">Open</button></div>`:''}
+// one row per open question (QA round 4: two videos asked at once, Home showed one row)
+const askRows=()=>{const q=window.askq;return q?(q.all&&q.all.length?q.all:[q]).filter(x=>x.elsewhere):[]};
+function askRow(){return askRows().map(x=>`<div class="askrow"><span>Claude is asking about <b>${esc(x.about||'your video')}</b></span><button class="b1 s" onclick="askOpen(${esc(JSON.stringify(x.id||''))})">Open</button></div>`).join('')}
 addEventListener('askchange',()=>{if(S)render()});
 function paintSide(){
   if(!S)return;const rail=isRail();document.body.classList.toggle('rail',rail);document.body.style.setProperty('--sw',(rail?80:232)+'px');

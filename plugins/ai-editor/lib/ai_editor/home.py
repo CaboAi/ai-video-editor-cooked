@@ -515,7 +515,7 @@ def measured(root, handle):
             p.get("max_pause_s") is not None and f"Pauses top out at {num(p['max_pause_s'])} s.",
             p.get("wpm") and f"{num(p['wpm'])} words a minute.") if x)
     if z:
-        rows["zooms"] = ("No zooms." if not z.get("kind") else
+        rows["zooms"] = ("No zooms." if not z.get("kind") or z.get("per_min") == 0 else
                          f"{z['kind'].capitalize()} zooms" + (f", {num(z['per_min'])} a minute" if z.get("per_min") else "")
                          + (f", to {num(z['scale'])}x" if z.get("scale") else "")   # a style without a scale: no "to Nonex"
                          + (f", {z['ease']}" if z.get("ease") and z["ease"] != "none" else "") + ".")
@@ -571,7 +571,9 @@ def facts(s):
     out = []
     if p.get("median_shot_s") is not None:
         out.append(["Cut every", num(p["median_shot_s"], " s")])
-    if z.get("kind"):
+    if z.get("kind") and z.get("per_min") == 0:   # a kind with no zooms a minute (the sample Card edit): none
+        out.append(["Zooms", "None"])
+    elif z.get("kind"):
         out.append(["Zooms", z["kind"].capitalize() + (f", {num(z['per_min'])} a minute" if z.get("per_min") else "")])
     if c.get("present") is False:
         out.append(["Captions", "None"])
@@ -1897,7 +1899,12 @@ def make_handler(token):
                 return self.send(200, f.read_bytes(), "image/jpeg", cache="private, max-age=86400") if ok else self.send(404, {})
             if path == "/thumb":
                 f = Path(q.get("p", [""])[0])
-                t = library.thumb(f) if f.suffix.lower() in links.VIDEO_EXT and f.is_file() else None
+                t = None
+                for _ in range(4):   # a clip added a moment ago may still be settling: wait for it (QA round 4: a 404)
+                    t = library.thumb(f) if f.suffix.lower() in links.VIDEO_EXT and f.is_file() else None
+                    if t or not f.is_file() or time.time() - f.stat().st_mtime > 120:
+                        break
+                    time.sleep(1)
                 return self.send(200, t.read_bytes(), "image/jpeg", cache="private, max-age=86400") if t else self.send(404, {})
             if path == "/media":   # a library video's file, to watch or download
                 f = Path(q.get("p", [""])[0]).resolve()
@@ -2952,6 +2959,7 @@ def demo():
     (ns_dir / "style.json").write_text(json.dumps({"zoom": {"kind": "punch", "per_min": 6, "ease": "none"}}), encoding="utf-8")
     nm = measured(td.parent.parent, "no.scale")
     assert nm["rows"]["zooms"] == "Punch zooms, 6 a minute." and nm["tiles"][0]["big"] == "6", nm
+    assert facts({"zoom": {"kind": "push", "per_min": 0}}) == [["Zooms", "None"]], "per_min 0: the card says No zooms"
     shutil.rmtree(ns_dir)
     st(result=json.dumps({"reject": ["The follow-for-part-2 close."]}), done=True)
     t = get("/state")["jobs"][-1]

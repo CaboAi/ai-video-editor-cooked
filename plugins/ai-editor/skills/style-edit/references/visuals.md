@@ -114,8 +114,16 @@ user's photo, or an animation built from real parts. In that style:
   mark) instead of cutting it to a line of words; check.py plan FAILs a sentence on white and WARNs small text.
 - route.py prints the allowed kinds; a text card or chart in a creator's mix routes to `capture:shot`.
 - `"behind": true` tucks the card behind the speaker's hair (matte.py), and `graphics.per_min` sets the rate.
+- The rate is the look: 30 a minute is a card about every 2 s. plan.json carries it (`card_rate`) and check.py
+  plan FAILs any stretch with no card longer than `card_gap_s` (2 x the mean gap; the opening title counts).
+  Fill each one, in this order: the user's own images and links (assets.json), then captures of what the line
+  names, then animations built from its words. A song or demo the speaker stops to play gets its item's own
+  card held through it (`hold_s`). No card holds longer than twice `card_gap_s` (one card per item of a list).
+- No card is on screen for under 1.2 s (plan.py grows a shorter one into the free time round it, check.py FAILs
+  one left short). A picture is fitted at its own ratio, centred in its box (plan.py reads the size of an image
+  that has none), and a `list` is set at the captions' size at least.
 
-A line that names nothing real gets a logo of a brand it names, an animation of the idea, or no card.
+A line that names nothing real gets a logo of a brand it names or an animation of the idea.
 
 A logo in a card edit is a card of its own on white in the band (plan.py `logo_items(card=True)`), not the small
 tile above the captions. Three word overlays go with the cards (plan.json `texts`, remotion `Texts.tsx`), each

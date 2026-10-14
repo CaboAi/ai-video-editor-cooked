@@ -29,7 +29,7 @@ open a browser, never render the final video, never touch another clip's folder 
 4. **Render and verify:** `python3 "$C/render.py" EDIT/source.mp4 EDIT`, then
    `python3 "$PY" "$C/verify_cut.py" EDIT --engine <the caller's engine>`. One fix cycle for MISSING or SURVIVED,
    then `python3 "$C/preview_cut.py" EDIT --no-open`.
-5. **Style to the stills sheet:** `python3 "<ROOT>/lib/ai_editor/profile.py" style EDIT`,
+5. **Style to the stills sheet:** `python3 "<ROOT>/lib/ai_editor/profile.py" style EDIT` (it keeps a picked style.json),
    `python3 "$C/retakes.py" captions EDIT` (proofread `captions.txt`; fix a word with `retakes.py fix`),
    `python3 "$S/route.py" beats EDIT`; burned-in captions: set `"captions": {"present": false}` in
    `EDIT/style.json`. Then write `visuals.json` by

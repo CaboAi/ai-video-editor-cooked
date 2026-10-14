@@ -56,15 +56,16 @@ function fold(){el.classList.remove('on');bar.classList.add('on')}
 // the page's header says so while a question is open (review.html reads data-ask, redraws on "askchange").
 // window.askq: the open question {about, elsewhere}; elsewhere (Home only): the video's editor has it as the card, so
 // Home shows a row "Claude is asking about <video>" whose Open calls window.askOpen()
-function flag(on){const r=document.documentElement;window.askq=on&&A?{about:A.about||'',elsewhere:!!A.elsewhere}:null;if(!!r.dataset.ask===on)return;on?r.dataset.ask='1':delete r.dataset.ask;dispatchEvent(new Event('askchange'))}
+function flag(on){const r=document.documentElement;window.askq=on&&A?{about:A.about||'',elsewhere:!!A.elsewhere,all:ALL.map(x=>({id:x.id,about:x.about||'',elsewhere:!!x.elsewhere}))}:null;if(!!r.dataset.ask===on)return;on?r.dataset.ask='1':delete r.dataset.ask;dispatchEvent(new Event('askchange'))}
 // the card up (not folded, not Home's row): the page's shortcuts stay off (review.html reads data-ask-open)
 new MutationObserver(()=>{const on=el.classList.contains('on')&&!!A,r=document.documentElement;if(!!r.dataset.askOpen!==on)on?r.dataset.askOpen='1':delete r.dataset.askOpen}).observe(el,{attributes:true,attributeFilter:['class']});
 // the tab's title holds "(1) Claude is asking" while a question is open: a page that retitles itself (review.html on
 // every refresh) is put back before the next paint, its own title kept for after (QA: the title flipped every 5-10 s)
 const T0=document.querySelector('title')||document.head.appendChild(document.createElement('title'));
 new MutationObserver(()=>{if(A&&document.title!==TITLE){title=document.title;document.title=TITLE}}).observe(T0,{childList:true,characterData:true,subtree:true});
-window.askOpen=()=>{if(!A)return;bar.classList.remove('on');el.classList.add('on');el.querySelector('button,input')?.focus()};
-let A=null,i=0,ans=[],imgs=[],pics=[],sel=new Set(),title=null;
+// askOpen(id): Home's row for another open question puts that one on the card
+window.askOpen=id=>{if(!A)return;const o=id&&id!==A.id&&ALL.find(x=>x.id===id);if(o){A=o;i=0;ans=[];imgs=[];pics=[];sel=new Set();el.innerHTML='';draw()}bar.classList.remove('on');el.classList.add('on');el.querySelector('button,input')?.focus()};
+let A=null,ALL=[],i=0,ans=[],imgs=[],pics=[],sel=new Set(),title=null;
 // images on this answer: picked, pasted or dropped; data urls until Send
 function showPics(){const b=el.querySelector('.aq-pics');if(!b)return;b.innerHTML=pics.map((p,k)=>`<span><img src="${p}" alt="attached image ${k+1}"><button data-rm="${k}" aria-label="remove image" title="remove">×</button></span>`).join('');el.querySelector('#asko')?.dispatchEvent(new Event('input'))}
 function addFiles(fs){[...fs].filter(f=>TYPES.test(f.type)&&f.size<=MAXB).slice(0,MAXN-pics.length).forEach(f=>{const r=new FileReader();r.onload=()=>{if(A&&pics.length<MAXN){pics.push(r.result);showPics();el.querySelector('#asko')?.focus()}};r.readAsDataURL(f)})}
@@ -107,11 +108,12 @@ function draw(){
   if(!bar.classList.contains('on')&&!(A.elsewhere&&!el.classList.contains('on')))el.classList.add('on');
 }
 async function poll(){
-  let a=null;
-  try{const r=await fetch('/ask'+(document.visibilityState==='visible'?'?v=1':''));if(!r.ok)return;a=(await r.json()).ask}catch(e){return}
-  if(!a){if(A)close();return}
+  let a=null,all=[];
+  try{const r=await fetch('/ask'+(document.visibilityState==='visible'?'?v=1':''));if(!r.ok)return;const j=await r.json();a=j.ask;all=j.all||(a?[a]:[])}catch(e){return}
+  if(!a){ALL=[];if(A)close();return}
   if(document.title!==TITLE){title=document.title;document.title=TITLE}
-  if(A&&A.id===a.id)return;
+  const was=ALL.map(x=>x.id).join();ALL=all;
+  if(A&&ALL.some(x=>x.id===A.id)){if(was!==ALL.map(x=>x.id).join())flag(true),dispatchEvent(new Event('askchange'));return}
   A=a;i=0;ans=[];imgs=[];pics=[];sel=new Set();el.innerHTML='';bar.classList.remove('on');draw();flag(true);chime();
 }
 poll();setInterval(poll,1000);document.addEventListener('visibilitychange',poll);

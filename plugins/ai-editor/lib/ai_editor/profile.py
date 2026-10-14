@@ -16,7 +16,8 @@
                                                   can be saved on that style (styleskill.py). --as: the style the
                                                   user picked for this one video (the home page's as=): @handle
                                                   copies that creator, defaults no creator, mine the profile's.
-                                                  Never written to profile.json: only Make default changes it
+                                                  Never written to profile.json: only Make default changes it.
+                                                  No --as or --from over a style.json of another style: kept as it is
     python3 profile.py demo                       self-check
 
 File: ~/.ai-video-editor/profile.json (AI_EDITOR_HOME overrides). Shape:
@@ -399,6 +400,15 @@ def write_style(edit_dir, root=Path("."), out=None, src=None, as_=None):
     if clip.exists() and json.loads(clip.read_text(encoding="utf-8")).get("audio_only"):   # a podcast clip: the words are the picture
         style["captions"] = {**style.get("captions", {}), "present": True}
     out = Path(out or Path(edit_dir) / "style.json")
+    if not (as_ or src):   # only the window's pick (--as, seed_style) or --from changes the style an edit already has
+        try:
+            had = json.loads(out.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            had = None
+        if isinstance(had, dict) and (had.get("handle") or "default") != (style.get("handle") or "default"):
+            print(f"kept {out}: it is {had.get('handle') or 'default'}, the style picked for this video "
+                  "(--as changes it)", file=sys.stderr)
+            return out, had
     out.parent.mkdir(parents=True, exist_ok=True)   # start writes the style before cut makes edits/<name>/
     out.write_text(json.dumps(style, indent=1), encoding="utf-8")
     return out, style
@@ -540,6 +550,11 @@ def demo():
             st = json.loads((Path(d) / "edits" / "w" / "style.json").read_text(encoding="utf-8"))
             assert r.returncode == 0 and (st.get("source") == [str(cs.resolve())] if want else "source" not in st), (r.stderr, st)
             assert (Path(d) / "profile.json").read_bytes() == before, "a video's style pick never changes the profile"
+        # prep (visual-prep, clip-editor) runs `style EDIT` with no --as: the picked style stays (QA round 4)
+        subprocess.run([sys.executable, __file__, "style", "edits/w", "--as", "@alice"], capture_output=True, env=env, cwd=d)
+        r = subprocess.run([sys.executable, __file__, "style", "edits/w"], capture_output=True, text=True, env=env, cwd=d)
+        st = json.loads((Path(d) / "edits" / "w" / "style.json").read_text(encoding="utf-8"))
+        assert r.returncode == 0 and st["handle"] == "alice" and "kept" in r.stderr, (r.stderr, st)
     # the parts the user ticked (<h>-mine) win over the whole study; an old home-page -mine gets her card motion and
     # layout back; camera, face, hook and sound reach the blend (they were dropped before)
     with tempfile.TemporaryDirectory() as d:
@@ -599,7 +614,7 @@ def main():
     elif len(a) >= 2 and a[0] == "style":
         flag = lambda k: a[a.index(k) + 1] if k in a and a.index(k) + 1 < len(a) else None
         out, style = write_style(a[1], out=flag("--out"), src=flag("--from"), as_=flag("--as"))
-        print(f"{out}: {style['handle']}, " + (f"from {style['source'][0]}" if flag("--from") else
+        print(f"{out}: {style.get('handle') or 'default'}, " + (f"from {style['source'][0]}" if flag("--from") else
                                               f"parts from {style['blend']}" if style.get("blend") else
                                               "no creator: the default style (smooth zooms, a move at least every 5 s, 3-word captions)"))
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

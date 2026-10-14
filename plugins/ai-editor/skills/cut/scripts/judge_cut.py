@@ -48,7 +48,7 @@ def rubric():
     return custom.find("prompts", "judge-rubric.md", RUBRIC)
 CHECKS = {"B1", "B2", "B3", "B4", "W5", "W6"}
 BLOCKING = {"B1", "B2", "B3", "B4"}
-ACTIONS = {"restore", "trim", "add", "none"}
+ACTIONS = {"restore", "trim", "add", "none"}   # (+ "hook": cmd_apply's own, never the judge's)
 DEFAULT_ADD_KIND = "filler"   # the mildest kind: an added cut is the loop's one risky move
 GATE, GATE_MIN = 0.60, 5      # auto-apply stops below this precision, once this many are scored
 
@@ -101,6 +101,61 @@ def paper(spans, toks):
     return paper_edit(label(toks, cuts, kept), cuts, dur, final, words_only=True), cuts
 
 
+HOOK_SENTENCES = 5   # the hook is among the take's first complete sentences
+
+
+def sentences(toks):
+    """The take's complete sentences as token lists: up to a word ending . ? or ! ("..." ends an unfinished line,
+    dropped). Also the words after the last one."""
+    out, cur = [], []
+    for t in toks:
+        if t.get("type", "word") != "word" or not nwords(t.get("text", "")):
+            continue
+        cur.append(t)
+        x = t["text"].strip().rstrip("\"')]")
+        if re.search(r"(\.\.|…)$", x):   # an unfinished line: never the hook, and not part of the next
+            cur = []
+        elif re.search(r"[.?!]$", x):
+            out.append(cur)
+            cur = []
+    return out, cur
+
+
+def content(ws):
+    from hook_check import STOP
+    ws = {w.replace("'", "").replace("’", "") for w in ws}
+    return {w for w in ws if w not in STOP and w not in ("heres", "theres", "its", "im", "thats")}
+
+
+def lost_hook(spans, toks):
+    """(sentence, [paper cut numbers], [its token indexes]) when the cut removes most of the hook, else None. The hook is the take's first
+    complete sentence that is not said again later (a line said again is a retake: the later take plays). Said again =
+    a later sentence holds 60% of its content words. A cut the user made (manual) or an alternate hook (alt_hook) is
+    theirs. QA round 4: the cut opened on "Here is a list of..." and lost "Steal these background songs for your next reels."
+    ponytail: word overlap, not meaning; a reworded retake with new words reads as a new line."""
+    sents, _ = sentences(toks)
+    words = [[w for t in s for w in nwords(t["text"])] for s in sents]
+    hook = None
+    for k, s in enumerate(sents[:HOOK_SENTENCES]):
+        c = content(words[k])
+        if len(words[k]) < 3 or len(c) < 2:
+            continue
+        if any(len(c & content(w)) >= 0.6 * len(c) for w in words[k + 1:]):
+            continue   # a retake: said again later
+        hook = s
+        break
+    if not hook:
+        return None
+    cuts = cuts_of(spans, toks)
+    if sum(any(inside(t, c) for c in cuts) for t in hook) * 2 < len(hook):
+        return None
+    hit = sorted({n for n, c in enumerate(cuts) for t in hook if inside(t, c)})
+    if any(cuts[n].get("kind") in ("manual", "alt_hook") for n in hit):
+        return None
+    ids = [i for i, t in enumerate(toks) if any(t is h for h in hook)]
+    return " ".join(t["text"].strip() for t in hook), hit, ids
+
+
 def taste_cut_rules():
     p = home() / "taste.md"
     if not p.exists():
@@ -124,6 +179,10 @@ def build_prompt(d, script=None):
     if rep.exists():
         r = json.loads(rep.read_text(encoding="utf-8"))
         extra.insert(0, f"- last build, pauses cut: source {r['duration']:.1f}s, cut {r['final_s']:.1f}s")
+    hook = lost_hook(spans_of(d), toks_of(d))
+    if hook:
+        extra.append(f"- **OPENING HOOK CUT:** \"{hook[0]}\" is the take's first sentence, said once, and "
+                     f"{', '.join('<<' + str(n) + '>>' for n in hook[1])} removes it: B3, restore it")
     if extra:
         md = md.replace("\n## What plays", "\n" + "\n".join(extra) + "\n\n## What plays", 1)
     parts += ["", "# PAPER EDIT TO GRADE", "", md]
@@ -210,6 +269,24 @@ def apply_findings(d, findings, rnd=0):
             ledger["applied"].append({"action": "restore", "check": tag, "start": c["start"], "end": c["end"],
                                       "text": c["evidence"], "round": rnd})
             applied.append(f"{tag} restore C{ci} {c['evidence'][:50]!r}")
+        elif act == "hook":   # the hook's words come out of the cut; the rest of it (other takes) stays cut
+            c, keep = cuts[ci], set(fix["keep"])
+            ids = [i for i, t in enumerate(toks) if inside(t, c)]
+            runs, run = [], []
+            for i in ids:
+                if i in keep:
+                    runs, run = runs + ([run] if run else []), []
+                else:
+                    run.append(i)
+            runs += [run] if run else []
+            drop.add(c["_i"])
+            base = {k: v for k, v in spans[c["_i"]].items() if k not in ("occurrence", "after", "text")}
+            new += [{**base, "text": text_of(toks, r[0], r[-1]), "after": round(toks[r[0]]["start"] - 0.001, 3)} for r in runs]
+            kept = text_of(toks, min(keep), max(keep))
+            ledger["restored"].append(" ".join(nwords(kept)))
+            ledger["applied"].append({"action": "restore", "check": tag, "start": toks[min(keep)]["start"],
+                                      "end": toks[max(keep)]["end"], "text": kept, "round": rnd})
+            applied.append(f"{tag} hook C{ci}: gives back {kept[:50]!r}")
         elif act == "trim":
             c = cuts[ci]
             ids = [i for i, t in enumerate(toks) if inside(t, c)]
@@ -331,14 +408,23 @@ def cmd_apply(d, tighten=False):
     for f in findings:
         if f not in todo:
             print(f"  suggest  {f['check']} {f.get('quote', '')[:70]!r}: {f.get('problem', '')}")
+    hook = lost_hook(spans_of(d), toks_of(d))   # the hook is kept whatever the judge said: restoring is safe
     if todo and gated():
         p, n = precision()
-        print(f"precision {p:.2f} over {n} scored findings is under {GATE}: suggest only, spans.json unchanged")
+        print(f"precision {p:.2f} over {n} scored findings is under {GATE}: suggest only"
+              + (", spans.json unchanged" if not hook else ""))
         for f in todo:
             print(f"  suggest  {f['check']} {f['fix']['action']} {f.get('quote', '')[:70]!r}: {f.get('problem', '')}")
-        return 0
+        if not hook:
+            return 0
+        todo = []
     log = d / "judge-log.jsonl"
     rnd = len(log.read_text(encoding="utf-8").splitlines()) + 1 if log.exists() else 1
+    if hook:
+        todo = [f for f in todo if f.get("cut") not in hook[1]] + [
+            {"check": "B3", "cut": n, "severity": "blocker", "fix": {"action": "hook", "keep": hook[2]}, "problem": "the opening hook"}
+            for n in hook[1]]
+        print(f"  HOOK     the cut removed the first sentence, said once: \"{hook[0][:70]}\": restoring it")
     applied, refused = apply_findings(d, todo, rnd)
     for a in applied:
         print(f"  applied  {a}")
@@ -429,6 +515,29 @@ def demo():
         before = spans_of(d)
         assert cmd_apply(d) == 0 and spans_of(d) == before
         assert extract_json('noise ```json\n{"findings": []}\n``` end') == {"findings": []}
+        # the opening hook: cut and said once, it comes back; said again later (a retake), the cut stays
+        ht = W("Steal these songs for your reels. Here is a list of songs. One is good.")
+        hs = [{"text": "Steal these songs for your reels.", "kind": "redundant"}]
+        assert lost_hook(hs, ht)[:2] == ("Steal these songs for your reels.", [0]), lost_hook(hs, ht)
+        assert lost_hook(hs + [{"text": "One is good.", "kind": "filler"}], ht)[1] == [0]
+        assert lost_hook([dict(hs[0], occurrence=1)], W("Steal these songs for your reels. Steal these songs for your reels. Done.")) is None
+        assert lost_hook([dict(hs[0], kind="manual")], ht) is None and lost_hook([], ht) is None
+        (d / "words.raw.json").write_text(json.dumps(ht), encoding="utf-8")
+        (d / "spans.json").write_text(json.dumps(hs), encoding="utf-8")
+        assert "OPENING HOOK CUT" in build_prompt(d)
+        (d / "judge.json").write_text(json.dumps({"findings": []}), encoding="utf-8")
+        assert gated() and cmd_apply(d) == 3 and spans_of(d) == [], spans_of(d)
+        # QA round 4's take: two opening takes said again later (retakes), then the hook; one cut over all of them
+        qt = W("Here's a list of... Here's a bunch of songs that people use for viral reels. Steal these songs for your "
+               "next trial reels. Steal these songs for your next reels. Here is a list of viral audios that people use for reels.")
+        (d / "words.raw.json").write_text(json.dumps(qt), encoding="utf-8")
+        big = [{"text": "Here's a list of... Here's a bunch of songs that people use for viral reels. Steal these songs for your "
+                        "next trial reels. Steal these songs for your next reels.", "kind": "retake"}]
+        assert lost_hook(big, qt)[0] == "Steal these songs for your next reels.", lost_hook(big, qt)
+        (d / "spans.json").write_text(json.dumps(big), encoding="utf-8")
+        assert cmd_apply(d) == 3 and lost_hook(spans_of(d), qt) is None
+        assert [x["text"] for x in spans_of(d)] == ["Here's a list of... Here's a bunch of songs that people use for viral "
+                                                   "reels. Steal these songs for your next trial reels."], spans_of(d)
     home = real_home
     print("demo ok")
 

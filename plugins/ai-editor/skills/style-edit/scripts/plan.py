@@ -127,6 +127,7 @@ STOCK = ("unsplash.com", "pexels.com", "shutterstock.com", "istockphoto.com", "g
 EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u200D]")
 READ_XH = 28           # px: a capture's x-height on a 1080-wide frame under this is too small to read on a phone
 MIN_CARD_S = 0.5       # a card cut shorter than this by the next one is dropped
+MIN_SHOW_S = 1.2       # no card is on screen for less: one shorter grows into the free time round it, else goes
 # Pacing (SKILL.md step 3, one rule): a card where a sentence names something real, never two at once. The
 # longest stretch with no card is 2 x the copied creator's measured mean gap (120 / graphics.per_min), else
 # GAP_S; inside a longer one the frame still changes (a zoom) at least every QUIET_HOLD_S. check.py plan WARNs
@@ -637,10 +638,11 @@ LIST_X, LIST_SIZE = SAFE["9:16"][0] + 1, 1.8
 TEXT_KINDS = ("title", "list", "stamp")
 
 
-def text_items(visuals, words, duration, cards, face=None, cap_y=66.0):
+def text_items(visuals, words, duration, cards, face=None, cap_y=66.0, cap_size=None):
     """plan.json "texts" from visuals.json: a "title" (text, "\\n" between lines, emoji kept; on its word, else from 0 s,
     for hold_s), a "cta" (text, label?; on its word, for hold_s), a running numbered "list" (items: [{text, word, nth}], each on its word, all held to the list's word
-    "until" or the end), a "stamp" (a red X over the card up on its word). Every box inside the reels safe zone."""
+    "until" or the end; its type never smaller than the captions', cap_size), a "stamp" (a red X over the card up on its
+    word). Every box inside the reels safe zone."""
     def at(word, nth=None):
         hits = [w["start"] for w in words if clean(w["text"]).lower() == clean(word or "").lower()]
         return hits[(nth or 1) - 1] if len(hits) >= (nth or 1) else None
@@ -674,17 +676,20 @@ def text_items(visuals, words, duration, cards, face=None, cap_y=66.0):
             start, end = items[0]["at"], min(duration, until if until else duration)
             # at the left: under the chin, else just above or below the captions; never over the head or the captions
             hd = face and head_during(face["heads"], face.get("step_s", 0.5), start, end)
-            h = len(items) * LIST_SIZE * 1.3
-            w = (3 + max(len(it["text"]) for it in items)) * 0.55 * LIST_SIZE * 16 / 9   # % of the width, about
+            size = max(LIST_SIZE, float(cap_size or 0))   # QA round 4: 1.8% type under 4.4% captions read as specks
+            h = len(items) * size * 1.3
+            w = (3 + max(len(it["text"]) for it in items)) * 0.55 * size * 16 / 9   # % of the width, about
             cap = (cap_y - 3, cap_y + 3)
+            up = [c["box"] for c in cards if c.get("box") and c["start"] < end and start < c["end"]]
             free = lambda y: (SAFE["9:16"][1] <= y and y + h <= 100 - SAFE["9:16"][3] and (y + h <= cap[0] or y >= cap[1])
-                              and not (hd and LIST_X < hd[2] and LIST_X + w > hd[0] and y < hd[3] and y + h > hd[1]))
+                              and not (hd and LIST_X < hd[2] and LIST_X + w > hd[0] and y < hd[3] and y + h > hd[1])
+                              and not any(LIST_X < b[0] + b[2] and LIST_X + w > b[0] and y < b[1] + b[3] and y + h > b[1] for b in up))
             y = next((y for y in ([hd[3] + 1] if hd else [47.0]) + [cap[0] - 0.5 - h, cap[1] + 0.5] if free(y)), None)
             if y is None:
-                print(f"warning: the list ('{items[0]['text']}', ...) has no room clear of the head and the captions "
-                      "(a close shot), skipped", file=sys.stderr)
+                print(f"warning: the list ('{items[0]['text']}', ...) has no room clear of the head, the captions and the "
+                      "cards up with it, skipped", file=sys.stderr)
                 continue
-            out.append({"kind": "list", "items": items, "start": start, "end": round(end, 3), "x_pct": LIST_X, "y_pct": round(y, 1), "size_pct": LIST_SIZE})
+            out.append({"kind": "list", "items": items, "start": start, "end": round(end, 3), "x_pct": LIST_X, "y_pct": round(y, 1), "size_pct": size})
         elif k == "stamp":
             t = at(v.get("word"), v.get("nth"))
             card = t is not None and next((c for c in cards if c.get("lane") != "logo" and c.get("layout") != "scene" and c["start"] <= t < c["end"]), None)
@@ -727,6 +732,71 @@ def under_titles(cards, texts):
                 c["box"] = [bx, round(tb, 1), bw, round(by + bh - tb, 1)]
             elif x["end"] < c["end"] - MIN_CARD_S:
                 c["start"] = x["end"]
+
+
+def image_size(path):
+    """[w, h] of a PNG, JPEG, GIF or WebP from its header (stdlib), or None. An image card without "size" (the
+    user's own photo, added on the page) was fitted as 16:10: a portrait sat in a grey box wider than itself."""
+    import struct
+    try:
+        b = Path(path).read_bytes()
+    except OSError:
+        return None
+    if b[:8] == b"\x89PNG\r\n\x1a\n":
+        return list(struct.unpack(">II", b[16:24]))
+    if b[:6] in (b"GIF87a", b"GIF89a"):
+        return list(struct.unpack("<HH", b[6:10]))
+    if b[:4] == b"RIFF" and b[8:12] == b"WEBP":
+        if b[12:16] == b"VP8X":
+            return [int.from_bytes(b[24:27], "little") + 1, int.from_bytes(b[27:30], "little") + 1]
+        if b[12:16] == b"VP8 ":
+            return [struct.unpack("<H", b[26:28])[0] & 0x3FFF, struct.unpack("<H", b[28:30])[0] & 0x3FFF]
+        if b[12:16] == b"VP8L":
+            v = int.from_bytes(b[21:25], "little")
+            return [(v & 0x3FFF) + 1, ((v >> 14) & 0x3FFF) + 1]
+    if b[:2] == b"\xff\xd8":
+        i = 2
+        while i + 9 < len(b):
+            if b[i] != 0xFF:
+                i += 1
+                continue
+            m = b[i + 1]
+            if m in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+                h, w = struct.unpack(">HH", b[i + 5:i + 9])
+                return [w, h]
+            if m in (0xD8, 0x01) or 0xD0 <= m <= 0xD7:
+                i += 2
+                continue
+            i += 2 + struct.unpack(">H", b[i + 2:i + 4])[0]
+    return None
+
+
+def min_show(cards, duration):
+    """Every card on screen for MIN_SHOW_S at least (QA round 4: a capture flashed for 0.6 s at the very end): a shorter
+    one runs on into the free time after it, then starts earlier into the free time before it, then takes time from
+    the card before, then the card after, each down to MIN_SHOW_S; still short, it goes."""
+    out = []
+    order = sorted(cards, key=lambda c: c["start"])
+    for i, c in enumerate(order):
+        if c["end"] - c["start"] < MIN_SHOW_S - 1e-6:
+            nxt = min([x["start"] for x in order[i + 1:] if x["start"] >= c["start"]] + [duration])
+            c["end"] = round(min(nxt, max(c["end"], c["start"] + MIN_SHOW_S)), 3)
+            prev = max([x["end"] for x in out] + [0.0])
+            c["start"] = round(max(prev, min(c["start"], c["end"] - MIN_SHOW_S)), 3)
+            p = out[-1] if out else None
+            if c["end"] - c["start"] < MIN_SHOW_S - 1e-6 and p and p["end"] - p["start"] > MIN_SHOW_S:
+                p["end"] = round(max(p["start"] + MIN_SHOW_S, c["end"] - MIN_SHOW_S), 3)   # the card before gives some up
+                c["start"] = round(max(p["end"], min(c["start"], c["end"] - MIN_SHOW_S)), 3)
+            n = order[i + 1] if i + 1 < len(order) else None
+            if c["end"] - c["start"] < MIN_SHOW_S - 1e-6 and n and n["end"] - n["start"] > MIN_SHOW_S and n["start"] <= c["end"] + 1e-6:
+                n["start"] = round(min(c["start"] + MIN_SHOW_S, n["end"] - MIN_SHOW_S), 3)   # the card after starts later
+                c["end"] = max(c["end"], n["start"])
+            if c["end"] - c["start"] < MIN_SHOW_S - 1e-6:
+                print(f"warning: the '{c.get('trigger_word')}' card has no room for {MIN_SHOW_S} s on screen, dropped",
+                      file=sys.stderr)
+                continue
+        out.append(c)
+    return out
 
 
 def card_rate(style):
@@ -2435,13 +2505,16 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
     extra = {"cover": cover} if cover and not split_now else {}
     if pictures_only(style):
         extra["card_kinds"] = list(style["card_kinds"])
-    texts = text_items(visuals, words, duration, cards, face, cap["y_pct"])
+    if pictures_only(style) and card_rate(style):   # a card edit: check.py plan FAILs a gap over card_gap_s
+        extra["card_rate"] = card_rate(style)
+    texts = text_items(visuals, words, duration, cards, face, cap["y_pct"], cap.get("size_pct"))
     if texts:
         extra["texts"] = texts
         # the title sits where the captions do: they wait until it has gone
         titles = [x for x in texts if x["kind"] == "title"]
         chunks = [c for c in chunks if not any(c["start"] < x["end"] and x["start"] < c["end"] for x in titles)]
         under_titles(cards, texts)   # check.py plan: screenshots stay pictures, text labels FAIL
+    cards = min_show(cards, duration)
     pans = place_pans((style.get("camera") or {}) if took(style, "pace") else {}, duration)
     if pans and not split_now:
         extra["pans"] = pans
@@ -3082,7 +3155,7 @@ def demo():
         cs = build(with_presets(DEFAULT_STYLE, {"captions": {"preset": name}}), words, pv)["captions"]
         assert cs["style"]["effect"] == block["effect"] and cs["style"]["size_pct"] == block["size_pct"], (name, cs["style"])
         assert all(len(c["words"]) <= block.get("words_per_caption", 3) for c in cs["chunks"]), name
-    many = [{"src": f"images/{i}.png", "word": "word", "nth": 4 * i + 1} for i in range(12)]
+    many = [{"src": f"images/{i}.png", "word": "word", "nth": 5 * i + 1} for i in range(12)]   # 1.5 s apart: each shows 1.2 s
     for name, p in presets.CARDS.items():
         n = len(build({**DEFAULT_STYLE, "cards": {"per_min": p["per_min"]}}, words, pv, many)["cards"])
         assert n <= math.ceil(t / 60 * p["per_min"]), (name, n)
@@ -3140,6 +3213,20 @@ def demo():
                      {"text": "the student page", "word": "student"}]}, {"kind": "stamp", "word": "not"}, {"kind": "title", "text": "x", "word": "nope"}],
                     tw, 5.0, [{"start": 3.0, "end": 4.5, "box": [13, 14, 74, 20]}], None, 66)
     assert [x["kind"] for x in tx] == ["title", "list", "stamp"], tx
+    big = text_items([{"kind": "list", "items": [{"text": "the account", "word": "account"}]}], tw, 5.0, [], None, 66, 4.4)
+    assert big[0]["size_pct"] == 4.4, "a list reads at the captions' size at least (QA round 4: 1.8 under 4.4)"
+    with tempfile.TemporaryDirectory() as d:   # an image's own size from its header, for each format a user adds
+        import struct
+        png = b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + struct.pack(">IIBBBBB", 720, 1080, 8, 2, 0, 0, 0)
+        (Path(d) / "a.png").write_bytes(png + b"\0" * 8)
+        (Path(d) / "a.gif").write_bytes(b"GIF89a" + struct.pack("<HH", 30, 20))
+        (Path(d) / "a.jpg").write_bytes(b"\xff\xd8\xff\xe0" + struct.pack(">H", 4) + b"JF" + b"\xff\xc0" + struct.pack(">HBHH", 11, 8, 1080, 720) + b"\0" * 8)
+        assert [image_size(Path(d) / f) for f in ("a.png", "a.gif", "a.jpg", "none.png")] == [[720, 1080], [30, 20], [720, 1080], None]
+    # no card on screen for under 1.2 s: one at the very end starts earlier, one boxed in by its neighbours goes
+    ms = min_show([{"start": 1, "end": 3, "trigger_word": "a"}, {"start": 34.4, "end": 35.0, "trigger_word": "end"},
+                   {"start": 3.2, "end": 3.6, "trigger_word": "tight"}, {"start": 3.7, "end": 6, "trigger_word": "b"}], 35.0)
+    assert [(c["trigger_word"], c["start"], c["end"]) for c in ms] == [("a", 1, 2.5), ("tight", 2.5, 3.7), ("b", 3.7, 6),
+                                                                       ("end", 33.8, 35.0)], ms
     assert tx[0]["start"] == 0 and tx[0]["y_pct"] >= SAFE["9:16"][1] and [i["at"] for i in tx[1]["items"]] == [1.4, 2.4], tx
     # the title box sits on the chest, its bottom on the safe zone's bottom line; a card above it keeps its box
     assert abs(title_bottom(tx[0]) - TITLE_BOTTOM) < 0.15 and tx[0]["y_pct"] > 60, tx[0]
@@ -3597,6 +3684,11 @@ def main():
         sys.exit(f"ERROR: no cut.mp4 in {edit_dir}. Run the cut skill first.")
     img = Path(a.images) if a.images else edit_dir / "images.json"
     images = json.loads(img.read_text(encoding="utf-8")) if img.exists() else []
+    for x in images:   # the card fits the picture at its own ratio, centred in its box
+        if isinstance(x, dict) and x.get("src") and not x.get("size") and not str(x["src"]).endswith(".json"):
+            x["size"] = image_size(edit_dir / x["src"]) or x.get("size")
+            if not x["size"]:
+                x.pop("size")
     vis = edit_dir / "visuals.json"
     visuals = json.loads(vis.read_text(encoding="utf-8")) if vis.exists() else []
     # The user's own settings (taste skill) win over the creator's measured style; corrections saved on this

@@ -2016,6 +2016,25 @@ def overlay_led(c):
 OFF_SCREEN = 30   # % of the runtime the creator is off screen (look.py face.present_pct) from which her cards are cut-aways
 
 
+DARK_CARDS = ("notes", "terminal")   # dark cards: always on the light ground (Scene.tsx sceneGrounds)
+
+
+def scene_grounds(cards, style):
+    """The grounds of her cut-aways: light paper and dark ink in the share that keeps her measured brightness (look.py
+    grade.luma; the footage is graded to it, so the scenes average it too), spread through the video; a dark card
+    always on paper. No measured luma: Scene.tsx's own cycle."""
+    luma = (style.get("grade") or {}).get("luma")
+    scenes = sorted((c for c in cards if c.get("scene_by") == "creator" and not c.get("ground")), key=lambda c: c["start"])
+    if luma is None or not scenes:
+        return cards
+    want, light = min(1.0, max(0.0, (luma - 13) / 242)), 0   # paper ~255, ink ~13
+    for k, c in enumerate(scenes, 1):
+        dark_card = (c.get("anim") or {}).get("type") in DARK_CARDS
+        c["ground"] = "ground" if dark_card or abs((light + 1) / k - want) < abs(light / k - want) else "ink"
+        light += c["ground"] == "ground"
+    return cards
+
+
 def off_screen(style):
     """True when the creator is off screen OFF_SCREEN% of the time or more: her pictures take the whole frame
     (b-roll, screen recordings), so a picture card with no layout of its own becomes a scene."""
@@ -2277,7 +2296,7 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         if cap.get("present", True) else []
     if took(style, "captions"):
         chunks = type_pages(chunks, cap)
-        if cap.get("light_face") and (cap.get("light_pct") or 0) >= 10:
+        if cap.get("light_face") and any(c.get("face") == "light" for c in chunks):
             cap["light_font"] = LIGHT_FONT.get(cap["light_face"], cap.get("font_match"))
     fj = edit_dir and Path(edit_dir) / "face.json"
     face = json.loads(fj.read_text(encoding="utf-8")) if fj and fj.exists() else None
@@ -2318,6 +2337,7 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
     cards = thin_cards(place_cards(list(images) + anim_items(visuals, edit_dir, style) + logo_items(visuals, edit_dir, logo_y, aspect, pictures_only(style)),
                                    words, duration, style, aspect), duration, style.get("cards"))
     cards, _ = lay_out(cards, aspect, face, style, split_ok)
+    cards = scene_grounds(cards, style)
     if off_screen(style):
         cards = hold_scenes(cards, words, duration, 1 - style["face"]["present_pct"] / 100)
     gap = card_gap_s(style)
@@ -3149,6 +3169,8 @@ def demo():
     oc, _ = lay_out([{"start": 1, "end": 3, "src": "images/a.png"}, {"start": 5, "end": 6, "lane": "logo", "src": "images/l.svg"}],
                     "9:16", None, {"face": {"present_pct": 44}}, False)
     assert [c["layout"] for c in oc] == ["scene", "box"], oc
+    gs = scene_grounds([{"start": i, "scene_by": "creator", **({"anim": {"type": "notes"}} if i == 3 else {})} for i in range(4)], {"grade": {"luma": 115}})
+    assert [c["ground"] for c in gs] == ["ink", "ground", "ink", "ground"], gs   # 42% paper for her 115; the notes card on paper
     assert not off_screen({"face": {"present_pct": 95}}) and not off_screen({"face": {"present_pct": 44}, "blend": {"take": ["captions"]}})
     assert caption_under_chin({"y_pct": 80, "size_pct": 4}, fc, "9:16") is None and caption_under_chin({"y_pct": 64}, None, "9:16") is None
     # a push zoom from the head's top is held so the chin stays above the captions; one that cannot move is dropped

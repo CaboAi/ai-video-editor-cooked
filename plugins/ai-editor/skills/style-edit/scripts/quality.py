@@ -818,7 +818,8 @@ def run(edit, plan, video, plan_path, style=None, cuts=(), brand=None):
             under = None if split else [cv2.warpAffine(c_, np.float32(footage_affine(t, plan, W, H)), (W, H))
                                         for c_ in (cut_prev, cut, cut_next) if c_ is not None]
             nl = max(caption_lines(frame, cap_bgr, y / 100 * H, ch, under) for y in cap_ys)
-            if nl > (page_frames[n].get("lines") or cs.get("max_lines") or 1):   # a page plan.py stacked may take 2
+            pg = page_frames[n]   # a page plan.py stacked takes 2; a big keyword takes its own line (up to 3)
+            if nl > (pg.get("lines") or (min(3, len(pg["words"])) if pg.get("big") else 0) or cs.get("max_lines") or 1):
                 wrapped.append((t, page_frames[n]["text"], nl))
         need = up or n in sframes or n in cap_frames
         if not need:

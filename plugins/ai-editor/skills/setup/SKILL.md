@@ -110,6 +110,16 @@ Copies the renderer to `~/.ai-video-editor/remotion` and installs exactly its `p
 with `npm ci` (about 700 MB with Chrome's headless shell). This is the biggest download: say so
 first. A creator teardown can run meanwhile: it does not need the renderer. `npm missing`: install Node (step 2) first.
 
+Then the motion clip tools, for bespoke animations (the motion skill):
+
+```bash
+python3 "$U" motion
+```
+
+`npm install` of the pinned HyperFrames CLI and GSAP into `~/.ai-video-editor/motion` (about 120 MB, 10-60 s),
+and a headless Chrome for them (uses the installed Chrome, else downloads about 200 MB). Say the time first.
+Skipped: animations fall back to the template cards.
+
 Remotion is free for individuals and companies of up to 3 people. Bigger companies need a
 Remotion company licence (remotion.dev/license). Say this once.
 

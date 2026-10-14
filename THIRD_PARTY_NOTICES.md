@@ -36,11 +36,19 @@ motion personality, restyled by a look object). Files: `plugins/ai-editor/remoti
 | `blocks/transitions-cover`, `blocks/transitions-push` | card swap in `StyleEdit.tsx`; `block` and `push` scene transitions in `Scene.tsx` | two staggered colour blocks on power3.inOut (0.06 s apart), the scene switching under them; a push on power3.inOut |
 | `components/caption-pill-karaoke` | `Captions.tsx` | per-word colour fill as the word is said |
 
+## HyperFrames CLI (Apache License 2.0)
+
+The motion skill (`plugins/ai-editor/skills/motion`) drives the `hyperframes` npm package (Copyright HeyGen,
+Inc., https://github.com/heygen-com/hyperframes, Apache License 2.0) at a pinned version, installed from npm by
+`setup.py motion`, not vendored. The skill's composition template (`template/index.html`) follows the format the
+HyperFrames docs describe (the five root `data-*` attributes, `window.__timelines`); no upstream file was copied.
+
 ## GSAP (GSAP Standard License)
 
 `gsap` and its plugins (CustomEase, CustomWiggle, DrawSVGPlugin, MorphSVGPlugin, MotionPathPlugin,
 Physics2DPlugin, SplitText) are free to use under the GSAP Standard "No Charge" License,
-https://gsap.com/standard-license. They are installed from npm, not vendored.
+https://gsap.com/standard-license. They are installed from npm, not vendored (the motion skill copies
+`gsap.min.js` from that install into each clip's own folder on the user's computer).
 
 ## Remotion
 
@@ -131,10 +139,3 @@ drawn in one colour to match the page:
 - Python, FFmpeg, Node.js, Git, ElevenLabs, Google Gemini and Modal: SVG paths from Simple Icons
   16.34.0 (https://github.com/simple-icons/simple-icons, CC0 1.0). The marks remain the trademarks of
   their owners and are used only to name each service.
-
-
-## Demo photos (Unsplash License)
-
-`plugins/ai-editor/lib/ai_editor/demo/person-*.jpg`: three photographs from Unsplash under the Unsplash
-License (free to use and modify, no attribution required). Photographers and sources:
-`plugins/ai-editor/lib/ai_editor/demo/CREDITS.md`.

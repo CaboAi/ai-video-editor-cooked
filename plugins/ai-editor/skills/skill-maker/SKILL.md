@@ -30,7 +30,9 @@ Copy this checklist and tick it off:
 ## 1. Interview
 
 If this chat already shows the workflow ("turn this into a skill"), take the steps, tools and the user's
-corrections from it and only ask for the gaps. Otherwise ask, one question box at a time:
+corrections from it and only ask for the gaps. From the Skills page ("Make a new skill", `JOB skill-new
+text=...`), the text answers question 1; report each checklist step with `home.py status skill-new --step "..."`
+(`start/references/home.md`). Otherwise ask, one question box at a time:
 
 1. What it does: `Edits a whole video in a look (Recommended)` / `Adds one kind of visual` / `Cuts or tightens` / `Something else`.
 2. An example: a video in the library (`edits/<name>/`), a file path, or a link to a video in the look they want.
@@ -95,8 +97,9 @@ they all pass and the user is happy, or after three rounds, saying what is left.
 
 ## 8. Hand over
 
-Ask in the question box: `Make it a style (Recommended)` / `Not now`. Make it a style: cooked.'s home page,
-My styles > New style > Use your own skill, pick `/<name>`; every video made with that style runs the skill.
+Ask in the question box: `Make it a style (Recommended)` / `Not now`. Make it a style: cooked.'s window,
+Skills > `/<name>` > Use as a style (or Styles > New style > Use your own skill); every video made with that
+style runs the skill.
 Say in one line that notes on later videos go into the skill with skill-improver.
 
 ## Example

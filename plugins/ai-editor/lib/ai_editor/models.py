@@ -154,7 +154,7 @@ def fetch(rel, check=True, hook=None, edit=None):
     said = None if hook else announce(name(rel), edit)
     hook = hook or said
     dest.parent.mkdir(parents=True, exist_ok=True)
-    part = dest.with_name(dest.name + ".part")
+    part = dest.with_name(f"{dest.name}.{os.getpid()}.part")   # setup and a first edit can fetch the same file at once
     print(f"downloading {rel}", flush=True)
     net.retrieve(url, part, reporthook=hook)
     got = sha256(part)

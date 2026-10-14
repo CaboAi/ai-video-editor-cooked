@@ -45,6 +45,7 @@ hook's subject. A capture on the hook (first 3 s) needs a `find` mark on what is
 | `notes` | `{"kind": "anim", "type": "notes", "props": {"title"?, "lines": [{"text", "sub"?, "time"?, "word"}]}}` |
 | `video_card` | `{"kind": "anim", "type": "video_card", "props": {"src", "start_s"?, "label"?}}` |
 | `flow` | `{"kind": "anim", "type": "flow", "props": {"nodes": [{"logo", "label", "word"}], "split"?: [{"logo", "label" or "lines": [{"text", "word"}], "word"}], "tasks"?: [{"text", "word", "heavy"?}], "accent"?}}`: one beat for the whole explanation, `hold_s` to its last word |
+| `title` | `{"kind": "title", "text": "the hook in the speaker's words", "word"?, "hold_s"?}`: words on screen at the open, when route.py says the creator opens with them |
 | `app` | `{"kind": "app", "url" or "app_id", "brand"?}`: the App Store icon and first screenshot |
 | `youtube` / `github` | `{"kind": "youtube", "url"}` / `{"kind": "github", "repo": "owner/name"}`: the thumbnail / the repo's social card |
 

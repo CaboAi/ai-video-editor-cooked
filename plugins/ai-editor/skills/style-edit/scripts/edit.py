@@ -11,6 +11,11 @@
     python3 edit.py render   edits/NAME [--plan plan.json] --github   -> edits/NAME/github-render/ + github-render-media.zip
     python3 edit.py github-push  edits/NAME --repo NAME [--plan plan.json]   private repo + media release, starts a render
     python3 edit.py github-fetch edits/NAME --repo NAME [--plan plan.json]   waits, then -> edits/NAME/render-github.mp4
+    python3 edit.py render   edits/NAME --speculative   the review page starts it when the stills go up (review.py round --stills):
+                             the same laptop render at low priority, into render.spec.mp4. A plain `render` after the stills'
+                             approve takes it over (waits for it, or uses the finished file) when the plan and every file it
+                             reads are unchanged; anything changed, notes sent, or stills again throws it away
+    python3 edit.py warm     webpack's cache for the renderer, off the critical path (home.py runs it when a clip is added)
     python3 edit.py demo     self-check
 
 A plan named plan-XYZ.json writes stills-XYZ/ and render-XYZ.mp4, so two aspects can sit side by side.
@@ -19,6 +24,7 @@ refreshes its source from the plugin on every run).
 """
 import argparse
 import filecmp
+import hashlib
 import inspect
 import json
 import math
@@ -90,10 +96,41 @@ def footage_filter(plan, sw, sh):
     scaled into its band on black (the render proxy is that frame; the checks read the same)."""
     w, h = plan["width"], plan["height"]
     lay = plan.get("layout") or {}
+    g = plan.get("grade")   # the creator's grade (plan.py grade_for), burned into the copy so every check reads it
+    grade = f",colorchannelmixer=rr={g['brightness']}:gg={g['brightness']}:bb={g['brightness']},hue=s={g['saturate']}" if g else ""
     if lay.get("mode") != "letterbox":
-        return proxy_filter(sw, sh, w, h)
+        return proxy_filter(sw, sh, w, h) + grade
     y, bh = (round(v / 100 * h / 2) * 2 for v in lay["band"][1::2])
     return f"scale={w}:{bh},setsar=1,pad={w}:{h}:0:{y}:black"
+
+
+def public_rels(plan):
+    """Card images, plus every image an anim's or a capture card's props name (a logo card, a diagram's logos,
+    props.logo_src), the sound and the photos: every file the render reads besides the cut and the cutouts."""
+    rels = [c["src"] for c in plan["cards"] if c.get("src")]
+    rels += re.findall(r'"(images/[^"]+)"', json.dumps([[c.get("anim"), c.get("props")] for c in plan["cards"]]))
+    rels += [c["src"] for c in plan.get("sfx", [])]   # sound cues, from sfx.py
+    rels += [plan["music"]["src"]] if plan.get("music") else []   # the music bed, from sfx.py music
+    rels += [plan["cover"]["src"]] if plan.get("cover") else []   # an audio clip's cover, from clips.py trim
+    rels += [plan["layout"]["card"]["src"]] if (plan.get("layout") or {}).get("card") else []   # the letterbox photo
+    rels += [t["src"] for b in (plan.get("layout") or {}).get("boards") or [] for t in b["tiles"]]   # the board's logo tiles
+    return list(dict.fromkeys(rels))
+
+
+def fingerprint(edit, plan_path, plan):
+    """What a render is made from: the plan's bytes, the renderer's source, and the size and time of the cut and
+    every file it reads. Two renders with one fingerprint are the same video."""
+    h = hashlib.sha1(plan_path.read_bytes())
+    files = [edit / plan["video"], *(edit / r for r in public_rels(plan))]
+    files += [f for c in plan.get("cutouts", []) for f in sorted((edit / c["src"]).glob("*"))]
+    files += sorted((SRC / "src").rglob("*")) + [SRC / "render.mjs"]
+    for f in files:
+        try:
+            st = f.stat()
+            h.update(f"{f}|{st.st_size}|{st.st_mtime_ns}\n".encode())
+        except OSError:
+            h.update(f"{f}|missing\n".encode())
+    return h.hexdigest()
 
 
 def prepare_public(edit, plan, tag):
@@ -116,13 +153,7 @@ def prepare_public(edit, plan, tag):
                         "-keyint_min", "15", "-sc_threshold", "0", "-pix_fmt", "yuv420p",
                         "-c:a", "copy", str(proxy)], check=True)
         made.write_text(vf, encoding="utf-8")
-    # Card images, plus every image an anim's or a capture card's props name (a logo card, a diagram's logos, props.logo_src).
-    rels = [c["src"] for c in plan["cards"] if c.get("src")]
-    rels += re.findall(r'"(images/[^"]+)"', json.dumps([[c.get("anim"), c.get("props")] for c in plan["cards"]]))
-    rels += [c["src"] for c in plan.get("sfx", [])]   # sound cues, from sfx.py
-    rels += [plan["music"]["src"]] if plan.get("music") else []   # the music bed, from sfx.py music
-    rels += [plan["cover"]["src"]] if plan.get("cover") else []   # an audio clip's cover, from clips.py trim
-    rels += [plan["layout"]["card"]["src"]] if (plan.get("layout") or {}).get("card") else []   # the letterbox photo
+    rels = public_rels(plan)
     for c in plan.get("cutouts", []):   # the speaker cut out for behind cards: a folder of PNGs from matte.py
         if not (edit / c["src"]).is_dir():
             sys.exit(f"ERROR: {edit / c['src']} missing (run matte.py)")
@@ -133,7 +164,9 @@ def prepare_public(edit, plan, tag):
         if not src.exists():
             sys.exit(f"ERROR: {src} missing" + (" (run sfx.py build, then plan.py)" if rel.startswith(".sfx/") else ""))
         (pub / rel).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, pub / rel)
+        a, b = src.stat(), (pub / rel).stat() if (pub / rel).exists() else None
+        if not b or (a.st_size, a.st_mtime_ns) != (b.st_size, b.st_mtime_ns):   # copied already (copy2 keeps the time):
+            shutil.copy2(src, pub / rel)   # never rewritten under a background render that is reading it
     return pub
 
 
@@ -167,6 +200,14 @@ def still_frames(plan):
             prev = [p for p in cards[:i] if p.get("lane") != "logo"]
             if prev and 0 <= c["start"] - prev[-1]["end"] < 1.2:
                 frames[f"{4 + i}-swap"] = c["start"] + 0.12
+    lay = plan.get("layout") or {}
+    for i, b in enumerate(lay.get("boards") or [] if lay.get("mode") == "board" else []):
+        # a board: its question centred before the rise, then settled with every tile landed
+        if b.get("question"):
+            frames[f"b{i + 1}-question"] = b["rise"] - 0.1
+        frames[f"b{i + 1}-board"] = min(b["end"] - 0.2, b["tiles"][-1]["at"] + 1.2)
+    for i, q in enumerate(lay.get("questions") or [] if lay.get("mode") == "board" else []):
+        frames[f"q{i + 1}-question"] = min(q["end"] - 0.3, q["words"][-1][1] + 0.4)
     return {k: min(last, round(t * fps)) for k, t in frames.items()}
 
 
@@ -1126,8 +1167,35 @@ def demo_storyboard():
         assert storyboard(e, {"fps": 30, "durationInFrames": 90, "height": 112, "video": "cut.mp4"}, st, {"x": 1}) is None
 
 
+def demo_spec():
+    """The background render is used only when made from this very plan and these files."""
+    import tempfile
+    sys.path.insert(0, str(PLUGIN / "lib"))
+    with tempfile.TemporaryDirectory() as t:
+        e = Path(t)
+        (e / "images").mkdir()
+        (e / "cut.mp4").write_bytes(b"cut")
+        (e / "images" / "a.png").write_bytes(b"png")
+        plan = {"video": "cut.mp4", "cards": [{"src": "images/a.png"}]}
+        (e / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
+        fp = fingerprint(e, e / "plan.json", plan)
+        meta, out, log = spec_files(e, "")
+        save_json(meta, {"pid": os.getpid(), "fp": fp, "state": "done"})
+        out.write_bytes(b"made in the background")
+        assert adopt(e, e / "plan.json", plan, "") and (e / "render.mp4").read_bytes() == b"made in the background"
+        assert not meta.exists() and not out.exists()
+        save_json(meta, {"pid": os.getpid(), "fp": fp, "state": "done"})
+        out.write_bytes(b"old")
+        os.utime(e / "images" / "a.png", (1, 1))   # a card image changed since: another video
+        assert fingerprint(e, e / "plan.json", plan) != fp
+        assert not adopt(e, e / "plan.json", plan, "") and not out.exists() and not meta.exists(), "a stale render is dropped"
+        save_json(meta, {"pid": 999999999, "fp": fingerprint(e, e / "plan.json", plan), "state": "running"})
+        assert not adopt(e, e / "plan.json", plan, ""), "a background render that died is never waited on"
+
+
 def demo():
     import tempfile
+    demo_spec()
     demo_patch()
     demo_storyboard()
     # the laptop estimate: Chrome's start-up once, then every frame; every cloud line says when it is not set up
@@ -1152,6 +1220,8 @@ def demo():
     assert proxy_filter(3840, 2160, 1920, 1080).startswith("scale=1920:1080")
     lb = {"width": 1080, "height": 1920, "layout": {"mode": "letterbox", "band": [0, 34.18, 100, 31.64]}}
     assert footage_filter(lb, 1920, 1080) == "scale=1080:608,setsar=1,pad=1080:1920:0:656:black", footage_filter(lb, 1920, 1080)
+    gp = {"width": 1080, "height": 1920, "grade": {"brightness": 0.8, "saturate": 1.5}}
+    assert footage_filter(gp, 1080, 1920).endswith(",colorchannelmixer=rr=0.8:gg=0.8:bb=0.8,hue=s=1.5"), footage_filter(gp, 1080, 1920)
     import tempfile, zipfile
     with tempfile.TemporaryDirectory() as t:
         edit, pub = Path(t) / "fake", Path(t) / "fake" / ".render"
@@ -1296,9 +1366,96 @@ def demo():
     print("demo ok")
 
 
+def spec_files(edit, tag):
+    """The speculative render's state, video and log (review.py drop_spec removes all three)."""
+    return edit / f"render{tag}.spec.json", edit / f"render{tag}.spec.mp4", edit / f"render{tag}.spec.renderer.log"
+
+
+def speculate(edit, plan_path, plan, pub, tag):
+    """The laptop render, started by the review page when the stills go up, at low priority so the laptop stays
+    usable. Its own process group (review.py starts it with a new session): drop_spec stops Chrome with it."""
+    meta, out, log = spec_files(edit, tag)
+    if hasattr(os, "nice"):
+        os.nice(10)
+    save_json(meta, {"pid": os.getpid(), "fp": fingerprint(edit, plan_path, plan), "started": time.time(), "state": "running"})
+    with open(log, "w", encoding="utf-8") as f:
+        code = subprocess.run(["node", str(REMOTION / "render.mjs"), "local", str(pub), str(plan_path), str(out),
+                               "--concurrency=max"],   # the tab count changes pixels: an idle laptop's, never halved
+                              stdout=f, stderr=subprocess.STDOUT, cwd=REMOTION, env=aws_env()).returncode
+    try:
+        m = json.loads(meta.read_text(encoding="utf-8"))
+        if m.get("pid") == os.getpid():   # still ours: not dropped meanwhile
+            save_json(meta, {**m, "state": "done" if code == 0 and out.exists() else "failed", "ended": time.time()})
+    except (OSError, ValueError):
+        pass
+
+
+def adopt(edit, plan_path, plan, tag):
+    """The render the review page started when the stills went up, when it was made from exactly this plan and
+    these files: waited for if still running, then moved to render.mp4. True when it was used. Anything else
+    (another plan, a failed or stalled run) drops it and the caller renders as before."""
+    from ai_editor import review
+    meta, out, log = spec_files(edit, tag)
+    try:
+        m = json.loads(meta.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if m.get("fp") != fingerprint(edit, plan_path, plan):
+        review.drop_spec(edit)
+        return False
+    review.step(edit, "render", log)   # the page's bar reads the running render's log
+    try:
+        spf = json.loads(LAPTOP_JSON.read_text(encoding="utf-8"))["s_per_frame"]
+    except (OSError, ValueError, KeyError):
+        spf = 0.3
+    if m.get("state") == "running":
+        print("the edit has been rendering since the stills went up: waiting for it to finish", flush=True)
+    while m.get("state") == "running" and review.alive(m["pid"]):
+        try:
+            idle = time.time() - log.stat().st_mtime
+        except OSError:
+            idle = 0
+        if idle > stall_s(spf) + STALL_START_S:   # stuck: render it again the usual way, with the watchdog
+            break
+        time.sleep(0.5)
+        try:
+            m = json.loads(meta.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            break
+    if m.get("state") == "done" and out.exists():
+        dst = edit / f"render{tag}.mp4"
+        os.replace(out, dst)
+        meta.unlink(missing_ok=True)
+        print(f"rendered {dst} (started while you looked at the stills)")
+        return True
+    review.drop_spec(edit)
+    return False
+
+
+def warm():
+    """Webpack's cache for the renderer, built while the user picks a style (home.py runs this when a clip is added):
+    after an update that changed the renderer, the first stills otherwise rebuild it (8.3 s cold, 1.7 s warm, measured
+    on an M4 Pro). Low priority; a renderer whose packages changed is left to the next edit, which installs it."""
+    import tempfile
+    if hasattr(os, "nice"):
+        os.nice(10)
+    lock = "package-lock.json"
+    if not (REMOTION / "node_modules" / "remotion").exists() or \
+            not (REMOTION / lock).exists() or (REMOTION / lock).read_bytes() != (SRC / lock).read_bytes():
+        return print("warm: the renderer is not installed at this version yet; the next edit installs it")
+    sync_renderer()
+    t0 = time.time()
+    with tempfile.TemporaryDirectory(prefix="ave-warm-") as t:
+        (Path(t) / "pub").mkdir()
+        node("bundle", Path(t) / "pub", Path(t) / "bundle")
+    print(f"warm: the renderer's bundle in {time.time() - t0:.1f} s")
+
+
 def main():
     if sys.argv[1:] == ["demo"]:
         return demo()
+    if sys.argv[1:] == ["warm"]:
+        return warm()
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["stills", "estimate", "render", "patch", "github-push", "github-fetch"])
     ap.add_argument("edit")
@@ -1311,6 +1468,8 @@ def main():
     ap.add_argument("--no-check", action="store_true", help="stills even when check.py plan finds a FAIL")
     ap.add_argument("--at", action="append", help="stills: only this moment (15.4 or 0:15) or range (13-15.5, five stills)")
     ap.add_argument("--range", action="append", help="patch: re-render this span (13-15.5) instead of what changed")
+    ap.add_argument("--speculative", action="store_true", help="render: the review page's background render while the "
+                    "stills are up, into render.spec.mp4 (a plain render takes it over)")
     a = ap.parse_args()
     edit = Path(a.edit).resolve()
     plan_path = edit / a.plan
@@ -1320,12 +1479,20 @@ def main():
         if not a.repo:
             sys.exit("ERROR: --repo NAME is required")
         return (github_push if a.cmd == "github-push" else github_fetch)(edit, a.repo, tag)
+    sys.path.insert(0, str(PLUGIN / "lib"))
+    from ai_editor import review
+    laptop = a.cmd == "render" and not (a.draft or a.github or a.use_lambda or a.modal)
+    if laptop and a.speculative:
+        sync_renderer(edit)
+        return speculate(edit, plan_path, plan, prepare_public(edit, plan, tag), tag)
+    if laptop and adopt(edit, plan_path, plan, tag):
+        return shutil.copy2(plan_path, edit / f"render{tag}.plan.json")
+    if a.cmd in ("stills", "render", "patch"):   # the plan or the target changed: the background render is not this one
+        review.drop_spec(edit)
     sync_renderer(edit)
     pub = prepare_public(edit, plan, tag)
     # the review page's "Making the edit" bar, when it waits on this edit; after the downloads above, which
     # post their own status lines. A laptop render's log carries its percent: the last render's goes first.
-    sys.path.insert(0, str(PLUGIN / "lib"))
-    from ai_editor import review
     if a.cmd == "stills":
         review.step(edit, "plan")
     elif a.cmd == "render" and not (a.draft or a.github):

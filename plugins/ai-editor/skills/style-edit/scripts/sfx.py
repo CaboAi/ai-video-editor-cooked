@@ -62,6 +62,12 @@ KIT = {
              ":d=0.4:s=48000[body];"
              "[air][body]amix=inputs=2:weights=1 0.5:normalize=0,highpass=f=90,"
              "afade=t=out:st=0.32:d=0.08:curve=log", -5),
+    # A copied creator's impact (sound.py "impact": low, with a tail): a 55 Hz boom dropping to 40 Hz under a
+    # 40 ms broadband crack, heard under the voice where the soft hit and zoom thump are not (a boom alone moves
+    # too few bins to stand out of speech).
+    "impact": ("aevalsrc='sin(2*PI*(55*t-19*t*t))*(1-exp(-t*400))*exp(-t*7)':d=0.6:s=48000[boom];"
+               "anoisesrc=d=0.6:c=white:a=1:r=48000:seed=11,lowpass=f=9000,afade=t=out:st=0:d=0.04:curve=exp,"
+               "volume=0.9[crack];[boom][crack]amix=inputs=2:normalize=0,afade=t=out:st=0.45:d=0.15:curve=log", -2),
 }
 
 
@@ -159,8 +165,8 @@ def kit(edit_dir):
     p, cut = Path(edit_dir) / ".sfx" / "kit.json", Path(edit_dir) / "cut.mp4"
     if p.exists():
         k = json.loads(p.read_text(encoding="utf-8"))
-        if not cut.exists() or k.get("cut_mtime", 0) >= cut.stat().st_mtime:
-            return k
+        if (not cut.exists() or k.get("cut_mtime", 0) >= cut.stat().st_mtime) and set(k.get("cues", {})) >= set(KIT):
+            return k   # a kit from before a cue was added is built again
     return build(edit_dir)
 
 

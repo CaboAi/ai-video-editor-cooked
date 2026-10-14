@@ -13,21 +13,28 @@ with "answers", the documented way to answer AskUserQuestion from a hook), so th
 
 How a page is found: home.py and review.py each write $AI_EDITOR_HOME/pages/<port> (0600) when they start,
 JSON {"url": the page's URL with its token, "kind": "home" | "review", "session": the Claude Code session
-that started it}, and touch it each time a page that is showing polls GET /ask (ask.js, every second). A
-file touched in the last 20 s is a live page. No port is ever scanned. An old file holding only the URL
-belongs to no session, so it never gets a question.
+that started it}, and touch it each time an open page polls GET /ask (ask.js: every second, less often in a
+background tab, which the browser slows to about once a minute). A file touched in the last 90 s is an open page,
+showing or not: a question for a video in a background tab waits there, the tab's title says "(1) Claude is asking"
+and the page shows it the moment the tab is looked at. A closed tab says so (POST /ask/gone). No port is ever
+scanned. An old file holding only the URL belongs to no session, so it never gets a question.
 
 Whose question: the hook sends its session_id with the question, and each server takes it only when that
 session is working there (srv.ask_owner, set by register): a review page, the session that last ran a
-command on that edit; the home page, a session holding one of its jobs or listening for one. A server that
+command on that edit or holds that edit's video job on the home page (a session holding a job on the home page asks
+only on that job's edit page, never another's); the home page, a session holding one of its jobs or listening for
+one. Every open page that takes it gets it, and the first answer wins. When the video's editor took it, the home page
+gets it marked "elsewhere": Home and its sidebar job card show a row "Claude is asking about <video>" with Open, not
+the card, so a question about a video shows in that video's editor tab. A server that
 knows no session at all (a Claude Code without CLAUDE_CODE_SESSION_ID) takes any question, as before. The
 card says what it is about ("Claude (team-250k-general) asks"). No server takes it: the terminal box shows.
 
 The servers (route() below, called from both):
     GET  /ask.js                 the card's script
     GET  /ask[?v=1]              the page's poll: the oldest open question or null (v=1: the page is showing)
+                                 {id, questions, about, elsewhere}: elsewhere, the editor page has it too
     GET  /ask?id=X               the hook's poll: {"result": null | {"answers": [...]} | {"terminal": true}}
-    POST /ask {id, questions}    the hook asks
+    POST /ask {id, questions, elsewhere?}   the hook asks (elsewhere: the video's editor page has it too)
     POST /ask/answer {id, answers | terminal, images?}   the page answers (one string per question; images: one
                                  list of image data urls per question, saved where the server keeps them, see below)
     POST /ask/clear {id}         the hook is done: every page drops it
@@ -50,7 +57,7 @@ import urllib.request
 from pathlib import Path
 
 JS = Path(__file__).with_name("ask.js")
-LIVE_S = 20          # a page polled this recently is being looked at
+LIVE_S = 90          # a page polled this recently is open (a background tab polls about once a minute)
 TIMEOUT_S = 600      # then the terminal box shows (hooks.json gives the hook 900 s)
 KEEP_S = TIMEOUT_S + 60   # a question whose hook was stopped (Esc in Claude Code) leaves the pages by then
 MAX_IMAGE = 15 << 20      # an attached image (review notes and answers)
@@ -156,9 +163,10 @@ def route(h, method, path, query, body=None):
             a = asks.get(query["id"])
             h.send(200 if a else 404, {"result": a and a.get("result")})
         else:
-            if query.get("v") == "1" and getattr(srv, "ask_url", None):
+            if getattr(srv, "ask_url", None):   # open, showing or in a background tab
                 _seen(srv)
-            a = next((dict(id=k, questions=a["questions"], about=a.get("about") or "") for k, a in sorted(asks.items(), key=lambda x: x[1]["at"])
+            a = next((dict(id=k, questions=a["questions"], about=a.get("about") or "", **({"elsewhere": True} if a.get("elsewhere") else {}))
+                      for k, a in sorted(asks.items(), key=lambda x: x[1]["at"])
                       if not a.get("result")), None)
             h.send(200, {"ask": a})
     elif method == "POST" and path == "/ask":
@@ -171,7 +179,7 @@ def route(h, method, path, query, body=None):
             return h.send(409, {}) or True
         where = getattr(srv, "ask_where", None)
         folder = where(sid if isinstance(sid, str) else "") if where else None
-        asks[body["id"]] = {"questions": qs, "at": time.time(), "about": about,
+        asks[body["id"]] = {"questions": qs, "at": time.time(), "about": about, "elsewhere": body.get("elsewhere") is True,
                             "dir": str(folder or pages().parent / "asks")}
         h.send(200, {})
     elif method == "POST" and path == "/ask/answer":
@@ -246,14 +254,12 @@ def relay(payload, timeout=None, poll=0.5):
         return None
     sid = payload.get("session_id")
     sid = sid if isinstance(sid, str) else ""
-    urls = live()
-    if not urls:
-        return None
     qid = secrets.token_urlsafe(12)
     sent = []
-    for u in urls:
+    edit = live("review")
+    for u in edit + [u for u in live() if u not in edit]:   # the video's editor first; Home marked when an editor has it
         try:
-            _call(u, "/ask", {"id": qid, "questions": qs, "session": sid})
+            _call(u, "/ask", {"id": qid, "questions": qs, "session": sid, "elsewhere": bool(sent) and u not in edit})
             sent.append(u)
         except Exception:   # 409: another session's page
             pass
@@ -337,11 +343,11 @@ def demo():
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
             route(self, "POST", path, q, body) or self.send(404, {})
 
-    def mk(sid, about):   # a page owned by one session
+    def mk(sid, about, kind="review"):   # a page owned by one session
         srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         url = f"http://127.0.0.1:{srv.server_address[1]}/?t={tok}"
-        register(srv, url, "review", owner=lambda s: about if s == sid else None)
+        register(srv, url, kind, owner=lambda s: about if s == sid else None)
         return srv, url
     srv, url = mk("sess-A", "team-250k-general")
     qs = [{"question": "Which cut?", "header": "Cut", "multiSelect": False,
@@ -444,6 +450,39 @@ def demo():
     assert page()["about"] == "team-250k-general" and _call(url2, "/ask?v=1")["ask"] is None, "A's stays off B's"
     _call(url, "/ask/answer", {"id": page()["id"], "terminal": True})
     th.join()
+    # the home page open too, also A's: A's question shows as a card in A's editor, and on Home marked "elsewhere"
+    # (Home shows a row with Open); B's (no editor of its own) on Home as the card
+    srvH, urlH = mk("sess-A", "", "home")
+    srvH.ask_owner = lambda s: "" if s in ("sess-A", "sess-D") else None
+    _call(urlH, "/ask?v=1")
+    th, box = run_hook()
+    a = page()
+    assert a["about"] == "team-250k-general" and "elsewhere" not in a and page(urlH)["elsewhere"] is True, "the editor, Home marked"
+    _call(urlH, "/ask/answer", {"id": a["id"], "answers": ["Loose", "Zooms"]})   # answered on Home: the editor drops it too
+    th.join()
+    assert json.loads(box["r"].stdout)["hookSpecificOutput"]["updatedInput"]["answers"]["Which cut?"] == "Loose"
+    assert not srv.asks and not srvH.asks
+    # a background tab (polls without v=1, about once a minute): still open, so the question waits there, not the terminal
+    os.utime(pages() / str(srvH.server_address[1]), (0, 0))
+    os.utime(pages() / str(srv.server_address[1]), (time.time() - 60,) * 2)
+    th, box = run_hook()
+    for _ in range(100):
+        if srv.asks:
+            break
+        time.sleep(0.05)
+    assert srv.asks and not srvH.asks, "a tab polled 60 s ago still gets it"
+    _call(url, "/ask")   # the hidden tab's next poll delivers it
+    _call(url, "/ask/answer", {"id": next(iter(srv.asks)), "terminal": True})
+    th.join()
+    _call(urlH, "/ask?v=1")
+    th, box = run_hook(dict(payload, session_id="sess-D"))
+    d = page(urlH)
+    assert not srv.asks and not srv2.asks, "no editor takes D's: Home does"
+    _call(urlH, "/ask/answer", {"id": d["id"], "terminal": True})
+    th.join()
+    srvH.shutdown()
+    srvH.server_close()
+    (pages() / str(srvH.server_address[1])).unlink()
     # a third session with no page of its own, or no session id: the terminal box, at once
     for p in (dict(payload, session_id="sess-C"), {k: v for k, v in payload.items() if k != "session_id"}):
         t0 = time.time()

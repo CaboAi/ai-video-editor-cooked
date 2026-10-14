@@ -57,6 +57,7 @@ MIN_AREA = 0.006      # smallest graphic, share of the frame
 MIN_HOLD = 0.6        # shortest graphic, s
 PLATE_FIT = 8         # block median above this: the sample fits no plate (mid-push, b-roll)
 KINDS = ["real screenshot", "UI recording", "logo", "text card", "photo", "meme", "chart", "b-roll"]
+HAIR = 0.5            # hair above the face box, in face heights (0.9 hid the card band over a close-framed head)
 GRID = (16, 9)        # heatmap rows x cols (portrait); swapped for landscape
 
 
@@ -321,7 +322,7 @@ def body_mask(face, H, W):
     if face:
         x, y, w, h = face
         x0, x1 = int((x - 1.0 * w) * W), int((x + 2.0 * w) * W)
-        m[max(0, int((y - 0.9 * h) * H)):, max(0, x0):min(W, x1)] = True   # hair, and a lean forward
+        m[max(0, int((y - HAIR * h) * H)):, max(0, x0):min(W, x1)] = True   # hair, and a lean forward
         m[min(H, int((y + 1.6 * h) * H)):, :] = True
     return m
 

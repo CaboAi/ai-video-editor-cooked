@@ -8,8 +8,8 @@
 plan: every card inside the app's safe zones, vertical cards centred, no card on the head while
 it is up (face.json, moved by the zooms or the split window), captions inside the safe zone and
 never held long past their words, no stretch with nothing changing on screen, not more text cards
-than picture cards, text cards' text at least 34 px.
-render: on the rendered mp4 (4 samples a second), where the card's drawn pixels are: on the face
+than picture cards, text cards' text at least 34 px, a music bed when the style runs one.
+render: the planned music bed is in the render's audio, not silent. On the rendered mp4 (4 samples a second), where the card's drawn pixels are: on the face
 (YuNet, face.py), off centre, or not moving. On cut.mp4's audio: silences inside the speech, and
 kept spans too short to read as anything but a glitch. Caption words that differ from what the
 cut's own transcript heard are listed for a person to look at. Then quality.py: every frame
@@ -84,14 +84,15 @@ def zoom_state(t, zooms):
     for i, z in enumerate(zs):
         nxt = zs[i + 1]["start"] if i + 1 < len(zs) else float("inf")
         push = z.get("kind") == "push" and z.get("ease_s", 0) > 0
-        tail = 0 if push else min(PUNCH_S, max(0, nxt - z["end"]))
+        travel = z.get("travel_s") or PUNCH_S
+        tail = 0 if push else min(travel, max(0, nxt - z["end"]))
         if not z["start"] <= t < z["end"] + tail:
             continue
         if push:
             e = min(max(PUSH_MIN_S, z["ease_s"]), (z["end"] - z["start"]) / 2)
             p = sine((t - z["start"]) / e) if t < z["start"] + e else sine((z["end"] - t) / e) if t > z["end"] - e else 1
         else:
-            p = out2(min(1, (t - z["start"]) / PUNCH_S)) if t < z["end"] else 1 - out2(min(1, (t - z["end"]) / PUNCH_S))
+            p = out2(min(1, (t - z["start"]) / travel)) if t < z["end"] else 1 - out2(min(1, (t - z["end"]) / travel))
         return z["scale"] ** max(0.0, min(1.0, p)), tuple(z.get("origin") or ZOOM_ORIGIN)
     return 1.0, ZOOM_ORIGIN
 
@@ -121,6 +122,18 @@ def footage_affine(t, plan, W, H):
     return [[s, 0, ox * (1 - s) + px / 100 * W], [0, s, oy * (1 - s)]]
 
 
+def board_frame(t, lay):
+    """The speaker's (zoom, side) at t from the board layout's face keyframes (Board.tsx keyed; smoothstep for its ease)."""
+    z, sd = lay["face"][0][1], lay["face"][0][2]
+    for at, kz, ks, d in lay["face"]:
+        if t < at:
+            break
+        u = min(1.0, max(0.0, (t - at) / max(0.01, d)))
+        p = u * u * (3 - 2 * u)
+        z, sd = z + (kz - z) * p, sd + (ks - sd) * p
+    return z, sd
+
+
 def on_screen(box, t, plan):
     """A head box on cut.mp4 (percent) -> where it is drawn on the output while a card is up:
     grown by the zoom (and moved by a pan), and in split moved into the speaker's window under the seam."""
@@ -130,6 +143,12 @@ def on_screen(box, t, plan):
     if lay.get("mode") == "letterbox":   # the cut sits unmoved in the band
         _, by, _, bh = lay["band"]
         return [x, by + y * bh / 100, w, h * bh / 100]
+    if lay.get("mode") == "board":   # Board.tsx faceRect: zoomed about the top edge, the head moved left or right
+        z, sd = board_frame(t, lay)
+        slack = 100 * (1 - 1 / z)
+        c0 = min(slack, max(0, lay.get("head_x", 50) - 50 / z))
+        start = c0 + (0 - c0) * sd if sd >= 0 else c0 + (slack - c0) * -sd
+        return [(x - start) * z, y * z, w * z, h * z]
     if not lay:
         ox, oy = zoom_state(t, plan["zooms"])[1]
         px, pk = pan_at(t, plan.get("pans"))
@@ -188,7 +207,7 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
         name = f"'{c['trigger_word']}' {c.get('src') or c['anim']['type']}"
         x, y, w, h = c["box"]
         word = re.sub(r"[^\w'-]+", "", c["trigger_word"]).lower()
-        if c.get("layout") == "scene" and beats is not None and not any(
+        if c.get("layout") == "scene" and beats is not None and c.get("scene_by") != "creator" and not any(
                 b.get("layout") in ("scene", "split") and re.sub(r"[^\w'-]+", "", b.get("word") or "").lower() == word for b in beats):
             out.append(finding("FAIL", c["start"], f"{name} is a full-frame scene nobody asked for: the speaker leaves the frame",
                                "make it an overlay: plan again with no \"layout\": \"scene\" on that beat (a scene only when "
@@ -281,18 +300,22 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
                                "plan again with the current plan.py (it caps the tail at 0.3 s)"))
     # Stretches with nothing changing: no card up, no zoom starting or ending, no jump cut.
     dur = plan["durationInFrames"] / plan["fps"]
+    shown, lay = list(cards), plan.get("layout") or {}
+    if lay.get("mode") == "board":   # the canvas and the centred questions are visuals too; each reframe moves the camera
+        shown += [{"start": a, "end": b} for a, b in lay["views"]] + [{"start": q["start"], "end": q["end"]} for q in lay["questions"]]
+        cuts = list(cuts) + [k[0] for k in lay["face"]]
     marks = sorted([0.0, dur] + [z[k] for z in plan["zooms"] for k in ("start", "end")] + list(cuts)
-                   + [c[k] for c in cards for k in ("start", "end")])
+                   + [c[k] for c in shown for k in ("start", "end")])
     # an audio clip's cover moves throughout; a letterbox holds still on purpose
     for a, b in zip(marks, marks[1:]) if not plan.get("cover") and (plan.get("layout") or {}).get("mode") != "letterbox" else ():
-        if b - a > static_s and not any(c["start"] <= a and c["end"] >= b for c in cards):
+        if b - a > static_s and not any(c["start"] <= a and c["end"] >= b for c in shown):
             out.append(finding("WARN", a, f"static for {b - a:.1f} s ({a:.1f}-{b:.1f} s): no card, zoom or cut",
                                "add a visual beat or a zoom in that stretch"))
     # pacing (SKILL.md step 3): a stretch with no card longer than the plan's card_gap_s is fine only when nothing
     # in it is named and the frame still changes (a zoom or a cut) at least every QUIET_HOLD_S
     gap_s = plan.get("card_gap_s") or GAP_S
     moves = sorted([z[k] for z in plan["zooms"] for k in ("start", "end")] + list(cuts))
-    for a, b in card_gaps(cards, dur):
+    for a, b in card_gaps(shown, dur):
         if b - a <= gap_s + 0.01:
             continue
         said = [f"'{n}' at {t:.1f} s" for t, n in named if a <= t < b]
@@ -334,7 +357,7 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
                            "show the page that published it (a capture), or only the words the speaker says"))
     # the AI-made look (references/ai-tells.md): BAN -> FAIL, WARN -> WARN
     from ai_tells import check_plan as ai_tells, for_brand
-    for f in for_brand(ai_tells(plan, visuals), brand):
+    for f in for_brand(ai_tells(plan, visuals), brand, plan.get("allow_tells")):
         out.append(finding("FAIL" if f["level"] == "BAN" else "WARN", None, f"AI tell '{f['tell']}': {f['where']}", f["fix"]))
     return out
 
@@ -662,6 +685,44 @@ def check_audio(edit, words):
     return out, {"noise_db": round(noise, 1), "threshold": how}
 
 
+BED_GAIN = 0.5   # how much of the planned bed the render must carry (1.0: all of it, at its own level)
+
+
+def pcm(f):
+    """A file's audio as mono float32 at 16 kHz (numpy), empty when it has none."""
+    import numpy as np
+    b = subprocess.run(["ffmpeg", "-v", "error", "-i", str(f), "-vn", "-ac", "1", "-ar", "16000", "-f", "f32le", "-"],
+                       capture_output=True).stdout
+    return np.frombuffer(b, np.float32)
+
+
+def bed_gain(video, bed):
+    """How much of the bed is in the video's audio: its projection onto the bed (the voice and the cues do not
+    correlate with it). About 1 when the render carries it at its level, about 0 when it rendered without it."""
+    import numpy as np
+    r, b = pcm(video), pcm(bed)
+    n = min(len(r), len(b))
+    e = float(np.dot(b[:n], b[:n]))
+    return float(np.dot(r[:n], b[:n]) / e) if n and e > 0 else 0.0
+
+
+def music_findings(edit, plan, style, prof, video=None):
+    """A style that runs a music bed (plan.music_wanted) must plan one and render it audibly: never silent."""
+    from plan import music_wanted
+    if not music_wanted(style or {}, prof or {}):
+        return []
+    if not plan.get("music"):
+        return [finding("FAIL", None, "this style runs a music bed and the plan has none",
+                        f"sfx.py music {edit} (a generated bed at the creator's level), then plan.py again")]
+    bed = Path(edit) / plan["music"]["src"]
+    if video is not None and bed.is_file():
+        g = bed_gain(video, bed)
+        if g < BED_GAIN:
+            return [finding("FAIL", None, f"the plan has a music bed and the render carries {100 * g:.0f}% of it (silent bed)",
+                            f"check {bed} has sound and reached the renderer (edit.py copies plan.music.src), then render again")]
+    return []
+
+
 def google_fonts(remotion=None):
     """The families the installed @remotion/google-fonts can load (look.tsx loadFamily), or None when it is not installed."""
     if remotion is None:
@@ -718,6 +779,20 @@ def demo():
     assert len(font_findings(fp, {"Inter"})) == 2 and font_findings(fp, None) == []
     gf = google_fonts()
     assert gf is None or {"TikTok Sans", "Inter", "IBM Plex Sans", "Newsreader"} <= gf, "the default fonts load"
+    # music: a style that runs a bed fails a plan with none and a render silent between words
+    snd = {"sound": {"music": {"present_pct": 100, "level_db": -18}}}
+    assert music_findings("e", {}, snd, {})[0]["level"] == "FAIL", "a music style planned silent"
+    assert music_findings("e", {}, snd, {"sound": {"music": False}}) == [] and music_findings("e", {}, {**snd, "music": False}, {}) == []
+    assert music_findings("e", {}, {"sound": {"music": {"present_pct": 20}}}, {}) == []
+    with tempfile.TemporaryDirectory() as d:   # the cut alone (bed dropped by the renderer) fails; cut + bed passes
+        mk = lambda name, *a: subprocess.run(["ffmpeg", "-v", "error", *a, "-t", "2", str(Path(d) / name)], check=True)  # noqa: E731
+        mk("cut.wav", "-f", "lavfi", "-i", "sine=f=220:r=48000")
+        (Path(d) / ".sfx").mkdir()
+        mk(".sfx/music.wav", "-f", "lavfi", "-i", "anoisesrc=r=48000:a=0.05:seed=7")
+        mk("render.wav", "-i", str(Path(d) / "cut.wav"), "-i", str(Path(d) / ".sfx" / "music.wav"), "-filter_complex", "amix=inputs=2:normalize=0")
+        mp = {"music": {"src": ".sfx/music.wav"}}
+        assert music_findings(d, mp, snd, {}, Path(d) / "cut.wav")[0]["level"] == "FAIL", "rendered without its bed"
+        assert music_findings(d, mp, snd, {}, Path(d) / "render.wav") == [], bed_gain(Path(d) / "render.wav", Path(d) / ".sfx" / "music.wav")
     assert "no --style" in style_note(None, None) and style_note("s.json", {"pace": {}}) is None
     assert "no --style" not in style_note("edits/x/style.json", {}), style_note("edits/x/style.json", {})
     # a card style with an empty plan FAILs, saying where the cards went missing; the default style (no rate) does not
@@ -811,6 +886,8 @@ def demo():
     unasked = [f for f in check_plan(fl, face, beats=[{"word": "task", "kind": "anim", "type": "flow"}]) if "nobody asked" in f["what"]]
     assert unasked and unasked[0]["level"] == "FAIL" and "overlay" in unasked[0]["fix"], unasked
     assert not any("nobody asked" in f["what"] for f in check_plan(fl, face, beats=[{"word": "Task.", "layout": "scene"}]))
+    fl["cards"][0]["scene_by"] = "creator"   # plan.py made it a cut-away: the copied creator is off screen that much
+    assert not any("nobody asked" in f["what"] for f in check_plan(fl, face, beats=[{"word": "task", "kind": "anim", "type": "flow"}]))
     # logo_cluster: logos laid round the head (no band) FAIL on vertical; plan.py's centred band passes, one logo does not
     lc = {**plan, "cards": [{"anim": {"type": "logo_cluster", "props": {"logos": [{"src": "a"}, {"src": "b"}]}}, "start": 0.5,
                              "end": 2, "trigger_word": "l", "box": [0, 0, 100, 100]}]}
@@ -926,14 +1003,19 @@ def demo():
     print("demo ok")
 
 
-def brand():
-    """The profile's brand kit (a tell the user's own brand names is only a warning)."""
+def prof():
+    """The user's profile (start skill), {} outside the plugin."""
     try:
         sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
         from ai_editor import profile
-        return profile.load().get("brand") or {}
+        return profile.load()
     except Exception:
         return {}
+
+
+def brand():
+    """The profile's brand kit (a tell the user's own brand names is only a warning)."""
+    return prof().get("brand") or {}
 
 
 def main():
@@ -967,6 +1049,7 @@ def main():
         found += no_cards(plan, style, (rd("visuals.json") or []) + (rd("images.json") or []),
                           sum(bool(x.get("want")) for x in rd("beats.json") or []), str(edit))
         found += user_assets(edit, plan, rd("visuals.json") or [])
+        found += music_findings(str(edit), plan, style, prof())
     else:
         video = edit / f"render{tag}.mp4"
         if not video.exists():
@@ -988,6 +1071,7 @@ def main():
         elif rd("decisions.json"):
             found += slivers([[s["start"] * 1000, s["end"] * 1000] for s in rd("decisions.json")], 1000)
         heard, shown = rd("cut.transcript.json"), rd("captions.json")
+        found += music_findings(str(edit), plan, style or rd("style.json"), prof(), video)
         if heard:
             f, extra["audio"] = check_audio(edit, shown or heard)
             found += f

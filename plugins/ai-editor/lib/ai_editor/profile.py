@@ -8,12 +8,15 @@
     python3 profile.py set <key.path> <value>     one answer (the older form)
     python3 profile.py defaults                   "use the defaults": every unanswered question saved as its
                                                   first option (audience and names too), so nothing is asked again
-    python3 profile.py style <edits/NAME> [--out F] [--from <style.json>]
+    python3 profile.py style <edits/NAME> [--out F] [--from <style.json>] [--as mine|defaults|@handle]
                                                   blend the profile's creators into edits/NAME/style.json
                                                   (no creators: the default style, DEFAULT_STYLE). --from: that one
                                                   saved style instead (an edit-like-<handle> skill passes it).
                                                   "source" records the creator style.json(s) used, so a review note
-                                                  can be saved on that style (styleskill.py)
+                                                  can be saved on that style (styleskill.py). --as: the style the
+                                                  user picked for this one video (the home page's as=): @handle
+                                                  copies that creator, defaults no creator, mine the profile's.
+                                                  Never written to profile.json: only Make default changes it
     python3 profile.py demo                       self-check
 
 File: ~/.ai-video-editor/profile.json (AI_EDITOR_HOME overrides). Shape:
@@ -26,7 +29,7 @@ File: ~/.ai-video-editor/profile.json (AI_EDITOR_HOME overrides). Shape:
    "names": [{"name": "Claude", "domain": "claude.com"}],
    "avoid": {"emoji": true, "stock": true, "icons": true, "colors": ["#7B61FF"], "notes": ""},
    "captions": {"on": true, "style": "creator"},     style: creator | plain | bold | karaoke | minimal
-   "sound": {"sfx": true, "music": false},
+   "sound": {"sfx": true, "music": false},           music: unset follows the style (a bed when the creator uses one)
    "behind": true,                                     cards sit behind the speaker (style-edit matte.py)
    "cloud_cleanup": true,                              delete uploaded footage from GitHub / S3 after a cloud render
    "render": "laptop",                                 where every render goes (laptop | modal | github | lambda), asked once
@@ -57,7 +60,7 @@ VIDEO_QUESTIONS = ("audience", "names")
 QUESTIONS = STYLE_QUESTIONS + VIDEO_QUESTIONS
 DEFAULTS = {"platform": "tiktok", "aspect": "9:16", "creators": [], "liked_videos": [], "brand": {"use_creator": True},
             "assets_dir": "", "names": [], "avoid": {"emoji": True, "stock": True, "icons": True, "colors": []},
-            "captions": {"on": True, "style": "creator"}, "sound": {"sfx": True, "music": False},
+            "captions": {"on": True, "style": "creator"}, "sound": {"sfx": True},   # no "music": the style decides until the user does
             "behind": False,   # unanswered: off, so no plan needs the cutout step until the user says yes
             "past_edit": False,
             # the video questions' first options: used without asking, said on the review page, changed by a word
@@ -280,7 +283,7 @@ def fill_transitions(style, warn=print):
 # is its own part (claimed by nobody in the profile, so it comes from the first creator, as every unclaimed part does).
 PARTS = {"captions": ("captions",), "pace": ("pace", "zoom", "cuts", "motion", "transitions", "camera"),
          "visuals": ("graphics", "look", "layout", "cats", "events", "face", "hook", "per_min", "first_in_s", "gap_s", "behind",
-                     "cards", "card_kinds"),
+                     "cards", "card_kinds", "grade"),
          "sound": ("sound", "sfx")}
 HOME_TAKE = {"captions", "pace", "graphics", "sound"}   # the home page's four boxes (home.py TAKE)
 
@@ -366,8 +369,10 @@ def answers(out, prof):
     return out
 
 
-def write_style(edit_dir, root=Path("."), out=None, src=None):
+def write_style(edit_dir, root=Path("."), out=None, src=None, as_=None):
     prof = load()
+    if as_ and as_ != "mine":   # this video's pick, over the profile in memory only
+        prof = {**prof, "creators": [] if as_ == "defaults" else [{"handle": as_.lstrip("@"), "take": ["captions", "pace", "visuals"]}]}
     styles, paths = {}, []
     for c in [] if src else prof.get("creators") or []:
         st, p = creator_style(root, c["handle"])
@@ -513,6 +518,14 @@ def demo():
         st = json.loads((Path(d) / "edits" / "v" / "style.json").read_text(encoding="utf-8"))
         assert r.returncode == 0 and st["source"] == [str(cs.resolve())] and st["captions"]["size_pct"] == 6, (r.stderr, st)
         assert st["handle"] == "alice" and f"from {cs.resolve()}" in r.stdout, r.stdout
+        # one video's style pick (the home page's as=): that style for this edit, profile.json untouched
+        before = (Path(d) / "profile.json").read_bytes()
+        for pick_, want in (("@alice", "alice"), ("defaults", None)):
+            r = subprocess.run([sys.executable, __file__, "style", "edits/w", "--as", pick_], capture_output=True, text=True,
+                               env=env, cwd=d)
+            st = json.loads((Path(d) / "edits" / "w" / "style.json").read_text(encoding="utf-8"))
+            assert r.returncode == 0 and (st.get("source") == [str(cs.resolve())] if want else "source" not in st), (r.stderr, st)
+            assert (Path(d) / "profile.json").read_bytes() == before, "a video's style pick never changes the profile"
     # the parts the user ticked (<h>-mine) win over the whole study; an old home-page -mine gets her card motion and
     # layout back; camera, face, hook and sound reach the blend (they were dropped before)
     with tempfile.TemporaryDirectory() as d:
@@ -571,7 +584,7 @@ def main():
             my_style()
     elif len(a) >= 2 and a[0] == "style":
         flag = lambda k: a[a.index(k) + 1] if k in a and a.index(k) + 1 < len(a) else None
-        out, style = write_style(a[1], out=flag("--out"), src=flag("--from"))
+        out, style = write_style(a[1], out=flag("--out"), src=flag("--from"), as_=flag("--as"))
         print(f"{out}: {style['handle']}, " + (f"from {style['source'][0]}" if flag("--from") else
                                               f"parts from {style['blend']}" if style.get("blend") else
                                               "no creator: the default style (smooth zooms, a move at least every 5 s, 3-word captions)"))

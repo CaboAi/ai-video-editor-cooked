@@ -38,6 +38,15 @@ product video). Notes save with the edit, never in the plugin:
                                      show "Saved to <style>. Next video uses it."
     python3 review.py demo                         self-check on a generated 6 s clip
 
+A note that reads as a lasting preference ("always ...", "never ...", "too many zooms") is offered as a rule: the page
+ticks "Keep as a rule for <style>" (POST /keep unticks it) and `wait` marks it [keep as a rule for <style>]. Every
+rule `learn` saves (a note at a style scope, or the Teach panel's `--done`) adds a receipt to review.json
+("receipts"): the page shows "Saved to <style>: <rule>. Undo", and POST /undo takes a rule that save added out again.
+
+Every round also rewrites <folder>/timings.json: each stage's real time (the cut, the user's review, the edit up to
+the stills, the stills check, the render) from the home job and review.json, and once the edit is back the line
+the page shows under it, "Made in 6 min (cut 3:10, edit 1:40, render 0:52)". `round --stills` starts the laptop
+render in the background (edit.py render --speculative); notes sent on the stills, or Stop, end it.
 Each round also gets review/data-<stage><round>.json for the page, built from the edit folder when
 the files are there: the cut's transcript with every cut word and pause struck (decisions.json +
 words.raw.json), the timeline's segments (cut points, or chapters.txt on the edit), and the edit's
@@ -83,7 +92,7 @@ import webbrowser
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(1, str(Path(__file__).resolve().parent.parent))   # `from ai_editor import ...` (styleskill, taste)
@@ -363,6 +372,41 @@ def seen(folder):
             set_ui(videos=vs + [str(folder)])
     except (OSError, TimeoutError):
         pass
+
+
+# A note that reads as a lasting preference: the page offers it as a rule for the style ("Keep as a rule").
+# ponytail: a word list, not a model; Claude still judges every kept note when it saves it
+RULE_WORDS = re.compile(r"\b(always|never|every time|from now on|by default|in general|i prefer|prefer|i (?:don'?t |do not )?like|"
+                        r"i hate|i'?d rather|i want (?:all|every|my)|too (?:many|much|few|little|big|small|long|short|fast|slow|loud|quiet)|"
+                        r"fewer|stop (?:adding|using|putting))\b", re.I)
+
+
+def looks_like_rule(text):
+    return bool(RULE_WORDS.search(text or ""))
+
+
+def receipt(d, style, rule, status, kind, ref, note=None, src="note"):
+    """One saved rule the page shows as "Saved to <style>: <rule>. Undo" (Undo only for a rule this save added).
+    kind "settings": ref is the rules.json id; "skill": ref is that skill's SKILL.md."""
+    r = {"id": max([x["id"] for x in d.get("receipts") or []] + [0]) + 1, "style": style, "rule": rule, "status": status,
+         "kind": kind, "ref": ref, "note": note, "from": src, "at": now()}
+    d.setdefault("receipts", []).append(r)
+    return r
+
+
+def undo_receipt(folder, rid):
+    """The page's Undo: the rule comes out of the style again (taste.forget, or skillrules.remove). The message, or None."""
+    from ai_editor import skillrules, taste
+    r = next((x for x in load(folder / "review.json").get("receipts") or [] if x["id"] == rid), None)
+    if not r or r.get("undone") or r["status"] != "added":
+        return None
+    ok = skillrules.remove(r["ref"], r["rule"]) if r["kind"] == "skill" else taste.forget(int(r["ref"])) is not None
+    def f(d):
+        for x in d.get("receipts") or []:
+            if x["id"] == rid:
+                x["undone"] = now()
+    update(folder / "review.json", f)
+    return f"Removed from {r['style']}." if ok else f"It was no longer in {r['style']}."
 
 
 def intro(folder, d):
@@ -716,6 +760,12 @@ def make_handler(folder, token):
         def log_message(self, *a):
             pass
 
+        def handle(self):   # a tab that closed mid-reply (an /ask poll, a reload): nothing to log
+            try:
+                super().handle()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
         def cookie_name(self):
             return f"ave-review-{self.server.server_address[1]}"   # cookies ignore ports: one per server
 
@@ -743,8 +793,8 @@ def make_handler(folder, token):
             self.end_headers()
             self.wfile.write(body)
 
-        def file(self, p, ctype):
-            # Range requests: without 206 the browser cannot seek a long mp4
+        def file(self, p, ctype, name=None):
+            # Range requests: without 206 the browser cannot seek a long mp4. name: a download, saved as that
             size = p.stat().st_size
             start, end = 0, size - 1
             m = re.match(r"bytes=(\d*)-(\d*)", self.headers.get("Range") or "")
@@ -756,6 +806,8 @@ def make_handler(folder, token):
             else:
                 self.send_response(200)
             self.send_header("Content-Type", ctype)
+            if name:
+                self.send_header("Content-Disposition", disposition(name))
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Content-Length", str(end - start + 1))
             self.end_headers()
@@ -791,7 +843,14 @@ def make_handler(folder, token):
                 d["home"] = home_url()   # the Home button: back to the editor's window, or how to start it
                 d["jobs"] = home_jobs() if d["home"] else 0   # the rail's Making ring
                 d["intro"] = intro(folder, d)
+                d["style_name"] = style_label(folder)   # "Keep as a rule for <style>" and the receipts
+                if isinstance(d.get("learn"), dict):   # "Teach <style>": its name now, even renamed after the approve
+                    d["learn"]["style"] = d["style_name"]
                 d["assets"] = assets.load(folder)   # "Anything to add?": the images and links added to this video
+                try:   # "Made in 6 min (cut 3:10, edit 1:40, render 0:52)" under the finished video: real times only
+                    d["made"] = json.loads((folder / "timings.json").read_text(encoding="utf-8")).get("line")
+                except (OSError, ValueError, AttributeError):
+                    d["made"] = None
                 if d.get("raw"):   # the cut is being made: every step it takes, from the home window's job
                     d["cut_steps"] = cut_steps(folder, d)
                 for x in d.get("activity", [])[-1:]:
@@ -812,6 +871,10 @@ def make_handler(folder, token):
                 r = next((r for r in d.get("rounds", []) if f"{r['stage']}-{r['round']}" == q.get("k")), d)
                 p = Path(alt_of(d, q.get("alt", ""), r)["video"])
                 return self.file(p, "video/mp4") if p.exists() else self.send(404, {})
+            if path == "/download":   # the finished video, named "<video name> - <style name>.mp4"
+                d = load(rj)
+                p = Path(alt_of(d, q.get("alt", ""), d)["video"])
+                return self.file(p, "video/mp4", download_name(folder, d)) if p.exists() else self.send(404, {})
             if path == "/data":   # the round's transcript, segments and tracks (round_data)
                 d = load(rj)
                 r = next((r for r in d.get("rounds", []) if f"{r['stage']}-{r['round']}" == q.get("k")), None)
@@ -853,6 +916,20 @@ def make_handler(folder, token):
             if path == "/intro":   # "Got it" on the first-edit notice: never again
                 set_ui(intro_off=True)
                 return self.send(200, {})
+            if path == "/keep":   # "Keep as a rule for <style>" ticked or unticked on an open note
+                def kp(d):
+                    for c in d["comments"]:
+                        if c["id"] == body.get("id") and editable(d, c):
+                            c["keep"], c["keep_set"] = bool(body.get("keep")), True
+                            return True
+                    return False
+                return self.send(200, {}) if update(rj, kp) else self.send(409, {"error": "Claude has this note now."})
+            if path == "/undo":   # a receipt's Undo: the saved rule comes out of the style
+                try:
+                    msg = undo_receipt(folder, int(body.get("id")))
+                except (TypeError, ValueError):
+                    msg = None
+                return self.send(200, {"msg": msg}) if msg else self.send(409, {"error": "nothing to undo"})
             if path == "/learn":   # the learn panel: the ticked rules, or Not now. `wait` hands them to Claude
                 def lc(d):
                     lr = d.get("learn") or {}
@@ -899,9 +976,9 @@ def make_handler(folder, token):
                 if body.get("type") not in ("send", "approve", "stop"):
                     return self.send(400, {})
                 if body["type"] == "approve" and load(rj).get("raw"):   # nothing to approve before the first cut
-                    return self.send(409, {"error": "the cut is not ready yet"})
+                    return self.send(409, {"error": "The cut is not ready yet."})
                 if body["type"] == "stop" and load(rj).get("raw"):   # the first cut cannot be stopped from here
-                    return self.send(409, {"error": "the first cut is on its way"})
+                    return self.send(409, {"error": "The first cut is on its way."})
                 if body["type"] == "stop":   # the round's notes open again; `status` tells Claude to stop
                     def st(d):
                         if d.get("sent") and d["events"] and (d["events"][-1]["type"] in ("send", "edits") or making_edit(d)):
@@ -922,6 +999,7 @@ def make_handler(folder, token):
                             for x in d.get("activity", []):
                                 x["done"] = True
                     update(rj, st)
+                    drop_spec(folder)
                     return self.send(200, {})
                 style = style_label(folder) if body["type"] == "approve" else None
 
@@ -938,7 +1016,9 @@ def make_handler(folder, token):
                         prepared_steps(folder, d)
                     return True
                 if not update(rj, ev):
-                    return self.send(409, {"error": "Claude is applying your transcript changes"})
+                    return self.send(409, {"error": "Claude is applying your transcript changes."})
+                if body["type"] == "send" and load(rj).get("stills"):   # notes on the stills: that render is not the one
+                    drop_spec(folder)
                 return self.send(200, {})
             self.send(404, {})
 
@@ -955,7 +1035,7 @@ def make_handler(folder, token):
             d = load(rj)
             last = d["events"][-1]["type"] if d["events"] else None
             if d.get("sent") and last not in ("send", "edits"):   # approved: nothing comes after it on this stage
-                return self.send(409, {"error": "this round is approved"})
+                return self.send(409, {"error": "This draft is approved."})
             queued = bool(d.get("sent"))   # with Claude: the note waits for the next round
             alt = body.get("alt") or None
             src = alt_of(d, alt if alt != "*" else None)
@@ -968,6 +1048,8 @@ def make_handler(folder, token):
                  "words": words_at(src.get("transcript"), t, te if te is not None else t),
                  "card": card_at(d.get("plan"), t) if d["stage"] == "edit" else None,
                  "frame": frame, "images": images, "status": "open", "reply": None, "new_t": None, "at": now()}
+            if looks_like_rule(text):   # offered as a rule, ticked: the user unticks it on the page
+                c["keep"] = True
             if queued:
                 c["queued"] = True
             update(rj, lambda d: d["comments"].append(c))
@@ -986,9 +1068,9 @@ def make_handler(folder, token):
             with LOCK:   # one Apply at a time: the sent check, the files and the event move together
                 d = load(rj)
                 if d.get("stage") != "cut" or d.get("raw"):
-                    return self.send(409, {"error": "words change on the cut only"})
+                    return self.send(409, {"error": "Words can only change on the cut."})
                 if d.get("sent"):
-                    return self.send(409, {"error": "Claude has this round"})
+                    return self.send(409, {"error": "Claude is working on this draft."})
                 try:
                     out = apply_edits(folder, restore, cut, pause)
                 except Exception as e:   # a spans.json or transcript this cannot read: say so, never drop the connection
@@ -1013,10 +1095,14 @@ def make_handler(folder, token):
             if not c:
                 return self.send(404, {"error": "no such note"})
             if not editable(d, c):
-                return self.send(409, {"error": "this round is with Claude" if d.get("sent") else "this note is from an earlier round"})
+                return self.send(409, {"error": "Claude is working on this draft." if d.get("sent") else "This note is from an earlier draft."})
             new = dict(c)
             if "text" in body:
                 new["text"] = str(body["text"] or "").strip()
+                if "keep_set" not in c:
+                    new.pop("keep", None)
+                    if looks_like_rule(new["text"]):
+                        new["keep"] = True
             if "alt" in body:
                 new["alt"] = body["alt"] or None
             if "images" in body:
@@ -1048,7 +1134,7 @@ def make_handler(folder, token):
                         return True
                 return False
             if not update(rj, put):
-                return self.send(409, {"error": "this round is with Claude"})
+                return self.send(409, {"error": "Claude is working on this draft."})
             return self.send(200, new)
     return H
 
@@ -1067,17 +1153,30 @@ def running(folder):
 OPEN = webbrowser.open   # a new browser tab (the demo swaps it)
 
 
-def home_opens(folder):
-    """True when a showing home window holds this edit's video job: it goes to this page in its own tab."""
-    if not askhook.live("home"):
-        return False
+def taken_jobs():
+    """The home page's taken jobs."""
     f = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home" / "state.json"
     try:
         jobs = json.loads(f.read_text(encoding="utf-8")).get("jobs") or []
     except (OSError, ValueError):
-        return False
-    return any(j.get("type") == "video" and j.get("state") == "taken" and (j.get("args") or {}).get("edit")
-               and Path(j["args"]["edit"]).resolve() == folder.resolve() for j in jobs)
+        return []
+    return [j for j in jobs if isinstance(j, dict) and j.get("state") == "taken"]
+
+
+def job_edit(j):
+    """The edit folder a home job works on, resolved, or None."""
+    e = (j.get("args") or {}).get("edit")
+    return Path(e).resolve() if isinstance(e, str) and e else None
+
+
+def video_jobs(folder):
+    """The home page's taken video jobs for this edit folder."""
+    return [j for j in taken_jobs() if j.get("type") == "video" and job_edit(j) == folder.resolve()]
+
+
+def home_opens(folder):
+    """True when a showing home window holds this edit's video job: it goes to this page in its own tab."""
+    return bool(askhook.live("home")) and bool(video_jobs(folder))
 
 
 def show(url, folder):
@@ -1088,14 +1187,27 @@ def show(url, folder):
 
 def asker(folder, started):
     """Questions on this page come from the session that last ran a review.py command on this edit
-    (review/.session), else the one that started the server. They name the edit."""
-    def owner(sid):
+    (review/.session), else the one that started the server, and from the session holding this edit's video job
+    on the home page. A session holding any job on the home page asks only on that job's edit page, never on
+    another (a server the home window started knows no session of its own). They name the edit."""
+    def session_of(f):
         try:
-            cur = (folder / "review" / ".session").read_text(encoding="utf-8").strip()
+            return (f / "review" / ".session").read_text(encoding="utf-8").strip()
         except OSError:
-            cur = ""
-        own = cur or started
-        return folder.name if not own or sid == own else None   # no session known (older Claude Code): anyone
+            return ""
+
+    def owner(sid):
+        held = [j for j in taken_jobs() if sid and j.get("owner") == sid]
+        if held:   # the job decides: its own edit's page, no other
+            return folder.name if any(job_edit(j) == folder.resolve() for j in held) else None
+        own = session_of(folder) or started
+        if own:
+            return folder.name if sid == own else None
+        try:   # no session known here: anyone's, unless that session is working on another edit
+            others = [f for f in folder.parent.iterdir() if f != folder and f.is_dir()]
+        except OSError:
+            others = []
+        return None if sid and any(session_of(f) == sid for f in others) else folder.name
     return owner
 
 
@@ -1173,6 +1285,7 @@ def cmd_start(a, folder):
     save(rj, d)
     if not raw:
         seen(folder)
+        noted(folder)
     try:   # the home page's library lists this edit wherever it was made
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         import library
@@ -1242,6 +1355,11 @@ def cmd_round(a, folder):
     unlearned = [str(c["id"]) for c in d["comments"] if "taste" not in c and (c["stage"], c["round"]) != (d["stage"], d["round"])]
     if unlearned:
         print(f"notes not learned yet: {', '.join(unlearned)}. Run `learn` (see `wait`'s last line)")
+    if d.get("stills"):   # the user looks at the stills now: the render starts in the background
+        why = speculate(folder, d.get("plan"))
+        print("the edit renders in the background while the stills are up: an approve with no notes finds it ready"
+              if why is None else f"no background render ({why})")
+    noted(folder)
     if not running(folder):
         print("the page is not running: start it with `serve`")
 
@@ -1264,7 +1382,7 @@ def cmd_resolve(a, folder):
 # The style-edit's own steps, in order. The page fills its "Making the edit" bar from them (render by its log's
 # percent); plan.py, retakes.py captions, route.py and edit.py report them with step(), Claude with status --step.
 EDIT_STEPS = {"captions": "Writing the captions", "visuals": "Finding the visuals",
-              "plan": "Planning zooms, cards and sound", "render": "Rendering the edit"}
+              "plan": "Planning zooms, cards and sound", "render": "Making the video"}
 
 
 def add_step(d, text, log=None, key=None, done=False):
@@ -1324,6 +1442,175 @@ def step(folder, key, log=None):
         return False
 
 
+# ---------------------------------------------------------------- real times, after the fact
+def _epoch(at):
+    try:
+        return time.mktime(time.strptime(at, "%Y-%m-%dT%H:%M:%S"))
+    except (TypeError, ValueError):
+        return None
+
+
+def mmss(s):
+    return f"{int(s // 60)}:{int(round(s)) % 60:02d}" if s < 3600 else f"{int(s // 3600)}:{int(s % 3600 // 60):02d}:{int(s % 60):02d}"
+
+
+JOB_TIMES = ("added", "make", "transcribe_start", "transcribe_end")
+
+
+def timings(folder):
+    """How long this video took, stage by stage, from what is already recorded: the home window's job (when the clip
+    was added, Make, the cut's script steps with their clock times) and review.json (each round's time, the user's
+    approves, the render step). Never an estimate: a stage shows once it has happened. Writes <folder>/timings.json
+    (times kept from an earlier write when the job has since left state.json) and returns it.
+    "made" = the machine's time only (the cut, the edit up to the stills, the render), not the user's two reviews."""
+    folder = Path(folder)
+    f = folder / "timings.json"
+    try:   # the home job's times only: everything else is read again from review.json
+        t = {k: v for k, v in json.loads(f.read_text(encoding="utf-8")).items() if k in JOB_TIMES}
+    except (OSError, ValueError, AttributeError):
+        t = {}
+    try:
+        jobs = json.loads((Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home"
+                           / "state.json").read_text(encoding="utf-8")).get("jobs") or []
+        j = next((j for j in reversed(jobs) if j.get("type") == "video" and (j.get("args") or {}).get("edit")
+                  and Path(j["args"]["edit"]).resolve() == folder.resolve()), None)
+    except (OSError, ValueError, AttributeError, TypeError):
+        j = None
+    if j:
+        steps = j.get("steps") or []
+        i = next((k for k, x in enumerate(steps) if x.get("text") == "Writing down every word"), None)
+        t.update({k: v for k, v in (("make", _epoch(j.get("at"))), ("added", (j.get("args") or {}).get("added")),
+                                    ("transcribe_start", steps[i]["t"] if i is not None else None),
+                                    ("transcribe_end", steps[i + 1]["t"] if i is not None and i + 1 < len(steps) else None))
+                  if v is not None})
+    try:
+        d = load(folder / "review.json")
+    except (OSError, ValueError):
+        return t
+    rounds = {(r["stage"], r["round"]): r for r in d.get("rounds") or []}
+    ev = d.get("events") or []
+    cut = next((r for k, r in sorted(rounds.items()) if k[0] == "cut" and k[1] >= 1), None)
+    cut_ok = next((e for e in reversed(ev) if e["type"] == "approve" and e["stage"] == "cut"), None)
+    st_ok = next((e for e in reversed(ev) if e["type"] == "approve" and e.get("stills")), None)
+    st = rounds.get(("edit", st_ok["round"])) if st_ok else None
+    done = next((r for k, r in sorted(rounds.items()) if st_ok and k[0] == "edit" and k[1] > st_ok["round"]
+                 and not r.get("stills")), None)
+    rstep = next((x for x in reversed(d.get("activity") or []) if x.get("step") == "render"), None)
+    for k, at in (("cut_ready", cut and cut.get("at")), ("cut_approved", cut_ok and cut_ok.get("at")),
+                  ("stills_ready", st and st.get("at")), ("stills_approved", st_ok and st_ok.get("at")),
+                  ("render_start", rstep and rstep.get("at")), ("render_end", done and done.get("at"))):
+        if _epoch(at) is not None:
+            t[k] = _epoch(at)
+    spec = folder / "render.spec.started"
+    if spec.is_file():   # the render began in the background when the stills went up (edit.py --speculative)
+        try:
+            t["render_start"] = min(t.get("render_start") or 1e18, float(spec.read_text(encoding="utf-8")))
+        except ValueError:
+            pass
+    gap = lambda a, b: round(t[b] - t[a], 1) if t.get(a) is not None and t.get(b) is not None and t[b] >= t[a] else None
+    t["stages"] = {k: v for k, v in (("cut", gap("make", "cut_ready")), ("your_review", gap("cut_ready", "cut_approved")),
+                                     ("edit", gap("cut_approved", "stills_ready")), ("your_stills_check", gap("stills_ready", "stills_approved")),
+                                     ("render", gap("stills_approved", "render_end")),
+                                     ("transcribe", gap("transcribe_start", "transcribe_end"))) if v is not None}
+    sg = t["stages"]
+    if all(k in sg for k in ("cut", "edit", "render")):
+        made = sg["cut"] + sg["edit"] + sg["render"]
+        t["made_s"] = round(made, 1)
+        t["line"] = (f"Made in {round(made / 60)} min" if made >= 90 else f"Made in {round(made)} s") + \
+            f" (cut {mmss(sg['cut'])}, edit {mmss(sg['edit'])}, render {mmss(sg['render'])})"
+    tmp = f.with_name(f"timings.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(t, indent=1), encoding="utf-8")
+    os.replace(tmp, f)
+    return t
+
+
+# ---------------------------------------------------------------- the render that starts with the stills
+EDIT_PY = Path(__file__).resolve().parents[2] / "skills" / "style-edit" / "scripts" / "edit.py"
+
+
+def alive(pid):
+    if os.name == "nt":
+        r = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True)
+        return str(pid) in r.stdout
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+
+
+def on_battery():
+    """True when a laptop runs on its battery (macOS pmset, Linux power_supply). Unknown: False."""
+    try:
+        if sys.platform == "darwin":
+            return "Battery Power" in subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True, timeout=5).stdout
+        if sys.platform.startswith("linux"):
+            mains = [p for p in Path("/sys/class/power_supply").glob("*") if (p / "type").is_file()
+                     and (p / "type").read_text(encoding="utf-8").strip() == "Mains"]
+            return bool(mains) and all((p / "online").read_text(encoding="utf-8").strip() == "0" for p in mains)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return False   # ponytail: Windows reads no battery state; GetSystemPowerStatus via ctypes if laptops complain
+
+
+def speculate(folder, plan):
+    """The stills went up: start the laptop render now, at low priority (edit.py render --speculative), so an approve
+    with no notes finds it done or nearly. Only for a laptop render (the profile's render unset or "laptop": a cloud
+    render costs money), with the renderer installed, not on battery. Returns the reason it did not start, or None."""
+    home = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor")
+    try:
+        target = json.loads((home / "profile.json").read_text(encoding="utf-8")).get("render")
+    except (OSError, ValueError, AttributeError):
+        target = None
+    why = ("off (AI_EDITOR_NO_SPECULATE)" if os.environ.get("AI_EDITOR_NO_SPECULATE") else
+           f"renders on {target}" if target not in (None, "", "laptop") else
+           "no renderer" if not (home / "remotion" / "node_modules" / "remotion").exists() else
+           "no plan" if not plan or not Path(plan).is_file() else
+           "on battery" if on_battery() else None)
+    if why:
+        return why
+    drop_spec(folder)
+    (folder / "render.spec.started").write_text(str(time.time()), encoding="utf-8")
+    subprocess.Popen([sys.executable, str(EDIT_PY), "render", str(folder), "--plan", Path(plan).name, "--speculative"],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=os.name != "nt",
+                     creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+    return None
+
+
+def noted(folder):
+    """timings.json after each round, so the job's times are kept while the home window still lists the job."""
+    try:
+        t = timings(folder)
+        if t.get("line"):
+            print(t["line"])
+    except Exception:   # a nicety: a round never fails over it
+        pass
+
+
+def drop_spec(folder):
+    """Stop the background render and remove its files: notes were sent, the plan changed, or another target."""
+    folder = Path(folder)
+    for meta in folder.glob("render*.spec.json"):
+        try:
+            pid = json.loads(meta.read_text(encoding="utf-8")).get("pid")
+        except (OSError, ValueError):
+            pid = None
+        if pid and alive(pid):
+            try:
+                if os.name == "nt":
+                    subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], capture_output=True)
+                else:
+                    os.killpg(pid, 15)   # its own group: node and Chrome under it go too
+            except OSError:
+                pass
+        stem = meta.name[:-len(".json")]
+        for f in (meta, folder / f"{stem}.mp4", folder / f"{stem}.renderer.log", folder / f"{stem}.tmp.mkv"):
+            f.unlink(missing_ok=True)
+    (folder / "render.spec.started").unlink(missing_ok=True)
+
+
 def making_style(folder):
     """What the edit is styled as, for the page's "Making the edit" card."""
     try:
@@ -1333,7 +1620,7 @@ def making_style(folder):
         src = []
     if len(src) == 1:   # the name the style has on the home page ("Card edit"), never the folder id
         try:
-            n = styleskill.display(src[0])
+            n = shown_style(src[0])
         except Exception:
             n = "@" + re.sub(r"-mine$", "", src[0].parent.name)
         return f"{n}'s style" if n.startswith("@") else "your style" if n == "My style" else f"the {n} style"
@@ -1415,7 +1702,8 @@ def cmd_wait(folder, poll=1.0):
             f" [{r.get('label') or 'main'}]" if r.get("alts") else "")
         k = c.get("card")
         card = f" [card {k['i']} {k['kind']} '{k['trigger_word'] or ''}']" if k else ""
-        print(f"#{c['id']} {span} ({c['t']}s){ver}{card}: {c['text']}\n    said: \"{c['words']}\""
+        keep = f" [keep as a rule for {style_label(folder)}]" if c.get("keep") else ""
+        print(f"#{c['id']} {span} ({c['t']}s){ver}{card}: {c['text']}{keep}\n    said: \"{c['words']}\""
               f"\n    frame: {folder / 'review' / c['frame']}"
               + "".join(f"\n    image: {folder / 'review' / x}" for x in c.get("images") or []))
     added = assets.load(folder)
@@ -1426,7 +1714,7 @@ def cmd_wait(folder, poll=1.0):
     if e["type"] == "approve" and d.get("learn"):
         print(learn_prompt(folder, d))
     elif cs:
-        print(learn_hint(folder))
+        print(learn_hint(folder, [c["id"] for c in cs if c.get("keep")]))
     return e["type"]
 
 
@@ -1460,13 +1748,36 @@ def session_notes(d):
     return [c for c in d["comments"] if c.get("text") and not c.get("queued")]
 
 
+def shown_style(sp):
+    """A style's name as the user reads it (the home page's): the name they gave, else its own; a format analysed
+    from links and never named is "New format", never its folder id. The skill file name stays the slug."""
+    from ai_editor import styleskill
+    n = styleskill.display(sp)
+    return "New format" if n.startswith("@links-") else n
+
+
 def style_label(folder):
     """What the learn panel calls the style the edit used: its name on the home page, else My style."""
     try:
         from ai_editor import styleskill
-        return styleskill.display(edit_style(folder))
+        return shown_style(edit_style(folder))
     except Exception:
         return "My style"
+
+
+def download_name(folder, d=None):
+    """What the finished video is saved as: "<video name> - <style name>.mp4" ("<video name>.mp4" for a cut)."""
+    d = d or load(folder / "review.json")
+    base = d.get("name") or folder.name
+    if d.get("stage") == "edit":
+        base += " - " + style_label(folder)
+    return (re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", base).strip() or "video") + ".mp4"
+
+
+def disposition(name):
+    """A Content-Disposition that keeps spaces and accents in the saved name (RFC 6266), with a plain fallback."""
+    plain = name.encode("ascii", "ignore").decode().replace('"', "").replace("\\", "") or "video.mp4"
+    return f"attachment; filename=\"{plain}\"; filename*=UTF-8''{quote(name)}"
 
 
 def learn_prompt(folder, d):
@@ -1498,8 +1809,9 @@ def learn_prompt(folder, d):
             lines += ["  " + ln for ln in skillrules.learned(Path(tg["path"]).read_text(encoding="utf-8"))] or ["  (none yet)"]
     for c in sorted(session_notes(d), key=lambda c: (c["stage"] != "cut", c["round"], c["t"])):
         saved = f" [saved as rule {c['taste']}]" if isinstance(c.get("taste"), int) else ""
+        keep = " [the user asked to keep this as a rule: propose it]" if c.get("keep") and not saved else ""
         lines.append(f"#{c['id']} {stage_name(c['stage'])} r{c['round']}: {c['text']}"
-                     + (f" -> reply: {c['reply']}" if c.get("reply") else "") + saved)
+                     + (f" -> reply: {c['reply']}" if c.get("reply") else "") + saved + keep)
     return "\n".join(lines)
 
 
@@ -1557,23 +1869,29 @@ def learn_done(folder, summary):
     if lr.get("state") != "chosen":
         sys.exit("nothing ticked to save: run `wait` for the user's pick first")
     sp = edit_style(folder)
+    style = shown_style(sp)
     from ai_editor import skillrules
     tg = skillrules.target(folder)
+    saved = []   # (rule, status, kind, ref) for the receipts
     if tg["kind"] == "skill":   # a skill style: its skill made the edit, so the rules go into its SKILL.md
         if not tg["path"]:
             sys.exit(f"the {tg['skill']} skill is not in your skill folders; nothing saved")
         for r in (lr["rules"][i] for i in lr["chosen"]):
             status, line = skillrules.add(tg["path"], r["rule"], r.get("why") or f"from the notes on {folder.name}",
                                           r.get("replace"), edit=str(folder))
+            saved.append((skillrules.rule_of(line), status, "skill", tg["path"]))
             print(f"{status}: {line} ({tg['path']})")
     for r in (lr["rules"][i] for i in lr["chosen"] if tg["kind"] == "settings"):
         setting, _, raw = (r.get("set") or "").partition("=")
         status, x = styleskill.learn(sp, r["section"], r["rule"], setting or None, taste.parse(raw) if setting else None,
                                      edit=folder, source="review")
+        saved.append((x["rule"], status, "settings", x["id"]))
         print(f"{status} rule #{x['id']} {x['section']}: {x['rule']} (skill {styleskill.name(sp)})")
-    style = styleskill.display(sp)
-    update(folder / "review.json", lambda d: d["learn"].update(state="done", style=style,
-                                                                 summary=summary or f"Saved to {style}. Next video uses it."))
+
+    def done(d):
+        d["learn"].update(state="done", style=style, summary=summary or f"Saved to {style}. Next video uses it.",
+                          receipts=[receipt(d, style, *x, src="teach")["id"] for x in saved])
+    update(folder / "review.json", done)
     print(f"saved to {style}")
 
 
@@ -1585,13 +1903,19 @@ def edit_style(folder):
     return src[0] if len(src) == 1 else None
 
 
-def learn_hint(folder):
+def learn_hint(folder, kept=()):
     sp = edit_style(folder)
     scopes = "this-style|style|video|everyone" if sp else "style|video|everyone"
-    return (f"LEARN: pick the notes that are preferences, ask the scope once for all of them"
-            + (f" (this edit used @{sp.parent.name}'s style: \"This style\" first)" if sp else "") + ", then run:\n"
-            f"  python3 {Path(__file__).resolve()} {folder} learn --scope {scopes}"
-            f" --rule <id> <section> \"<rule>\" [key=value] ...   (no preferences: learn --none)")
+    out = (f"LEARN: pick the notes that are preferences, ask the scope once for all of them"
+           + (f" (this edit used {shown_style(sp)}: \"This style\" first)" if sp else "") + ", then run:\n"
+           f"  python3 {Path(__file__).resolve()} {folder} learn --scope {scopes}"
+           f" --rule <id> <section> \"<rule>\" [key=value] ...   (no preferences: learn --none)")
+    if kept:   # the user already said yes and named the style: no scope question for these
+        out += (f"\n  Notes {', '.join('#' + str(i) for i in kept)} are marked \"keep as a rule for {style_label(folder)}\": the user"
+                f" said yes on the page. Save each with --scope {'this-style' if sp else 'style'} (no question), one short rule"
+                " in the user's words with its setting when the taste table maps (\"fewer zooms\" -> zoom.per_min); the page"
+                " then shows a receipt with Undo.")
+    return out
 
 
 def learned_round(d):
@@ -1648,13 +1972,16 @@ def cmd_learn(a, folder):
                 value = taste.parse(raw) if setting else None
                 if skill_md:
                     status, line = skillrules.add(skill_md, rule, f"review note: {c['text']}", edit=str(folder))
-                    c.update(rule=rule, taste="skill")
+                    c.update(rule=rule, taste="skill",
+                             receipt=receipt(d, shown_style(sp), skillrules.rule_of(line), status, "skill", str(skill_md), c["id"])["id"])
                     out.append(f"#{c['id']} -> {status}: {line} ({skill_md})"
                                + (f"; {setting} not saved (a skill style has no settings)" if setting else ""))
                     continue
                 scope = f"video:{d['name']}" if a.scope == "video" else styleskill.scope(sp)
                 status, r = taste.add(section, rule, setting, value, scope, folder, source="review", style=sp)
                 c.update(rule=rule, taste={"style": r["id"], "this-style": r["id"], "video": "video-only"}.get(a.scope, "suggested"))
+                if a.scope != "video":
+                    c["receipt"] = receipt(d, shown_style(sp), r["rule"], status, "settings", r["id"], c["id"])["id"]
                 if a.scope == "everyone":
                     taste.suggest(c["text"], rule, f"review note ({r['section']})", note=f"{d['name']}#{c['id']}")
                 out.append(f"#{c['id']} -> {status} rule #{r['id']} {r['section']}: {rule}"
@@ -1676,12 +2003,48 @@ def _post_code(url, body):
         return err.code
 
 
+def demo_timings(tmp):
+    """timings.json from the home job and review.json, and the background render's guards."""
+    f = tmp / "timed"
+    f.mkdir()
+    at = lambda s: time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(1_800_000_000 + s))
+    home = Path(os.environ["AI_EDITOR_HOME"]) / "home"
+    home.mkdir(parents=True, exist_ok=True)
+    job = {"type": "video", "state": "done", "at": at(0), "args": {"edit": str(f), "added": 1_800_000_000 - 30},
+           "steps": [{"text": "Writing down every word", "t": 1_800_000_002}, {"text": "Finding retakes and pauses", "t": 1_800_000_040}]}
+    (home / "state.json").write_text(json.dumps({"jobs": [job]}), encoding="utf-8")
+    save(f / "review.json", {"rounds": [{"stage": "cut", "round": 0, "at": at(0)}, {"stage": "cut", "round": 1, "at": at(190)},
+                                        {"stage": "edit", "round": 1, "at": at(400), "stills": True},
+                                        {"stage": "edit", "round": 2, "at": at(560)}],
+                             "events": [{"type": "approve", "stage": "cut", "round": 1, "at": at(300)},
+                                        {"type": "approve", "stage": "edit", "round": 1, "at": at(500), "stills": True}],
+                             "activity": [{"step": "render", "at": at(505)}]})
+    t = timings(f)
+    assert t["stages"] == {"cut": 190, "your_review": 110, "edit": 100, "your_stills_check": 100, "render": 60, "transcribe": 38}, t
+    assert t["line"] == "Made in 6 min (cut 3:10, edit 1:40, render 1:00)" and t["added"] == 1_800_000_000 - 30, t["line"]
+    (home / "state.json").write_text(json.dumps({"jobs": []}), encoding="utf-8")   # the job left the window's list
+    assert timings(f)["transcribe_start"] == 1_800_000_002, "times kept from the earlier write"
+    save(f / "review.json", {"rounds": [{"stage": "cut", "round": 1, "at": at(190)}], "events": []})
+    t = timings(f)
+    assert "line" not in t and set(t["stages"]) == {"cut", "transcribe"}, "a stage shows once it has happened"
+    assert mmss(70) == "1:10" and mmss(5) == "0:05"
+    assert speculate(f, None) == "no renderer", "no renderer installed: nothing starts"
+    os.environ["AI_EDITOR_NO_SPECULATE"] = "1"
+    assert speculate(f, None).startswith("off")
+    del os.environ["AI_EDITOR_NO_SPECULATE"]
+    (f / "render.spec.json").write_text(json.dumps({"pid": 999999999}), encoding="utf-8")
+    (f / "render.spec.mp4").write_bytes(b"x")
+    drop_spec(f)
+    assert not list(f.glob("render.spec*")), "drop_spec leaves nothing behind"
+
+
 def demo():
     import contextlib
     import io
     import tempfile
     tmp = Path(tempfile.mkdtemp(prefix="review_demo_"))
     os.environ["AI_EDITOR_HOME"] = str(tmp / "home")   # start records the folder in the library index there
+    demo_timings(tmp)
     vid = tmp / "v.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30:duration=6",
                     "-f", "lavfi", "-i", "sine=duration=6", "-shortest", "-pix_fmt", "yuv420p", str(vid)], check=True)
@@ -1764,6 +2127,21 @@ def demo():
     (folder / "review" / ".session").unlink(missing_ok=True)
     assert asker(folder, "")("sess-anyone") == "demo", "no session known (older Claude Code): any question"
     assert asker(folder, "sess-review")("sess-anyone") is None
+    hs = Path(os.environ["AI_EDITOR_HOME"]) / "home" / "state.json"   # the home page's job for this video: its Claude asks here
+    hs.parent.mkdir(parents=True, exist_ok=True)
+    had = hs.read_bytes() if hs.exists() else None
+    hs.write_text(json.dumps({"jobs": [{"type": "video", "state": "taken", "owner": "sess-job", "args": {"edit": str(folder)}}]}), encoding="utf-8")
+    assert asker(folder, "sess-review")("sess-job") == "demo" and asker(folder, "sess-review")("sess-anyone") is None
+    # a server the home window started (no session of its own): another video's Claude never asks here
+    other = folder.parent / "demo-other"
+    hs.write_text(json.dumps({"jobs": [{"type": "video", "state": "taken", "owner": "sess-job", "args": {"edit": str(folder)}},
+                                       {"type": "video", "state": "taken", "owner": "sess-two", "args": {"edit": str(other)}}]}), encoding="utf-8")
+    assert asker(folder, "")("sess-job") == "demo" and asker(folder, "")("sess-two") is None, "the job's own edit page only"
+    (other / "review").mkdir(parents=True, exist_ok=True)
+    (other / "review" / ".session").write_text("sess-three", encoding="utf-8")
+    assert asker(folder, "")("sess-three") is None and asker(folder, "")("sess-old") == "demo", "working on another edit: not here"
+    shutil.rmtree(other)
+    hs.write_bytes(had) if had is not None else hs.unlink()
     os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-review"
     post("/ask", {"id": "q1", "questions": qs, "session": "sess-review"})
     assert json.loads(get("/ask?v=1").read())["ask"] == {"id": "q1", "questions": qs, "about": "demo"} and askhook.live() == [url]
@@ -1772,6 +2150,9 @@ def demo():
     assert json.loads(get("/ask").read())["ask"] is None
     post("/ask/clear", {"id": "q1"})
     assert not srv.asks
+    r = get("/download")   # the finished video, saved under its own name
+    assert r.headers["Content-Disposition"] == "attachment; filename=\"demo.mp4\"; filename*=UTF-8''demo.mp4" and r.read()
+    assert disposition("My take - Café edit.mp4").endswith("filename*=UTF-8''My%20take%20-%20Caf%C3%A9%20edit.mp4")
     r = get("/video?k=cut-1", Range="bytes=10-19")
     assert r.status == 206 and len(r.read()) == 10 and r.headers["Content-Range"].endswith(f"/{vid.stat().st_size}")
     # a note: its words, its frame still; an attached image (a non-image is dropped); delete
@@ -1936,6 +2317,17 @@ def demo():
     c3 = post("/comment", {"t": 5.1, "text": "louder here", "alt": "wide"})
     assert c3["alt"] == "wide" and c3["words"] == "later", c3
     c4 = post("/comment", {"t": 1.0, "text": "on all of them", "alt": "*"})
+    # a note that reads as a lasting preference is offered as a rule, ticked; the user can untick it
+    assert looks_like_rule("Too many zooms") and looks_like_rule("I prefer bigger captions") and not looks_like_rule("cut the um at 0:12")
+    c5 = post("/comment", {"t": 2.0, "text": "always use fewer zooms"})
+    assert c5.get("keep") is True and not c4.get("keep"), (c5, c4)
+    post("/keep", {"id": c5["id"], "keep": False})
+    c5b = next(x for x in load(folder / "review.json")["comments"] if x["id"] == c5["id"])
+    assert c5b["keep"] is False and c5b["keep_set"], c5b
+    assert post("/edit", {"id": c5["id"], "text": "never zoom"}).get("keep") is False   # the user's choice stays
+    assert json.loads(get("/state").read())["style_name"] == "My style"
+    assert "keep as a rule for My style" in learn_hint(folder, [c5["id"]]) and "--scope style (no question)" in learn_hint(folder, [c5["id"]])
+    post("/delete", {"id": c5["id"]})
     post("/scope", {"id": c3["id"], "alt": "*"})
     assert next(x for x in load(folder / "review.json")["comments"] if x["id"] == c3["id"])["alt"] == "*"
     post("/scope", {"id": c3["id"], "alt": "wide"})
@@ -1973,6 +2365,10 @@ def demo():
         learn(scope="everyone", rule=[[str(c4["id"]), "captions", "Captions stay inside the safe zone"]])
     cs = {c["id"]: c for c in load(folder / "review.json")["comments"]}
     rid = next(r["id"] for r in taste.load_rules() if r["rule"] == "Cards fill the space they have")
+    rc = {r["id"]: r for r in load(folder / "review.json")["receipts"]}   # the page shows one per saved rule
+    assert rc[cs[c2["id"]]["receipt"]]["style"] == "My style" and rc[cs[c2["id"]]["receipt"]]["status"] == "added", rc
+    assert "receipt" not in cs[c3["id"]] and rc[cs[c4["id"]]["receipt"]]["ref"] == next(
+        r["id"] for r in taste.load_rules() if r["rule"] == "Captions stay inside the safe zone"), rc
     assert cs[c2["id"]]["taste"] == rid and cs[c3["id"]]["taste"] == "video-only", cs
     assert cs[c4["id"]]["taste"] == "suggested" and cs[c4["id"]]["rule"] == "Captions stay inside the safe zone", cs
     assert "Cards fill the space they have" in taste.load_md()["Visuals"] and "sfx_db" not in taste.read_json()
@@ -2057,6 +2453,21 @@ def demo():
     assert not any(r["rule"] == "Captions two lines at most" for r in taste.load_rules())
     assert json.loads((sp.parent / "style.overrides.json").read_text(encoding="utf-8"))["captions"]["size_pct"] == 4
     assert "Logos beside" not in (tmp / "skills" / "edit-like-alice" / "SKILL.md").read_text(encoding="utf-8")
+    # Undo on a receipt: the rule comes out of the skill (or the style's rules) again, once
+    d = load(folder / "review.json")
+    sr = d["receipts"][next(c for c in d["comments"] if c["id"] == c2["id"])["receipt"] - 1]
+    assert sr["kind"] == "skill" and sr["style"] == "@alice" and sr["rule"] == "Captions two lines at most", sr
+    assert post("/undo", {"id": sr["id"]})["msg"] == "Removed from @alice."
+    assert "Captions two lines at most" not in sk_md.read_text(encoding="utf-8").split("## Log")[0]
+    try:
+        post("/undo", {"id": sr["id"]})
+        raise AssertionError("undo twice")
+    except urllib.error.HTTPError as e:
+        assert e.code == 409
+    tr_ = next(x for x in d["receipts"] if x["from"] == "teach" and x["rule"] == "Keep the pauses short")
+    assert tr_["kind"] == "settings" and tr_["style"] == "@alice", tr_
+    post("/undo", {"id": tr_["id"]})
+    assert not any(r["rule"] == "Keep the pauses short" for r in taste.load_rules())
     if old_skills is None:
         os.environ.pop("AI_EDITOR_SKILLS", None)
     else:
@@ -2076,7 +2487,7 @@ def demo():
         mid = {"listening": False, "busy": True, "sent": False, "round": 1, "stage": "edit", "comments": [], "events": []}
         o = subprocess.run(["node", "-e", js.group(0) + "for(const s of " + json.dumps([ev("approve", 0), ev("send", 1), mid])
                             + ")console.log(listenText(s))"], capture_output=True, text=True, check=True).stdout
-        assert o.splitlines() == ["Approved", "Claude is working on round 2", "Claude is working. Notes you send now are next."], o
+        assert o.splitlines() == ["Approved", "Claude is working on draft 2", "Claude is working. Notes you send now are next."], o
     # approve on the cut: the style-edit's scripts fill the page's "Making the edit" steps, in place, never twice
     sf = tmp / "edits" / "steps"
     sf.mkdir(parents=True)
@@ -2092,7 +2503,7 @@ def demo():
         cmd_status(ns(text="", log=str(lg), done=False, step="render"), sf)
     act = load(sf / "review.json")["activity"]
     assert [x.get("step") for x in act] == ["captions", "visuals", "plan", "render"], act
-    assert [x["done"] for x in act] == [True, True, True, False] and act[-1]["text"] == "Rendering the edit", act
+    assert [x["done"] for x in act] == [True, True, True, False] and act[-1]["text"] == "Making the video", act
     assert act[2]["log"] == str(lg.resolve()) and busy(sf)
     srv3, url3 = serve(sf, 0, open_browser=False)   # the page's Stop takes the approve back; `status` says STOPPED
     threading.Thread(target=srv3.serve_forever, daemon=True).start()

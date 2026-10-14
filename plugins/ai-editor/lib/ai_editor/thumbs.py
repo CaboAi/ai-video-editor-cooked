@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""A style's picture and example video, both cut from one of its own finished edits. Needs ffmpeg.
+"""A style's picture and example video, both cut from one of its own finished edits. Needs ffmpeg; the eyes-open
+check needs OpenCV (the editor's venv: run it with run.py) and is skipped without it.
 
     python3 thumbs.py make <edit dir> <style dir> [--at SEC] [--clip SEC] [--sheet out.jpg]
     python3 thumbs.py demo        self-check
@@ -7,7 +8,8 @@
 <edit dir> is a finished style-edit folder: render.mp4, render.plan.json (or plan.json) and face.json.
 <style dir> gets:
   thumb.jpg    720x1280, the frame that shows the style best: a card fully in (not entering or leaving),
-               the biggest one, a caption on screen, the frame still (no move mid-transition), not too dark
+               the biggest one, a built card over a lone logo, a caption on screen, the frame still (no move mid-transition), not too dark,
+               the speaker's eyes open (no blink, no half-shut lids)
   thumb.json   {"focus": [x, y], "t", "clip": [start, end]}: the window crops the picture with focus as
                CSS object-position, chosen so the card and the head both stay inside a 4:5 card and a
                wide shelf tile
@@ -23,6 +25,7 @@ import tempfile
 from pathlib import Path
 
 CLIP_S, MIN_S, MAX_MB = 12.0, 8.0, 3.0
+SHUT = 0.9   # eyes under this share of the speaker's median openness count as shut
 SHAPES = (4 / 5, 150 / 124)   # width / height of the crops a 9:16 picture is shown in (styles card, Home shelf tile)
 
 
@@ -69,6 +72,49 @@ def grey(video, t):
     return ff("-ss", f"{max(t, 0):.2f}", "-i", video, "-frames:v", "1", "-vf", "scale=24:42,format=gray", "-f", "rawvideo", "-").stdout
 
 
+def openness(grey_eye):
+    """How open one eye is, from a grey patch around its centre (0.6 x 0.4 of the distance between the eyes): the
+    share of rows that hold a dark blob (iris and pupil). An open eye's iris is round and fills many rows; a shut
+    lid leaves one thin dark lash line."""
+    rows = [list(map(int, r)) for r in grey_eye]
+    px = sorted(v for r in rows for v in r)
+    dark = px[int(0.12 * (len(px) - 1))]
+    return sum(sum(v <= dark for v in r) > 0.12 * len(r) for r in rows) / len(rows)
+
+
+def eyes(video, ts):
+    """{t: openness of both eyes (mean) or None (no face, or no OpenCV)} at each t, from YuNet's eye landmarks."""
+    try:
+        import cv2
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from ai_editor import models
+        cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
+        cap, model = cv2.VideoCapture(str(video)), str(models.fetch("yunet.onnx", check=False))
+    except Exception:   # noqa: BLE001  no OpenCV or no model: no eye check
+        return {t: None for t in ts}
+    out, det = {}, None
+    for t in ts:
+        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
+        ok, fr = cap.read()
+        if not ok:
+            out[t] = None
+            continue
+        k = 360 / fr.shape[1]
+        sm = cv2.resize(fr, (360, round(fr.shape[0] * k)))
+        det = det or cv2.FaceDetectorYN.create(model, "", (sm.shape[1], sm.shape[0]), 0.6)
+        faces = det.detect(sm)[1]
+        if faces is None:
+            out[t] = None
+            continue
+        f = max(faces, key=lambda r: r[2] * r[3]) / k
+        g = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
+        d = max(8.0, float(((f[6] - f[4]) ** 2 + (f[7] - f[5]) ** 2) ** 0.5))
+        pats = [g[max(0, int(y - .2 * d)):int(y + .2 * d), max(0, int(x - .3 * d)):int(x + .3 * d)] for x, y in (f[4:6], f[6:8])]
+        out[t] = sum(map(openness, pats)) / 2 if all(p.size for p in pats) else None
+    cap.release()
+    return out
+
+
 def focus(rects):
     """CSS object-position [x, y] % that keeps every rect (in % of a 9:16 frame) inside each SHAPES crop."""
     top, bot = min(r[1] for r in rects) / 100, max(r[1] + r[3] for r in rects) / 100
@@ -88,16 +134,17 @@ def focus(rects):
 
 def pick(plan, heads, video, n=40):
     """The best frame: [(score, t, rects)] of up to n candidates, best first."""
-    # ponytail: no blink or expression check (no face model here); look at --sheet and pass --at if the eyes are shut
     els = elements(plan)
     caps = (plan.get("captions") or {}).get("chunks") or []
-    ts = sorted({round(a + (b - a) * k / 4, 2) for _, _, a, b, _ in els if b > a for k in range(5)})
-    ts = ts[:: max(1, len(ts) // n)][:n]
-    out = []
+    ts = sorted({round(a + (b - a) * k / m, 2) for _, _, a, b, _ in els if b > a for m in [max(2, int((b - a) / 0.4))] for k in range(m + 1)})   # every ~0.4 s of each card's settled stretch
+    ts = [ts[i * len(ts) // n] for i in range(n)] if len(ts) > n else ts   # spread over the whole edit, not its first n
+    out, ts = [], [t for t in ts if any(a <= t <= b for _, _, a, b, _ in els)]
+    eye = eyes(video, ts)
+    logos = [(c["start"], c["end"]) for c in plan.get("cards") or [] if ((c.get("anim") or {}).get("type") if isinstance(c.get("anim"), dict) else None) == "logo"]
+    seen = sorted(v for v in eye.values() if v)
+    mid = seen[len(seen) // 2] if seen else None   # this speaker's usual openness: shut is judged against it
     for t in ts:
         on = [r for _, _, a, b, r in els if a <= t <= b]
-        if not on:
-            continue
         g0, g1 = grey(video, t - 0.08), grey(video, t + 0.08)
         if not g0 or len(g0) != len(g1):
             continue
@@ -106,6 +153,10 @@ def pick(plan, heads, video, n=40):
         area = max(r[2] * r[3] for r in on) / 100 / 30   # a 30% x 1/3 card scores ~1
         cap = any(c["start"] <= t < c["end"] for c in caps)
         score = area + 0.2 * cap - 12 * still - (0.5 if not 45 < light < 215 else 0)
+        if any(a <= t <= b for a, b in logos) and len(on) == 1:   # a lone logo shows less of the style than a built card
+            score -= 0.4
+        if mid and eye[t] is not None:   # a blink or half-shut lids rule the frame out; wide open scores a little higher
+            score += -5 if eye[t] < SHUT * mid else 0.5 * (eye[t] / mid - 1)
         head = head_at(heads, t)
         out.append((round(score, 3), t, on + ([head] if head else [])))
     return sorted(out, key=lambda s: -s[0])
@@ -201,6 +252,11 @@ def demo():
         assert (int(w), int(h)) == (720, 1280) and (d / "sheet.jpg").stat().st_size > 0
         assert json.loads((d / "style" / "thumb.json").read_text(encoding="utf-8"))["focus"] == out["focus"]
         assert focus([[20, 80, 60, 10]])[1] > 80   # a low element moves the window down
+        # an open eye (a dark iris disc on white) against a shut one (skin, one thin lash line)
+        iris = [[30 if (x - 30) ** 2 + (y - 20) ** 2 < 100 else 230 for x in range(60)] for y in range(40)]
+        lid = [[30 if y in (21, 22) else 150 + (x * 7 + y * 13) % 40 for x in range(60)] for y in range(40)]
+        assert openness(iris) > 0.4 > 0.1 > openness(lid), (openness(iris), openness(lid))
+        assert set(eyes(ed / "render.mp4", [1.0, 7.0]).values()) == {None}, "no face, no eye score"
         print("thumbs demo ok", out)
 
 

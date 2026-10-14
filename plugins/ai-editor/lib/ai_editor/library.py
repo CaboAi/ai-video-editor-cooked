@@ -120,22 +120,24 @@ def entries():
 
 
 SAMPLES = Path(__file__).resolve().parents[2] / "presets" / "styles"
-# sha256 of the cover.jpg older releases shipped with a sample: a seeded copy of one is removed, so the sample's
-# thumb.jpg shows instead. A cover the user picked (any other bytes) stays.
+# sha256 of the cover.jpg older releases shipped with a sample (Card edit twice, 50/50 once): a seeded copy of one is
+# removed, so the sample's thumb.jpg shows instead. A cover the user picked (any other bytes) stays.
 OLD_COVERS = {"95481f6eae0efdec8eb8d6d47f771d007f33863da2505d058ed7a828e5816abe",
-              "096846c01eb101daa99cd003391d8ae47b91f710daeca5c5891fe64dd47759b3"}
+              "096846c01eb101daa99cd003391d8ae47b91f710daeca5c5891fe64dd47759b3",
+              "80ebc9ce6d578891c46ebd51ac181d8e8510dd5a30f91df1dae7cce8149b27db"}
 
 
 def seed_samples(lib):
     """The sample styles the plugin ships (presets/styles/<id>/: style.json, thumb.jpg, thumb.json, example.mp4) into
     <library>/creator-teardowns/<id>/, so they list, pick and edit like a studied creator. Every shipped file is kept
-    current; the user's changes live beside them (style.overrides.json, cover.jpg), which the plugin never ships."""
+    current except cover.jpg (Motion design ships its drawn board), copied only when missing so an image the user
+    picked stays; the user's other changes live beside them (style.overrides.json)."""
     for src in SAMPLES.glob("*/style.json"):
         d = Path(lib) / "creator-teardowns" / src.parent.name
         try:
             for f in src.parent.iterdir():
                 t = d / f.name
-                if t.exists() and filecmp.cmp(f, t):   # copy2 keeps the mtime, so this is a stat check after the first copy
+                if t.exists() and (f.name == "cover.jpg" or filecmp.cmp(f, t)):   # copy2 keeps the mtime, so this is a stat check after the first copy
                     continue
                 d.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(f, t)
@@ -297,6 +299,16 @@ def trash_cmd(p, os_name=None):
         return ["powershell", "-NoProfile", "-Command", "param($p) Add-Type -AssemblyName Microsoft.VisualBasic; "
                 f"[Microsoft.VisualBasic.FileIO.FileSystem]::{fn}($p, 'OnlyErrorDialogs', 'SendToRecycleBin')", str(p)]
     return ["gio", "trash", str(p)]
+
+
+def open_cmd(p, os_name=None):
+    """A text file in the user's text editor (the Skills view's Open the file)."""
+    os_name = os_name or platform.system()
+    if os_name == "Darwin":
+        return ["open", "-t", str(p)]
+    if os_name == "Windows":
+        return ["notepad", str(p)]
+    return ["xdg-open", str(p)]
 
 
 def reveal_cmd(p, os_name=None):

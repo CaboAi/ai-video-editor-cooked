@@ -17,7 +17,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from plan import SAFE, card_rate, graphics, took  # noqa: E402
+from plan import SAFE, card_rate, graphics, off_screen, took  # noqa: E402
+from route import OFF_SCENE_S  # noqa: E402
 
 # a plan card -> the creator-teardown graphics.kinds it counts as
 CARD_KIND = {"shot": ("photo", "real screenshot", "meme"), "browser": ("UI recording", "real screenshot"),
@@ -25,11 +26,13 @@ CARD_KIND = {"shot": ("photo", "real screenshot", "meme"), "browser": ("UI recor
              "logo_cluster": ("logo",), "logo_sting": ("logo",), "video_card": ("b-roll", "UI recording"),
              "social_post": ("real screenshot",), "post": ("real screenshot",),
              **dict.fromkeys(("chat", "terminal", "toasts", "flow", "likes", "progress", "curve", "notes"), ("animation",)),
-             "side_by_side": ("animation", "real screenshot")}
+             "side_by_side": ("animation", "real screenshot"), "motion": ("animation",)}
 
 
 def card_kind(c):
     a = c.get("anim") or {}
+    if (a.get("props") or {}).get("motion"):   # a bespoke clip the motion skill built: an animation
+        return "motion"
     return c.get("format") or a.get("format") or a.get("type") or "shot"
 
 
@@ -64,7 +67,7 @@ def check(plan, style):
             out.append((f"caption size {cs.get('size_pct')}%, {h} {want['size_pct']}%", "set captions.size_pct in style.json"))
         _, top, _, bottom = SAFE["9:16" if plan.get("height", 1920) > plan.get("width", 1080) else "16:9"]
         y = min(max(want.get("y_pct") or 70, top + 5), 100 - bottom - 4)   # plan.py keeps them clear of the app's UI
-        if abs((cs.get("y_pct") or 70) - y) > 3 and plan.get("layout", {}).get("mode") != "split":
+        if abs((cs.get("y_pct") or 70) - y) > 3 and plan.get("layout", {}).get("mode") != "split" and not cs.get("off_face_from"):
             out.append((f"captions {cs.get('y_pct')}% down, {h} {want.get('y_pct')}%", "set captions.y_pct"))
         if want.get("words_per_caption") and chunks:
             n = sorted(len(c["text"].split()) for c in chunks)[len(chunks) // 2]
@@ -84,13 +87,16 @@ def check(plan, style):
                             "the footage behind them is bright; keep it unless a darker spot near her y_pct exists"))
     z = style.get("zoom") or {}
     zs = plan.get("zooms") or []
-    if z.get("per_min") is not None and off(len(zs), z["per_min"], dur):
-        out.append((f"{per_min(len(zs), dur)} zooms a minute, {h} {z['per_min']}", "plan again; zoom.per_min sets it"))
+    nz = sum(2 if x.get("travel_s") else 1 for x in zs)   # a creator punch comes back by itself: two of her measured zooms
+    if z.get("per_min") is not None and off(nz, z["per_min"], dur):
+        out.append((f"{per_min(nz, dur)} zooms a minute, {h} {z['per_min']}", "plan again; zoom.per_min sets it"))
     if zs and z.get("kind") and any(x.get("kind") != z["kind"] for x in zs):
         out.append((f"zoom kind {zs[0].get('kind')}, {h} {z['kind']}", "set zoom.kind"))
     g = graphics(style, "graphics")
     cards = plan.get("cards") or []
     rate = card_rate(style)   # her rate under the user's own cap
+    if rate and off_screen(style) and not (style.get("cards") or {}).get("per_min"):   # route.py want: her cut-aways
+        rate = max(rate, round(60 * (1 - style["face"]["present_pct"] / 100) / OFF_SCENE_S, 1))
     if rate and off(len(cards), rate, dur):
         out.append((f"{len(cards)} cards ({per_min(len(cards), dur)} a minute), {h} {rate:g} a minute "
                     f"(about {round(rate * dur / 60)} here)",
@@ -152,6 +158,7 @@ def demo():
     plan["cards"] = [{"format": "shot", "box": [10, 12, 80, 20]}] * 2 + [{"anim": {"type": "video_card"}, "box": [10, 12, 80, 20]}]
     plan["sfx"] = [{}]
     assert check(plan, style) == [], check(plan, style)
+    assert card_kind({"anim": {"type": "video_card", "props": {"motion": "01-x"}}}) == "motion"
     # a part the blend did not take is not compared; the user's change (in the merged style) is the target
     capped = check({**plan, "cards": plan["cards"][:1]}, {**style, "cards": {"per_min": 3}})
     assert not any(" cards (" in w for w, _ in capped), capped   # 1 card in 20 s is right under the user's 3 a minute

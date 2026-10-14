@@ -45,6 +45,9 @@ cards moving formats, one capture per page, and a line with nothing to show left
 
 Numbers on a card are only the ones said (or the user gave). A counter counts up to the said number from 0.
 
+Each moving format above is the fallback: the motion skill builds a bespoke clip for each such beat (style.json
+`motion`), lands its parts on their words and keeps this card only where the clip fails its checks.
+
 ## Look
 
 - **Surfaces:** white cards (`#FFFFFF`) with a soft three-layer shadow, radius about 22-30 px; dark cards

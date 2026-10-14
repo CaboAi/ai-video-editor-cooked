@@ -93,8 +93,8 @@ rules, then the default look and motion (built animations over captures, big in 
    a video a `youtube`, a repo a `github`, a brand in passing a `logo`, an expert's words a clip (`references/visuals.md` "Sourced proof").
 3. **Fill the overlays:** for the overlay picks, write only the props (`references/shapes.md`). Hand it to the `template-filler` agent (haiku) with the full path of `references/shapes.md` when available, else write them. Only
    words and numbers the speaker said. There are no type cards.
-4. **Fetch:** `node "$S/capture.mjs" edits/<name>` screenshots, fetches logos, posts and
-   free sources into `images/`, hides cookie banners, measures marks. The step 5 sheet shows them.
+4. **Fetch:** `node "$S/capture.mjs" edits/<name>` fetches captures, logos, posts into `images/`, marks measured.
+5. **Motion:** moving-template beats become bespoke clips (motion skill); a failed clip keeps its card.
 
 Pacing: a copied creator's rate wins. route.py prints her cards a minute, kinds and place in the frame,
 and marks that many sentences `want` (named ones first). Give each a card of her kind with a `box` at her
@@ -117,8 +117,7 @@ Writes `edits/<name>/plan.json`. Read every warning. It ends with the **style ch
 each `style:` line is a way the plan differs from the creator. Fix each (style.json, visuals.json,
 images.json) and plan again before the stills; what the user changed is already the target.
 
-1. **Music:** unless the profile says `sound.music: false`, ask the music question and lay the bed
-   (`references/plan.md` "Music"), then run plan.py again. Sound cues need nothing: plan.py adds them.
+1. **Music** follows the style unless the user set it (`references/plan.md` "Music"; plan.py lays the creator's bed itself), then plan.py again. Sound cues need nothing: plan.py adds them.
 2. **Behind the speaker:** if the profile says `"behind": true`, run `matte.py` after the last plan.py run and
    again after any later one (it cuts only new frames); say its `--estimate` first (`references/plan.md`).
 3. **Check the plan:**
@@ -146,8 +145,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/review.py" edits/<name> round --sta
    --video edits/<name>/stills/stills.mp4 --plan edits/<name>/plan.json
 ```
 
-Then review.py's `wait` in the background and say in one line that the stills are
-on the page. **Do not render until `wait` prints `APPROVE`.** A `SEND`: fix the notes (taste skill,
+Then review.py's `wait` in the background and say in one line that the stills are on the page (`round --stills`
+also starts a low-priority laptop render that step 7 takes over). **Do not render until `wait` prints `APPROVE`.** A `SEND`: fix the notes (taste skill,
 visuals.json, images.json), plan, stills, `round --stills` again. Moving cards by hand only when the user
 asks: `references/render.md` "The live preview".
 
@@ -159,9 +158,10 @@ python3 "$S/edit.py" estimate edits/<name>
 
 Prints `Laptop:`, `Modal:` and two `Other:` lines (GitHub Actions, Lambda) with this video's time and
 cost, then `Recommended:`: Modal once it is connected, the video is over a minute and Modal is quicker; the
-laptop otherwise. `render` in the profile: render there, no question; say it in one line with the time ("say
-'render on Modal' to change"). Not set: ask once, three options in this order with the printed numbers, the
-`Recommended:` one marked (Recommended), then `profile.py set render='"laptop|modal|github|lambda"'`.
+laptop otherwise. `render` in the profile, or `Recommended: Laptop`: render there with no question, one line
+with the time ("Rendering on your laptop, about 14 s. Say 'render on Modal' to change"). Not set and
+`Recommended: Modal`: ask once, three options in this order with the printed numbers, Modal marked
+(Recommended), then `profile.py set render='"laptop|modal|github|lambda"'`.
 
 1. **Laptop**: its time, free.
 2. **Modal**: its time and cost ($30 free credit a month). Not connected: label it **Connect Modal**; on that
@@ -211,7 +211,7 @@ Only on the second answer: `python3 "$S/quality.py" normalize edits/<name>/rende
 
 Hand over on the review page (`references/review.md`), `serve` and `wait` in the background:
 `python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/review.py" edits/<name> round --stage edit --video edits/<name>/render.mp4`
-(no page: `start`, same flags). Card and visual changes later: overlays skill; caption, zoom: plan, stills, render, `round`; cut: cut skill.
+(no page: `start`, same flags). On `APPROVE`: motion skill `save`. Card and visual changes later: overlays skill (a motion clip: motion skill `note`); caption, zoom: plan, stills, render, `round`; cut: cut skill.
 
 ## 9. Export to another editor
 

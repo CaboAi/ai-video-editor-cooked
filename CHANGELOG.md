@@ -4,15 +4,141 @@ What changed for every user, newest first.
 
 ## Unreleased
 
-- The Card edit sample has a new picture and an example video, both from its own demo edit: a frame with
-  the terminal card fully in, the face and the caption, cropped around a focus point so the card and the
-  face stay inside every shape it shows in. On Pick a style and the Styles list, hovering or focusing the
-  card plays the 12 s example muted (a small play mark says it is a video). The style page has the
-  example as a player at the top. The caption preview on a sample's page no longer draws over a frame
-  that already has a caption.
+- The Card edit and 50/50 samples have a real picture and an example video, both from their own edit of the
+  public sample take (the one "Try it with a sample video" uses): a frame with a card fully in, the speaker's
+  eyes open and the caption on, cropped around a focus point so the card stays inside every shape it shows
+  in. On Pick a style and the Styles list, hovering or focusing the card plays the 12 s example muted (a small
+  play mark says it is a video). The style page has the example as a player at the top. The 50/50 sample no
+  longer uses a stock photo. Motion design keeps its drawn board and has no example: it is a wide style and
+  the sample take is vertical.
 - `thumbs.py make <edit> <style folder>` picks and crops that frame and cuts the example (720p, under
-  3 MB) from any finished edit, for new samples and styles built here. Creator styles keep the creator's
-  account picture.
+  3 MB) from any finished edit, for new samples and styles built here. It skips blinks and half-shut eyes
+  (the face finder's eye points, judged against the speaker's own usual openness) and prefers a built card
+  to a lone logo. Creator styles keep the creator's account picture.
+
+## ai-editor 2.7.6, creator-teardown 2.7.6 (2026-10-14)
+
+- No footage handy? "Try it with a sample video" on the Welcome screen, on Make your first video and in Getting
+  started runs the whole flow on a public sample take, with no keys and no questions: the cut, the preview, the
+  finished video and Download in about three minutes from a fresh install.
+- Plainer words on every screen. "Stills" is now the preview, a "round" is a draft, and "Approve and render" is
+  "Approve and make the video". Every empty page has one button that says what happens.
+- Setup no longer breaks when a first video starts while it is still installing: one Claude installs, and the
+  model and render browser downloads no longer clash.
+
+## ai-editor 2.7.5, creator-teardown 2.7.5 (2026-10-14)
+
+- Videos are made faster, and look the same. Transcription starts the moment you add a clip on New video, while
+  you pick a style. The edit renders in the background while you look at the stills, so Approve with no notes has
+  it ready (lower priority, and not on battery). Pages and logos captured for one video are reused by the next for
+  7 days. The renderer warms up when you add a clip, not on the first stills.
+- The finished video says how long it took, with real times only: "Made in 6 min (cut 3:10, edit 1:40, render
+  0:52)". Every stage's time is in `edits/<name>/timings.json`.
+
+## ai-editor 2.7.4, creator-teardown 2.7.4 (2026-10-14)
+
+- Claude's questions reach the right video: each one shows only in its own video's editor, waits there if the
+  tab is in the background (the tab title says "(1) Claude is asking"), and Home shows "Claude is asking about
+  <video>" with Open.
+- Picking a style for one video no longer changes your default style.
+- Music: a style or creator that uses music gets a bed under your voice, and the checks fail if it renders silent.
+- A renamed style shows its new name in the editor, the teach box and download names.
+- The first video goes through "Add images or links". During setup you can start "Analyse a format" straight
+  away, and Getting started counts only finished steps.
+- Spoken lists, numbers, steps and before-and-afters become motion clips within the style's Motion setting.
+- Full-frame scenes fill the frame on a light ground, the creator's accent colour and second face show where
+  they use them, and cut-away grounds keep the creator's brightness.
+- Smaller fixes: Modal "Later" works, the setup timer counts from the start, no stuck "Still coming" spinner, a
+  fresh My style shows no numbers, the editor is centred on a phone, Check lists the motion tools and cutout model.
+- "Try it with a sample video" on the first-run Home and in Getting started. It downloads the repo's public
+  sample take and runs the real flow on it: the cut, the editor, the preview and the finished video, in the Card
+  edit sample style. Its transcript, cut and visuals ship with the editor, so it needs no keys and skips
+  transcribing and checking. It shows as "Sample video" in Your videos and can be removed like any video.
+- Plainer words on every screen: no editor jargon, one idea a sentence, buttons that say what happens, and an
+  empty state with one button.
+
+## ai-editor 2.7.3, creator-teardown 2.7.3 (2026-10-14)
+
+- Captions follow a creator's typography: the share of lines in their accent colour (on keywords), a second
+  lighter or serif face, big keywords at their size, and two-line stacks. No box or stroke unless the creator
+  uses one: a soft shadow or a soft band instead, one treatment for the whole video. A creator who is often off
+  screen gets more full-frame cut-aways, with your face back within 8 seconds. match.py scores these too.
+
+- A note like "always use fewer zooms" is offered as a rule for the style ("Keep as a rule for My style"). Each
+  rule Claude saves shows as "Saved to <style>: <rule>. Undo" on the editor.
+- Every style page lists its learned rules with the day and the video each came from, and Remove. A skill
+  style lists the rules in its skill's own file.
+- New Skills page in the sidebar: your video skills, the styles that use each, and Use as a style, Improve with
+  feedback, Open the file, Show in Finder, Make a new skill.
+- A style page shows "What runs": the cut, real logos, animations and the edit, with logos and animations
+  switchable per style.
+- "Fewer zooms" now gives fewer zooms: a zoom rate you set is no longer filled back in on long sentences.
+- Claude's question for a video reaches that video's editor only, even when its tab is in the background: the tab
+  title says "(1) Claude is asking", and Home and the sidebar's job card show "Claude is asking about <video>" with
+  Open. It no longer lands in another video's editor or only in the Terminal.
+- A video with no music settings gets a music bed when its format uses music in most videos, and the edit's checks
+  fail a music style that plans or renders silent.
+- Lists, numbers, steps and before/after lines become animations even when another card was planned there, within
+  the style's animation amount.
+- Picking a style for one video no longer changes your saved style. Only Make default does.
+- A renamed style shows its new name everywhere in the editor: "Teach <name>", the receipts, downloads.
+- The first video goes through "Add images or links" like every other. While setup runs, Home offers Analyse a
+  format at once, and Getting started counts finished steps.
+- Small fixes: Settings > Modal > Later works; Check lists the animation tools and the cutout model; a developer
+  copy says "update with git"; the first edit says "The edit is ready"; captions show their keyword colour; a fresh
+  My style shows no made-up numbers; the editor's video is centred on a phone.
+## ai-editor 2.7.2, creator-teardown 2.7.2 (2026-10-14)
+
+- New sample style: Motion design (16:9). One dark board the camera moves across, silver-rimmed tiles with real
+  logos landing on your words and joined by flowing lines, questions that sit centred then rise into the heading,
+  a few overlays alternating sides, and simple sound cues from the editor's own kit.
+- Styles from a creator follow them more closely. The analysis now sees jump cuts on a fixed camera, measures 2x
+  punch-ins and caption colours correctly, finds cards above a close-framed head, and records the colour grade;
+  the edit now uses the caption side, zoom rate, cut-aways, title at the open, music choice and impact sounds it
+  measured. `creator-teardown/scripts/match.py` scores an edit against the creator, feature by feature.
+
+## ai-editor 2.7.1 (2026-10-14)
+
+- Video cards say whose turn it is: "Your turn: watch the cut", "Your turn: approve the stills", "Your turn: watch
+  the edit". Done only after you approve the final edit. Home and Your videos count the same way.
+- Settings > Check runs in place. The old five-step setup screen is gone, and the logo, Home and Getting started
+  always take you somewhere.
+- Works on a phone-width window: no text one letter per line, the keys box no longer collapses below 1180 px,
+  and the style page stacks.
+- A style's name shows the same everywhere after a rename. "Use your own skill" works with its suggested name.
+- Green only means done. The video shape follows the clip you picked. No fixed time or cost estimates, and no
+  stock photos of strangers in place of a creator.
+- The nextwork-editor command is only ever pointed at the installed plugin, never at a copy someone is testing.
+
+## ai-editor 2.7.0 (2026-10-14)
+
+- Motion graphics built for your video. A new `motion` skill gives each moment that needs an animation (a number,
+  a list, steps, a before and after, an app in use) its own clip: one agent per clip, all built while you review
+  the cut, each checked (lint, transitions, a frame-by-frame motion check), rendered and placed on its word so
+  the motion finishes before the card leaves. A clip that fails its checks falls back to the old template, so a
+  video never breaks. Setup installs HyperFrames and GSAP from npm once. It uses more Claude tokens than the
+  templates (about 100k per clip); the style page's Motion setting turns it down.
+- The style page has a Motion section: None, Some or Lots, a switch for each kind of animation, and the look.
+  Animations you approve go to your own library, with Use again, Archive and Delete. A note on one clip in the
+  editor rebuilds only that clip and re-renders only that part of the video.
+- New sample style: 50/50. The visual owns the top of the frame and you the bottom, on a paper ground, with a
+  panel version and a cutout version where your head breaks out of the card. Your face is back within 8 seconds.
+
+## ai-editor 2.6.12 (2026-10-13)
+
+- Claude's questions show in the video's editor, with "Claude is asking you something" in the header. Esc folds
+  the question into a bar that reopens it.
+- The editor has a Download button once the edit is approved. Files are named "<video> - <style>.mp4".
+- No model downloads in the middle of an edit. Setup states a model's size and the free space first.
+- Format warnings from an analysis show on the style page. Music follows the creator unless you changed it.
+- No render question when no cloud is connected: it renders on your computer and says so.
+- Update leaves a developer copy (a git checkout) alone.
+- A cut whose last source frame is stamped late no longer comes out one frame short.
+- A new sample style, **Motion design**, for wide videos. One near-black canvas a camera drags across. When you
+  name a tool, a dark tile with a silver rim and its real logo lands on the word, joined to the last by a dashed
+  line, under a heading in your words. A question you ask sits big in the middle, then the camera pans down and it
+  rises into the heading. Between boards you have the whole frame, the camera easing in and moving you left or
+  right, so each animation lands on the other side. Soft sound cues on the moves, two whooshes a minute at most.
 
 ## ai-editor 2.6.11 (2026-10-13)
 
@@ -31,6 +157,25 @@ What changed for every user, newest first.
   choose images (12 at most, under 15 MB each), each with optional "Show when I say..." words. They are saved with
   the video (`edits/<name>/assets/` and `assets.json`, on your computer only) and go in first, as cards on those
   words, before Claude searches for anything. The editor's notes have an "Anything to add?" line for more.
+- Motion graphics are built for each line. The beats that need motion (a count, a list of notes, a before and
+  after, a command running, a render, an easing curve, a flow) each get their own animated clip, designed for
+  that sentence and landing each part on its word, built by one agent per clip while you review the cut. Every
+  clip passes lint, a layout check, a frame-to-frame motion check and a look at its contact sheets before it is
+  used; a clip that fails keeps the card template. New `motion` skill; `setup.py motion` installs its tools
+  (under a minute) and `doctor` checks them. style.json `motion` sets clips or templates, how many and which kinds.
+- A Motion section on each style's page: how many beats get an animation (none, some, lots), which kinds
+  (counters, lists, flows, before and after, the app in use, curves, logos), and the look (palette and font) with
+  a preview. It applies to the next video. A measured creator's style starts from their animation share.
+- Animations you approve are saved, listed under Saved animations on the style page (Use again, Archive, Delete).
+  A new video starts a matching beat from one, re-timed and changed for its words, never copied unchanged;
+  archived ones are never used.
+- A note on one animation ("make the counter bigger") rebuilds only that clip and re-renders only its span.
+- A new sample style, 50/50: the visual owns the top of the frame and you the bottom, on a paper ground, an
+  animation built for each line filling the top panel edge to edge, your face back full frame within 8 seconds.
+  `layout.variant: "cutout"` makes your head break out of your card onto the paper. Each panel animation passes a
+  ground and fill check and four frame-by-frame proofs (nothing clipped, nothing in the side rails, no two beats
+  at once, every line on screen long enough to read).
+
 ## ai-editor 2.6.10 (2026-10-13)
 
 - The cut renders at 1080p: a 4K take comes out 1080x1920 (or 1920x1080), never upscaled. The edit was already

@@ -104,7 +104,7 @@ Existing keys (card events, from `editplan.py style`) stay. The visual pass adds
   - `graphics.secondary_motion`: % of graphics that are `still`, `drift`, `push` or `video` while up. `graphics.blur_behind_pct`: % shown over blurred footage. `graphics.crop_palette`: colours of the graphics themselves.
   - `sound`: `{"sfx_per_min", "kinds": {"whoosh" | "pop" | "click" | "riser" | "impact" | "ding" | "other": %}, "on_cut_pct", "on_graphic_pct", "in_voice_pct", "music": {"present_pct", "level_db" (under the voice)}}`.
   - `hook`: medians for `winner` and `control` of `first_cut_s`, `first_graphic_s`, `first_text_s`, `first_caption_s`, `first_word_s`, `face_pct`; `title_on_screen_pct`.
-  - `winners`: `{"n_winners", "n_control", "differs": [sentences with both medians and n]}`. `ai_tells`: `{"ran", "found": [ai_tells.py findings], "bans", "warns"}`.
+  - `winners`: `{"n_winners", "n_control", "differs": [sentences with both medians and n]}`. `ai_tells`: `{"ran", "found": [ai_tells.py findings], "bans", "warns"}`. `warnings`: plain lines for the home page (the videos are not one format, graphics cover the face 20%+ of their time), `[]` when nothing is off.
   - `blend.take`: the parts the user chose to copy (`captions`, `pace`, `graphics`, `entrances`, `layout`, `sound`); a part left out is absent and style-edit uses its own default.
 
 ## Cut output (cut -> style-edit)
@@ -300,6 +300,25 @@ For the letterbox layout (`plan.py --layout letterbox`) it is instead, % of the 
 `band`: where the cut is drawn. The title sits at the bottom of `title_box`, `title_px` tall on a 1920 frame.
 `card` (optional): one plain photo, shown from 0 until `to` s. `zooms` and `cards` are empty.
 
+For the board layout (`plan.py --layout board`, 16:9 only, the Motion design sample style), px of a 1920x1080 frame:
+
+```json
+"layout": {"mode": "board", "ground": "#0B0B0D", "head_x": 49.8, "fade": 0.6,
+           "boards": [{"start": 37.2, "end": 46.0, "x": 0, "y": 2700, "question": true, "rise": 43.3,
+                       "heading": [["can", 37.4], ["you", 37.6]], "tiles": [{"src": "images/logo-typesafe.png", "label": "jev", "at": 44.2}]}],
+           "camera": [[37.2, 1310, 2838, 1, 0.01], [37.2, 960, 2838, 1, 1.0], [43.3, 960, 3240, 1, 0.9]],
+           "views": [[37.2, 46.0]], "questions": [{"start": 50.5, "end": 53.5, "words": [["how", 50.5]]}],
+           "face": [[0, 1.0, 0, 0.01], [44.9, 1.3, 1, 1.0]], "cues": [[37.2, "whoosh-in"], [44.3, "pop"]]}
+```
+
+`boards`: where each sits on the canvas (`x`, `y`), its heading words with the time each types on, its logo tiles
+(logo, logo_cluster and flow cards become tiles), and for a question board the time the camera pans down so the
+question rises into the heading. `camera`: `[at, centre x, centre y, zoom, move s]`, each easing from the last.
+`views`: when the canvas has the frame (the speaker crossfades in between). `questions`: asked with no board after,
+centred over the speaker. `face`: the speaker's framing, `[at, zoom, side (-1 left, 0 centre, +1 right), move s]`,
+zoomed about the top edge. `cues`: the sound events plan.py's cue picker chooses from. `zooms` is empty; `cards`
+holds only the overlays, each with `side` and a `box` on that side.
+
 `cover` (optional, an audio-only clip whose `clip.json` names a cover, from clips.py trim): `{"src", "box"
 [x, y, w, h] % of the frame, "push", "ground_push", "pulse", "pulses" [s]}`. The renderer draws the cover in
 `box` over a blurred copy dimmed to 30%; on one `sine.inOut` over the clip, in log space, the cover grows to
@@ -320,7 +339,7 @@ visuals.json `title` / `list` / `stamp` beats): `[{"kind": "title", "text", "sta
 "start", "end", "box"}]`, drawn by Texts.tsx over the cards and under the captions (visuals.md "Card edit").
 
 `music` (optional): `{"src": ".sfx/music.wav"}`, the bed `sfx.py music` wrote (levelled and ducked under the
-speech, played at volume 1). plan.py adds it when the file exists and the profile does not say `sound.music: false`.
+speech, played at volume 1). plan.py adds it when the file exists and the profile does not say `sound.music: false` (unset: the style decides, plan.md "Music").
 
 `sfx` (optional): sound cues, `[{"t": 6.99, "src": ".sfx/whoosh-in.wav", "event": 7.18}]`. `t` is when the
 file starts; `event` is the visual event its hit lands on (`t` = `event` minus the cue's attack). `src`

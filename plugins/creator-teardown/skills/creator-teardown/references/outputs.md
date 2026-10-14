@@ -29,3 +29,13 @@ creator-teardowns/<handle>/
 edit-plans/<name>/
   plan.md, plan.srt           the user's video, planned in the creator's style
 ```
+
+## Match check
+
+`scripts/match.py <teardown dir> <render.mp4>` runs this skill's own measures (visual.py, look.py, graphics.py,
+sound.py) on a rendered edit, as a one-video teardown in a temp folder, and prints each feature with the
+creator's value (median or majority of the kept videos), ours, and pass or FAIL against a tolerance: cut rate,
+longest hold, zooms a minute and their size, captions (words a line, font, weight, case, colour, box, height,
+side of the face, highlight), card time and main kind, b-roll (speaker off screen), a title at the open, the
+safe zone, pace, grade (mean luma and saturation), music and sound effects. Exit 1 when any feature fails.
+The font and, on a cut with no pauses, the music bed come from the render's plan.json (marked "(plan)").

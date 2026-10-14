@@ -2,7 +2,7 @@
 """Turn a creator's style.json + a cut's words.json into plan.json for the Remotion render.
 
     python3 plan.py <style.json> <edits/NAME/captions.json> [--images images.json (default: next to it)]
-                    [--aspect auto|9:16|16:9] [--layout overlay|split|letterbox] [--title T]
+                    [--aspect auto|9:16|16:9] [--layout overlay|split|letterbox|board] [--title T]
                     [--out edits/NAME/plan.json]
     python3 plan.py cards edits/NAME [--plan plan.json]   every card, its time, box and the beat it came from
     python3 plan.py beat  edits/NAME card:3|0:15|word@2 key=value ... | --drop   change one beat (visuals.json, images.json)
@@ -24,6 +24,9 @@ footage. A beat's "layout" overrides, except that an explaining card on vertical
 --layout overlay never opens the panel: split cards become scenes. --layout letterbox (a landscape take only):
 a black 9:16 frame, the take as a centred band, a lowercase title above it, one word at a time in the band and
 the first image in images.json beside the head over the opening line; nothing else.
+--layout board (16:9, the Motion design sample style): one dark canvas a camera drags across; logo cards become
+tiles landing on their words under a heading in the speaker's words, a question becomes a heading that rises as the
+camera pans down, every other card an overlay on the speaker's footage, sides alternating (board_layout).
 Also writes "look" (profile brand kit > creator style.json > editorial; references/motion.md) and
 "motion" (the personality, from the creator's pace). The anti-generic rules (visuals.md) run first.
 The user's profile (~/.ai-video-editor/profile.json, the start skill) supplies brand, avoid and sound.
@@ -256,6 +259,10 @@ def place_zooms(zoom, words, duration, cuts, cut_kinds=None, quiet=(), shot_s=No
     per_min = zoom.get("per_min") or 0
     if not per_min or not words:
         return []
+    if zoom.get("fill_quiet") is False:   # user_rate: the user's own zoom rate, no extra changes in quiet stretches
+        quiet = ()
+    if zoom.get("kind", "punch") == "punch" and shot_s:
+        per_min /= 2   # each punch comes back out by itself: in and out are two of her measured zooms
     gap = 60 / per_min * 0.8
     picked = []
     cands = zoom_times(words, zoom.get("on", "sentence_start"), cuts)
@@ -267,6 +274,14 @@ def place_zooms(zoom, words, duration, cuts, cut_kinds=None, quiet=(), shot_s=No
     for t in cands:
         if not picked or t - picked[-1] >= gap:
             picked.append(t)
+    # Her rate, not her cut count: a take with fewer cuts than hers (one long shot) still gets per_min zooms, the
+    # rest on sentence starts (her every_cut punches were 5 a minute over 35 cuts; ours has 12).
+    want = round(per_min * duration / 60)
+    for t in zoom_times(words, "sentence_start", ()) if len(picked) < want else ():
+        if len(picked) >= want:
+            break
+        if all(abs(t - p) >= gap for p in picked):
+            picked = sorted(picked + [t])
     hold = zoom.get("max_hold_s")
     starts = [w["start"] for w in words]
     longest = lambda a, b: min(hold or 1e9, QUIET_HOLD_S if any(qa < (a + b) / 2 < qb for qa, qb in quiet) else 1e9)
@@ -285,6 +300,8 @@ def place_zooms(zoom, words, duration, cuts, cut_kinds=None, quiet=(), shot_s=No
     ends = picked[1:] + [duration]
     named = {"ease": zoom["ease"]} if kind != "punch" and zoom.get("ease") not in (None, "none") else {}
     capped = kind == "punch" and shot_s
+    if capped:   # her punch is a step on one frame: ours travels 3 frames, not the house 0.16 s (StyleEdit.tsx PUNCH_S)
+        named["travel_s"] = CREATOR_PUNCH_S
     if capped:   # every change is a punch in that comes back out by itself
         ends = [min(e, s + max(1.0, shot_s)) for s, e in zip(picked, ends)]
     return [{"start": round(s, 3), "end": round(e, 3), "scale": zoom.get("scale", 1.15),
@@ -294,6 +311,7 @@ def place_zooms(zoom, words, duration, cuts, cut_kinds=None, quiet=(), shot_s=No
 
 ENTER_S = (0.15, 0.75)   # a card's entrance window: from just before its start to when it has settled
 PUNCH_S = 0.16           # StyleEdit.tsx PUNCH_S: how long a punch zoom takes to travel
+CREATOR_PUNCH_S = 0.1    # a copied creator's punch (measured as a one-frame step): 3 frames, under quality.py's snap line
 
 
 def clear_entrances(zooms, cards):
@@ -301,7 +319,9 @@ def clear_entrances(zooms, cards):
     for a full-frame scene, to its middle, hidden under it (the footage comes back at the new zoom, like a cut).
     Two zooms closer than a punch's travel join into one (the out move would be cut short: a one-frame snap);
     a zoom that gets shorter than 0.5 s is dropped. Two moves at once compete for the eye, and the render check
-    cannot time a card's landing while the footage under it jumps."""
+    cannot time a card's landing while the footage under it jumps. A punch that would start and end under a scene
+    starts as the scene leaves instead (the footage comes back punched in), so the scene does not eat it."""
+    orig = {id(z): (z["start"], z["end"]) for z in zooms}
     for c in cards:
         a, b = c["start"] - ENTER_S[0] - PUNCH_S, c["start"] + ENTER_S[1]
         to = round((c["start"] + c["end"]) / 2, 3) if c.get("layout") == "scene" else round(max(0.0, a), 3)
@@ -312,7 +332,11 @@ def clear_entrances(zooms, cards):
     out = []
     for z in sorted(zooms, key=lambda z: z["start"]):
         if z["end"] - z["start"] < 0.5:
-            continue
+            a0, b0 = orig[id(z)]
+            sc = next((c for c in cards if c.get("layout") == "scene" and c["start"] - ENTER_S[0] - PUNCH_S < a0 < c["end"]), None)
+            if not sc:
+                continue
+            z["start"], z["end"] = round(sc["end"] + ENTER_S[1], 3), round(sc["end"] + ENTER_S[1] + b0 - a0, 3)
         if out and z["start"] < out[-1]["end"] + PUNCH_S:
             out[-1]["end"] = max(out[-1]["end"], z["end"])
         else:
@@ -336,6 +360,21 @@ def took(style, part):
     No blend.take (a single creator, or an older file): every part present counts."""
     take = (style.get("blend") or {}).get("take")
     return take is None or part in take
+
+
+MUSIC_PCT = 50   # the creator runs a bed under this share of her videos or more: the edit gets one too
+
+
+def music_wanted(style, prof):
+    """A music bed for this edit? The style page's switch ("music" in the effective style), else the user's
+    profile sound.music, else the creator's measure: a bed in MUSIC_PCT% of her videos or more."""
+    if "music" in style:
+        return bool(style["music"])
+    pm = ((prof or {}).get("sound") or {}).get("music")
+    if pm is not None:
+        return bool(pm)
+    m = ((style.get("sound") or {}).get("music") or {}) if took(style, "sound") else {}
+    return (m.get("present_pct") or 0) >= MUSIC_PCT
 
 
 def graphics(style, part):
@@ -479,7 +518,7 @@ def logo_items(visuals, edit_dir, cap_y, aspect, card=False):
             print(f"warning: no logo file for '{slug}', run capture.mjs first; skipped", file=sys.stderr)
             continue
         w = LOGO_BOX_H * (16 / 9 if aspect == "9:16" else 9 / 16)   # a square tile
-        item = {k: v[k] for k in ("word", "nth", "entrance") if k in v}
+        item = {k: v[k] for k in ("word", "nth", "entrance", "heading") if k in v}
         if card and aspect == "9:16":
             item.update({"anim": {"type": "logo", "props": {"src": src, "card": True}}, "box": v.get("box") or list(LOGO_CARD_BOX)})
             item.update({"hold_s": v["hold_s"]} if v.get("hold_s") else {})
@@ -756,7 +795,7 @@ def anim_items(visuals, edit_dir=None, style=None):
         if v.get("type") not in ANIMS:
             print(f"warning: unknown anim type {v.get('type')!r} on '{v.get('word')}', skipped", file=sys.stderr)
             continue
-        item = {k: v[k] for k in ("word", "nth", "box", "entrance", "hold_s", "layout", "transition_in", "transition_out", "focus") if k in v}
+        item = {k: v[k] for k in ("word", "nth", "box", "entrance", "hold_s", "layout", "transition_in", "transition_out", "focus", "heading") if k in v}
         if "box" in v:
             item["_own_box"] = True
         item["anim"] = {"type": v["type"], "props": template_props(v["type"], v.get("props"))}
@@ -884,7 +923,8 @@ def _place(images, words, duration, hold, ent, box, aspect):
         card = {"src": im["src"]} if "src" in im else {"anim": im["anim"]}
         if im.get("lane"):
             card["lane"] = im["lane"]
-        for k in ("highlight", "size", "layout", "transition_in", "transition_out", "focus", "format", "props", "_own_box", "xh", "lines", "pics"):
+        for k in ("highlight", "size", "layout", "transition_in", "transition_out", "focus", "format", "props", "_own_box", "xh", "lines", "pics",
+                  "heading"):
             if im.get(k):
                 card[k] = im[k]
         if im.get("marks"):
@@ -1311,7 +1351,8 @@ def tuck_behind(cards, face, aspect):
     "key" is written for matte.py to check against the real cutout."""
     hit = lambda a, hd: a[0] < hd[2] + HEAD_GAP and a[0] + a[2] > hd[0] - HEAD_GAP and a[1] < hd[3] + HEAD_GAP and a[1] + a[3] > hd[1] - HEAD_GAP
     for c in cards:
-        if kind_of(c) not in BEHIND or c.get("layout") == "scene":
+        clip = ((c.get("anim") or {}).get("props") or {}).get("motion")   # a motion skill clip tucks like a card
+        if (kind_of(c) not in BEHIND and not clip) or c.get("layout") == "scene":
             continue
         c["layer"] = "behind"
         hd = face and head_during(face["heads"], face.get("step_s", 0.5), c["start"], c["end"])
@@ -1335,12 +1376,12 @@ def tuck_behind(cards, face, aspect):
 
 SFX_GAP_S = 0.25       # never two cues closer than this
 SFX_EVERY_S = 5.0      # at most one cue per this many seconds, on average: most cards land silent (ai-tells.md)
-SFX_RANK = ("hit", "whoosh-in", "whoosh-out", "pop", "zoom")   # who keeps its slot when cues crowd
+SFX_RANK = ("impact", "hit", "whoosh-in", "whoosh-out", "pop", "zoom")   # who keeps its slot when cues crowd
 
 
 # sound.kinds (sound.py) -> the kit's cues that sound like them
 SOUND_CUES = {"whoosh": ("whoosh-in", "whoosh-out"), "pop": ("pop",), "click": ("pop",), "ding": ("pop",),
-              "impact": ("hit", "zoom"), "riser": ("hit",), "other": SFX_RANK}
+              "impact": ("impact",), "riser": ("hit",), "other": SFX_RANK[1:]}
 
 
 def place_sfx(plan, words, kit, sound=None):
@@ -1370,12 +1411,15 @@ def place_sfx(plan, words, kit, sound=None):
         return bool(before) and t - before[-1]["end"] < PAUSE_S and not ends_sentence(before[-1]["text"]) \
             and any(0 <= w["start"] - t < PAUSE_S for w in words)
 
+    ev += [(t, n) for t, n in (plan.get("layout") or {}).get("cues", [])]   # the board's camera moves and tile landings
     for c in plan["cards"]:
         kind = (c.get("anim") or {}).get("type")
         lands = c["start"] + CARD_LEAD_S
         logo = kind in ("logo", "logo_sting")
         ent = c.get("entrance", "slide")
         cue = "pop" if logo or ent == "pop" else "whoosh-in" if ent == "slide" else None
+        if c.get("scene_by") == "creator":
+            cue = "hit"   # her cut-away is a cut: her cues sit on cuts (sound.on_cut_pct)
         if cue:
             ev.append((lands, cue))
         parts((c.get("anim") or {}).get("props"), None, c["start"])
@@ -1386,6 +1430,9 @@ def place_sfx(plan, words, kit, sound=None):
     sound = sound or {}
     if sound.get("sfx_per_min") is not None:
         budget = round(duration / 60 * sound["sfx_per_min"])
+    if (sound.get("kinds") or {}).get("impact", 0) >= max((sound.get("kinds") or {"": 1}).values()):
+        # her cues are mostly impacts (a low boom on a cut): the scene cut and the zoom take the kit's impact
+        ev = [(t, "impact" if n in ("hit", "zoom") else n) for t, n in ev]
     if sound.get("kinds"):
         ok = {c for k, v in sound["kinds"].items() if v > 0 for c in SOUND_CUES.get(k, ())}
         ev = [e for e in ev if e[1] in ok]
@@ -1402,7 +1449,8 @@ def place_sfx(plan, words, kit, sound=None):
         if name in kit["cues"] and len(kept) < budget and 0 <= t < duration \
                 and all(abs(t - k) >= SFX_GAP_S for k, _ in kept):
             kept.append((t, name))
-    kept = [k for i, k in enumerate(sorted(kept)) if i == 0 or k[1] != sorted(kept)[i - 1][1]]   # never the same cue twice running
+    if not sound.get("kinds"):   # never the same cue twice running, unless her measured mix repeats them itself
+        kept = [k for i, k in enumerate(sorted(kept)) if i == 0 or k[1] != sorted(kept)[i - 1][1]]
     # on the frame Sfx.tsx starts it on (round(t x fps)): the plan's t is when the cue really plays
     fps = plan["fps"]
     return [{"t": round(round(max(0.0, t - kit["cues"][n]["attack_s"]) * fps) / fps, 4), "src": f".sfx/{n}.wav", "event": round(t, 3)}
@@ -1430,6 +1478,7 @@ def with_sfx(build):
 
 # Split layout: the visual owns a top panel, the speaker a window under the seam. In percent of the frame.
 SPLIT = {"seam": 50, "ground": "#F4F4F2"}
+CUTOUT_BREAKOUT = 10.6  # 50/50 cutout: the speaker's head rises this far (% of the frame) above the window's top edge
 SPLIT_GAP = 2          # art stops this far above the seam
 SPLIT_CAP_BELOW = 4.5  # captions sit this far under the seam, over the top of the speaker's window
 HEAD_ROOM = 4          # the top of the head (hair included) sits this far into the window
@@ -1446,7 +1495,7 @@ def split_art_box(seam):
     return [m, t, 100 - 2 * m, seam - SPLIT_GAP - t]
 
 
-def speaker_frame(face, seam):
+def speaker_frame(face, seam, head_room=HEAD_ROOM):
     """How the cut sits in the window under the seam: scaled so the head is at least MIN_HEAD tall,
     moved so the hair sits HEAD_ROOM below the window's top and the head is centred left to right.
     x, y: how far the scaled video's top-left is pulled left and up, in % of the frame. origin: the
@@ -1460,11 +1509,242 @@ def speaker_frame(face, seam):
     bottom = q([b[1] + b[3] for b in bs], 0.9)
     cx = q([b[0] + b[2] / 2 for b in bs], 0.5)
     k = min(max(1, MIN_HEAD / max(1, bottom - top)), MAX_SPEAKER_SCALE)
-    y = min(max(0, k * top - HEAD_ROOM), k * 100 - win)
+    y = min(max(0, k * top - head_room), k * 100 - win)
     x = min(max(0, k * cx - 50), k * 100 - 100)
     if k * bottom - y > win:
         print("warning: the head is taller than the split window; the chin is cut off", file=sys.stderr)
     return {"scale": round(k, 3), "x": round(x, 1), "y": round(y, 1), "origin": [round(cx, 1), round((top + bottom) / 2, 1)]}
+
+
+FACE_GAP_S = 1.5      # a face beat between two panel runs: long enough for the panel to close and open (2 x PANEL_T + a hold)
+BRIDGE_S = 1.2        # StyleEdit.tsx: the panel stays open across a gap this short
+
+
+def face_every(cards, max_run):
+    """The 50/50 rule (layout.face_every_s): the speaker's face has the whole frame again within max_run seconds of the
+    panel opening. A card that would keep the panel open past it starts FACE_GAP_S after the run ends instead, or is
+    dropped when that leaves it under MIN_CARD_S."""
+    out, run0, run1 = [], None, None
+    for c in sorted(cards, key=lambda c: c["start"]):
+        if run1 is not None and c["start"] - run1 < BRIDGE_S and c["end"] - run0 > max_run:
+            start = round(run1 + FACE_GAP_S, 3)
+            if c["end"] - start < MIN_CARD_S:
+                print(f"warning: '{c.get('trigger_word')}' card dropped: the face comes back within {max_run:g} s "
+                      "(layout.face_every_s)", file=sys.stderr)
+                continue
+            c = {**c, "start": start}
+        if run1 is None or c["start"] - run1 >= BRIDGE_S:
+            run0 = c["start"]
+        run1 = max(run1 or 0, c["end"])
+        out.append(c)
+    for a, b in zip(out, out[1:]):   # the panel is never open and empty: a card holds until the next lands
+        if 0 < b["start"] - a["end"] < BRIDGE_S:
+            a["end"] = b["start"]
+    return out
+
+
+# Board layout (the Motion design sample style, 16:9): one dark canvas a camera drags across. Logos become tiles
+# landing on their words under a heading in the speaker's words; a question asked becomes a heading that first sits
+# centred and then rises as the camera pans down; every other card is an overlay on the speaker's footage, the
+# sides alternating and the speaker reframed to the other side. Units: px of a 1920x1080 frame.
+BOARD_GAP_S = 4.0      # a tile this long after the last one starts a new board
+BOARD_MAX_TILES = 4    # one idea in view: a fifth tile starts a new board
+BOARD_HOLD_S = 2.5     # a board stays this long after its last tile lands
+BOARD_LEAD_S = 3.0     # a board starts on the sentence that names it, at most this long before its first tile
+BOARD_BRIDGE_S = 1.5   # boards closer than this: the camera drags straight across, no speaker in between
+BOARD_DRAG_S = 1.0     # one camera move
+BOARD_FADE_S = 0.6     # speaker <-> canvas crossfade (Board.tsx); the camera never flies over the speaker
+BOARD_HEAD_WORDS = 6   # a heading is one line of their words
+BOARD_Q_WORDS = 14     # a question keeps every word (Board.tsx shrinks it to fit one line)
+BOARD_Q_LEAD_S = 2.5   # a board whose first tile is said this soon after a question rises into it (one said inside it: no rise)
+BOARD_Q_GAP_S = 6.0    # a question with no board this soon after the last one shown stays with the speaker
+Q_WORDS = {"what", "why", "how", "when", "where", "which", "who", "can", "could", "should", "would", "will", "do",
+           "does", "did", "is", "are", "was", "have", "has"}   # a question starts with one of these
+BOARD_Q_RISE = 402     # the question sits this far below the heading spot (the frame's middle), then rises
+BOARD_STEP = (2400, 1350)   # board i sits at (STEP x (i % 2), STEP y x i) on the canvas: right, down, left, down
+BOARD_OVERLAY_BOX = ([5, 14, 42, 60], [53, 14, 42, 60])   # % of the frame, left and right, off the frame edge
+BOARD_REFRAME_S = 5.0  # the speaker's framing changes at least this often while they hold the frame
+BOARD_FACE = {"rest": 1.1, "push": 1.18, "side": 1.3, "max": 1.5}   # the speaker's zoom: between beats, a slow push, beside an overlay
+
+
+def board_heading(ws, t0):
+    """Heading words -> [[word, time it types on]]: its own time, or arrival + 0.1 s a word when said before the board."""
+    return [[clean(w["text"]).lower(), round(max(w["start"], t0 + 0.1 * i), 3)] for i, w in enumerate(ws)]
+
+
+def board_words(words, first, phrase=None):
+    """The words a board's heading is made of: the beat's own "heading" (their words, found in order around the first
+    tile), else the BOARD_HEAD_WORDS of the sentence that end on the first tile's word."""
+    if phrase:
+        want, out = [clean(x).lower() for x in phrase.split() if clean(x)], []
+        for w in words:
+            if len(out) < len(want) and first - 8 <= w["start"] < first + 4 and clean(w["text"]).lower() == want[len(out)]:
+                out.append(w)
+        if len(out) == len(want):
+            return out
+        print(f"warning: heading '{phrase}' is not said in that order near {first:.1f} s; using the sentence instead", file=sys.stderr)
+    a = board_sentence(words, first + CARD_LEAD_S)[0]
+    ws = [w for w in words if a - 0.05 <= w["start"] <= first + CARD_LEAD_S + 0.05 and clean(w["text"])]
+    return ws[-BOARD_HEAD_WORDS:]
+
+
+def board_sentence(words, t):
+    """[start, end, words] of the sentence being said at t."""
+    i = max((k for k, w in enumerate(words) if w["start"] <= t + 0.05), default=0)
+    a = i
+    while a > 0 and not ends_sentence(words[a - 1]["text"]):
+        a -= 1
+    b = i
+    while b < len(words) - 1 and not ends_sentence(words[b]["text"]):
+        b += 1
+    return words[a]["start"], words[b]["end"], words[a:b + 1]
+
+
+def board_tiles(c, words, edit_dir):
+    """The logo tiles a card turns into: [{src, label, at}], or [] for a card that stays an overlay. A logo is one
+    tile; a logo_cluster or a flow one per logo, each on its own word."""
+    a = c.get("anim") or {}
+    p = a.get("props") or {}
+    if a.get("type") == "logo" and p.get("src"):
+        return [{"src": p["src"], "label": clean(c.get("trigger_word") or "").lower(), "at": round(c["start"], 3),
+                 **({"heading": c["heading"]} if c.get("heading") else {})}]
+    nodes = p.get("logos") if a.get("type") == "logo_cluster" else p.get("nodes") if a.get("type") == "flow" else None
+    out = []
+    for i, n in enumerate(nodes or []):
+        if not isinstance(n, dict):
+            continue
+        src = n.get("src") or (resolve_src(n, edit_dir) if n.get("logo") else None)
+        if not src:
+            continue
+        said = clean(n.get("word") or n.get("label") or n.get("logo") or "").lower()
+        hit = next((w for w in words if clean(w["text"]).lower() == said and w["start"] >= c["start"] - 0.3), None)
+        at = hit["start"] - CARD_LEAD_S if hit else c["start"] + 0.4 * i
+        out.append({"src": src, "label": clean(n.get("label") or n.get("word") or n.get("logo") or "").lower(), "at": round(at, 3),
+                    **({"heading": c["heading"]} if c.get("heading") else {})})
+    return out
+
+
+def board_layout(cards, words, duration, face, edit_dir=None):
+    """The board layout (references/contracts.md "board"): logos -> tiles on boards, questions -> headings that rise or
+    centred lines over the speaker, the rest -> overlays on alternating sides. Returns (overlay cards, layout)."""
+    tiles, rest = [], []
+    for c in sorted(cards, key=lambda c: c["start"]):
+        ts = board_tiles(c, words, edit_dir)
+        (tiles.extend(sorted(ts, key=lambda x: x["at"])) if ts else rest.append(c))
+    groups = []
+    for t in sorted(tiles, key=lambda x: x["at"]):
+        g = groups[-1] if groups else None
+        if g and t["at"] - g[-1]["at"] < BOARD_GAP_S and len(g) < BOARD_MAX_TILES:
+            if t["src"] not in [x["src"] for x in g]:   # one tile a brand on a board
+                g.append(t)
+        else:
+            groups.append([t])
+    sents, cur = [], []
+    for w in words:
+        cur.append(w)
+        if ends_sentence(w["text"]):
+            sents, cur = sents + [cur], []
+    qs = []   # a question: the clause that ends in "?" ("so now you know, but when should you ...?" -> "when should ...?")
+    for st in sents + [cur]:
+        if st and st[-1]["text"].rstrip().endswith("?"):
+            cut = max((i + 1 for i, w in enumerate(st[:-1]) if ends_clause(w["text"]) and len(st) - i - 1 >= 3), default=0)
+            st = [w for w in st[cut:] if clean(w["text"])]
+            while st and clean(st[0]["text"]).lower() in DANGLING:   # "but when should you ..." -> "when should you ..."
+                st = st[1:]
+            if len(st) > BOARD_Q_WORDS:   # "... to decide is can you write down every answer?" -> "can you write down ..."
+                st = st[next((i for i in range(len(st) - BOARD_Q_WORDS, len(st) - 2) if clean(st[i]["text"]).lower() in Q_WORDS), 0):]
+            if 3 <= len(st) <= BOARD_Q_WORDS and clean(st[0]["text"]).lower() in Q_WORDS:   # "yes or no?" is not one
+                qs.append({"start": st[0]["start"], "end": st[-1]["end"], "words": st})
+    boards, prev_end = [], 0.0
+    for k, g in enumerate(groups):
+        first = g[0]["at"]
+        q = None if g[0].get("heading") else \
+            next((q for q in qs if q["end"] - 0.5 <= first <= q["end"] + BOARD_Q_LEAD_S and q["start"] >= prev_end), None)
+        if q:   # the whole question is the heading, never cut
+            start = max(prev_end, q["start"] - 0.2)
+            heading = board_heading([w for w in q["words"] if clean(w["text"])][:BOARD_Q_WORDS], start)
+            qs.remove(q)
+        else:   # the board arrives on its heading's first word: never an empty board
+            inq = next((q for q in qs if q["start"] <= first < q["end"] - 0.5), None)   # named inside a question: its heading
+            hw = inq["words"] if inq and not g[0].get("heading") else board_words(words, first, g[0].get("heading"))
+            start = max(prev_end, first - BOARD_LEAD_S, min(first - 0.3, hw[0]["start"] if hw else first))
+            heading = board_heading(hw, start)
+        nxt = min([groups[k + 1][0]["at"] if k + 1 < len(groups) else duration] +   # the next board, or an overlay after it
+                  [c["start"] for c in rest if c["start"] > g[-1]["at"] + 0.5])
+        end = min(max(g[-1]["at"] + BOARD_HOLD_S, start + 3.0), nxt - 0.5, duration)
+        start = max(start, min(first - 0.3, max([c["end"] + 0.3 for c in rest if c["start"] < first], default=0)))   # after an overlay
+        bd = {"start": round(start, 3), "end": round(end, 3), "x": BOARD_STEP[0] * (k % 2), "y": BOARD_STEP[1] * k,
+              "heading": heading, "tiles": g, **({"question": True, "rise": round(max(start + 0.6, first - 0.9), 3)} if q else {})}
+        boards.append(bd)
+        prev_end = end
+    # the camera: [at, centre x, centre y, zoom, move seconds]; views: when the canvas has the frame
+    cam, views, cues = [], [], []
+    for k, bd in enumerate(boards):
+        cx, cy = bd["x"] + 960, bd["y"] + 540
+        y0 = cy - BOARD_Q_RISE if bd.get("question") else cy
+        if views and bd["start"] - views[-1][1] < BOARD_BRIDGE_S:   # drag straight across from the last board
+            views[-1][1] = bd["end"]
+            cam.append([bd["start"], cx, y0, 1, BOARD_DRAG_S])
+        else:   # the canvas fades in over the speaker while the camera is already dragging in from the side
+            views.append([bd["start"], bd["end"]])
+            cam += [[bd["start"], cx + 350, y0, 1, 0.01], [bd["start"], cx, y0, 1, BOARD_DRAG_S]]
+        if not any(n == "whoosh-in" and bd["start"] - t < 30 for t, n in cues):   # two whooshes a minute at most
+            cues.append([bd["start"], "whoosh-in"])
+        if bd.get("question"):
+            cam.append([bd["rise"], cx, cy, 1, max(0.4, min(0.9, bd["tiles"][0]["at"] - bd["rise"]))])
+            cues.append([bd["rise"], "zoom"])   # the pan down: a short rise into a soft thump
+        cues += [[t["at"] + CARD_LEAD_S, "pop"] for t in bd["tiles"]]
+    up = lambda a, b: any(v[0] - 0.3 < b and a < v[1] for v in views)   # noqa: E731
+    over, side = [], 0
+    for c in rest:
+        if up(c["start"], c["end"]):
+            print(f"warning: the '{c.get('trigger_word')}' card falls while a board is up, dropped: the board is the "
+                  "visual there", file=sys.stderr)
+            continue
+        c = {**c, "box": list(BOARD_OVERLAY_BOX[side]), "lane": None, "side": "left" if side == 0 else "right"}
+        c.pop("layout", None)   # a full-frame scene becomes an overlay: the canvas is the only full-frame visual
+        over.append(c)
+        side = 1 - side
+    lone, last = [], -99.0   # questions with no board after them: centred over the speaker, never over an overlay
+    for q in qs:
+        if up(q["start"], q["end"]) or q["start"] - last < BOARD_Q_GAP_S or \
+                any(o["start"] - 0.3 < q["end"] and q["start"] < o["end"] + 0.3 for o in over):
+            continue
+        last = min([q["end"] + 1.0, duration] + [o["start"] - 0.1 for o in over if o["start"] > q["end"]])
+        lone.append({"start": round(q["start"], 3), "end": round(last, 3),
+                     "words": [[clean(w["text"]).lower(), round(w["start"], 3)] for w in q["words"] if clean(w["text"])]})
+    heads = [h["box"] for h in (face or {}).get("heads", []) if h.get("box")]
+    head_x = sorted(b[0] + b[2] / 2 for b in heads)[len(heads) // 2] if heads else 50
+    # the speaker's framing: [at, zoom, side (-1 on the left, 0 centred, +1 on the right), move seconds], top-anchored
+    fkf = [[0, 1.0, 0, 0.01], [0.3, BOARD_FACE["push"], 0, 2.5]]
+    for a, b in views:   # back from the canvas: a slow push in, unless an overlay is about to want the speaker aside
+        if not any(c["start"] - 1.6 <= b + 0.4 <= c["end"] for c in over):
+            fkf += [[b, BOARD_FACE["rest"], 0, 0.01], [b + 0.4, BOARD_FACE["push"], 0, 2.5]]
+    for c in over:   # the speaker moves to the side the overlay is not on, zoomed in until the head clears its half
+        hd = head_during(face["heads"], face.get("step_s", 0.5), c["start"], c["end"]) if face else None
+        left = c["side"] == "left"
+        z = BOARD_FACE["side"]
+        if hd:   # Board.tsx faceRect: him on the right shows the source's left edge, on the left its right edge
+            z = min(BOARD_FACE["max"], max(z, 51 / max(1, hd[0]) if left else 49 / max(1, 100 - hd[2])))
+            edge = hd[0] * z if left else hd[2] * z - 100 * (z - 1)   # the head's near edge on screen, %
+            bx = c["box"]
+            if left and bx[0] + bx[2] > edge - 2:
+                bx[2] = max(30, round(edge - 2 - bx[0], 1))
+            elif not left and bx[0] < edge + 2:
+                bx[2], bx[0] = max(30, round(bx[0] + bx[2] - edge - 2, 1)), round(max(bx[0], min(edge + 2, 65)), 1)
+        fkf += [[max(0, c["start"] - 1.6), round(z, 3), 1 if left else -1, 1.0], [c["end"], BOARD_FACE["rest"], 0, 1.0]]
+    fkf.sort(key=lambda k: k[0])
+    ends = sorted([k[0] for k in fkf] + [duration])
+    for a, b in zip(ends, ends[1:]):   # a long stretch on the speaker eases in or back out every BOARD_REFRAME_S
+        t = a + BOARD_REFRAME_S
+        while b - t > 2.0:
+            if not any(v[0] - 0.5 < t < v[1] for v in views) and not any(c["start"] - 1.6 < t < c["end"] for c in over):
+                z = next(k[1] for k in sorted(fkf, key=lambda k: k[0], reverse=True) if k[0] <= t)
+                fkf.append([round(t, 3), 1.06 if z > 1.12 else BOARD_FACE["push"] + 0.06, 0, 2.2])
+                fkf.sort(key=lambda k: k[0])
+            t += BOARD_REFRAME_S
+    return over, {"mode": "board", "ground": "#0B0B0D", "boards": boards, "camera": cam, "views": views,
+                  "questions": lone, "face": fkf, "head_x": round(head_x, 1), "fade": BOARD_FADE_S, "cues": cues}
 
 
 def split_cards(cards, art):
@@ -1570,6 +1850,52 @@ def mark_emph(chunks):
         top = max(ws, key=lambda w: w["end"] - w["start"])
         if top["end"] - top["start"] > 1.4 * d[len(d) // 2] and len(top["text"]) > 3:
             top["emph"] = True
+    return chunks
+
+
+STOP = set("a an the and or but so to of in on at for with from by as is are was were be been it its i i'm i'd you "
+           "your we our they their he she his her this that these those there here what when how if not no do does did "
+           "can could will would just than then me my mine us them now also gonna wanna".split())   # look.py STOP
+LIGHT_FONT = {"serif": "Instrument Serif"}   # look.py light_face -> the Google face that sets it (a sans keeps font_match)
+
+
+def keywords(c):
+    return [w for w in c["words"] if clean(w["text"]).lower() not in STOP and len(clean(w["text"])) > 2]
+
+
+def spread(cands, n):
+    """n items of cands, evenly spaced."""
+    if n <= 0 or not cands:
+        return []
+    step = len(cands) / n
+    return [cands[int(k * step)] for k in range(min(n, len(cands)))]
+
+
+def type_pages(chunks, cap):
+    """The creator's caption typography on the pages (look.py line_types): accent_pct of the pages get their
+    keyword in the accent colour ("emph"); light_pct are set in her second, lighter face ("face": "light"); about a
+    tenth jump to her big keyword size ("big": big_ratio); stack_pct of the pages of 2+ words sit
+    on two lines ("lines": 2). Pages are picked spread over the video; keyword pages first when hers are keywords."""
+    n = len(chunks)
+    if not n:
+        return chunks
+    kw = [c for c in chunks if keywords(c)]
+    for c in spread(kw if (cap.get("accent_keyword_pct") or 0) >= 50 else chunks, round(n * (cap.get("accent_pct") or 0) / 100)):
+        for w in c["words"]:   # her accent colours the whole line ("having heard", "she can"), not one word
+            w["emph"] = True
+    plain = [c for c in chunks if not any(w.get("emph") for w in c["words"])]
+    pool = [c for c in plain if keywords(c)] if (cap.get("light_keyword_pct") or 0) >= 50 else [c for c in plain if not keywords(c)]
+    for c in spread(pool or plain, round(n * (cap.get("light_pct") or 0) / 100)):
+        c["face"] = "light"
+    if (cap.get("big_ratio") or 0) >= 1.4:   # under that it is the spread of one size
+        word = lambda c: max(keywords(c), key=lambda w: len(clean(w["text"])))
+        solo = [c for c in kw if len(clean(word(c)["text"])) >= 5 and c.get("face") != "light"]   # a real word, not "has"
+        for c in spread(solo, round(n / 7)):   # enough that her big size is in the top tenth of the lines measured
+            c["big"] = cap["big_ratio"]
+            word(c)["big"] = cap["big_ratio"]   # the keyword on its own line at her big size (Captions.tsx)
+    two = [c for c in chunks if len(c["words"]) >= 2 and not c.get("big")]
+    for c in spread(two, round(n * (cap.get("stack_pct") or 0) / 100)):
+        c["lines"] = 2
     return chunks
 
 
@@ -1702,13 +2028,69 @@ def overlay_led(c):
             and bool(c.get("src") or (c.get("anim") or {}).get("type") in OVERLAYS + ("social_post", "flow")))
 
 
+OFF_SCREEN = 30   # % of the runtime the creator is off screen (look.py face.present_pct) from which her cards are cut-aways
+
+
+DARK_CARDS = ("notes", "terminal")   # dark cards: always on the light ground (Scene.tsx sceneGrounds)
+
+
+def scene_grounds(cards, style):
+    """The grounds of her cut-aways: light paper and dark ink in the share that keeps her measured brightness (look.py
+    grade.luma; the footage is graded to it, so the scenes average it too), spread through the video; a dark card
+    always on paper. No measured luma: Scene.tsx's own cycle."""
+    luma = (style.get("grade") or {}).get("luma")
+    scenes = sorted((c for c in cards if c.get("scene_by") == "creator" and not c.get("ground")), key=lambda c: c["start"])
+    if luma is None or not scenes:
+        return cards
+    want, light = min(1.0, max(0.0, (luma - 13) / 242)), 0   # paper ~255, ink ~13
+    for k, c in enumerate(scenes, 1):
+        dark_card = (c.get("anim") or {}).get("type") in DARK_CARDS
+        c["ground"] = "ground" if dark_card or abs((light + 1) / k - want) < abs(light / k - want) else "ink"
+        light += c["ground"] == "ground"
+    return cards
+
+
+def off_screen(style):
+    """True when the creator is off screen OFF_SCREEN% of the time or more: her pictures take the whole frame
+    (b-roll, screen recordings), so a picture card with no layout of its own becomes a scene."""
+    p = (style.get("face") or {}).get("present_pct")
+    return took(style, "graphics") and p is not None and 100 - p >= OFF_SCREEN
+
+
+FACE_BACK_S = 8.0   # cut-aways never keep the speaker off screen longer than this (the 50/50 face_every_s rule)
+
+
+def hold_scenes(cards, words, duration, share):
+    """A creator off screen `share` of the time: while her cut-aways cover less than that, each scene plan.py made for
+    her holds to the end of the sentence it lands in, never into the next card and never keeping the face away more
+    than FACE_BACK_S in one run of cut-aways."""
+    order = sorted(cards, key=lambda c: c["start"])
+    have = sum(c["end"] - c["start"] for c in order if c.get("layout") == "scene")
+    ends = [w["end"] for i, w in enumerate(words) if ends_sentence(w["text"]) or i == len(words) - 1]
+    run0 = run1 = None
+    for k, c in enumerate(order):
+        if c.get("layout") == "scene":
+            run0 = c["start"] if run1 is None or c["start"] - run1 > 0.5 else run0
+            if c.get("scene_by") == "creator" and have < share * duration:
+                nxt = min([o["start"] for o in order[k + 1:]] + [duration])
+                end = min(next((e for e in ends if e > c["end"]), c["end"]), nxt - 0.3, run0 + FACE_BACK_S)
+                if end > c["end"]:
+                    have += end - c["end"]
+                    c["end"] = round(end, 3)
+            run1 = c["end"]
+    return cards
+
+
 def lay_out(cards, aspect, face, style, split_ok):
     """Gives every card its layout. A scene starts SCENE_LEAD_S x k earlier, a hard cut in no earlier (never before the card
     before it in its lane ends). Returns (cards, any card in the split panel)."""
     n = 0
     lead = SCENE_LEAD_S * MOTION_K.get(pick_motion(style), 1.0)
     prev_end = {}
+    away = off_screen(style)
     for c in sorted(cards, key=lambda c: c["start"]):
+        if away and not c.get("layout") and c.get("lane") != "logo":
+            c["layout"], c["scene_by"] = "scene", "creator"   # she cuts away from herself: her pictures take the whole frame
         f = frame_of(c, aspect)
         if f == "split" and not split_ok:
             f = "scene" if c.get("layout") == "split" else "box"   # no panel in overlay: a box, unless the beat asked for the panel
@@ -1814,6 +2196,7 @@ def with_formats(images, visuals):
 
 
 CAP_GLYPH = 0.35      # half a one-word lowercase caption's ink height, in font sizes (bold, x-height plus ascenders)
+EYES_SHARE = 0.45     # the eyes, down the head box (hair to chin)
 CHIN_SHARE = 0.1      # face.py grows the face down by 0.15 of its height; that is a tenth of the head box
 
 
@@ -1827,14 +2210,35 @@ def heads_median(face):
     return tops[len(tops) // 2], m[1] + m[3]
 
 
-def caption_under_chin(cap, face, aspect):
+def above_face(style):
+    """True when the creator's captions sit above her face (look.py's face and caption centres), so ours go over
+    the head, not under the chin, when they would land on it."""
+    c, f = style.get("captions") or {}, style.get("face") or {}
+    return bool(c.get("y_pct") and f.get("y_pct") and f.get("height_pct")) and c["y_pct"] < f["y_pct"] - f["height_pct"] / 2
+
+
+def page_tall(chunks):
+    """The tallest caption page against a one-line page: a big keyword (its line plus up to two at the page size) or a
+    stacked page (two lines, Captions.tsx STACK_K bigger, 1.14 line height)."""
+    return max([1.0] + [c["big"] + 1.14 * (len(c["words"]) > 1) for c in chunks if c.get("big")]
+               + [2 * 1.14 * 1.25 for c in chunks if c.get("lines") == 2])
+
+
+def caption_under_chin(cap, face, aspect, above=False, tall=1.0):
     """Captions never on the face. A vertical caption line that falls inside the head (face.json, the median head
     over the take) moves to the head box's bottom edge, the chin line just below the mouth, held inside the safe
-    zone (its ink above y 1440). Changes cap["y_pct"]; returns the chin line (% down) when it moved, else None."""
+    zone (its ink above y 1440); with above (the creator's captions sit over her face), to just over the head
+    when that is inside the safe zone. Changes cap["y_pct"]; returns the chin line (% down) when it moved under
+    the chin, else None."""
     hm = aspect == "9:16" and heads_median(face)
     if not hm or not hm[0] - 2 < cap["y_pct"] < hm[1]:
         return None
-    lowest = 100 - SAFE[aspect][3] - CAP_GLYPH * (cap.get("size_pct") or 4.4)
+    half = CAP_GLYPH * (cap.get("size_pct") or 4.4)
+    cap["off_face_from"] = cap["y_pct"]   # style_check.py: moved off the face on purpose, not a mismatch
+    if above and hm[0] - 0.6 - 2 * half * tall >= SAFE[aspect][1]:
+        cap["y_pct"] = round(hm[0] - 0.6 - half * tall, 1)   # the tallest page clears the head
+        return None
+    lowest = 100 - SAFE[aspect][3] - half
     cap["y_pct"] = round(min(hm[1] + 0.6, lowest), 1)
     return hm[1]
 
@@ -1849,8 +2253,16 @@ def clear_chin(zooms, face, cap):
         hd = head_during(face["heads"], face.get("step_s", 0.5), z["start"], z["end"])
         oy = (z.get("origin") or [50, 30])[1]
         chin = hd and hd[3] - CHIN_SHARE * (hd[3] - hd[1])
+        want = z.pop("want", z["scale"])
         if chin and chin > oy:
             k = (top - oy) / (chin - oy)
+            # held under the creator's punch: grow from the chin instead, the head rising (her 2x on a close shot
+            # crops the hair too), as far as keeps the eyes inside the safe zone and the head inside the width
+            eyes = hd[1] + EYES_SHARE * (hd[3] - hd[1])
+            up = min(want, (chin - SAFE["9:16"][1]) / max(1, chin - eyes), 100 / max(1, hd[2] - hd[0]))
+            if up > max(k, 1.02) and chin < top:
+                out.append({**z, "scale": round(up, 3), "origin": [z.get("origin", [50, 30])[0], round(chin, 1)]})
+                continue
             if k < 1.02:
                 continue
             z = {**z, "scale": round(min(z["scale"], k), 3)}
@@ -1897,9 +2309,13 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         cap["width_pct"] = min(cap.get("width_pct") or 86, 100 - 2 * m)
     chunks = mark_emph(chunk_captions(words, cap.get("words_per_caption") or 3, cap.get("case", "sentence"))) \
         if cap.get("present", True) else []
+    if took(style, "captions"):
+        chunks = type_pages(chunks, cap)
+        if cap.get("light_face") and any(c.get("face") == "light" for c in chunks):
+            cap["light_font"] = LIGHT_FONT.get(cap["light_face"], cap.get("font_match"))
     fj = edit_dir and Path(edit_dir) / "face.json"
     face = json.loads(fj.read_text(encoding="utf-8")) if fj and fj.exists() else None
-    chin = caption_under_chin(cap, face, aspect)
+    chin = caption_under_chin(cap, face, aspect, took(style, "captions") and above_face(style), page_tall(chunks))
     lay = {**SPLIT, **(style.get("layout") or {}), **(layout or {})}
     sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
     from ai_editor import profile as prof_mod
@@ -1907,10 +2323,17 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
             "durationInFrames": round(duration * fps),
             "look": pick_look(style, profile, prof_mod),
             "motion": pick_motion(style)}
+    grade = grade_for(style, Path(edit_dir) / meta["video"]) if edit_dir else None
+    if grade:
+        head["grade"] = grade
     if ((layout or {}).get("mode") or (style.get("layout") or {}).get("mode")) == "letterbox":
         if visuals:
             print("note: letterbox shows one opening photo only; visuals.json beats are not drawn", file=sys.stderr)
         return letterbox_plan(head, style, words, meta, images, face, {**(style.get("layout") or {}), **(layout or {})})
+    board = lay.get("mode") == "board"
+    if board and aspect != "16:9":
+        sys.exit("ERROR: the board layout is 16:9 only (the canvas, the side overlays and the speaker's left-right "
+                 "reframes need a wide frame); use --aspect 16:9 or another style for vertical")
     pace =(style.get("pace") or {}) if took(style, "pace") else {}
     # Explaining cards are scenes or sit in the split panel; the panel opens only when a card needs it,
     # unless the layout was set by hand (overlay: split cards become scenes).
@@ -1929,6 +2352,9 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
     cards = thin_cards(place_cards(list(images) + anim_items(visuals, edit_dir, style) + logo_items(visuals, edit_dir, logo_y, aspect, pictures_only(style)),
                                    words, duration, style, aspect), duration, style.get("cards"))
     cards, _ = lay_out(cards, aspect, face, style, split_ok)
+    cards = scene_grounds(cards, style)
+    if off_screen(style):
+        cards = hold_scenes(cards, words, duration, 1 - style["face"]["present_pct"] / 100)
     gap = card_gap_s(style)
     quiet = [g for g in card_gaps(cards, duration) if g[1] - g[0] > gap]
     cover = audio_cover(edit_dir, words)
@@ -1942,8 +2368,15 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         hd = head_during(face["heads"], face.get("step_s", 0.5), z["start"], z["end"])
         if hd:
             z["origin"] = [round((hd[0] + hd[2]) / 2, 1), round(hd[1], 1)]
+            # never past the frame: grown from the head's top, the head stays whole (a 2x punch on her wide shot is
+            # a 1.6x on a close one)
+            fit = round(min(100 / max(1, hd[2] - hd[0]), (100 - hd[1]) / max(1, hd[3] - hd[1])), 2)
+            if z["scale"] > fit:
+                z["want"], z["scale"] = z["scale"], max(1.0, fit)
     if chin is not None and not split_now:
         zooms = clear_chin(zooms, face, cap)
+    for z in zooms:
+        z.pop("want", None)
     for a, b in quiet:
         said = [f"'{n}' at {x['start']:.1f} s" for x in named_beats(edit_dir) if a <= x["start"] < b for n in x["names"]]
         print(f"warning: no card for {b - a:.1f} s ({a:.1f}-{b:.1f} s, the rule is {gap:.0f} s): "
@@ -1960,8 +2393,12 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         # a logo is dropped while a scene or a panel card is up (the frame is already showing the visual)
         rest = split_cards(rest + [{**c, "lane": None} for c in scenes], art)
         rest = readable_captures([c for c in rest if c.get("_f") != "scene"], aspect, pictures_only(style))
+        if lay.get("face_every_s"):
+            rest = face_every(rest, float(lay["face_every_s"]))
         out = {**head, "layout": {"mode": "split", "ground": lay["ground"], "seam": seam, "art": art,
-                                  "speaker": speaker_frame(face, seam), "caption_full_y": full_y}}
+                                  "speaker": speaker_frame(face, seam, -(CUTOUT_BREAKOUT - 2) if lay.get("variant") == "cutout" else HEAD_ROOM),
+                                  "caption_full_y": full_y,
+                                  **({"variant": "cutout", "breakout": CUTOUT_BREAKOUT} if lay.get("variant") == "cutout" else {})}}
     else:
         near = lambda c: c.get("lane") == "logo" and any(sc["start"] - 0.5 < c["end"] and c["start"] < sc["end"] + 0.5 for sc in scenes)
         for c in filter(near, rest):
@@ -1976,7 +2413,7 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         rest = place_overlays(rest, seen, cap["y_pct"], aspect, graphics(style, "layout").get("layout"))
         rest = avoid_heads(rest, seen, cap["y_pct"], aspect)
         rest = readable_captures(rest, aspect, pictures_only(style))
-        if behind:
+        if behind and not board:
             rest = tuck_behind(rest, face, aspect)
         out = dict(head)
     cards = clear_caption_paths(creator_motion(sorted(rest + scenes, key=lambda c: c["start"]), style, aspect), cap["y_pct"], aspect)
@@ -2013,8 +2450,14 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         # a soft rule, checked by check.py plan: the creator's winners show a graphic by then
         extra["targets"] = {"first_graphic_s": hook["first_graphic_s"],
                             "control_first_graphic_s": ((style.get("hook") or {}).get("control") or {}).get("first_graphic_s")}
+    cards = scene_parts(cards, words, edit_dir)
+    if board:   # logos -> tiles on the canvas, questions -> headings; the speaker's framing replaces the zooms and pans
+        cards, out["layout"] = board_layout(cards, words, duration, face, edit_dir)
+        zooms = []
+        for k in ("pans", "cover", "texts"):
+            extra.pop(k, None)
     return {**out, "captions": {"style": cap, "chunks": chunks}, "zooms": zooms, "card_gap_s": gap,
-            "cards": scene_parts(cards, words, edit_dir), **extra}
+            "cards": cards, **extra}
 
 
 def source_fps(fps):
@@ -2043,6 +2486,41 @@ def probe(video):
             "fps": int(num) / int(den or 1), "duration": float(d["format"]["duration"])}
 
 
+def footage_grade(video, w=48):
+    """(mean luma 0-255, mean HSV saturation 0-1) of the cut, one small frame a second: creator-teardown look.py's
+    grade_of on the same pixels."""
+    m = probe(video)
+    h = max(2, round(w * m["height"] / m["width"] / 2) * 2)
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(video), "-vf", f"fps=1,scale={w}:{h}", "-f", "rawvideo",
+                          "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
+    if not raw:
+        return None
+    luma = sat = 0.0
+    for k in range(0, len(raw) - 2, 3):
+        r, g, b = raw[k], raw[k + 1], raw[k + 2]
+        luma += 0.2126 * r + 0.7152 * g + 0.0722 * b
+        mx = max(r, g, b)
+        sat += (mx - min(r, g, b)) / mx if mx else 0
+    n = len(raw) // 3
+    return luma / n, sat / n
+
+
+GRADE_B, GRADE_S = (0.7, 1.3), (0.5, 1.8)   # how far the footage is pushed towards her grade (CSS brightness, saturate)
+
+
+def grade_for(style, video):
+    """plan.json "grade": the CSS brightness and saturate that take the cut's mean luma and saturation to the
+    creator's (look.py style.json "grade"), held inside GRADE_B / GRADE_S; None when hers is not measured or ours
+    is already within 3%."""
+    want = style.get("grade") if took(style, "graphics") else None
+    have = want and Path(video).exists() and footage_grade(video)
+    if not have or not want.get("luma") or not want.get("sat") or not have[0]:
+        return None
+    b = round(min(max(want["luma"] / have[0], GRADE_B[0]), GRADE_B[1]), 2)
+    s = round(min(max(want["sat"] / have[1], GRADE_S[0]), GRADE_S[1]), 2) if have[1] > 0.01 else 1.0   # grey stays grey
+    return None if abs(b - 1) < 0.03 and abs(s - 1) < 0.03 else {"brightness": b, "saturate": s}
+
+
 # --- caption contrast: the footage behind each caption page, measured on the cut --------------------------
 CONTRAST_MIN = 3.0     # WCAG 1.4.3 for large text; quality.py fails a caption under it (its CONTRAST_FAIL)
 # What plan.py aims at: the render check's 4.5:1 WARN line (quality.py CONTRAST_WARN) plus 0.2. Plan estimates the
@@ -2055,12 +2533,14 @@ CONTRAST_TARGET = 4.7
 # grey (#9A9A9A) desk, which agree to 0.04, rounded down. The renderer's default soft shadow, the
 # treatment's denser shadow, that plus a 0.1 em stroke, and all of it on a 0.45 backing (Captions.tsx).
 # glow: plain captions' step after the shadow (Captions.tsx), fitted the same way at TikTok Sans 600, 4.2%: 0.29 / 0.31.
-PULL = {"plain": 0.07, "shadow": 0.12, "glow": 0.28, "stroke": 0.45, "backing": 0.7}
+PULL = {"plain": 0.07, "shadow": 0.12, "glow": 0.28, "stroke": 0.45, "backing": 0.7, "band": 0.55}
+# band: plain captions' last step, the glow over a soft dark band the width of the frame behind the caption line
+# (Captions.tsx), no edge: alpha 0.5 at its middle composited with the glow, rounded down. Never a box or a stroke.
 TREATS = ("shadow", "stroke", "backing")
 # Plain captions (profile.py PLAIN_CAPTIONS) take a shadow, then a glow, and keep the glow while it reads at
 # PLAIN_MIN or better (the render check may WARN there, it does not FAIL). Only under that, where the page would
 # actually fail, do they get the stroke and then the backing.
-PLAIN_TREATS = ("shadow", "glow")
+PLAIN_TREATS = ("shadow", "band")
 PLAIN_MIN = CONTRAST_MIN + 0.3
 LUM = [((v / 255) / 12.92 if v / 255 <= 0.04045 else ((v / 255 + 0.055) / 1.055) ** 2.4) for v in range(256)]
 
@@ -2107,10 +2587,11 @@ def pick_treat(pixels, style):
     if got >= CONTRAST_TARGET:
         return None, hexc, got
     # a creator measured with no stroke and no box (plain white over the footage) keeps that look first too
+    # a creator measured with no stroke and no box keeps that: shadow, glow, then the soft band, never a stroke or box
     plain = is_plain(style)
-    for t in PLAIN_TREATS + TREATS[1:] if plain else TREATS:
-        if plain and t == "stroke" and got >= PLAIN_MIN:
-            return "glow", hexc, got
+    for t in PLAIN_TREATS if plain else TREATS:
+        if plain and t == "band" and got >= PLAIN_MIN:
+            return "shadow", hexc, got   # the soft shadow is enough to read: the band only where a page would fail
         got = treat_for(pixels, fill, PULL[t], tc)
         if got >= CONTRAST_TARGET:
             break
@@ -2183,15 +2664,28 @@ def treat_captions(plan, edit_dir, meta, floors=None):
             if t:
                 chunks[i].update(treat=t, treat_color=colour)
                 done[i] = (i, t, round(got, 2))
+    order = steps_of(cs)
     for i, c in enumerate(chunks):
         least = floors.get(f"{c['start']:.2f}")
+        if least not in order:   # a floor from before the band: the plain ladder's top step instead
+            least = order[-1] if least else None
         if least and STEPS.index(least) > STEPS.index(c.get("treat")):
             c.update(treat=least, treat_color=c.get("treat_color") or pick_treat([(128, 128, 128)], cs)[1])
             done[i] = (i, least, None)
+    # one treatment for the whole video: every page takes the strongest any page needed, never a mix (a glow on
+    # most pages and a box on one reads as a mistake)
+    top = max((c.get("treat") for c in chunks), key=STEPS.index, default=None)
+    if top:
+        colour = next(c["treat_color"] for c in chunks if c.get("treat") == top)
+        for i, c in enumerate(chunks):
+            if c.get("treat") != top:
+                c.update(treat=top, treat_color=colour)
+                done[i] = (i, top, done[i][2] if i in done else -1)   # -1: given it to match the rest
     return sorted(done.values())
 
 
-STEPS = (None, "shadow", "glow", "stroke", "backing")   # every treatment, least visible first
+STEPS = (None, "shadow", "glow", "band", "stroke", "backing")   # every treatment, least visible first
+
 
 
 def is_plain(cs):
@@ -2202,7 +2696,7 @@ def is_plain(cs):
 def steps_of(cs):
     """The treatments a page of this caption style steps through: plain captions have the glow, others skip it.
     Same test as pick_treat, so a page pick_treat gave the glow always has a next step."""
-    return STEPS if is_plain(cs) else (None,) + TREATS
+    return (None,) + PLAIN_TREATS if is_plain(cs) else (None,) + TREATS
 
 
 def contrast_summary(changed, chunks, worst=3):
@@ -2212,13 +2706,15 @@ def contrast_summary(changed, chunks, worst=3):
     by = {}
     for _, t, _ in changed:
         by[t] = by.get(t, 0) + 1
-    low = sorted((got, i) for i, _, got in changed if got)[:worst]
-    late = sum(1 for _, _, got in changed if not got)
+    low = sorted((got, i) for i, _, got in changed if got and got > 0)[:worst]
+    late = sum(1 for _, _, got in changed if got is None)
+    same = sum(1 for _, _, got in changed if got == -1)
     return (f"captions: {len(changed)} of {len(chunks)} pages treated for contrast ("
             + ", ".join(f"{n} {t}" for t, n in sorted(by.items(), key=lambda kv: -kv[1])) + ")"
             + (f"; lowest reached: " + ", ".join(f"{got}:1 '{chunks[i]['text']}' at {chunks[i]['start']:.1f} s"
                                                  for got, i in low) if low else "")
-            + (f"; {late} from the last render check" if late else ""))
+            + (f"; {late} from the last render check" if late else "")
+            + (f"; {same} only so every page has the same treatment" if same else ""))
 
 
 def contrast_floors(edit_dir, out):
@@ -2237,8 +2733,10 @@ def contrast_floors(edit_dir, out):
         order = steps_of(cap.get("style") or {})
         for c in cap["chunks"]:
             hit = lambda ts: any(c["start"] - 0.05 <= t <= c["end"] + 0.05 for t in ts)
-            if hit(low) and not (c.get("treat") == "glow" and not hit(fail)):
-                key, nxt = f"{c['start']:.2f}", order[min(len(order) - 1, order.index(c.get("treat")) + 1)]
+            if hit(low) and not (c.get("treat") == "shadow" and order[-1] == "band" and not hit(fail)):   # a plain page's WARN keeps its look
+                # the next step up on this style's ladder (a step from an older ladder, a glow, counts by its rank)
+                nxt = next((o for o in order if STEPS.index(o) > STEPS.index(c.get("treat"))), order[-1])
+                key = f"{c['start']:.2f}"
                 if STEPS.index(nxt) > STEPS.index(doc["pages"].get(key)):
                     doc["pages"][key] = nxt
         doc["read"].append(stamp)
@@ -2264,12 +2762,23 @@ def demo_punch():
     assert card_rate({**her, "cards": {"on": False}}) == 0 and card_rate({"cards": {"per_min": 4}}) is None
     assert card_rate({**her, "blend": {"take": ["captions"]}}) is None
     ws = [{"text": "Go.", "start": t, "end": t + 0.3} for t in (0.0, 10.0, 20.0, 30.0)]
-    z = place_zooms({"per_min": 6, "kind": "punch", "scale": 1.4, "on": "sentence_start"}, ws, 40.0, [], shot_s=2.4)
+    z = place_zooms({"per_min": 12, "kind": "punch", "scale": 1.4, "on": "sentence_start"}, ws, 40.0, [], shot_s=2.4)
+    # 12 measured zooms a minute = 6 punches, each in and back out
     assert [(x["start"], x["end"]) for x in z] == [(0.0, 2.4), (10.0, 12.4), (20.0, 22.4), (30.0, 32.4)], z
     assert len(place_zooms({"per_min": 6, "kind": "punch", "on": "sentence_start"}, ws, 40.0, [])) == 2
+    # "fewer zooms" (taste zoom.per_min) is the rate: the 5 s hold fill and the quiet fill no longer add them back
+    ur = user_rate({"zoom": {"per_min": 3, "max_hold_s": 5.0}}, {"zoom": {"per_min": 1}})["zoom"]
+    assert ur == {"per_min": 3, "max_hold_s": 60.0, "fill_quiet": False}, ur
+    assert user_rate({"zoom": {"max_hold_s": 5.0}}, {"zoom": {"per_min": 1, "max_hold_s": 4}})["zoom"] == {"max_hold_s": 5.0}
 
 
 def demo():
+    # music follows the creator (a bed in half her videos or more) unless the profile or the style page says otherwise
+    snd = {"sound": {"music": {"present_pct": 100}}}
+    assert music_wanted(snd, {}) is True and music_wanted(snd, {"sound": {"sfx": True}}) is True, "QA round 2: no bed"
+    assert music_wanted(snd, {"sound": {"music": False}}) is False and music_wanted({**snd, "music": False}, {"sound": {"music": True}}) is False
+    assert music_wanted({"sound": {"music": {"present_pct": 30}}}, {}) is False and music_wanted({}, {"sound": {"music": True}}) is True
+    assert music_wanted({**snd, "blend": {"take": ["captions"]}}, {}) is False, "sound not taken from that creator"
     demo_punch()
     hy = [{"text": t, "start": i * 0.3, "end": i * 0.3 + 0.25} for i, t in enumerate(["one", "-for", "-one", "deal"])]
     got = [c["text"] for c in chunk_captions(hy, 3, "sentence")]
@@ -2534,11 +3043,16 @@ def demo():
     assert pt2["box"][1] == OVERLAY_TOP and pt2["box"][1] + pt2["box"][3] <= 34 - HEAD_GAP + 1e-6, pt2["box"]
     assert heat({"grid": [[100, 0], [0, 0]]}, [0, 0, 50, 50]) == 1 and heat({"zones_pct": {"top": 40}}, [0, 10, 90, 20]) == 0.4
     # cut_kinds: a quarter of the cuts punch in
-    cz = place_zooms({"per_min": 600, "on": "every_cut"}, words, t, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], {"zoom-punch": 1, "hard": 3})
+    cz = place_zooms({"per_min": 120 / t, "on": "every_cut"}, words, t, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], {"zoom-punch": 1, "hard": 3})
     assert [(z["start"], z["end"]) for z in cz] == [(2.0, 6.0)], cz   # 2 of 8 cuts change the zoom: in at 2, out at 6
+    # her rate holds when the take has fewer cuts than hers: the rest land on sentence starts
+    cz = place_zooms({"per_min": 360 / t, "on": "every_cut"}, words, t, [2.0], {"zoom-punch": 1, "hard": 3})
+    assert len(cz) >= 2, cz   # one cut alone gave none
     # her sound: none a minute -> no cues; impact only -> no whooshes
     assert place_sfx(sp, sw, kit, {"sfx_per_min": 0}) == []
     assert all("whoosh" not in c["src"] for c in place_sfx(sp, sw, kit, {"kinds": {"impact": 100}}))
+    if "impact" in kit["cues"]:   # mostly impacts: the zooms and scene cuts take the low boom
+        assert {c["src"] for c in place_sfx(sp, sw, kit, {"kinds": {"impact": 57, "pop": 7}})} <= {".sfx/impact.wav", ".sfx/pop.wav"}
     # one lead model for plan, renderer and check: motion.ts carries the same two numbers
     ts = (Path(__file__).resolve().parents[3] / "remotion" / "src" / "motion.ts").read_text(encoding="utf-8")
     assert f"CARD_LEAD_S = {CARD_LEAD_S};" in ts and f"OVERLAY_LEAD_S = {OVERLAY_LEAD_S};" in ts, "motion.ts lead drifted"
@@ -2588,6 +3102,8 @@ def demo():
     bx = clear_entrances([zp(24.0, 28.5)], [{"start": 28.2, "end": 30.0, "layout": "box"}])
     assert bx[0]["end"] + PUNCH_S <= 28.2 - ENTER_S[0] + 1e-6, bx
     assert len(clear_entrances([zp(1.0, 3.0), zp(3.1, 5.0)], [])) == 1
+    # a punch that a scene would swallow lands as the scene leaves
+    assert [(z["start"], z["end"]) for z in clear_entrances([zp(10.0, 11.4)], [{"start": 10.1, "end": 12.8, "layout": "scene"}])] == [(13.55, 14.95)]
     with tempfile.TemporaryDirectory() as td:   # an audio clip: its cover moves on sentence starts, no zooms
         assert audio_cover(td, words) is None
         (Path(td) / "cover.png").write_bytes(b"")
@@ -2644,10 +3160,43 @@ def demo():
     fc = {"step_s": 0.5, "heads": [{"t": i / 2, "box": [35, 31, 48, 41.5]} for i in range(9)]}
     cp = {"y_pct": 64, "size_pct": 4.4}
     assert caption_under_chin(cp, fc, "9:16") == 72.5 and cp["y_pct"] == 73.1 <= 100 - SAFE["9:16"][3] - CAP_GLYPH * 4.4, cp
+    ca = {"y_pct": 40, "size_pct": 4.4}   # her captions sit over her face: ours go over the head, inside the safe zone
+    assert caption_under_chin(ca, fc, "9:16", above=True) is None and ca["y_pct"] == 28.9, ca
+    assert above_face({"captions": {"y_pct": 38.6}, "face": {"y_pct": 48.9, "height_pct": 8.2}})
+    assert not above_face({"captions": {"y_pct": 70}, "face": {"y_pct": 48.9, "height_pct": 8.2}})
+    # her grade: a grey cut is pulled darker towards her luma; saturation of grey cannot be scaled, so it is held
+    with tempfile.TemporaryDirectory() as gd:
+        gv = Path(gd) / "g.mp4"
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=0xA0A0A0:s=96x160:d=2", "-pix_fmt", "yuv420p",
+                        str(gv)], check=True)
+        lu, sa = footage_grade(gv)
+        assert 150 < lu < 170 and sa < 0.02, (lu, sa)
+        assert grade_for({"grade": {"luma": 120, "sat": 0.3}}, gv) == {"brightness": 0.76, "saturate": 1.0}
+        assert grade_for({"grade": {"luma": lu, "sat": sa}}, gv) is None and grade_for({}, gv) is None
+    ws = [{"text": t, "start": i, "end": i + 0.8} for i, t in enumerate("one two three. four five six seven eight nine ten eleven twelve.".split())]
+    hs = hold_scenes([{"start": 0.5, "end": 1.5, "layout": "scene", "scene_by": "creator"}, {"start": 4.0, "end": 5.0, "layout": "scene",
+                      "scene_by": "creator"}, {"start": 13.0, "end": 14.0}], ws, 14.0, 0.9)
+    assert hs[0]["end"] == 2.8 and hs[1]["end"] == 11.8 and hs[2]["end"] == 14.0, hs   # to the sentence end, held under 8 s
+    # her typography: accent keywords, a light second face, a big keyword, stacked pages; at her shares
+    tw = [{"text": t, "start": i * 0.4, "end": i * 0.4 + 0.3} for i, t in enumerate(
+        "we moved to london and it was the best thing so far but the rain never stops here in the city".split())]
+    tc = type_pages(chunk_captions(tw, 2, "lower"), {"accent_pct": 25, "accent_keyword_pct": 80, "light_pct": 15,
+                                                    "light_keyword_pct": 20, "big_ratio": 2.0, "stack_pct": 40})
+    acc = [w["text"] for c in tc for w in c["words"] if w.get("emph")]
+    assert acc and any(clean(a) not in STOP for a in acc), acc        # the accent lands on keyword pages, whole line
+    assert sum(c.get("face") == "light" for c in tc) == round(len(tc) * 0.15) and any(c.get("big") == 2.0 for c in tc)
+    assert sum(c.get("lines") == 2 for c in tc) == round(len(tc) * 0.4) and abs(page_tall(tc) - 3.14) < 0.01, tc   # a big keyword over one more line
+    # a creator off screen half the time: picture cards become full-frame cut-aways, logos stay boxes
+    oc, _ = lay_out([{"start": 1, "end": 3, "src": "images/a.png"}, {"start": 5, "end": 6, "lane": "logo", "src": "images/l.svg"}],
+                    "9:16", None, {"face": {"present_pct": 44}}, False)
+    assert [c["layout"] for c in oc] == ["scene", "box"], oc
+    gs = scene_grounds([{"start": i, "scene_by": "creator", **({"anim": {"type": "notes"}} if i == 3 else {})} for i in range(4)], {"grade": {"luma": 115}})
+    assert [c["ground"] for c in gs] == ["ink", "ground", "ink", "ground"], gs   # 42% paper for her 115; the notes card on paper
+    assert not off_screen({"face": {"present_pct": 95}}) and not off_screen({"face": {"present_pct": 44}, "blend": {"take": ["captions"]}})
     assert caption_under_chin({"y_pct": 80, "size_pct": 4}, fc, "9:16") is None and caption_under_chin({"y_pct": 64}, None, "9:16") is None
     # a push zoom from the head's top is held so the chin stays above the captions; one that cannot move is dropped
     zz = clear_chin([{"start": 0, "end": 2, "scale": 1.15, "origin": [59, 31]}, {"start": 2, "end": 4, "scale": 1.15, "origin": [59, 70]}], fc, cp)
-    assert 1.02 <= zz[0]["scale"] < 1.15 and zz[1]["scale"] == 1.15, zz     # grown from under the chin: it rises, kept
+    assert zz[0]["scale"] == 1.15 and zz[0]["origin"][1] == 68.3 and zz[1]["scale"] == 1.15, zz   # grown from the chin instead: the head rises, kept
     assert clear_chin([{"start": 0, "end": 2, "scale": 1.15, "origin": [59, 31]}], fc, {"y_pct": 68, "size_pct": 4.4}) == []
     # one capture per page: the second capture of the same URL is dropped
     vis = [{"kind": "capture", "word": "a", "url": "https://x.dev/"}, {"kind": "capture", "word": "b", "url": "https://x.dev"},
@@ -2689,25 +3238,30 @@ def demo_contrast():
     assert "5.0:1 'w8'" in got and "'w5'" not in got and "1 from the last render check" in got, got
     assert contrast_summary([], ch) == ""
     assert pick_treat([(230, 225, 216)] * 9, white)[:2] == ("backing", "#111111")  # a bright desk
-    # plain captions (the default): a glow where the shadow is not enough, never a stroke while the glow reads at
-    # PLAIN_MIN; under that (a page that would FAIL) the stroke, then the backing
+    # plain captions (the default): the soft shadow while it reads at PLAIN_MIN; under that (a page that would FAIL)
+    # the soft band behind the line, never a glow smear, a stroke or a box
     plain = {"color": "#FFFFFF", "shadow": False, "style": "plain"}
-    assert pick_treat([(160, 160, 160)] * 9, plain)[0] == "glow" and pick_treat([(160, 160, 160)] * 9, white)[0] == "stroke"
+    assert pick_treat([(160, 160, 160)] * 9, plain)[0] == "band" and pick_treat([(160, 160, 160)] * 9, white)[0] == "stroke"
     assert pick_treat([(126, 126, 126)] * 9, plain)[0] == "shadow"
-    assert pick_treat([(190, 190, 190)] * 9, plain)[0] in ("stroke", "backing")
+    assert pick_treat([(190, 190, 190)] * 9, plain)[0] == "band"
     with tempfile.TemporaryDirectory() as d:
         d = Path(d)
         (d / "plan.json").write_text(json.dumps({"captions": {"style": plain, "chunks": [
-            {"start": 1.0, "end": 2.0, "treat": "glow"}, {"start": 2.0, "end": 3.0, "treat": "glow"}, {"start": 3.0, "end": 4.0, "treat": "shadow"}]}}), encoding="utf-8")
+            {"start": 1.0, "end": 2.0, "treat": "shadow"}, {"start": 2.0, "end": 3.0, "treat": "shadow"}, {"start": 3.0, "end": 4.0, "treat": None}]}}), encoding="utf-8")
         (d / "check.json").write_text(json.dumps({"render": {"caption_contrast": {"low_at": [1.5, 2.5, 3.5], "fail_at": [2.5]}}}), encoding="utf-8")
-        assert contrast_floors(d, d / "plan.json") == {"2.00": "stroke", "3.00": "glow"}   # a WARN keeps the glow
+        assert contrast_floors(d, d / "plan.json") == {"2.00": "band", "3.00": "shadow"}   # a WARN keeps the shadow
         # a minimal style with no stroke and no box got the glow from pick_treat: plan again steps it up, no crash
         mini = {"color": "#FFFFFF", "style": "minimal", "stroke": False, "box": False}
         (d / "contrast.json").unlink()
         (d / "plan.json").write_text(json.dumps({"captions": {"style": mini, "chunks": [
             {"start": 5.0, "end": 6.0, "treat": "glow"}]}}), encoding="utf-8")
         (d / "check.json").write_text(json.dumps({"render": {"caption_contrast": {"low_at": [5.5], "fail_at": [5.5]}}}), encoding="utf-8")
-        assert contrast_floors(d, d / "plan.json")["5.00"] == "stroke"
+        assert contrast_floors(d, d / "plan.json")["5.00"] == "band"
+        # one treatment per video: the strongest any page needed goes on every page
+        tp = {"captions": {"style": {"color": "#FFFFFF", "stroke": True}, "chunks": [
+            {"start": 5.0, "end": 6.0, "treat": "shadow", "treat_color": "#111111"}, {"start": 6.0, "end": 7.0}]}}
+        treat_captions(tp, d, None, {"5.00": "backing"})
+        assert [c["treat"] for c in tp["captions"]["chunks"]] == ["backing", "backing"], tp
     assert pick_treat([(230, 225, 216)] * 9, {**white, "stroke_color": "#1B2A4A"})[1] == "#1B2A4A"   # her palette
     assert pick_treat([(250, 250, 250)] * 9, {**white, "highlight_color": "#5A5A5A"})[0] == "backing"
     assert pick_treat([(20, 20, 20)] * 9, {"color": "#111111"})[:2] == ("backing", "#F5F5F5")     # dark text
@@ -2958,12 +3512,57 @@ def effective_style(sp, prof, edit_dir, count=True):
               f"with the edit: python3 {Path(profile.__file__)} style {edit_dir}", file=sys.stderr)
         style = profile.default_style(prof)
     mine = taste.load_json(edit_dir, count=count, style=sp)
-    return profile.fill_transitions(taste.merge(with_presets(style, mine), mine),
+    return profile.fill_transitions(user_rate(taste.merge(with_presets(style, mine), mine), mine),
                                     lambda m: print(f"note: {m}", file=sys.stderr))
+
+
+def user_rate(style, mine):
+    """A zoom rate the user set ("fewer zooms" -> zoom.per_min) is the rate: the hold fill (max_hold_s, a change at
+    least every 5 s) and the quiet-stretch fill would add the zooms back, so they stretch to one change per
+    60 / per_min s. Without this a per_min under the style's own changed nothing on most takes."""
+    uz = mine.get("zoom") if isinstance(mine.get("zoom"), dict) else {}
+    if uz.get("per_min") and "max_hold_s" not in uz:
+        z = style.setdefault("zoom", {})
+        z["max_hold_s"] = max(z.get("max_hold_s") or 0, round(60 / uz["per_min"], 1))
+        z["fill_quiet"] = False
+    return style
+
+
+def demo_face_every():
+    cs = [{"start": 0.0, "end": 4.0, "trigger_word": "a"}, {"start": 4.5, "end": 7.0, "trigger_word": "b"},
+          {"start": 7.5, "end": 11.0, "trigger_word": "c"}, {"start": 11.2, "end": 11.8, "trigger_word": "d"}]
+    out = face_every(cs, 8)
+    assert [c["trigger_word"] for c in out] == ["a", "b", "c", "d"] and out[2]["start"] == 8.5, out   # c waits for a face beat
+    assert face_every([*cs[:2], {"start": 7.5, "end": 9.8, "trigger_word": "e"}], 8)[-1]["start"] == 8.5
+    assert len(face_every([*cs[:2], {"start": 7.5, "end": 8.6, "trigger_word": "f"}], 8)) == 2   # too short after the wait
+    held = face_every([dict(c) for c in cs[:2]], 8)
+    assert held[0]["end"] == 4.5 and held[1]["end"] == 7.0, held   # held across the 0.5 s gap, never an empty panel
+
+
+def demo_board():
+    ws = [{"text": t, "start": i * 0.8, "end": i * 0.8 + 0.6} for i, t in enumerate(
+        "So which tool should you use? I use Notion and Linear. It is fine. Then Claude writes it. Why does it work? Nobody knows.".split())]
+    at = lambda w: next(x["start"] for x in ws if clean(x["text"]) == w)   # noqa: E731
+    logo = lambda w, slug: {"anim": {"type": "logo", "props": {"src": f"images/logo-{slug}.svg"}}, "start": at(w) - 0.1,   # noqa: E731
+                            "end": at(w) + 1.5, "trigger_word": w, "lane": "logo"}
+    over = {"anim": {"type": "notes", "props": {}}, "start": at("fine") - 0.1, "end": at("fine") + 0.6, "trigger_word": "fine",
+            "box": [10, 10, 80, 30]}
+    cards, L = board_layout([logo("Notion", "notion"), logo("Linear", "linear"), over, logo("Claude", "claude")], ws, 20.0, None)
+    b1, b2 = L["boards"]
+    assert [t["label"] for t in b1["tiles"]] == ["notion", "linear"] and b1.get("question"), b1   # tiles after a question: it rises
+    assert [w for w, _ in b1["heading"]] == ["which", "tool", "should", "you", "use"], b1["heading"]   # "so" dropped
+    assert b1["start"] <= b1["rise"] < b1["tiles"][0]["at"] and b1["end"] <= over["start"] - 0.5, b1
+    assert [w for w, _ in b2["heading"]][-1] == "claude" and b2["x"] != b1["x"] and b2["y"] > b1["y"], b2
+    assert len(cards) == 1 and cards[0]["box"] == BOARD_OVERLAY_BOX[0] and cards[0]["side"] == "left"   # the overlay, left
+    assert any(k[2] == 1 and k[0] < over["start"] for k in L["face"]), L["face"]   # the speaker moved right before it
+    assert [q["words"][0][0] for q in L["questions"]] == ["why"], L["questions"]   # a question with no board: centred
+    assert [n for _, n in L["cues"]].count("whoosh-in") == 1 and "zoom" in [n for _, n in L["cues"]], L["cues"]
 
 
 def main():
     if sys.argv[1:] == ["demo"]:
+        demo_face_every()
+        demo_board()
         import os
         os.environ["AI_EDITOR_LIBRARY"] = tempfile.mkdtemp(prefix="plan_demo_lib_")   # never the user's custom/ folder
         return demo()
@@ -2974,7 +3573,7 @@ def main():
     ap.add_argument("words")
     ap.add_argument("--images")
     ap.add_argument("--aspect", choices=["auto", "9:16", "16:9"], default="auto")
-    ap.add_argument("--layout", choices=["overlay", "split", "letterbox"], help="default: style.json layout.mode, else overlay")
+    ap.add_argument("--layout", choices=["overlay", "split", "letterbox", "board"], help="default: style.json layout.mode, else overlay")
     ap.add_argument("--title", help="letterbox: the title above the band (default: the first sentence, lowercase)")
     ap.add_argument("--out")
     ap.add_argument("--no-sfx", action="store_true", help="no sound cues (same as \"sfx\": false in style.json)")
@@ -3001,21 +3600,31 @@ def main():
                  probe(video), images, a.aspect, cut_points(edit_dir), visuals, edit_dir,
                  {k: v for k, v in (("mode", a.layout), ("title", a.title)) if v} or None, prof, None if a.behind is None else a.behind == "on")
     out = Path(a.out) if a.out else edit_dir / "plan.json"
-    line = contrast_summary(treat_captions(plan, edit_dir, probe(video), contrast_floors(edit_dir, out)),
-                            plan["captions"]["chunks"])
+    treated = treat_captions(plan, edit_dir, probe(video), contrast_floors(edit_dir, out))
+    line = contrast_summary(treated, plan["captions"]["chunks"])
     if line:
         print(line, file=sys.stderr)
     if a.no_sfx or (prof.get("sound") or {}).get("sfx") is False:
         plan["sfx"] = []
-    want_music = style["music"] if "music" in style else (prof.get("sound") or {}).get("music")   # the style page's switch wins
-    if (edit_dir / ".sfx" / "music.wav").exists() and want_music is not False:
-        plan["music"] = {"src": ".sfx/music.wav"}   # sfx.py music: the bed, ducked under the speech
+    want_music = music_wanted(style, prof)   # the style page's switch, else the profile, else the creator
     music = ((style.get("sound") or {}).get("music") or {}) if took(style, "sound") else {}
-    if music.get("present_pct") and "music" not in plan:   # guidance only: the renderer lays no music (references/visuals.md "From the teardown")
-        print(f"music: the creator runs a bed under {music['present_pct']}% of her videos, {abs(music.get('level_db') or 0):.0f} dB "
-              "under the voice; sfx.py music lays one at that level (the style-edit Sound step)", file=sys.stderr)
+    bed = edit_dir / ".sfx" / "music.wav"
+    if want_music and not bed.exists():   # nobody laid one (the Sound step was skipped): a generated bed at her level
+        try:
+            import sfx
+            sfx.music(edit_dir, under_db=music.get("level_db"))
+        except Exception as e:   # noqa: BLE001  no numpy outside the venv, no ffprobe: say so, check.py fails the plan
+            print(f"music: this edit should have a bed and none could be made ({e}); run sfx.py music {edit_dir}", file=sys.stderr)
+    if bed.exists() and want_music is not False:
+        plan["music"] = {"src": ".sfx/music.wav"}   # sfx.py music: the bed, ducked under the speech
+    if music.get("present_pct") is not None and music["present_pct"] < MUSIC_PCT and "music" in plan:
+        print(f"music: the creator runs a bed under only {music['present_pct']}% of her videos; the bed in .sfx/music.wav "
+              "is not her look: delete it and plan again unless the user asked for music", file=sys.stderr)
     from preview import apply_overrides   # edits/<name>/overrides.json, written by the preview page
     plan = apply_overrides(plan, edit_dir, out.name)
+    allow = (style.get("look") or {}).get("allow") or []
+    if allow:   # the AI tells this style asks for by name (ai_tells.for_brand): the 50/50's paper ground
+        plan["allow_tells"] = list(allow)
     import matte   # a re-plan keeps the speaker's cutout wherever matte.py already cut every frame it needs
     if matte.behind_ranges(plan):
         plan["cutouts"] = matte.kept(plan, edit_dir)
@@ -3025,7 +3634,7 @@ def main():
     keep_rendered(out)
     out.write_text(json.dumps(plan, indent=1), encoding="utf-8")
     from ai_tells import check_plan as ai_tells, for_brand   # the AI-made look (references/ai-tells.md)
-    for f in for_brand(ai_tells(plan, visuals), prof.get("brand")):
+    for f in for_brand(ai_tells(plan, visuals), prof.get("brand"), plan.get("allow_tells")):
         print(f"{'error' if f['level'] == 'BAN' else 'warning'}: AI tell '{f['tell']}': {f['where']} -> {f['fix']}", file=sys.stderr)
     print(f"{out}: {plan['width']}x{plan['height']}, {plan['durationInFrames'] / plan['fps']:.1f} s, "
           f"{len(plan['captions']['chunks'])} captions, {len(plan['zooms'])} zooms, {len(plan['cards'])} cards")

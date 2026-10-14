@@ -104,6 +104,9 @@ def prefer(style):
     return out
 
 
+OFF_SCENE_S = 3.0   # a cut-away's length, for counting how many reach a b-roll-led creator's off-screen share
+
+
 def want(beats, style):
     """Marks "want": true on as many beats as the creator shows cards in a video this long (plan.card_rate: her
     graphics.per_min under the user's own cards cap),
@@ -115,6 +118,10 @@ def want(beats, style):
         return 0, None
     n = max(1, round(beats[-1]["end"] / 60 * pm))
     gap = 30 / pm
+    from plan import off_screen
+    if off_screen(style or {}) and not (style.get("cards") or {}).get("per_min"):   # a b-roll-led creator (the user's cap wins): enough cut-aways of OFF_SCENE_S to reach her off-screen share
+        away = 1 - style["face"]["present_pct"] / 100
+        n, gap = max(n, round(beats[-1]["end"] * away / OFF_SCENE_S)), min(gap, 2.0)
     picked = []
     for b in sorted(beats, key=lambda b: (not b.get("names"), -(b["end"] - b["start"]), b["start"])):
         if len(picked) < n and b["end"] > 1.0 and all(abs(b["start"] - x["start"]) >= gap for x in picked):
@@ -140,11 +147,37 @@ def rank_highlight(blocks, said):
     return sorted(blocks, key=lambda b: -len(toks & set(re.findall(r"[a-z0-9]+", b.lower()))))[:MAX_LINES]
 
 
+NUM = re.compile(r"\b\d[\d,.]*\b|\b(?:hundred|thousand|million|billion|percent|half|double|twice|times)\b", re.I)
+STEPS = re.compile(r"\b(?:first|second|third|then|next|finally|step)\b", re.I)
+VERSUS = re.compile(r"\b(?:before|after|instead|versus|vs|used to|compared|better than|worse than|faster than)\b", re.I)
+FLOWS = re.compile(r"\b(?:sends?|goes to|passes|hands?|from \w+ to|into|pipeline|workflow|connects?)\b", re.I)
+UI = re.compile(r"\b(?:drag|click|type|upload|render(?:s|ing)?|cut(?:s|ting)?|open|install|run(?:s|ning)?|press)\b", re.I)
+
+
+def motion_kind(text):
+    """What a sentence is doing, for the motion skill (style.json "motion" kinds): a number said, steps or a list of
+    three or more, a comparison, things handing work along, an app being used. None: nothing to animate."""
+    if VERSUS.search(text):
+        return "before_after"
+    if NUM.search(text):
+        return "counter"
+    if len(STEPS.findall(text)) >= 2 or text.count(",") >= 2:
+        return "list"
+    if FLOWS.search(text):
+        return "flow"
+    if UI.search(text):
+        return "ui_demo"
+    return None
+
+
 def demo():
     ws = [{"text": t, "start": i * 0.4, "end": i * 0.4 + 0.3} for i, t in
           enumerate("I built a router with Jev. It is 40 times faster than Claude. Follow me.".split())]
     bs = sentences(ws)
     assert [b["text"] for b in bs] == ["I built a router with Jev.", "It is 40 times faster than Claude.", "Follow me."]
+    assert [motion_kind(b["text"]) for b in bs] == [None, "before_after", None]
+    assert motion_kind("over 10,000 people asked for it") == "counter" and motion_kind("first cut it, then render it") == "list"
+    assert motion_kind("you can drag in a video") == "ui_demo" and motion_kind("it sends the take to the judge") == "flow"
     names = [{"name": "Jev"}, {"name": "Claude"}, {"name": "Claude Code"}]
     for b in bs:
         b["names"] = named(b["text"], names)
@@ -177,11 +210,35 @@ def demo():
     assert [b["start"] for b in wb if b["want"]] == [9.0, 14.0, 25.0], wb
     assert want(wb, {"graphics": {"per_min": 6}, "blend": {"take": ["captions"]}}) == (0, None)
     assert want(wb, {"graphics": {"per_min": 6}, "cards": {"per_min": 2}}) == (1, 2)   # the user's cap wins
+    assert want(wb, {"graphics": {"per_min": 6}, "face": {"present_pct": 40}})[0] == 6   # off screen 60%: 30 s x 0.6 / 3 s
     assert where({"graphics": {"layout": {"zones_pct": {"top": 84, "bottom": 12}}}}) == "top of the frame (84% of hers)"
     hl = rank_highlight(["Pricing starts at $5.", "It answers in 40 ms, 200x faster than a frontier model."],
                         "it's 40 to 200 times faster")
     assert hl[0].startswith("It answers") and len(hl) == 2, hl
+    # what only a beat copies: a title at the open, and full-frame cut-aways for a creator mostly off screen
+    hs = style_hints({"hook": {"title_on_screen_pct": 80}, "face": {"present_pct": 44}})
+    assert len(hs) == 2 and "title" in hs[0] and "56%" in hs[1], hs
+    assert style_hints({"hook": {"title_on_screen_pct": 20}, "face": {"present_pct": 95}}) == []
+    assert style_hints({"hook": {"title_on_screen_pct": 80}, "blend": {"take": ["captions"]}}) == []
     print("route ok")
+
+
+def style_hints(style):
+    """What the creator does that only a visuals.json beat can copy: words on screen at the open (report.py
+    hook.title_on_screen_pct) and cut-aways that take the whole frame (look.py face.present_pct)."""
+    from plan import took
+    out = []
+    if not took(style, "graphics"):
+        return out
+    pct = (style.get("hook") or {}).get("title_on_screen_pct")
+    if pct and pct >= 50:
+        out.append(f"the creator opens with words on screen in {pct}% of her videos: add a \"title\" beat at the open, "
+                   "a few of the speaker's own words of the hook (shapes.md)")
+    face = (style.get("face") or {}).get("present_pct")
+    if face is not None and face < 70:
+        out.append(f"the creator is off screen {100 - face:.0f}% of the time: plan.py shows the picture cards full "
+                   "frame (scenes) to reach it, so give every want a picture (capture, post, github, video_card)")
+    return out
 
 
 def main():
@@ -226,11 +283,14 @@ def main():
         if n:
             print(f"the creator's rate: {pm:g} cards a minute, so {n} in this video; \"want\" marks the sentences to give one"
                   + (f", placed at the {where(style)}" if where(style) else "") + " (SKILL.md step 3, \"Pacing\")")
+        for line in style_hints(style):
+            print(line)
         for b in beats:
             b["pick"] = None   # Claude routes each sentence
+            b["motion"] = motion_kind(b["text"])   # a hint: the motion skill builds a clip where the pick is a moving format
         (edit / "beats.json").write_text(json.dumps(beats, indent=1), encoding="utf-8")
         for b in beats:
-            print(f"{b['start']:6.2f} {'*' if b.get('want') else ' '} {str(b.get('pick')):20}  {b['text']}"
+            print(f"{b['start']:6.2f} {'*' if b.get('want') else ' '} {str(b.get('motion') or ''):12}  {b['text']}"
                   + (f"   [{', '.join(b['names'])}]" if b["names"] else "")
                   + (f"   logo_cluster? {', '.join(b['logos'])}" if len(b.get("logos") or []) > 1 else ""))
         print(f"-> {edit / 'beats.json'}")

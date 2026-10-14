@@ -310,12 +310,15 @@ def check_plan(plan, visuals=None, table=None):
     return dedupe(out)
 
 
-def for_brand(found, brand=None):
-    """A BAN that the user's own brand kit names (its font, colour or preset) is theirs to choose: WARN."""
+def for_brand(found, brand=None, allow=()):
+    """A BAN that the user's own brand kit names (its font, colour or preset) is theirs to choose: WARN. So is a tell
+    the style itself asks for by name (style.json look.allow, plan.json "allow_tells": the 50/50 style's paper)."""
     named = [str(v).lower() for v in (brand or {}).values() if isinstance(v, (str, int, float)) and str(v).strip()]
     named += [str(c).lower().lstrip("#") for c in (brand or {}).get("colors") or []]
     out = []
     for f in found:
+        if f["level"] == "BAN" and f.get("tell") in (allow or ()):
+            f = {**f, "level": "WARN", "fix": f["fix"] + " (this style asks for it, so only a warning)"}
         if f["level"] == "BAN" and any(n and n in f["where"].lower() for n in named):
             f = {**f, "level": "WARN", "fix": f["fix"] + " (your brand kit names it, so only a warning)"}
         out.append(f)
@@ -478,6 +481,8 @@ def demo():
       glass: { ...EDITORIAL, preset: "glass", ground: "rgba(14,15,19,0.78)", surface: "glass", font: "Montserrat", font_display: "Montserrat" } };'''
     T = presets(tsx)
     assert for_brand([tell("default-grotesk-display", "look 'neutral'", "Inter")], {"font": "Inter"})[0]["level"] == "WARN"
+    assert for_brand([tell("cream-paper-ground", "x")], None, ["cream-paper-ground"])[0]["level"] == "WARN"
+    assert for_brand([tell("cream-paper-ground", "x")], None, [])[0]["level"] == "BAN"
     assert T["editorial-dark"]["font"] == "Archivo" and T["neutral"]["ground"] == "#FFFFFF", T
     ids = lambda fs: {f["tell"] for f in fs}  # noqa: E731
     assert ids(check_look({"preset": "editorial"}, T)) == {"cream-paper-ground", "default-grotesk-body"}
@@ -559,6 +564,16 @@ def main():
     a = sys.argv[1:]
     if a == ["demo"]:
         return demo()
+    if a[:1] == ["still"] and len(a) >= 2:   # one picture (the motion skill's clip check): still <png> [--allow t1,t2]
+        import cv2
+        img = cv2.imread(a[1])
+        if img is None:
+            sys.exit(f"cannot read {a[1]}")
+        allow = a[a.index("--allow") + 1].split(",") if "--allow" in a else []
+        found = for_brand(check_still(img, Path(a[1]).name), None, allow)
+        for f in found:
+            print(f"{f['level']:4}  {f['tell']:24} {f['where']}\n      fix: {f['fix']}")
+        sys.exit(1 if any(f["level"] == "BAN" for f in found) else 0)
     if not a:
         sys.exit(__doc__)
     edit = Path(a[0])

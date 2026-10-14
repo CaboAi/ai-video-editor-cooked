@@ -19,7 +19,10 @@ sheet against the `stills-critic` list and fixes what fails, and copies its `dec
 `prep-decisions.json`. Every visual it writes names a word and which time it is said (`nth`), never a
 second. It renders no video, uploads nothing and spends nothing.
 
-Wait for its JSON if it is still running. Cut approved unchanged (`cmp decisions.json prep-decisions.json`)
+Wait for its JSON if it is still running. Its `motion_briefs` went to clip-builder agents (motion skill): wait
+for them too, then `python3 "${CLAUDE_PLUGIN_ROOT}/skills/motion/scripts/motion.py" place edits/<name>` and plan
+and stills again in one Bash call, so the sheet shows the clips (a clip that failed keeps its template card).
+Cut approved unchanged (`cmp decisions.json prep-decisions.json`)
 and `stills/sheet.png` there: go straight to step 5. With `"reviewed": "pass"` the sheet is already checked:
 look at it once and ask Approve. No second `stills-critic`, no re-plan and no reading plan.py, capture.mjs or
 the renderer's source unless you see a problem on the sheet; then fix only that (visuals.json or images.json,
@@ -144,9 +147,19 @@ minute, kinds) sets the budget and the cues (visuals.md "From the teardown").
 
 ## Music
 
-Unless the profile says `sound.music: false`, ask once in the question box: **Generated for this
+The style decides; the profile overrides only when the user set `sound.music`:
+
+- `sound.music: false`: no music, no question.
+- not set, and the style's `sound.music.present_pct` is 50 or more (the creator runs a bed): plan.py lays a
+  generated bed itself (`sfx.py music`, at the creator's level) when `.sfx/music.wav` is missing, without asking.
+  Say it in one line on the review page ("Music like <creator>. Leave a note to change or drop it").
+  `check.py plan` fails a plan with no bed for such a style, and `check.py render` fails a render that does not
+  carry the planned bed (`plan.music_wanted`, `check.music_findings`).
+- not set, and the creator has no bed (or no creator): no music, no question.
+- `sound.music: true`, or the user asks for music: ask once in the question box: **Generated for this
 cut (Recommended)** / **Your own track** (a file) / **A YouTube link** (or any link yt-dlp reads) /
-**None**. For a link, ask for an optional start and end, then who holds the rights: "It's my own
+**None**. A copied creator with a bed in under half her videos (style.json `sound.music.present_pct`):
+**None** is the recommended option instead. For a link, ask for an optional start and end, then who holds the rights: "It's my own
 track" / "YouTube Audio Library or Creative Commons (I'll credit it)" / "Licensed (Epidemic, Artlist
 etc.)" / "Not sure". Then:
 

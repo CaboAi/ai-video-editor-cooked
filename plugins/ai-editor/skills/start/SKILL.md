@@ -64,8 +64,8 @@ python3 "$P" missing --style     # answered at setup, or by the style picked in 
 
 A `JOB video` (the window picked the style), "just edit it", or no id printed: run `python3 "$P" defaults`
 and ask nothing. It keeps every saved answer and fills the rest with the first option (audience "people
-curious about the topic", goal follow, names found in what they say). Say what it used on the review page:
-`review.py <edit> status "For people curious about the topic, then follow. Tell Claude to change it"`.
+curious about the topic", goal follow, names found in what they say). Post no status about defaults: the
+review page shows an audience only when the user gave one (`review.py <edit> status "For <their audience>"`).
 Otherwise read `references/intake.md` and ask the printed ids in one question box. Profile: `python3 "$P" show`.
 
 ## 3. Route

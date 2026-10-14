@@ -2307,6 +2307,8 @@ def make_handler(token):
             # every video gets a Claude of its own in a new Terminal window, unless an idle listening Claude takes it now
             lis, d = listener(), read()
             idle = lis is not None and not busy_with(d, lis) and not any(takeable(j, lis, d) for j in d["jobs"] if j["id"] not in ids)
+            # the sample before setup is done: the Claude installing takes it next, as a second one would install again
+            idle = idle or sample and not getting_started(d)["setup"]
             for jid in ids[1:] if idle else ids:
                 claude_for(jid)
             return self.send(200, {"id": ids[0], "ids": ids, "edits": edits})

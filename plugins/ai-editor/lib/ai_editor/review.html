@@ -297,6 +297,19 @@ aside{width:320px;flex-shrink:0;background:var(--panel);border-left:1px solid va
 .rnd:hover{background:var(--hover)}.rnd.on{background:var(--chip)}
 .rnd b{font-size:14px;line-height:18px;font-weight:600}.rnd span{color:var(--muted)}
 .pfoot{flex-shrink:0;padding:16px;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line)}
+/* Anything to add?: the images and links added to this video (assets.json), each with a remove x */
+#adds{display:flex;flex-direction:column;gap:6px}
+#adds .obtn{display:inline-flex;align-items:center;gap:6px;font-weight:500;color:var(--ink)}
+.arow{display:flex;align-items:center;gap:8px;font-size:13px;line-height:17px;color:var(--strong)}
+.arow .ath{width:28px;height:28px;border-radius:6px;background:var(--chip) center/cover;display:grid;place-items:center;flex-shrink:0;color:var(--quiet)}
+.arow .an{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arow .an i{font-style:normal;color:var(--quiet)}
+.arow button,.addin button{height:28px;min-width:28px;padding:0 8px;border-radius:8px;border:1px solid var(--line2);background:var(--panel);color:var(--strong);font-size:13px;font-weight:600;display:grid;place-items:center;flex-shrink:0}
+.arow button:hover,.addin button:hover{border-color:var(--ink)}
+.addin{display:flex;gap:6px;align-items:center}
+.addin input,#addsay{flex:1;min-width:0;height:32px;border:1px solid var(--line2);border-radius:8px;background:var(--panel);padding:0 10px;font-family:inherit;font-size:13px;color:var(--strong);outline:none}
+#addsay{flex:none}
+.addin input:focus,#addsay:focus{border-color:var(--ink)}
+.amsg{font-size:12px;line-height:16px;color:var(--quiet)}
 #box{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-height:40px;padding:5px 4px 5px 6px;background:var(--panel);border:1px solid var(--line2);border-radius:10px}
 #box .crow{display:contents}
 #box.drag{border-color:var(--ink)}
@@ -477,6 +490,7 @@ body.making #making{display:flex}
  <div class="mhead2"><div><b>Notes</b><span id="mcount"></span></div><button id="msend"></button></div>
  <div id="list"></div>
  <div class="pfoot">
+  <div id="adds"></div><input type="file" id="addfile" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
   <div id="box"><textarea id="ta" rows="1" aria-label="note"></textarea><div id="pics"></div>
    <input type="file" id="picin" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
    <input type="file" id="editpic" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
@@ -620,7 +634,7 @@ function steps(){
 function listenText(S){
   const e=S.events[S.events.length-1],picked=!!(S.sent&&e&&e.handled);
   if(picked&&e.type==='approve')return e.stills?'Claude is rendering the edit':e.stage==='cut'?(S.stage==='cut'&&!S.final?'Claude is making the edit':'The cut is approved'):'Approved';
-  if(picked)return S.raw?(S.cut_steps&&S.cut_steps.state==='queued'?((S.cut_steps.claude||{}).opened?'A new Claude is starting':'Waiting for Claude'):'Claude is making the cut'):e.type==='edits'?'Claude is applying your changes':'Claude is working on round '+(S.round+1);
+  if(picked)return S.raw?(S.cut_steps&&S.cut_steps.state==='queued'?((S.cut_steps.claude||{}).opened?'Claude is working in its own Terminal window':'Waiting for Claude'):'Claude is making the cut'):e.type==='edits'?'Claude is applying your changes':'Claude is working on round '+(S.round+1);
   if(S.sent)return e&&e.type==='edits'?'Changes sent':e&&e.type==='approve'?(e.stills?'Stills approved':e.stage==='cut'?'Cut approved':'Approved'):'Notes sent';
   if(S.listening)return S.round>1&&!S.comments.some(c=>c.stage===S.stage&&c.round===S.round)?'Round '+S.round+' is ready':'Claude is listening';
   if(S.busy)return 'Claude is working. Notes you send now are next.';
@@ -673,7 +687,7 @@ function render(){
   ta.placeholder=previewOn?'Back to the cut to leave a note':p==='send'?(S.raw?'Note for the cut...':'Note for the next round...'):!isCur()?'Older round, read only':p==='approve'?(S.stills?'The stills are approved':S.stage==='cut'&&!S.final?'The cut is approved':'Approved'):view.round>1?'Note on round '+view.round+'...':'Leave a note...';
   const sc=$('scope');sc.style.display=nv&&canNote?'block':'none';
   if(nv)sc.innerHTML=`<option value="">${esc(lab(alt))} only</option><option value="*">${nv===1?'Both':'All'} versions</option>`;
-  renderVer();renderTx();renderBar();renderTracks();renderList();boxTime();
+  renderVer();renderTx();renderBar();renderTracks();renderList();renderAdds();boxTime();
 }
 function noteCount(){   // "2 done · 1 open" over this round's notes and last round's answered ones
   const cs=S.comments.filter(c=>onAlt(c)&&c.stage===view.stage&&(c.round===view.round||c.round===view.round-1));
@@ -765,8 +779,8 @@ function workHtml(){
 // round 0: every step the cut takes (review.py cut_steps, from the scripts' own reports), ticked as they finish
 function cutHtml(c){
   const cl=c.claude||{},head=c.state==='failed'?'The cut stopped. '+(c.error||'')
-    :c.state==='queued'?(cl.opened?'A new Claude is starting in a Terminal window for this video.':cl.command?'Claude is busy with another video. To make this one now, run this in a new Terminal window:':'Waiting for Claude to pick this up.')
-    :'Claude is making the cut. Your clip plays meanwhile; notes you leave now go on the cut.';
+    :c.state==='queued'?(cl.opened?'Claude is working on this video in its own Terminal window.':cl.command?'To make this video, run this in a new Terminal window:':'Waiting for Claude to pick this up.')
+    :(cl.opened?'Claude is working on this video in its own Terminal window. ':'Claude is making the cut. ')+'Your clip plays meanwhile; notes you leave now go on the cut.';
   const li=c.steps.map(x=>`<li class="${x.state==='done'?'ok':x.state}"><span class="ic">${x.state==='done'?TICK:x.state==='now'&&c.state==='taken'?SPIN:'<i></i>'}</span>${esc(x.text)}</li>`).join('');
   return `<div class="claude"><div><b>Claude</b><p>${esc(head)}</p>${c.state==='queued'&&!cl.opened&&cl.command?`<code class="cmd">${esc(cl.command)}</code>`:''}</div><ol class="steps">${li}</ol></div>`;
 }
@@ -1160,6 +1174,32 @@ function closeBox(){pics=[];showPics();ta.value='';grow();ta.blur();inT=outT=nul
 const grow=()=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px'};
 ta.addEventListener('input',()=>{grow();boxTime()});
 ta.addEventListener('focus',()=>v.pause());
+// Anything to add?: links (pages, X posts, YouTube, GitHub, docs) and images for this video, saved at once into
+// assets.json (POST /assets). Claude puts them in first, on the "Show when I say..." words.
+const LINKIC='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>';
+const CLIPIC='<svg width="16" height="16" viewBox="0 0 16 16"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3l-5.5 5.5a1 1 0 01-1.5-1.5L9.9 4.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+let addOpen=false,addMsg='',addSig='';
+function renderAdds(){
+  const it=(S&&S.assets)||[],sig=JSON.stringify(it)+addOpen+addMsg;if(sig===addSig)return;addSig=sig;   // never redrawn under the typing
+  const rows=it.map((a,i)=>`<div class="arow"><span class="ath"${a.kind==='image'?` style="background-image:url('/${esc(a.src)}')"`:''}>${a.kind==='image'?'':LINKIC}</span><span class="an" title="${esc(a.kind==='image'?a.name:a.url)}">${esc(a.kind==='image'?a.name:a.url.replace(/^https?:\/\/(www\.)?/,''))}${a.say?`<i> · ${esc(a.say)}</i>`:''}</span><button data-arm="${i}" aria-label="remove" title="Remove">×</button></div>`).join('');
+  $('adds').innerHTML=rows+(addOpen?`<div class="addin"><input id="addurl" placeholder="Paste a link or an image" aria-label="a link or an image"><button id="addpic" aria-label="add an image" title="Add an image">${CLIPIC}</button><button id="addgo">Add</button></div>
+    <input id="addsay" placeholder="Show when I say... (optional)" aria-label="show it when you say these words">${addMsg?`<div class="amsg">${esc(addMsg)}</div>`:''}`
+    :`<button class="obtn" id="addopen"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Anything to add? Images or links</button>`);
+}
+async function addAssets(items){const r=await post('/assets',{add:items});const n=(S.assets||[]).length;if(r.items){S.assets=r.items;addMsg=r.items.length>n?'':'That one was not added. 12 images and 20 links at most, images under 15 MB.'}
+  const say=$('addsay');if(say&&!addMsg)say.value='';renderAdds();const u=$('addurl');if(u)u.focus()}
+function addUrl(){const u=$('addurl'),us=(u?u.value:'').split(/\s+/).filter(Boolean).map(x=>/^https?:\/\//i.test(x)?x:'https://'+x);if(!us.length)return;
+  if(us.some(x=>!/^https?:\/\/[^\s\/]+\.[^\s]+$/i.test(x))){addMsg='That is not a link. Paste a web address, like github.com/name/repo.';addSig='';return renderAdds()}
+  const say=($('addsay')||{}).value||'';u.value='';addAssets(us.map(url=>({url,say})))}
+function addImgs(fs){const say=($('addsay')||{}).value||'',ok=[...fs].filter(f=>/^image\/(png|jpeg|gif|webp)$/.test(f.type));
+  if(ok.some(f=>f.size>15*1024*1024)){addMsg='Images under 15 MB only.';addSig='';renderAdds()}
+  Promise.all(ok.filter(f=>f.size<=15*1024*1024).map(f=>new Promise(r=>{const rd=new FileReader();rd.onload=()=>r({image:rd.result,name:f.name,say});rd.readAsDataURL(f)}))).then(xs=>xs.length&&addAssets(xs))}
+$('adds').onclick=e=>{const rm=e.target.closest('[data-arm]');if(rm){post('/assets',{remove:+rm.dataset.arm}).then(r=>{if(r.items){S.assets=r.items;renderAdds()}});return}
+  if(e.target.closest('#addopen')){addOpen=true;renderAdds();$('addurl').focus();return}
+  if(e.target.closest('#addgo'))return addUrl();if(e.target.closest('#addpic'))$('addfile').click()};
+$('adds').onkeydown=e=>{if(e.key==='Enter')addUrl();if(e.key==='Escape'){addOpen=false;addMsg='';renderAdds()}};
+$('adds').addEventListener('paste',e=>{const fs=[...(e.clipboardData?.files||[])];if(fs.length&&e.target.id==='addurl'){e.preventDefault();addImgs(fs)}});
+$('addfile').onchange=e=>{addImgs(e.target.files);e.target.value=''};
 // pictures on a note: paste, drop or pick; kept as data urls until the note is saved
 let pics=[];
 function showPics(){$('pics').innerHTML=pics.map((p,i)=>`<span><img src="${p}" alt="attached image ${i+1}"><button data-rm="${i}" aria-label="remove image">×</button></span>`).join('');boxTime()}
@@ -1183,7 +1223,7 @@ document.addEventListener('keydown',e=>{
   const typing=e.target.tagName==='TEXTAREA'||e.target.tagName==='INPUT'||e.target.tagName==='SELECT';
   if(!typing&&(e.metaKey||e.ctrlKey)&&!e.altKey&&!e.shiftKey&&e.key.toLowerCase()==='z'&&txEditable()&&HIST.length){e.preventDefault();return txUndo()}
   if(!typing&&(e.key==='Backspace'||e.key==='Delete')&&txSel&&txEditable()){e.preventDefault();return txOp('cut')}
-  if(e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT'||e.metaKey||e.ctrlKey||e.altKey)return;const k=e.key;
+  if(e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT'||e.target.type==='text'||e.metaKey||e.ctrlKey||e.altKey)return;const k=e.key;
   if(k===' '){e.preventDefault();toggle()}
   else if(k==='j')v.currentTime-=5;else if(k==='l')v.currentTime+=5;
   else if(k==='ArrowLeft'){e.preventDefault();v.currentTime-=1}else if(k==='ArrowRight'){e.preventDefault();v.currentTime+=1}

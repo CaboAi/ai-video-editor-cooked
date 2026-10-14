@@ -88,6 +88,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(1, str(Path(__file__).resolve().parent.parent))   # `from ai_editor import ...` (styleskill, taste)
 import askhook  # noqa: E402
+import assets  # noqa: E402
 import live  # noqa: E402
 
 HTML = Path(__file__).with_name("review.html")
@@ -790,6 +791,7 @@ def make_handler(folder, token):
                 d["home"] = home_url()   # the Home button: back to the editor's window, or how to start it
                 d["jobs"] = home_jobs() if d["home"] else 0   # the rail's Making ring
                 d["intro"] = intro(folder, d)
+                d["assets"] = assets.load(folder)   # "Anything to add?": the images and links added to this video
                 if d.get("raw"):   # the cut is being made: every step it takes, from the home window's job
                     d["cut_steps"] = cut_steps(folder, d)
                 for x in d.get("activity", [])[-1:]:
@@ -817,6 +819,10 @@ def make_handler(folder, token):
                 if p and p.is_file() and (r["stage"], r["round"]) == (d["stage"], d["round"]) == ("cut", d["round"]):
                     upgrade_transcript(folder, p)
                 return self.send(200, p.read_bytes() if p and p.is_file() else {})
+            if path.startswith("/assets/"):   # an image the user added (assets.py)
+                p = folder / "assets" / Path(unquote(path)).name
+                ct = {".png": "image/png", ".gif": "image/gif", ".webp": "image/webp"}.get(p.suffix, "image/jpeg")
+                return self.file(p, ct) if p.is_file() else self.send(404, {})
             if path.startswith("/frames/"):
                 p = folder / "review" / Path(unquote(path)).name
                 ct = {".png": "image/png", ".gif": "image/gif", ".webp": "image/webp"}.get(p.suffix, "image/jpeg")
@@ -856,6 +862,13 @@ def make_handler(folder, token):
                     lr.update(state="chosen" if ids and not body.get("skip") else "skipped", chosen=ids, handled=False)
                     return True
                 return self.send(200, {}) if update(rj, lc) else self.send(409, {"error": "nothing to choose"})
+            if path == "/assets":   # "Anything to add?": add images or links ({"add": [...]}) or take one out ({"remove": i})
+                if "remove" in body:
+                    try:
+                        return self.send(200, {"items": assets.remove(folder, int(body["remove"]))})
+                    except (TypeError, ValueError):
+                        return self.send(400, {"error": "remove takes an index"})
+                return self.send(200, {"items": assets.add(folder, body.get("add") if isinstance(body.get("add"), list) else [])})
             if path == "/comment":
                 return self.comment(body)
             if path == "/edit":
@@ -1405,6 +1418,11 @@ def cmd_wait(folder, poll=1.0):
         print(f"#{c['id']} {span} ({c['t']}s){ver}{card}: {c['text']}\n    said: \"{c['words']}\""
               f"\n    frame: {folder / 'review' / c['frame']}"
               + "".join(f"\n    image: {folder / 'review' / x}" for x in c.get("images") or []))
+    added = assets.load(folder)
+    if added:   # New video's "Add images or links" and the editor's "Anything to add?": they go in first
+        print(f"assets: {folder / 'assets.json'} ({len(added)} image{'' if len(added) == 1 else 's'} or link{'' if len(added) == 1 else 's'} the user added. "
+              "Each one goes in first, as a card on its say words, before anything searched; one not in images.json or "
+              "visuals.json yet is new.)")
     if e["type"] == "approve" and d.get("learn"):
         print(learn_prompt(folder, d))
     elif cs:
@@ -1782,6 +1800,11 @@ def demo():
     assert get("/frames/" + ci["images"][0]).headers["Content-Type"] == "image/png"
     post("/delete", {"id": ci["id"]})
     assert [x["id"] for x in load(folder / "review.json")["comments"]] == [c["id"]]
+    # "Anything to add?": images and links into assets.json (assets.py), shown on /state, a picture at /assets/<name>
+    ad = post("/assets", {"add": [{"url": "https://x.com/a/status/1", "say": "the post"}, {"image": png, "name": "a.png"}]})["items"]
+    assert [x["kind"] for x in ad] == ["link", "image"] and json.loads(get("/state").read())["assets"] == ad
+    assert get("/" + ad[1]["src"]).headers["Content-Type"] == "image/png"
+    assert post("/assets", {"remove": 1})["items"] == ad[:1] and not (folder / ad[1]["src"]).exists()
     assert not json.loads(get("/state").read())["listening"]
     # the first-edit notice: round 1 of the user's first videos, until dismissed; the theme keeps the count
     assert json.loads(get("/state").read())["intro"], "round 1 of the first video: the notice shows"
@@ -1926,6 +1949,7 @@ def demo():
     post("/event", {"type": "approve"})
     out = waited()
     assert out.startswith("APPROVE: demo the edit, round 1, 4 notes.") and f"also wide: {folder / 'review' / 'v-edit1-wide.mp4'}" in out, out
+    assert f"assets: {folder / 'assets.json'} (1 image or link the user added." in out, out
     assert f"#{c4['id']} 0:01.0 (1.0s) [all videos]: on all of them" in out, out
     assert f"#{c3['id']} 0:05.1 (5.1s) [wide] [card 0 image 'later']: louder here" in out, out
     # the final approve: LEARN asks Claude for rules from every note of the session, the page waits for them

@@ -4,6 +4,13 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Videos are made faster, and look the same. Transcription starts the moment you add a clip on New video, while
+  you pick a style. The edit renders in the background while you look at the stills, so Approve with no notes has
+  it ready (lower priority, and not on battery). Pages and logos captured for one video are reused by the next for
+  7 days. The renderer warms up when you add a clip, not on the first stills.
+- The finished video says how long it took, with real times only: "Made in 6 min (cut 3:10, edit 1:40, render
+  0:52)". Every stage's time is in `edits/<name>/timings.json`.
+
 ## ai-editor 2.7.4, creator-teardown 2.7.4 (2026-10-14)
 
 - Claude's questions reach the right video: each one shows only in its own video's editor, waits there if the

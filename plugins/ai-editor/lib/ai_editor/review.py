@@ -43,6 +43,10 @@ ticks "Keep as a rule for <style>" (POST /keep unticks it) and `wait` marks it [
 rule `learn` saves (a note at a style scope, or the Teach panel's `--done`) adds a receipt to review.json
 ("receipts"): the page shows "Saved to <style>: <rule>. Undo", and POST /undo takes a rule that save added out again.
 
+Every round also rewrites <folder>/timings.json: each stage's real time (the cut, the user's review, the edit up to
+the stills, the stills check, the render) from the home job and review.json, and once the edit is back the line
+the page shows under it, "Made in 6 min (cut 3:10, edit 1:40, render 0:52)". `round --stills` starts the laptop
+render in the background (edit.py render --speculative); notes sent on the stills, or Stop, end it.
 Each round also gets review/data-<stage><round>.json for the page, built from the edit folder when
 the files are there: the cut's transcript with every cut word and pause struck (decisions.json +
 words.raw.json), the timeline's segments (cut points, or chapters.txt on the edit), and the edit's
@@ -843,6 +847,10 @@ def make_handler(folder, token):
                 if isinstance(d.get("learn"), dict):   # "Teach <style>": its name now, even renamed after the approve
                     d["learn"]["style"] = d["style_name"]
                 d["assets"] = assets.load(folder)   # "Anything to add?": the images and links added to this video
+                try:   # "Made in 6 min (cut 3:10, edit 1:40, render 0:52)" under the finished video: real times only
+                    d["made"] = json.loads((folder / "timings.json").read_text(encoding="utf-8")).get("line")
+                except (OSError, ValueError, AttributeError):
+                    d["made"] = None
                 if d.get("raw"):   # the cut is being made: every step it takes, from the home window's job
                     d["cut_steps"] = cut_steps(folder, d)
                 for x in d.get("activity", [])[-1:]:
@@ -991,6 +999,7 @@ def make_handler(folder, token):
                             for x in d.get("activity", []):
                                 x["done"] = True
                     update(rj, st)
+                    drop_spec(folder)
                     return self.send(200, {})
                 style = style_label(folder) if body["type"] == "approve" else None
 
@@ -1008,6 +1017,8 @@ def make_handler(folder, token):
                     return True
                 if not update(rj, ev):
                     return self.send(409, {"error": "Claude is applying your transcript changes"})
+                if body["type"] == "send" and load(rj).get("stills"):   # notes on the stills: that render is not the one
+                    drop_spec(folder)
                 return self.send(200, {})
             self.send(404, {})
 
@@ -1274,6 +1285,7 @@ def cmd_start(a, folder):
     save(rj, d)
     if not raw:
         seen(folder)
+        noted(folder)
     try:   # the home page's library lists this edit wherever it was made
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         import library
@@ -1343,6 +1355,11 @@ def cmd_round(a, folder):
     unlearned = [str(c["id"]) for c in d["comments"] if "taste" not in c and (c["stage"], c["round"]) != (d["stage"], d["round"])]
     if unlearned:
         print(f"notes not learned yet: {', '.join(unlearned)}. Run `learn` (see `wait`'s last line)")
+    if d.get("stills"):   # the user looks at the stills now: the render starts in the background
+        why = speculate(folder, d.get("plan"))
+        print("the edit renders in the background while the stills are up: an approve with no notes finds it ready"
+              if why is None else f"no background render ({why})")
+    noted(folder)
     if not running(folder):
         print("the page is not running: start it with `serve`")
 
@@ -1423,6 +1440,175 @@ def step(folder, key, log=None):
         return True
     except Exception:
         return False
+
+
+# ---------------------------------------------------------------- real times, after the fact
+def _epoch(at):
+    try:
+        return time.mktime(time.strptime(at, "%Y-%m-%dT%H:%M:%S"))
+    except (TypeError, ValueError):
+        return None
+
+
+def mmss(s):
+    return f"{int(s // 60)}:{int(round(s)) % 60:02d}" if s < 3600 else f"{int(s // 3600)}:{int(s % 3600 // 60):02d}:{int(s % 60):02d}"
+
+
+JOB_TIMES = ("added", "make", "transcribe_start", "transcribe_end")
+
+
+def timings(folder):
+    """How long this video took, stage by stage, from what is already recorded: the home window's job (when the clip
+    was added, Make, the cut's script steps with their clock times) and review.json (each round's time, the user's
+    approves, the render step). Never an estimate: a stage shows once it has happened. Writes <folder>/timings.json
+    (times kept from an earlier write when the job has since left state.json) and returns it.
+    "made" = the machine's time only (the cut, the edit up to the stills, the render), not the user's two reviews."""
+    folder = Path(folder)
+    f = folder / "timings.json"
+    try:   # the home job's times only: everything else is read again from review.json
+        t = {k: v for k, v in json.loads(f.read_text(encoding="utf-8")).items() if k in JOB_TIMES}
+    except (OSError, ValueError, AttributeError):
+        t = {}
+    try:
+        jobs = json.loads((Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home"
+                           / "state.json").read_text(encoding="utf-8")).get("jobs") or []
+        j = next((j for j in reversed(jobs) if j.get("type") == "video" and (j.get("args") or {}).get("edit")
+                  and Path(j["args"]["edit"]).resolve() == folder.resolve()), None)
+    except (OSError, ValueError, AttributeError, TypeError):
+        j = None
+    if j:
+        steps = j.get("steps") or []
+        i = next((k for k, x in enumerate(steps) if x.get("text") == "Writing down every word"), None)
+        t.update({k: v for k, v in (("make", _epoch(j.get("at"))), ("added", (j.get("args") or {}).get("added")),
+                                    ("transcribe_start", steps[i]["t"] if i is not None else None),
+                                    ("transcribe_end", steps[i + 1]["t"] if i is not None and i + 1 < len(steps) else None))
+                  if v is not None})
+    try:
+        d = load(folder / "review.json")
+    except (OSError, ValueError):
+        return t
+    rounds = {(r["stage"], r["round"]): r for r in d.get("rounds") or []}
+    ev = d.get("events") or []
+    cut = next((r for k, r in sorted(rounds.items()) if k[0] == "cut" and k[1] >= 1), None)
+    cut_ok = next((e for e in reversed(ev) if e["type"] == "approve" and e["stage"] == "cut"), None)
+    st_ok = next((e for e in reversed(ev) if e["type"] == "approve" and e.get("stills")), None)
+    st = rounds.get(("edit", st_ok["round"])) if st_ok else None
+    done = next((r for k, r in sorted(rounds.items()) if st_ok and k[0] == "edit" and k[1] > st_ok["round"]
+                 and not r.get("stills")), None)
+    rstep = next((x for x in reversed(d.get("activity") or []) if x.get("step") == "render"), None)
+    for k, at in (("cut_ready", cut and cut.get("at")), ("cut_approved", cut_ok and cut_ok.get("at")),
+                  ("stills_ready", st and st.get("at")), ("stills_approved", st_ok and st_ok.get("at")),
+                  ("render_start", rstep and rstep.get("at")), ("render_end", done and done.get("at"))):
+        if _epoch(at) is not None:
+            t[k] = _epoch(at)
+    spec = folder / "render.spec.started"
+    if spec.is_file():   # the render began in the background when the stills went up (edit.py --speculative)
+        try:
+            t["render_start"] = min(t.get("render_start") or 1e18, float(spec.read_text(encoding="utf-8")))
+        except ValueError:
+            pass
+    gap = lambda a, b: round(t[b] - t[a], 1) if t.get(a) is not None and t.get(b) is not None and t[b] >= t[a] else None
+    t["stages"] = {k: v for k, v in (("cut", gap("make", "cut_ready")), ("your_review", gap("cut_ready", "cut_approved")),
+                                     ("edit", gap("cut_approved", "stills_ready")), ("your_stills_check", gap("stills_ready", "stills_approved")),
+                                     ("render", gap("stills_approved", "render_end")),
+                                     ("transcribe", gap("transcribe_start", "transcribe_end"))) if v is not None}
+    sg = t["stages"]
+    if all(k in sg for k in ("cut", "edit", "render")):
+        made = sg["cut"] + sg["edit"] + sg["render"]
+        t["made_s"] = round(made, 1)
+        t["line"] = (f"Made in {round(made / 60)} min" if made >= 90 else f"Made in {round(made)} s") + \
+            f" (cut {mmss(sg['cut'])}, edit {mmss(sg['edit'])}, render {mmss(sg['render'])})"
+    tmp = f.with_name(f"timings.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(t, indent=1), encoding="utf-8")
+    os.replace(tmp, f)
+    return t
+
+
+# ---------------------------------------------------------------- the render that starts with the stills
+EDIT_PY = Path(__file__).resolve().parents[2] / "skills" / "style-edit" / "scripts" / "edit.py"
+
+
+def alive(pid):
+    if os.name == "nt":
+        r = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True)
+        return str(pid) in r.stdout
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+
+
+def on_battery():
+    """True when a laptop runs on its battery (macOS pmset, Linux power_supply). Unknown: False."""
+    try:
+        if sys.platform == "darwin":
+            return "Battery Power" in subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True, timeout=5).stdout
+        if sys.platform.startswith("linux"):
+            mains = [p for p in Path("/sys/class/power_supply").glob("*") if (p / "type").is_file()
+                     and (p / "type").read_text(encoding="utf-8").strip() == "Mains"]
+            return bool(mains) and all((p / "online").read_text(encoding="utf-8").strip() == "0" for p in mains)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return False   # ponytail: Windows reads no battery state; GetSystemPowerStatus via ctypes if laptops complain
+
+
+def speculate(folder, plan):
+    """The stills went up: start the laptop render now, at low priority (edit.py render --speculative), so an approve
+    with no notes finds it done or nearly. Only for a laptop render (the profile's render unset or "laptop": a cloud
+    render costs money), with the renderer installed, not on battery. Returns the reason it did not start, or None."""
+    home = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor")
+    try:
+        target = json.loads((home / "profile.json").read_text(encoding="utf-8")).get("render")
+    except (OSError, ValueError, AttributeError):
+        target = None
+    why = ("off (AI_EDITOR_NO_SPECULATE)" if os.environ.get("AI_EDITOR_NO_SPECULATE") else
+           f"renders on {target}" if target not in (None, "", "laptop") else
+           "no renderer" if not (home / "remotion" / "node_modules" / "remotion").exists() else
+           "no plan" if not plan or not Path(plan).is_file() else
+           "on battery" if on_battery() else None)
+    if why:
+        return why
+    drop_spec(folder)
+    (folder / "render.spec.started").write_text(str(time.time()), encoding="utf-8")
+    subprocess.Popen([sys.executable, str(EDIT_PY), "render", str(folder), "--plan", Path(plan).name, "--speculative"],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=os.name != "nt",
+                     creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+    return None
+
+
+def noted(folder):
+    """timings.json after each round, so the job's times are kept while the home window still lists the job."""
+    try:
+        t = timings(folder)
+        if t.get("line"):
+            print(t["line"])
+    except Exception:   # a nicety: a round never fails over it
+        pass
+
+
+def drop_spec(folder):
+    """Stop the background render and remove its files: notes were sent, the plan changed, or another target."""
+    folder = Path(folder)
+    for meta in folder.glob("render*.spec.json"):
+        try:
+            pid = json.loads(meta.read_text(encoding="utf-8")).get("pid")
+        except (OSError, ValueError):
+            pid = None
+        if pid and alive(pid):
+            try:
+                if os.name == "nt":
+                    subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], capture_output=True)
+                else:
+                    os.killpg(pid, 15)   # its own group: node and Chrome under it go too
+            except OSError:
+                pass
+        stem = meta.name[:-len(".json")]
+        for f in (meta, folder / f"{stem}.mp4", folder / f"{stem}.renderer.log", folder / f"{stem}.tmp.mkv"):
+            f.unlink(missing_ok=True)
+    (folder / "render.spec.started").unlink(missing_ok=True)
 
 
 def making_style(folder):
@@ -1817,12 +2003,48 @@ def _post_code(url, body):
         return err.code
 
 
+def demo_timings(tmp):
+    """timings.json from the home job and review.json, and the background render's guards."""
+    f = tmp / "timed"
+    f.mkdir()
+    at = lambda s: time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(1_800_000_000 + s))
+    home = Path(os.environ["AI_EDITOR_HOME"]) / "home"
+    home.mkdir(parents=True, exist_ok=True)
+    job = {"type": "video", "state": "done", "at": at(0), "args": {"edit": str(f), "added": 1_800_000_000 - 30},
+           "steps": [{"text": "Writing down every word", "t": 1_800_000_002}, {"text": "Finding retakes and pauses", "t": 1_800_000_040}]}
+    (home / "state.json").write_text(json.dumps({"jobs": [job]}), encoding="utf-8")
+    save(f / "review.json", {"rounds": [{"stage": "cut", "round": 0, "at": at(0)}, {"stage": "cut", "round": 1, "at": at(190)},
+                                        {"stage": "edit", "round": 1, "at": at(400), "stills": True},
+                                        {"stage": "edit", "round": 2, "at": at(560)}],
+                             "events": [{"type": "approve", "stage": "cut", "round": 1, "at": at(300)},
+                                        {"type": "approve", "stage": "edit", "round": 1, "at": at(500), "stills": True}],
+                             "activity": [{"step": "render", "at": at(505)}]})
+    t = timings(f)
+    assert t["stages"] == {"cut": 190, "your_review": 110, "edit": 100, "your_stills_check": 100, "render": 60, "transcribe": 38}, t
+    assert t["line"] == "Made in 6 min (cut 3:10, edit 1:40, render 1:00)" and t["added"] == 1_800_000_000 - 30, t["line"]
+    (home / "state.json").write_text(json.dumps({"jobs": []}), encoding="utf-8")   # the job left the window's list
+    assert timings(f)["transcribe_start"] == 1_800_000_002, "times kept from the earlier write"
+    save(f / "review.json", {"rounds": [{"stage": "cut", "round": 1, "at": at(190)}], "events": []})
+    t = timings(f)
+    assert "line" not in t and set(t["stages"]) == {"cut", "transcribe"}, "a stage shows once it has happened"
+    assert mmss(70) == "1:10" and mmss(5) == "0:05"
+    assert speculate(f, None) == "no renderer", "no renderer installed: nothing starts"
+    os.environ["AI_EDITOR_NO_SPECULATE"] = "1"
+    assert speculate(f, None).startswith("off")
+    del os.environ["AI_EDITOR_NO_SPECULATE"]
+    (f / "render.spec.json").write_text(json.dumps({"pid": 999999999}), encoding="utf-8")
+    (f / "render.spec.mp4").write_bytes(b"x")
+    drop_spec(f)
+    assert not list(f.glob("render.spec*")), "drop_spec leaves nothing behind"
+
+
 def demo():
     import contextlib
     import io
     import tempfile
     tmp = Path(tempfile.mkdtemp(prefix="review_demo_"))
     os.environ["AI_EDITOR_HOME"] = str(tmp / "home")   # start records the folder in the library index there
+    demo_timings(tmp)
     vid = tmp / "v.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30:duration=6",
                     "-f", "lavfi", "-i", "sine=duration=6", "-shortest", "-pix_fmt", "yuv420p", str(vid)], check=True)

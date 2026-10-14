@@ -204,6 +204,10 @@ Cookie banners: capture.mjs hides the common consent managers by selector and cl
 (else accept) button by its text, twice. Look at every capture anyway; if something still covers
 it, change `clip`, `selector` or `wait_ms` and run it again.
 
+Captures and logos are kept for 7 days in `~/.ai-video-editor/cache/` and reused by any video with the same
+beat (URL, size, marks, format) or brand. A changed beat shoots again; to shoot an unchanged beat again (the page
+changed, or loaded badly), run `capture.mjs edits/<name> --fresh`.
+
 Not sure which sentence is the evidence? Add `"page_text": true`, run capture.mjs, then
 `route.py highlight edits/<name> images/capture-N-x.text.json "<what the speaker says>"`.
 

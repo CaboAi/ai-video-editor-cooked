@@ -151,12 +151,12 @@ background. Say the seconds cut. Notes: "keep <line>": narrow or delete that spa
 off: `--max-pause`. Then steps 4-5, `resolve` each note (`--reply`: what changed), last
 `round --video edits/<name>/cut.mp4` (never a second `start`), then ask any learn question.
 
-After approval, in one Bash call: `python3 "$S/trend.py" log edits/<name>` (`tally`: trend) and the hook check. Then hook variants if `hooks.json` exists (`references/retake-detection.md`); called by start, ask that in the same question box as style-edit's stills approval, not before it.
+After approval, one Bash call: `python3 "$S/trend.py" log edits/<name>` (`tally`: trend), the hook check. Then hook variants if `hooks.json` exists (`references/retake-detection.md`); called by start, ask that in the same question box as style-edit's stills approval, not before it.
 
-Only approval finishes the cut; `cut.mp4` and `words.json` go to style-edit. On "just the
+Only approval finishes the cut; `cut.mp4`, `words.json` go to style-edit. On "just the
 cut first", say they can ask for the style. Never start style-edit on your own. Called by start: as
-the page opens, start `visual-prep` in the background; its `motion_briefs`: one background
-`clip-builder` each, at once.
+the page opens, start `visual-prep` in the background; its `motion_briefs`: a background
+`clip-builder` each at once; say a `motion_note` once.
 
 ## If a script stops
 

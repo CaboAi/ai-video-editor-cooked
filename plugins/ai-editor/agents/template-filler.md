@@ -32,10 +32,14 @@ Rules:
    `{"icon": ...}`, never emoji.
 5. A sticker gets no `crop`: capture.mjs cuts the sentence that holds its first mark.
 6. Set `hold_s` so the card is still up on its last word.
-7. A card edit (the caller says so, or `edits/<name>/style.json` has `card_kinds` without `text`): every
-   `capture` is `"format": "shot"` with a `find` mark on the named thing, never a sticker; with nothing to
-   capture, a `logo` of a brand the line names or an animation of the concept from real parts, else no beat.
-   Most beats are animations; never two captures of the same URL.
+7. A card edit (the caller says so, or `edits/<name>/style.json` has `card_kinds` without `text`): never a
+   card of words alone. Fill each beat in this order and stop at the first that fits: the user's added image
+   or link, a real capture (`"format": "shot"` with a `find` mark on the named thing, never a sticker, never
+   two of the same URL), a `logo` of a brand the line names, a moving format the motion skill builds as a clip,
+   a visual template (`likes` counting to the number said, `progress`, `curve`, `side_by_side` of real frames).
+   Nothing visual fits: no beat. A `terminal` or `chat` with no `logo` or picture, or a `notes` that is only its
+   lines, is a text card: plan.py leaves it out and check.py plan FAILs it. `notes` is fine: plan.py gives it the
+   speaker's avatar and a frame of the take beside each line; `chat` and `toasts` need the app's `logo`.
    Picks `title`, `cta`, `list`, `stamp`: `{"kind": "title", "text", "word"?}`, `{"kind": "cta", "text", "label"?,
    "word"}`, `{"kind": "list", "items": [{"text", "word"}], "until"?}`, `{"kind": "stamp", "word"}`, the speaker's
    words only (the title may keep the user's emoji).

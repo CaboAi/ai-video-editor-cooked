@@ -74,6 +74,25 @@ def hf_bin():
     return b if b.exists() else None
 
 
+SETUP_PY = PLUGIN / "skills" / "setup" / "scripts" / "setup.py"
+FELL_BACK = ("Animations fell back: the motion tools did not install ({why}), so the animated beats stay visual "
+             "templates and a beat with nothing visual gets no card. For animations: python3 \"{setup}\" motion, then pick again.")
+
+
+def ensure_tools(install=None):
+    """The pinned motion tools, installed now when they are missing (setup.py motion: a few seconds to a minute, once).
+    An install from before the motion step existed has none, and every clip fell back to a words-only template.
+    (ok, why). install: the installer, swapped by the demo."""
+    if hf_bin():
+        return True, ""
+    print("installing the motion tools (once, under a minute)", flush=True)
+    r = (install or (lambda: subprocess.run([sys.executable, str(SETUP_PY), "motion"], capture_output=True, text=True)))()
+    if hf_bin() and not r.returncode:
+        return True, ""
+    why = last((r.stdout or "") + (r.stderr or ""), 1).strip().removeprefix("ERROR: ").replace("; its output is above.", "")
+    return False, why or "setup.py motion failed"
+
+
 def clean(t):
     return re.sub(r"[^\w'’-]+", "", t).lower()
 
@@ -258,7 +277,7 @@ scripts' source. First render within about 10 minutes, then iterate on `check` o
 - What this beat was going to be (the template's content, use its real words and pictures): `{type}` {props}
 - The edit's real pictures you may use (copy into `assets/`): {images}
 
-{start}Build: `{env}python3 "{motion}" check "{dir}"` runs every gate and the render, writes `gates.json`, `renders/clip.mp4`,
+{start}Build: `{env}python3 "{run}" "{motion}" check "{dir}"` (the editor's own Python, which has Pillow and OpenCV) runs every gate and the render, writes `gates.json`, `renders/clip.mp4`,
 `renders/sheet.png` (1 fps) and `renders/strip.png` (10 fps, first 1.2 s). Look at both sheets after every
 render. At most {rounds} checks; then stop and report.
 """
@@ -316,6 +335,11 @@ def pick(edit, max_n=8):
             b.update(size=board_size(style), board=True)
     if cfg["engine"] != "clips":
         print("style.json motion.engine is \"templates\": no clips, the template formats stay")
+    elif beats:
+        ok, why = ensure_tools()
+        if not ok:   # said once; no clip folders, so no clip-builder is started for a clip that cannot render
+            print(FELL_BACK.format(why=why, setup=SETUP_PY))
+            return []
     gsap = home() / "motion" / "node_modules" / "gsap" / "dist" / "gsap.min.js"
     root = edit / "motion"
     root.mkdir(exist_ok=True)
@@ -324,6 +348,16 @@ def pick(edit, max_n=8):
     for b in beats:
         d = root / b["id"]
         (d / "assets").mkdir(parents=True, exist_ok=True)
+        if b["type"] == "notes":   # real UI, never words alone: the speaker's avatar and the take's frames in assets/
+            sys.path.insert(0, str(SKILL.parent / "style-edit" / "scripts"))
+            import plan
+            card = {"start": b["start"], "anim": {"type": "notes", "props": json.loads(json.dumps(b["props"]))}}
+            for ln in card["anim"]["props"].get("lines") or []:   # each frame where its line is said
+                t = next((w["t"] for w in b["words"] if isinstance(ln, dict) and clean(w["w"]) == clean(ln.get("word") or "")), None)
+                if t is not None and "at" not in ln:
+                    ln["at"] = t
+            plan.take_frames([card], d, edit / "cut.mp4", face, "assets")
+            b["props"] = card["anim"]["props"]
         if not (d / "index.html").exists():   # never clobber a clip being built
             (d / "index.html").write_text(fill_template(b, look), encoding="utf-8")
             sp = starting_point(b["type"])
@@ -353,7 +387,7 @@ def pick(edit, max_n=8):
                       ("in the 50/50 panel: the top of the frame, above the speaker, the whole panel. Its ground is the panel's own "
                        f"({look['ground']}), so it has no edge: no card, border or shadow round the exhibit. Fill at least 55% of it."), look=json.dumps(look), line=b["line"],
             before=b["before"], after=b["after"], words=json.dumps(b["words"]), type=b["type"], props=json.dumps(b["props"]),
-            images=", ".join(str((edit / "images" / p).resolve()) for p in pics) or "none", motion=Path(__file__).resolve(), rounds=ROUNDS,
+            images=", ".join(str((edit / "images" / p).resolve()) for p in pics) or "none", motion=Path(__file__).resolve(), run=PLUGIN / "lib" / "ai_editor" / "run.py", rounds=ROUNDS,
             env=f'AI_EDITOR_HOME="{os.environ["AI_EDITOR_HOME"]}" ' if os.environ.get("AI_EDITOR_HOME") else "",
             start="- A clip the user approved before is in `start.html` (same kind of beat). You may start from its design, "
                   "but re-time every part to this clip's `WORDS` and change it for this line: an unchanged copy fails "
@@ -361,8 +395,6 @@ def pick(edit, max_n=8):
                   if b.get("start_from") else "- Notes on this clip, if any: `notes.md` beside this brief. Do what they say.\n\n"),
             encoding="utf-8")
     (root / "beats.json").write_text(json.dumps({"clock": "cut", "look": look, "beats": beats}, indent=1), encoding="utf-8")
-    if not gsap.exists():
-        print("note: the motion tools are not installed: python3 setup.py motion (setup skill), then pick again")
     for b in beats:
         print(f"{b['id']:<22} {b['type']:<13} {b['start']:6.2f}s +{b['dur']:.2f}s  \"{b['line'][:60]}\"")
     print(f"{len(beats)} clip(s) in {root}. One clip-builder agent per clip, all in one message, "
@@ -716,6 +748,21 @@ def demo():
                {"word": "renders", "nth": 1, "kind": "anim", "type": "progress", "hold_s": 0.6},
                {"word": "every", "nth": 1, "kind": "logo", "brand": "x"},
                {"word": "learns", "nth": 1, "kind": "anim", "type": "notes", "hold_s": 3.0}]
+    with tempfile.TemporaryDirectory() as t:   # tools missing: pick installs them; a failed install says why, once
+        keep = os.environ.get("AI_EDITOR_HOME")
+        os.environ["AI_EDITOR_HOME"] = t
+        try:
+            fail = lambda: subprocess.CompletedProcess([], 1, "", "npm missing. Install Node first\n")   # noqa: E731
+            assert ensure_tools(fail) == (False, "npm missing. Install Node first")
+
+            def ok():
+                b = Path(t) / "motion" / "node_modules" / ".bin" / ("hyperframes.cmd" if os.name == "nt" else "hyperframes")
+                b.parent.mkdir(parents=True)
+                b.write_text("", encoding="utf-8")
+                return subprocess.CompletedProcess([], 0, "Motion clip tools installed", "")
+            assert ensure_tools(ok) == (True, "") and ensure_tools(fail) == (True, "")   # installed: never runs again
+        finally:
+            os.environ.pop("AI_EDITOR_HOME") if keep is None else os.environ.update(AI_EDITOR_HOME=keep)
     bs = beats_for(visuals, words)
     assert [b["type"] for b in bs] == ["likes", "notes"], bs   # progress: room for 0.6 s only, keeps its template
     assert bs[0]["start"] == 0.0 and bs[0]["dur"] == 2.0 and bs[0]["clock"] == "cut", bs[0]

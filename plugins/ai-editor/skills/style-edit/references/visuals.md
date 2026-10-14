@@ -112,6 +112,9 @@ user's photo, or an animation built from real parts. In that style:
 - plan.py drops a re-set sentence (a capture.mjs sticker, `xh` in images.json), draws a sticker of the page as
   a shot, and keeps a screenshot whose small text would read under 28 px as a picture (its push-in carries the
   mark) instead of cutting it to a line of words; check.py plan FAILs a sentence on white and WARNs small text.
+- No card of words alone: plan.py leaves out a `terminal` or `chat` with no logo or picture and gives a `notes`
+  card the speaker's avatar and a frame of the take beside each line; check.py plan FAILs any words-only card.
+  Fill each beat in this order and stop at the first that fits: the user's added image or link, a real capture or screenshot, a logo (logo-pack), a motion clip (the motion skill builds one per moving beat), a visual template (`likes` counting, `progress` with the take's frames, `curve`, `side_by_side` of real frames). Never a card of words alone: nothing visual fits, no card on that beat.
 - route.py prints the allowed kinds; a text card or chart in a creator's mix routes to `capture:shot`.
 - `"behind": true` tucks the card behind the speaker's hair (matte.py), and `graphics.per_min` sets the rate.
 - The rate is the look: 30 a minute is a card about every 2 s. plan.json carries it (`card_rate`) and check.py

@@ -591,6 +591,101 @@ def type_only(v):
     return v.get("type") in TYPE_ONLY
 
 
+# Formats that are lines of words unless they carry a picture. A card edit never shows one bare.
+WORDY = ("notes", "terminal", "chat")
+PICTURE_KEYS = ("src", "logo_src", "avatar", "a_src", "b_src", "thumbs", "logo", "icon")
+
+
+def has_picture(node):
+    """True when a props tree names a picture anywhere: an image, a logo, an icon, an avatar, a frame."""
+    if isinstance(node, list):
+        return any(has_picture(x) for x in node)
+    if not isinstance(node, dict):
+        return False
+    return any(node.get(k) for k in PICTURE_KEYS) or any(has_picture(v) for v in node.values())
+
+
+def words_only(kind, props):
+    """True when a card of this anim type would show only lines of words. notes needs the speaker's avatar and a
+    frame of the take beside a line, progress the take's frames lighting up (take_frames fills them); terminal and
+    chat need a logo or picture."""
+    if kind in TYPE_ONLY:
+        return True
+    props = props or {}
+    if kind == "progress":   # a label over an empty bar reads as words
+        return not props.get("thumbs")
+    if kind == "notes":
+        return not (props.get("avatar") and any(isinstance(ln, dict) and ln.get("src") for ln in props.get("lines") or []))
+    return kind in WORDY and not has_picture(props)
+
+
+def frame_at(video, t, out, crop=None):
+    """One frame of the take at t seconds as a small jpg (out, never overwritten). crop: a head box [x, y, w, h] in %,
+    cut square round its centre (the avatar). None when ffmpeg cannot read it."""
+    out = Path(out)
+    if not out.exists():
+        vf = "scale=360:-2"
+        if crop:
+            x, y, w, h = (v / 100 for v in crop)
+            side = f"min(min(iw\\,ih)\\,max(iw*{w:.4f}\\,ih*{h:.4f}))"
+            vf = (f"crop={side}:{side}:clip(iw*{x + w / 2:.4f}-ow/2\\,0\\,iw-ow):clip(ih*{y + h / 2:.4f}-oh/2\\,0\\,ih-oh),"
+                  "scale=200:200")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["ffmpeg", "-v", "error", "-n", "-ss", f"{max(0.0, t):.3f}", "-i", str(video), "-frames:v", "1",
+                        "-vf", vf, "-q:v", "4", str(out)], capture_output=True)
+    return out if out.exists() else None
+
+
+def take_frames(cards, edit_dir, video, face=None, folder="images"):
+    """A notes card is real UI, not words: the speaker's avatar (their head from the take, face.json) in its header
+    and, beside each line, the frame of the take where that line is said. A progress card: four frames of the take
+    from while it is up, lighting up as the bar passes them. Written to images/ once; a card that
+    already names them keeps its own. folder: under edit_dir (a motion clip's own "assets")."""
+    if not edit_dir or not video or not Path(video).exists():
+        return cards
+    for c in cards:
+        a = c.get("anim") or {}
+        if a.get("type") == "progress" and not (a.get("props") or {}).get("thumbs"):
+            span = max(0.4, c["end"] - c["start"])
+            fs = [frame_at(video, c["start"] + span * (k + 0.5) / 4, Path(edit_dir) / folder / f"frame-{round((c['start'] + span * (k + 0.5) / 4) * 1000)}.jpg")
+                  for k in range(4)]
+            if all(fs):
+                a.setdefault("props", {})["thumbs"] = [f"{folder}/{f.name}" for f in fs]
+            continue
+        if a.get("type") != "notes":
+            continue
+        p = a.setdefault("props", {})
+        if not p.get("avatar"):
+            hd = face and head_during(face["heads"], face.get("step_s", 0.5), c["start"], c["start"] + 0.5)
+            box = [hd[0], hd[1], hd[2] - hd[0], hd[3] - hd[1]] if hd else [25, 10, 50, 40]
+            f = frame_at(video, c["start"], Path(edit_dir) / folder / f"avatar-{round(c['start'] * 1000)}.jpg", box)
+            if f:
+                p["avatar"] = f"{folder}/{f.name}"
+        for i, ln in enumerate(p.get("lines") or []):
+            if isinstance(ln, dict) and not ln.get("src"):
+                t = c["start"] + (ln.get("at") if isinstance(ln.get("at"), (int, float)) else 0.35 + 0.6 * i) + 0.2
+                f = frame_at(video, t, Path(edit_dir) / folder / f"frame-{round(t * 1000)}.jpg")
+                if f:
+                    ln["src"] = f"{folder}/{f.name}"
+    return cards
+
+
+def drop_words_only(cards, style):
+    """A card edit (pictures only) shows no card made of words alone: such a beat gets no card."""
+    if not pictures_only(style):
+        return cards
+    out = []
+    for c in cards:
+        a = c.get("anim") or {}
+        if a and words_only(a.get("type"), a.get("props")):
+            print(f"warning: no card on '{c.get('trigger_word')}': its {a.get('type')} shows only words, and this style "
+                  "shows only screenshots, logos, photos and animations. Give the beat the user's image, a capture, a "
+                  "logo or a motion clip, or leave it without a card", file=sys.stderr)
+            continue
+        out.append(c)
+    return out
+
+
 def with_presets(style, mine):
     """The style page's presets (lib/ai_editor/presets.py): captions.preset names a caption style (the user's
     <library>/custom/captions/<name>.json, else a built-in plugins/ai-editor/presets/captions/<name>.json) laid
@@ -865,6 +960,8 @@ def anim_items(visuals, edit_dir=None, style=None):
         if v.get("type") not in ANIMS:
             print(f"warning: unknown anim type {v.get('type')!r} on '{v.get('word')}', skipped", file=sys.stderr)
             continue
+        if v["type"] not in ("notes", "progress") and not drop_words_only([{"trigger_word": v.get("word"), "anim": v}], style or {}):
+            continue   # notes and progress wait: take_frames gives them the take's frames once their times are known
         item = {k: v[k] for k in ("word", "nth", "box", "entrance", "hold_s", "layout", "transition_in", "transition_out", "focus", "heading") if k in v}
         if "box" in v:
             item["_own_box"] = True
@@ -2524,6 +2621,7 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         extra["targets"] = {"first_graphic_s": hook["first_graphic_s"],
                             "control_first_graphic_s": ((style.get("hook") or {}).get("control") or {}).get("first_graphic_s")}
     cards = scene_parts(cards, words, edit_dir)
+    cards = drop_words_only(take_frames(cards, edit_dir, edit_dir and Path(edit_dir) / meta["video"], face), style)
     if board:   # logos -> tiles on the canvas, questions -> headings; the speaker's framing replaces the zooms and pans
         cards, out["layout"] = board_layout(cards, words, duration, face, edit_dir)
         zooms = []
@@ -2996,6 +3094,26 @@ def demo():
     assert (fr("chat", "16:9"), fr("icon_burst", "16:9", layout="split"), fr("arrow_callout", "16:9")) == ("box", "box", "box")
     # type cards are gone: an old visuals.json naming one is skipped
     assert type_only({"type": "counter"}) and type_only({"type": "versus"}) and not type_only({"type": "side_by_side"})
+    # words alone are no card in a card edit: notes needs an avatar and a frame, terminal/chat a logo or picture
+    assert words_only("notes", {"lines": [{"text": "Feedback"}]}) and words_only("terminal", {"lines": [{"text": "ls"}]})
+    assert not words_only("notes", {"avatar": "images/a.jpg", "lines": [{"text": "Feedback", "src": "images/f.jpg"}]})
+    assert not words_only("chat", {"logo": {"logo": "claude"}, "messages": [{"text": "hi"}]}) and not words_only("likes", {})
+    ce = {"card_kinds": ["capture", "logo", "photo", "animation"]}
+    tm = {"kind": "anim", "type": "terminal", "word": "skill", "props": {"lines": [{"text": "update skill"}]}}
+    nt = {"kind": "anim", "type": "notes", "word": "feedback", "props": {"lines": [{"text": "Feedback", "word": "feedback"}]}}
+    assert [i["anim"]["type"] for i in anim_items([tm, nt], None, ce)] == ["notes"]   # notes waits for take_frames
+    assert [i["anim"]["type"] for i in anim_items([tm, nt], None, {})] == ["terminal", "notes"]   # text allowed: kept
+    with tempfile.TemporaryDirectory() as td:   # take_frames: the avatar and a frame of the take, then the card passes
+        v = Path(td) / "cut.mp4"
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=s=180x320:d=3", "-pix_fmt", "yuv420p", str(v)], check=True)
+        cs = take_frames([{"start": 1.0, "trigger_word": "feedback", "anim": {"type": "notes", "props": {"lines": [{"text": "Feedback", "at": 0.1}]}}}],
+                         td, v, {"step_s": 0.5, "heads": [{"t": 1.0, "box": [30, 20, 40, 30]}]})
+        p_ = cs[0]["anim"]["props"]
+        assert (Path(td) / p_["avatar"]).exists() and (Path(td) / p_["lines"][0]["src"]).exists(), p_
+        assert drop_words_only(cs, ce) == cs and drop_words_only([{"trigger_word": "x", "anim": tm}], ce) == []
+        pg = take_frames([{"start": 0.5, "end": 2.5, "trigger_word": "x", "anim": {"type": "progress", "props": {"label": "Rendering"}}}], td, v)
+        assert len(pg[0]["anim"]["props"]["thumbs"]) == 4 and not words_only("progress", pg[0]["anim"]["props"]), pg
+    assert words_only("progress", {"label": "Rendering"})
     vm = {**meta, "width": 1080, "height": 1920}
     tv = [{"word": "notion", "nth": 1, "kind": "anim", "type": "flow", "layout": "scene", "props": {"nodes": [{"logo": "notion"}]}},
           {"word": "every", "nth": 1, "kind": "anim", "type": "caption_page", "hold_s": 2, "props": {}}]

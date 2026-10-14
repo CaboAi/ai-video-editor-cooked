@@ -27,13 +27,15 @@ for a 1080x1920 frame.
 Most beats are animations built from what the speaker says. In a card edit, aim for at least half the
 cards moving formats, one capture per page, and a line with nothing to show left to the face.
 
+**The order for a card edit beat.** Fill each beat in this order and stop at the first that fits: the user's added image or link, a real capture or screenshot, a logo (logo-pack), a motion clip (the motion skill builds one per moving beat), a visual template (`likes` counting, `progress` with the take's frames, `curve`, `side_by_side` of real frames). Never a card of words alone: nothing visual fits, no card on that beat. A `notes`, `terminal` or `chat` card of lines of words only is a text card: plan.py leaves it out and check.py plan FAILs it.
+
 | the line says | the card | it moves by |
 |---|---|---|
 | a number of people, likes, views, comments | `likes`: the platform's logo, a red heart badge counting up to the number said, comments stacking in beside it | the count ticks on its word; each comment slides in and pushes the older ones down |
 | something is being made, rendered, uploaded | `progress`: an app window, the label, a bar filling, the user's own frames lighting up as it passes | the bar fills over the card's life; the percent counts |
 | smooth, motion, easing, animation | `curve`: an easing curve drawing itself, a dot riding it, the user's still moving on the same curve | the path draws; the dot and the still follow it |
-| feedback, notes, fixes, steps the speaker lists | `notes`: a dark notes card, each line appearing on its word, a green tick line under it when it was fixed | lines land one by one |
-| a command, a tool run, code | `terminal`: commands type in, output lands under them | typing, then the output |
+| feedback, notes, fixes, steps the speaker lists | `notes`: a real notes panel, the speaker's avatar and the title in its header, beside each line the frame of the take where it is said (plan.py fills both from the take), a green tick drawing in on each line | lines land one by one, each tick draws in after its line |
+| a command, a tool run, code | `terminal`: commands type in, output lands under them. A card edit: only as a motion clip with the real tool's logo or UI, never the bare window of words | typing, then the output |
 | a question to an AI, a reply | `chat` | messages pop on their words |
 | alerts, messages, sign-ups | `toasts` | each slides in from the top and stacks |
 | before and after, this vs that | `side_by_side` with `"arrow": true` | a then b land, the arrow draws from a to b |

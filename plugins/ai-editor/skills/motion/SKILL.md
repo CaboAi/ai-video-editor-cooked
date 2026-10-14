@@ -23,9 +23,10 @@ visuals.json (style-edit step 3) -> motion.py pick -> motion/<id>/{index.html, b
 
 ## 0. Ready?
 
-`python3 "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.py" doctor` shows `motion clips` ok. If not:
-`python3 "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.py" motion` (under a minute, once; say so first).
-Not installed and the user says skip: the template cards stay, nothing else changes.
+`python3 "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.py" doctor` shows `motion clips` ok. Setup installs
+them by default; an install from before the motion step has none, so `pick` installs them itself (a few seconds,
+once). If that install fails, pick prints `Animations fell back: ...` once and makes no clip folders: say that line
+to the user once. The visual templates stay, and a beat whose template is only words gets no card (plan.py).
 
 ## 1. Pick the beats
 
@@ -59,7 +60,7 @@ reviewing the cut, so the clips are ready when the cut is approved.
 ## 3. Check a clip (what each agent runs)
 
 ```bash
-python3 "$M" check edits/<name>/motion/<id>
+python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/run.py" "$M" check edits/<name>/motion/<id>
 ```
 
 In order: `check_clip.py` (source gotchas, free), `hyperframes lint`, `hyperframes check --at-transitions`,
@@ -142,7 +143,7 @@ A user's own style skill gets bespoke animations with one line: "Animations: use
 
 | message | do |
 |---|---|
-| `the motion tools are not installed` | `setup.py motion`, then the same command |
+| `the motion tools are not installed` / `Animations fell back` | `setup.py motion`, then the same command; it fails again: say the line once and carry on without clips |
 | a clip still `FAIL` after its checks (3 to build, 2 more per note) | leave it: place restores its template |
 | `no frames read` (strips) | the render path is wrong or the render failed: style-edit step 7 |
 

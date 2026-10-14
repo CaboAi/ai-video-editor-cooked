@@ -33,7 +33,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(HERE))
-from plan import GAP_S, MIN_SHOW_S, QUIET_HOLD_S, card_gaps, INK_MIN_W, OVERLAY_EDGE, READ_XH, SAFE, capture_xh, explain_ink, clean, cut_lines, cut_points, head_during, overlay_led, small_lines, sticker_crop  # noqa: E402
+from plan import GAP_S, MIN_SHOW_S, QUIET_HOLD_S, card_gaps, INK_MIN_W, OVERLAY_EDGE, READ_XH, SAFE, capture_xh, explain_ink, clean, cut_lines, cut_points, head_during, overlay_led, small_lines, sticker_crop, words_only  # noqa: E402
 
 CENTRE_PLAN = 1.5      # % of the width a vertical card's box centre may sit off 50
 CENTRE_INK = 2.0       # % of the width a card's drawn content may sit off centre
@@ -230,6 +230,12 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
                                "the speaker says (visuals.json), capture again; or move the card past the hook"))
         xh = aspect == "9:16" and c.get("src") and c.get("layout") != "scene" and capture_xh(c, aspect)
         pictures = plan.get("card_kinds") and "text" not in plan["card_kinds"]   # a card edit: real pictures only
+        if pictures and c.get("anim") and words_only(c["anim"].get("type"), c["anim"].get("props")):
+            out.append(finding("FAIL", c["start"], f"{name} shows only lines of words: a text card, and this style shows "
+                               "only screenshots, logos, photos and animations",
+                               "in visuals.json give the beat, in this order: the user's added image, a capture, a logo, a "
+                               "motion clip (motion.py), or a visual template (likes, progress, curve, side_by_side with "
+                               "real frames); nothing visual fits: delete the beat. Then plan.py again"))
         if pictures and c.get("format") == "sticker" and c.get("xh"):
             out.append(finding("FAIL", c["start"], f"{name} is a sentence set alone on white: a text card, and this style "
                                "shows only screenshots, logos, photos and animations",
@@ -1037,6 +1043,14 @@ def demo():
     assert lv(withfind, "x-height") == ["FAIL"] and lv(pics, "x-height") == ["WARN"], (lv(withfind, "x-height"), lv(pics, "x-height"))
     label = {**pics, "cards": [{**pics["cards"][0], "format": "sticker", "xh": 30}]}
     assert lv(label, "text card") == ["FAIL"], check_plan(label, face)
+    # a card edit: a notes or terminal card of words alone FAILs (the user's "Feedback / Version two" card); the notes
+    # card with the speaker's avatar and a frame of the take beside its line is real UI and passes
+    bare = {"type": "notes", "props": {"lines": [{"text": "Feedback"}, {"text": "Version two"}]}}
+    ui = {"type": "notes", "props": {"avatar": "images/avatar-1.jpg", "lines": [{"text": "Feedback", "src": "images/frame-1.jpg"}]}}
+    for anim, want in ((bare, ["FAIL"]), ({"type": "terminal", "props": {"lines": [{"text": "update skill"}]}}, ["FAIL"]), (ui, [])):
+        one = {**pics, "cards": [{**pics["cards"][0], "anim": anim}]}
+        assert lv(one, "only lines of words") == want, (anim, check_plan(one, face))
+    assert lv({**pics, "card_kinds": None, "cards": [{**pics["cards"][0], "anim": bare}]}, "only lines of words") == []   # a style that keeps text
     # a card's motion props (its measured ease "power1.in") are not a number on screen
     lg = {**pics, "captions": {"chunks": [{"text": "youtube"}]}, "cards": [{"anim": {"type": "logo", "props": {"src": "images/l.svg",
           "exit": {"kind": "fade", "ease": "power1.in"}}}, "trigger_word": "youtube", "start": 1, "end": 2, "box": [40, 15, 20, 11]}]}

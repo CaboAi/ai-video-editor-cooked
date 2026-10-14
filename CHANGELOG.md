@@ -4,6 +4,12 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Card edit never shows a card of words alone. A notes card now looks like real notes: your face in the header,
+  the frame of your take beside each line, a green tick drawing in. A progress card shows frames of your take. A
+  terminal or a chat with no logo gets no card, and the check fails any words-only card that gets through.
+- Animations install themselves: an editor set up before the motion tools existed installs them on the first edit
+  (a few seconds). If they cannot install, the edit says once that animations fell back.
+
 ## ai-editor 2.7.10, creator-teardown 2.7.10 (2026-10-14)
 
 - Skills: every skill has a ⋯ menu with Hide from this list and Delete. Delete moves the skill to the Trash, only from

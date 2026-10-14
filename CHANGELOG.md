@@ -13,6 +13,20 @@ What changed for every user, newest first.
 - A style page shows "What runs": the cut, real logos, animations and the edit, with logos and animations
   switchable per style.
 - "Fewer zooms" now gives fewer zooms: a zoom rate you set is no longer filled back in on long sentences.
+- Claude's question for a video reaches that video's editor only, even when its tab is in the background: the tab
+  title says "(1) Claude is asking", and Home and the sidebar's job card show "Claude is asking about <video>" with
+  Open. It no longer lands in another video's editor or only in the Terminal.
+- A video with no music settings gets a music bed when its format uses music in most videos, and the edit's checks
+  fail a music style that plans or renders silent.
+- Lists, numbers, steps and before/after lines become animations even when another card was planned there, within
+  the style's animation amount.
+- Picking a style for one video no longer changes your saved style. Only Make default does.
+- A renamed style shows its new name everywhere in the editor: "Teach <name>", the receipts, downloads.
+- The first video goes through "Add images or links" like every other. While setup runs, Home offers Analyse a
+  format at once, and Getting started counts finished steps.
+- Small fixes: Settings > Modal > Later works; Check lists the animation tools and the cutout model; a developer
+  copy says "update with git"; the first edit says "The edit is ready"; captions show their keyword colour; a fresh
+  My style shows no made-up numbers; the editor's video is centred on a phone.
 ## ai-editor 2.7.2, creator-teardown 2.7.2 (2026-10-14)
 
 - New sample style: Motion design (16:9). One dark board the camera moves across, silver-rimmed tiles with real

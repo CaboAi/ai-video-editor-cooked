@@ -9,7 +9,8 @@
     python3 motion.py demo                        self-check (offline)
 
 pick: the beats route.py's picks sent to a moving template (a count, a list of notes, a flow, a before and
-after, a run, a mechanism: MOTION_TYPES) become clips. Each gets the template filled with its size, duration,
+after, a run, a mechanism: MOTION_TYPES) become clips, and so does a beat routed elsewhere whose sentence is a
+list, a number, steps or a before and after (promote_type). Each gets the template filled with its size, duration,
 id, look and the said words' times in clip seconds (clip t=0 is the card's first frame, CARD_LEAD_S before
 its word), and a brief for one clip-builder agent. Beats with under MIN_S of room keep their template.
 check: check_clip.py, `hyperframes lint`, `check --at-transitions`, render, check_motion.py, measure_ink.py,
@@ -133,9 +134,27 @@ def allowed_types(cfg):
     return tuple(t for k, ts in KINDS.items() if cfg["kinds"][k] for t in ts) if cfg["engine"] == "clips" else ()
 
 
+def promote_type(line):
+    """The moving template a sentence asks for, whatever visual-prep routed there: a before and after, a number,
+    steps (first... then...) or a natural list (four or more items said in a row: "a, b, c and d"). None: no motion."""
+    sys.path.insert(0, str(SKILL.parent / "style-edit" / "scripts"))
+    import route
+    if route.VERSUS.search(line):
+        return "side_by_side"
+    if route.NUM.search(line):
+        return "likes"
+    if len(route.STEPS.findall(line)) >= 2:
+        return "flow"
+    if line.count(",") >= 3 or (line.count(",") >= 2 and re.search(r",? (?:and|or) ", line)):
+        return "notes"
+    return None
+
+
 def beats_for(visuals, words, aspect="9:16", max_n=8, images=(), types=MOTION_TYPES, amount=1.0, face=None):
     """The visuals.json beats that become clips: [{id, i, word, nth, start, dur, words, line, ...}].
-    types: the template formats clips may replace (style.json motion kinds); amount: the share of them built."""
+    types: the template formats clips may replace (style.json motion kinds); amount: the share of them built.
+    A beat routed to anything else (a card, a capture, a sticker) whose sentence is a list, a number, steps or a
+    before and after becomes a clip too (promote_type), one per sentence, when no animation is there already."""
     times, after = [], -1.0
     for v in list(visuals) + list(images):
         t = word_time(words, v["word"], v.get("nth"), after) if v.get("word") else None
@@ -143,12 +162,24 @@ def beats_for(visuals, words, aspect="9:16", max_n=8, images=(), types=MOTION_TY
             times.append(t)
     times.sort()
     sents = sentences(words)
+    sent_of = lambda t: next((k for k, s in enumerate(sents) if s["start"] <= t <= s["end"] + 0.05), None)   # noqa: E731
+    animated = {sent_of(t) for v in visuals if v.get("kind") == "anim" and v.get("word")
+                for t in [word_time(words, v["word"], v.get("nth", 1))] if t is not None}
     out = []
     for i, v in enumerate(visuals):
-        if v.get("kind") != "anim" or v.get("type") not in types or not v.get("word"):
+        if not v.get("word"):
             continue
         t = word_time(words, v["word"], v.get("nth", 1))
         if t is None:
+            continue
+        if v.get("kind") != "anim":   # routed elsewhere: a clip only when the sentence itself moves
+            si = sent_of(t)
+            pt = promote_type(sents[si]["text"]) if si is not None and si not in animated else None
+            if pt not in types:
+                continue
+            animated.add(si)
+            v = {**v, "type": pt, "props": {}, "promoted": v.get("kind")}
+        elif v.get("type") not in types:
             continue
         start = round(max(0.0, t - CARD_LEAD_S), 3)
         nxt = next((x - CARD_LEAD_S for x in times if x > t + 1e-6), words[-1]["end"] + 0.5)
@@ -160,7 +191,7 @@ def beats_for(visuals, words, aspect="9:16", max_n=8, images=(), types=MOTION_TY
         out.append({"id": f"{len(out) + 1:02d}-{slug(v['word'])}", "i": i, "word": v["word"], "nth": v.get("nth", 1),
                     "type": v["type"], "props": v.get("props") or {}, "start": start, "dur": dur, "clock": "cut",
                     "size": card_size(face, start, start + dur, aspect), "words": said,
-                    "line": sents[si]["text"] if si is not None else "",
+                    "line": sents[si]["text"] if si is not None else "", **({"promoted": v["promoted"]} if v.get("promoted") else {}),
                     "before": sents[si - 1]["text"] if si else "", "after": sents[si + 1]["text"] if si is not None and si + 1 < len(sents) else ""})
     n = min(max_n, int(len(out) * max(0.0, min(1.0, amount)) + 0.5))   # half up: 1 beat at "some" is 1 clip, not 0
     if len(out) > n:   # keep the longest windows: a bespoke clip pays off most where it holds longest
@@ -695,6 +726,18 @@ def demo():
     assert [b["type"] for b in beats_for(visuals, words, types=allowed_types(cfg))] == ["notes"]
     assert beats_for(visuals, words, amount=0.5)[0]["type"] == "likes" and len(beats_for(visuals, words, amount=0.5)) == 1
     assert allowed_types(motion_cfg({"motion": {"engine": "templates"}})) == ()
+    # promoted: a 4-item list visual-prep sent to a card becomes a notes clip; amount 0 or the kind off promotes nothing
+    lw = [{"text": w, "start": i * 0.5, "end": i * 0.5 + 0.4, "type": "word"}
+          for i, w in enumerate("you need captions, zooms, music and cards. it is red, blue and green. follow me now.".split())]
+    lv = [{"word": "need", "nth": 1, "kind": "card", "text": "captions"}, {"word": "cards.", "nth": 1, "kind": "logo", "brand": "x"},
+          {"word": "red,", "nth": 1, "kind": "card", "text": "red"}, {"word": "follow", "nth": 1, "kind": "card", "text": "follow"}]
+    pb = beats_for(lv, lw)
+    assert [(b["type"], b["word"], b.get("promoted")) for b in pb] == [("notes", "need", "card")], pb   # one per sentence, three items is no list
+    assert beats_for(lv, lw, amount=0) == []
+    assert beats_for(lv, lw, types=allowed_types(motion_cfg({"motion": {"kinds": {"list": False}}}))) == []
+    assert promote_type("first cut it, then render it") == "flow" and promote_type("before it took a week") == "side_by_side"
+    assert promote_type("it is red, blue and green") is None and promote_type("over 10,000 people") == "likes"
+    assert [b["type"] for b in beats_for(visuals, words)] == ["likes", "notes"], "a sentence with an animation gets no second"
     assert card_size({"heads": [{"t": 1.0, "box": [30, 31, 40, 40]}]}, 0.5, 2) == [1200, 550], card_size(
         {"heads": [{"t": 1.0, "box": [30, 31, 40, 40]}]}, 0.5, 2)   # head top at 31%: a 2.2:1 card
     assert card_size(None, 0, 1) == [1200, 630] and card_size({"heads": [{"t": 1, "box": [0, 60, 9, 9]}]}, 0, 2)[1] == 750

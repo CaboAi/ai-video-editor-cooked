@@ -154,8 +154,9 @@ another. `takes=` lists several clips, one path per line, in the order the user 
 video, so join them first (`cut/references/takes.md`, `join.py <edit>/joined.mp4 <the paths in order>`,
 no question: the page asked it). "Separate videos" arrives as one JOB per clip; take them one by one.
 
-`as=mine`: keep the profile as it is. `as=defaults`: `profile.py set creators=[]`. `as=@handle`:
-`profile.py set 'creators=[{"handle":"<h>","take":["captions","pace","visuals"]}]'`. When
+`as=` is this video's style only: never `profile.py set creators` for it (only the page's Make default changes the
+saved style). Blend with it in start step 3: `profile.py style <edit> --as <mine|defaults|@handle>` (the job's
+value as it is). When
 `creator-teardowns/<h>/style.json` is not there yet, that creator is still being copied: cut now
 (the cut needs no style) and start the styled pass once the teardown job is done.
 `aspect`: `profile.py set aspect=<a>`.

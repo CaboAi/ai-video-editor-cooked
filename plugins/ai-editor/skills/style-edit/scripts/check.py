@@ -8,8 +8,8 @@
 plan: every card inside the app's safe zones, vertical cards centred, no card on the head while
 it is up (face.json, moved by the zooms or the split window), captions inside the safe zone and
 never held long past their words, no stretch with nothing changing on screen, not more text cards
-than picture cards, text cards' text at least 34 px.
-render: on the rendered mp4 (4 samples a second), where the card's drawn pixels are: on the face
+than picture cards, text cards' text at least 34 px, a music bed when the style runs one.
+render: the planned music bed is in the render's audio, not silent. On the rendered mp4 (4 samples a second), where the card's drawn pixels are: on the face
 (YuNet, face.py), off centre, or not moving. On cut.mp4's audio: silences inside the speech, and
 kept spans too short to read as anything but a glitch. Caption words that differ from what the
 cut's own transcript heard are listed for a person to look at. Then quality.py: every frame
@@ -685,6 +685,44 @@ def check_audio(edit, words):
     return out, {"noise_db": round(noise, 1), "threshold": how}
 
 
+BED_GAIN = 0.5   # how much of the planned bed the render must carry (1.0: all of it, at its own level)
+
+
+def pcm(f):
+    """A file's audio as mono float32 at 16 kHz (numpy), empty when it has none."""
+    import numpy as np
+    b = subprocess.run(["ffmpeg", "-v", "error", "-i", str(f), "-vn", "-ac", "1", "-ar", "16000", "-f", "f32le", "-"],
+                       capture_output=True).stdout
+    return np.frombuffer(b, np.float32)
+
+
+def bed_gain(video, bed):
+    """How much of the bed is in the video's audio: its projection onto the bed (the voice and the cues do not
+    correlate with it). About 1 when the render carries it at its level, about 0 when it rendered without it."""
+    import numpy as np
+    r, b = pcm(video), pcm(bed)
+    n = min(len(r), len(b))
+    e = float(np.dot(b[:n], b[:n]))
+    return float(np.dot(r[:n], b[:n]) / e) if n and e > 0 else 0.0
+
+
+def music_findings(edit, plan, style, prof, video=None):
+    """A style that runs a music bed (plan.music_wanted) must plan one and render it audibly: never silent."""
+    from plan import music_wanted
+    if not music_wanted(style or {}, prof or {}):
+        return []
+    if not plan.get("music"):
+        return [finding("FAIL", None, "this style runs a music bed and the plan has none",
+                        f"sfx.py music {edit} (a generated bed at the creator's level), then plan.py again")]
+    bed = Path(edit) / plan["music"]["src"]
+    if video is not None and bed.is_file():
+        g = bed_gain(video, bed)
+        if g < BED_GAIN:
+            return [finding("FAIL", None, f"the plan has a music bed and the render carries {100 * g:.0f}% of it (silent bed)",
+                            f"check {bed} has sound and reached the renderer (edit.py copies plan.music.src), then render again")]
+    return []
+
+
 def google_fonts(remotion=None):
     """The families the installed @remotion/google-fonts can load (look.tsx loadFamily), or None when it is not installed."""
     if remotion is None:
@@ -741,6 +779,20 @@ def demo():
     assert len(font_findings(fp, {"Inter"})) == 2 and font_findings(fp, None) == []
     gf = google_fonts()
     assert gf is None or {"TikTok Sans", "Inter", "IBM Plex Sans", "Newsreader"} <= gf, "the default fonts load"
+    # music: a style that runs a bed fails a plan with none and a render silent between words
+    snd = {"sound": {"music": {"present_pct": 100, "level_db": -18}}}
+    assert music_findings("e", {}, snd, {})[0]["level"] == "FAIL", "a music style planned silent"
+    assert music_findings("e", {}, snd, {"sound": {"music": False}}) == [] and music_findings("e", {}, {**snd, "music": False}, {}) == []
+    assert music_findings("e", {}, {"sound": {"music": {"present_pct": 20}}}, {}) == []
+    with tempfile.TemporaryDirectory() as d:   # the cut alone (bed dropped by the renderer) fails; cut + bed passes
+        mk = lambda name, *a: subprocess.run(["ffmpeg", "-v", "error", *a, "-t", "2", str(Path(d) / name)], check=True)  # noqa: E731
+        mk("cut.wav", "-f", "lavfi", "-i", "sine=f=220:r=48000")
+        (Path(d) / ".sfx").mkdir()
+        mk(".sfx/music.wav", "-f", "lavfi", "-i", "anoisesrc=r=48000:a=0.05:seed=7")
+        mk("render.wav", "-i", str(Path(d) / "cut.wav"), "-i", str(Path(d) / ".sfx" / "music.wav"), "-filter_complex", "amix=inputs=2:normalize=0")
+        mp = {"music": {"src": ".sfx/music.wav"}}
+        assert music_findings(d, mp, snd, {}, Path(d) / "cut.wav")[0]["level"] == "FAIL", "rendered without its bed"
+        assert music_findings(d, mp, snd, {}, Path(d) / "render.wav") == [], bed_gain(Path(d) / "render.wav", Path(d) / ".sfx" / "music.wav")
     assert "no --style" in style_note(None, None) and style_note("s.json", {"pace": {}}) is None
     assert "no --style" not in style_note("edits/x/style.json", {}), style_note("edits/x/style.json", {})
     # a card style with an empty plan FAILs, saying where the cards went missing; the default style (no rate) does not
@@ -951,14 +1003,19 @@ def demo():
     print("demo ok")
 
 
-def brand():
-    """The profile's brand kit (a tell the user's own brand names is only a warning)."""
+def prof():
+    """The user's profile (start skill), {} outside the plugin."""
     try:
         sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
         from ai_editor import profile
-        return profile.load().get("brand") or {}
+        return profile.load()
     except Exception:
         return {}
+
+
+def brand():
+    """The profile's brand kit (a tell the user's own brand names is only a warning)."""
+    return prof().get("brand") or {}
 
 
 def main():
@@ -992,6 +1049,7 @@ def main():
         found += no_cards(plan, style, (rd("visuals.json") or []) + (rd("images.json") or []),
                           sum(bool(x.get("want")) for x in rd("beats.json") or []), str(edit))
         found += user_assets(edit, plan, rd("visuals.json") or [])
+        found += music_findings(str(edit), plan, style, prof())
     else:
         video = edit / f"render{tag}.mp4"
         if not video.exists():
@@ -1013,6 +1071,7 @@ def main():
         elif rd("decisions.json"):
             found += slivers([[s["start"] * 1000, s["end"] * 1000] for s in rd("decisions.json")], 1000)
         heard, shown = rd("cut.transcript.json"), rd("captions.json")
+        found += music_findings(str(edit), plan, style or rd("style.json"), prof(), video)
         if heard:
             f, extra["audio"] = check_audio(edit, shown or heard)
             found += f

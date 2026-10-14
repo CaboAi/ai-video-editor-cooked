@@ -4,6 +4,22 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.4, creator-teardown 2.7.4 (2026-10-14)
+
+- Claude's questions reach the right video: each one shows only in its own video's editor, waits there if the
+  tab is in the background (the tab title says "(1) Claude is asking"), and Home shows "Claude is asking about
+  <video>" with Open.
+- Picking a style for one video no longer changes your default style.
+- Music: a style or creator that uses music gets a bed under your voice, and the checks fail if it renders silent.
+- A renamed style shows its new name in the editor, the teach box and download names.
+- The first video goes through "Add images or links". During setup you can start "Analyse a format" straight
+  away, and Getting started counts only finished steps.
+- Spoken lists, numbers, steps and before-and-afters become motion clips within the style's Motion setting.
+- Full-frame scenes fill the frame on a light ground, the creator's accent colour and second face show where
+  they use them, and cut-away grounds keep the creator's brightness.
+- Smaller fixes: Modal "Later" works, the setup timer counts from the start, no stuck "Still coming" spinner, a
+  fresh My style shows no numbers, the editor is centred on a phone, Check lists the motion tools and cutout model.
+
 ## ai-editor 2.7.3, creator-teardown 2.7.3 (2026-10-14)
 
 - Captions follow a creator's typography: the share of lines in their accent colour (on keywords), a second

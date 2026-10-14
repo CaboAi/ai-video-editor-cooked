@@ -25,6 +25,7 @@ Usage (the tool venv python: numpy, pillow, opencv, ocrmac or rapidocr):
 Exit codes: 0 ok - 1 error - 2 usage
 """
 import argparse
+import bisect
 import difflib
 import importlib
 import json
@@ -212,7 +213,11 @@ def find_captions(samples, words):
             if ln["cap"]:
                 ys.append(ln["box"][1] + ln["box"][3] / 2)
     if ys:
-        band = statistics.median(ys)
+        # the densest 0.24-high band, not the median of all: captions moved out of a card's way for a few seconds
+        # (a second, smaller band) must not pull the band off the main one
+        ys.sort()
+        j = max(range(len(ys)), key=lambda i: bisect.bisect_right(ys, ys[i] + 0.24) - i)
+        band = statistics.median(ys[j:bisect.bisect_right(ys, ys[j] + 0.24)])
         for s in samples:
             for ln in s["lines"]:
                 if ln["cap"] and abs(ln["box"][1] + ln["box"][3] / 2 - band) > 0.12:
@@ -400,7 +405,7 @@ def caption_colours(crops, long_side, k=6):
     # Size from the x-height (or cap height): the band of rows most of the ink sits in.
     # It does not change with ascenders, descenders or the OCR engine, unlike a box.
     # Weight from the glyph stems against that em. A moving highlight from where it sits.
-    ratios, ems, cx = [], [], []
+    ratios, ems, cx, per = [], [], [], []
     for (rgb, core_box, text_, h, si), lab, (c, _, _) in zip(crops, labs, regs):
         ink = ((lab == fill) | ((lab == hi) if hi is not None else False)) & c
         rows = ink.sum(1)
@@ -413,6 +418,8 @@ def caption_colours(crops, long_side, k=6):
         r = stem_ratio(ink, em)
         if r:
             ratios.append(r)
+        acc = hi is not None and int(((lab == hi) & c).sum()) > int(((lab == fill) & c).sum())
+        per.append({"text": text_, "em": em, "stem": r, "accent": acc, "contrast": stroke_contrast(ink)})
         if hi is not None:
             m = (lab == hi) & c
             if m.sum() > 20:
@@ -431,7 +438,53 @@ def caption_colours(crops, long_side, k=6):
         "highlight_moves": moving >= 2,
         "stem_ratio": round(statistics.median(ratios), 3) if ratios else None,
         "size_pct": round(100 * statistics.median(ems) / long_side, 2) if ems else None,
+        **line_types(per, long_side),
     }
+
+
+STOP = set("a an the and or but so to of in on at for with from by as is are was were be been it its i i'm i'd you "
+           "your we our they their he she his her this that these those there here what when how if not no do does did "
+           "can could will would just than then me my mine us them".split())
+LIGHT = 0.65        # a caption line whose stems are this share of the median or thinner is set in a second, lighter face
+SERIF_K = 1.4       # that face is a serif when its stroke-width spread is this many times the main face's (her serif
+                    # lines read 1.7-2.3x her sans; a light sans about 1x)
+
+
+def stroke_contrast(ink):
+    """Spread of stroke widths along the glyph centre lines: low for a geometric sans, high for a serif's thick
+    stems and hairlines."""
+    import cv2
+    m = ink.astype(np.uint8)
+    if m.sum() < 30:
+        return None
+    dt = cv2.distanceTransform(m, cv2.DIST_L2, 3)
+    ridge = dt[(dt >= cv2.dilate(dt, np.ones((3, 3), np.uint8))) & (dt > 0.5)]
+    return round(float(ridge.std() / ridge.mean()), 3) if len(ridge) > 10 else None
+
+
+def keyword_share(lines):
+    """Share of the words in these caption lines that are content words (not STOP words)."""
+    ws = [w for ln in lines for w in re.findall(r"[a-z']+", ln["text"].lower())]
+    return round(100 * sum(w not in STOP for w in ws) / len(ws)) if ws else None
+
+
+def line_types(per, long_side):
+    """The caption typography beyond one size and colour, per OCR'd caption line: how many lines take the accent
+    colour and whether those are the keywords; how many are set in a second, lighter face (a serif when its strokes
+    vary), and on which words; the big size a keyword line jumps to (p90 against the median)."""
+    if len(per) < 4:
+        return {}
+    stems = [p["stem"] for p in per if p["stem"]]
+    mid = statistics.median(stems) if stems else None
+    light = [p for p in per if mid and p["stem"] and p["stem"] <= LIGHT * mid]
+    acc = [p for p in per if p["accent"]]
+    ems = sorted(p["em"] for p in per)
+    cv = [p["contrast"] for p in light if p["contrast"] is not None]
+    rest = med([p["contrast"] for p in per if p not in light], 3)
+    return {"accent_pct": round(100 * len(acc) / len(per)), "accent_keyword_pct": keyword_share(acc),
+            "light_pct": round(100 * len(light) / len(per)), "light_keyword_pct": keyword_share(light),
+            "light_face": ("serif" if statistics.median(cv) >= SERIF_K * rest else "sans") if cv and rest else None,
+            "size_max_pct": round(100 * ems[int(0.9 * (len(ems) - 1))] / long_side, 2)}
 
 
 def shadow_of(crops, labs, regs, fill):
@@ -791,6 +844,7 @@ def measure_video(path, words, ocr=None, faces=None, engine="vision", fps=SAMPLE
             "words_per_caption": int(round(statistics.median(sum(len(ln["text"].split()) for ln in b)
                                                              for _, b in caps))),
             "lines": int(round(statistics.median(len(b) for _, b in caps))),
+            "stack_pct": round(100 * sum(len(b) >= 2 for _, b in caps) / len(caps)),   # pages stacked on 2+ lines
             "case": "upper" if up > 0.9 else "lower" if up < 0.03 else "sentence",
         })
         # Second decode: crops of up to 60 caption lines, spread over the video.
@@ -968,6 +1022,7 @@ def merge(rows, visuals, style):
             "x_pct": med([c["x_pct"] for c in cs], 1),
             "size_pct": med([c["size_pct"] for c in cs], 2),
             "case": mode(c["case"] for c in cs),
+            "stack_pct": med([c.get("stack_pct") for c in cs], 0),
         })
         cc = [c for c in cs if "color" in c]
         if cc:
@@ -986,6 +1041,15 @@ def merge(rows, visuals, style):
                 "ease_s": med([c.get("ease_s") for c in cc], 3),
                 "animation": "word_highlight" if moves else (ent or "none"),
             })
+            for k in ("accent_pct", "accent_keyword_pct", "light_pct", "light_keyword_pct", "size_max_pct"):
+                v = med([c.get(k) for c in cc], 2 if k == "size_max_pct" else 0)
+                if v is not None:
+                    cap[k] = v
+            big = med([c["size_max_pct"] / c["size_pct"] for c in cc if c.get("size_max_pct") and c.get("size_pct")], 2)
+            if big:
+                cap["big_ratio"] = big   # her big keyword against her usual size, the median of each video's ratio
+            if mode(c.get("light_face") for c in cc) and cap.get("light_pct", 0) >= 10:
+                cap["light_face"] = mode(c.get("light_face") for c in cc)
             shadows = [c["shadow"] for c in cc if c.get("shadow") is not None]
             if shadows:
                 cap["shadow"] = mode(shadows)

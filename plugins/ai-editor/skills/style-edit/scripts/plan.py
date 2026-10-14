@@ -1838,6 +1838,52 @@ def mark_emph(chunks):
     return chunks
 
 
+STOP = set("a an the and or but so to of in on at for with from by as is are was were be been it its i i'm i'd you "
+           "your we our they their he she his her this that these those there here what when how if not no do does did "
+           "can could will would just than then me my mine us them now also gonna wanna".split())   # look.py STOP
+LIGHT_FONT = {"serif": "Instrument Serif"}   # look.py light_face -> the Google face that sets it (a sans keeps font_match)
+
+
+def keywords(c):
+    return [w for w in c["words"] if clean(w["text"]).lower() not in STOP and len(clean(w["text"])) > 2]
+
+
+def spread(cands, n):
+    """n items of cands, evenly spaced."""
+    if n <= 0 or not cands:
+        return []
+    step = len(cands) / n
+    return [cands[int(k * step)] for k in range(min(n, len(cands)))]
+
+
+def type_pages(chunks, cap):
+    """The creator's caption typography on the pages (look.py line_types): accent_pct of the pages get their
+    keyword in the accent colour ("emph"); light_pct are set in her second, lighter face ("face": "light"); about a
+    tenth jump to her big keyword size ("big": big_ratio); stack_pct of the pages of 2+ words sit
+    on two lines ("lines": 2). Pages are picked spread over the video; keyword pages first when hers are keywords."""
+    n = len(chunks)
+    if not n:
+        return chunks
+    kw = [c for c in chunks if keywords(c)]
+    for c in spread(kw if (cap.get("accent_keyword_pct") or 0) >= 50 else chunks, round(n * (cap.get("accent_pct") or 0) / 100)):
+        for w in c["words"]:   # her accent colours the whole line ("having heard", "she can"), not one word
+            w["emph"] = True
+    plain = [c for c in chunks if not any(w.get("emph") for w in c["words"])]
+    pool = [c for c in plain if keywords(c)] if (cap.get("light_keyword_pct") or 0) >= 50 else [c for c in plain if not keywords(c)]
+    for c in spread(pool or plain, round(n * (cap.get("light_pct") or 0) / 100)):
+        c["face"] = "light"
+    if (cap.get("big_ratio") or 0) >= 1.4:   # under that it is the spread of one size
+        word = lambda c: max(keywords(c), key=lambda w: len(clean(w["text"])))
+        solo = [c for c in kw if len(clean(word(c)["text"])) >= 5 and c.get("face") != "light"]   # a real word, not "has"
+        for c in spread(solo, round(n / 7)):   # enough that her big size is in the top tenth of the lines measured
+            c["big"] = cap["big_ratio"]
+            word(c)["big"] = cap["big_ratio"]   # the keyword on its own line at her big size (Captions.tsx)
+    two = [c for c in chunks if len(c["words"]) >= 2 and not c.get("big")]
+    for c in spread(two, round(n * (cap.get("stack_pct") or 0) / 100)):
+        c["lines"] = 2
+    return chunks
+
+
 def pick_motion(style):
     """plan.json "motion": style.json motion (a name, or motion.personality), else from the creator's
     median shot length (references/motion.md "Personalities"), else smooth."""
@@ -1977,6 +2023,30 @@ def off_screen(style):
     return took(style, "graphics") and p is not None and 100 - p >= OFF_SCREEN
 
 
+FACE_BACK_S = 8.0   # cut-aways never keep the speaker off screen longer than this (the 50/50 face_every_s rule)
+
+
+def hold_scenes(cards, words, duration, share):
+    """A creator off screen `share` of the time: while her cut-aways cover less than that, each scene plan.py made for
+    her holds to the end of the sentence it lands in, never into the next card and never keeping the face away more
+    than FACE_BACK_S in one run of cut-aways."""
+    order = sorted(cards, key=lambda c: c["start"])
+    have = sum(c["end"] - c["start"] for c in order if c.get("layout") == "scene")
+    ends = [w["end"] for i, w in enumerate(words) if ends_sentence(w["text"]) or i == len(words) - 1]
+    run0 = run1 = None
+    for k, c in enumerate(order):
+        if c.get("layout") == "scene":
+            run0 = c["start"] if run1 is None or c["start"] - run1 > 0.5 else run0
+            if c.get("scene_by") == "creator" and have < share * duration:
+                nxt = min([o["start"] for o in order[k + 1:]] + [duration])
+                end = min(next((e for e in ends if e > c["end"]), c["end"]), nxt - 0.3, run0 + FACE_BACK_S)
+                if end > c["end"]:
+                    have += end - c["end"]
+                    c["end"] = round(end, 3)
+            run1 = c["end"]
+    return cards
+
+
 def lay_out(cards, aspect, face, style, split_ok):
     """Gives every card its layout. A scene starts SCENE_LEAD_S x k earlier, a hard cut in no earlier (never before the card
     before it in its lane ends). Returns (cards, any card in the split panel)."""
@@ -2113,7 +2183,14 @@ def above_face(style):
     return bool(c.get("y_pct") and f.get("y_pct") and f.get("height_pct")) and c["y_pct"] < f["y_pct"] - f["height_pct"] / 2
 
 
-def caption_under_chin(cap, face, aspect, above=False):
+def page_tall(chunks):
+    """The tallest caption page against a one-line page: a big keyword (its line plus up to two at the page size) or a
+    stacked page (two lines, Captions.tsx STACK_K bigger, 1.14 line height)."""
+    return max([1.0] + [c["big"] + 1.14 * (len(c["words"]) > 1) for c in chunks if c.get("big")]
+               + [2 * 1.14 * 1.25 for c in chunks if c.get("lines") == 2])
+
+
+def caption_under_chin(cap, face, aspect, above=False, tall=1.0):
     """Captions never on the face. A vertical caption line that falls inside the head (face.json, the median head
     over the take) moves to the head box's bottom edge, the chin line just below the mouth, held inside the safe
     zone (its ink above y 1440); with above (the creator's captions sit over her face), to just over the head
@@ -2124,8 +2201,8 @@ def caption_under_chin(cap, face, aspect, above=False):
         return None
     half = CAP_GLYPH * (cap.get("size_pct") or 4.4)
     cap["off_face_from"] = cap["y_pct"]   # style_check.py: moved off the face on purpose, not a mismatch
-    if above and hm[0] - 0.6 - 2 * half >= SAFE[aspect][1]:
-        cap["y_pct"] = round(hm[0] - 0.6 - half, 1)
+    if above and hm[0] - 0.6 - 2 * half * tall >= SAFE[aspect][1]:
+        cap["y_pct"] = round(hm[0] - 0.6 - half * tall, 1)   # the tallest page clears the head
         return None
     lowest = 100 - SAFE[aspect][3] - half
     cap["y_pct"] = round(min(hm[1] + 0.6, lowest), 1)
@@ -2198,9 +2275,13 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         cap["width_pct"] = min(cap.get("width_pct") or 86, 100 - 2 * m)
     chunks = mark_emph(chunk_captions(words, cap.get("words_per_caption") or 3, cap.get("case", "sentence"))) \
         if cap.get("present", True) else []
+    if took(style, "captions"):
+        chunks = type_pages(chunks, cap)
+        if cap.get("light_face") and (cap.get("light_pct") or 0) >= 10:
+            cap["light_font"] = LIGHT_FONT.get(cap["light_face"], cap.get("font_match"))
     fj = edit_dir and Path(edit_dir) / "face.json"
     face = json.loads(fj.read_text(encoding="utf-8")) if fj and fj.exists() else None
-    chin = caption_under_chin(cap, face, aspect, took(style, "captions") and above_face(style))
+    chin = caption_under_chin(cap, face, aspect, took(style, "captions") and above_face(style), page_tall(chunks))
     lay = {**SPLIT, **(style.get("layout") or {}), **(layout or {})}
     sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
     from ai_editor import profile as prof_mod
@@ -2237,6 +2318,8 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
     cards = thin_cards(place_cards(list(images) + anim_items(visuals, edit_dir, style) + logo_items(visuals, edit_dir, logo_y, aspect, pictures_only(style)),
                                    words, duration, style, aspect), duration, style.get("cards"))
     cards, _ = lay_out(cards, aspect, face, style, split_ok)
+    if off_screen(style):
+        cards = hold_scenes(cards, words, duration, 1 - style["face"]["present_pct"] / 100)
     gap = card_gap_s(style)
     quiet = [g for g in card_gaps(cards, duration) if g[1] - g[0] > gap]
     cover = audio_cover(edit_dir, words)
@@ -2415,12 +2498,14 @@ CONTRAST_TARGET = 4.7
 # grey (#9A9A9A) desk, which agree to 0.04, rounded down. The renderer's default soft shadow, the
 # treatment's denser shadow, that plus a 0.1 em stroke, and all of it on a 0.45 backing (Captions.tsx).
 # glow: plain captions' step after the shadow (Captions.tsx), fitted the same way at TikTok Sans 600, 4.2%: 0.29 / 0.31.
-PULL = {"plain": 0.07, "shadow": 0.12, "glow": 0.28, "stroke": 0.45, "backing": 0.7}
+PULL = {"plain": 0.07, "shadow": 0.12, "glow": 0.28, "stroke": 0.45, "backing": 0.7, "band": 0.55}
+# band: plain captions' last step, the glow over a soft dark band the width of the frame behind the caption line
+# (Captions.tsx), no edge: alpha 0.5 at its middle composited with the glow, rounded down. Never a box or a stroke.
 TREATS = ("shadow", "stroke", "backing")
 # Plain captions (profile.py PLAIN_CAPTIONS) take a shadow, then a glow, and keep the glow while it reads at
 # PLAIN_MIN or better (the render check may WARN there, it does not FAIL). Only under that, where the page would
 # actually fail, do they get the stroke and then the backing.
-PLAIN_TREATS = ("shadow", "glow")
+PLAIN_TREATS = ("shadow", "band")
 PLAIN_MIN = CONTRAST_MIN + 0.3
 LUM = [((v / 255) / 12.92 if v / 255 <= 0.04045 else ((v / 255 + 0.055) / 1.055) ** 2.4) for v in range(256)]
 
@@ -2467,10 +2552,11 @@ def pick_treat(pixels, style):
     if got >= CONTRAST_TARGET:
         return None, hexc, got
     # a creator measured with no stroke and no box (plain white over the footage) keeps that look first too
+    # a creator measured with no stroke and no box keeps that: shadow, glow, then the soft band, never a stroke or box
     plain = is_plain(style)
-    for t in PLAIN_TREATS + TREATS[1:] if plain else TREATS:
-        if plain and t == "stroke" and got >= PLAIN_MIN:
-            return "glow", hexc, got
+    for t in PLAIN_TREATS if plain else TREATS:
+        if plain and t == "band" and got >= PLAIN_MIN:
+            return "shadow", hexc, got   # the soft shadow is enough to read: the band only where a page would fail
         got = treat_for(pixels, fill, PULL[t], tc)
         if got >= CONTRAST_TARGET:
             break
@@ -2543,15 +2629,27 @@ def treat_captions(plan, edit_dir, meta, floors=None):
             if t:
                 chunks[i].update(treat=t, treat_color=colour)
                 done[i] = (i, t, round(got, 2))
+    order = steps_of(cs)
     for i, c in enumerate(chunks):
         least = floors.get(f"{c['start']:.2f}")
+        if least not in order:   # a floor from before the band: the plain ladder's top step instead
+            least = order[-1] if least else None
         if least and STEPS.index(least) > STEPS.index(c.get("treat")):
             c.update(treat=least, treat_color=c.get("treat_color") or pick_treat([(128, 128, 128)], cs)[1])
             done[i] = (i, least, None)
+    # one treatment for the whole video: every page takes the strongest any page needed, never a mix (a glow on
+    # most pages and a box on one reads as a mistake)
+    top = max((c.get("treat") for c in chunks), key=STEPS.index, default=None)
+    if top:
+        colour = next(c["treat_color"] for c in chunks if c.get("treat") == top)
+        for i, c in enumerate(chunks):
+            if c.get("treat") != top:
+                c.update(treat=top, treat_color=colour)
+                done[i] = (i, top, done[i][2] if i in done else -1)   # -1: given it to match the rest
     return sorted(done.values())
 
 
-STEPS = (None, "shadow", "glow", "stroke", "backing")   # every treatment, least visible first
+STEPS = (None, "shadow", "glow", "band", "stroke", "backing")   # every treatment, least visible first
 
 
 
@@ -2563,7 +2661,7 @@ def is_plain(cs):
 def steps_of(cs):
     """The treatments a page of this caption style steps through: plain captions have the glow, others skip it.
     Same test as pick_treat, so a page pick_treat gave the glow always has a next step."""
-    return STEPS if is_plain(cs) else (None,) + TREATS
+    return (None,) + PLAIN_TREATS if is_plain(cs) else (None,) + TREATS
 
 
 def contrast_summary(changed, chunks, worst=3):
@@ -2573,13 +2671,15 @@ def contrast_summary(changed, chunks, worst=3):
     by = {}
     for _, t, _ in changed:
         by[t] = by.get(t, 0) + 1
-    low = sorted((got, i) for i, _, got in changed if got)[:worst]
-    late = sum(1 for _, _, got in changed if not got)
+    low = sorted((got, i) for i, _, got in changed if got and got > 0)[:worst]
+    late = sum(1 for _, _, got in changed if got is None)
+    same = sum(1 for _, _, got in changed if got == -1)
     return (f"captions: {len(changed)} of {len(chunks)} pages treated for contrast ("
             + ", ".join(f"{n} {t}" for t, n in sorted(by.items(), key=lambda kv: -kv[1])) + ")"
             + (f"; lowest reached: " + ", ".join(f"{got}:1 '{chunks[i]['text']}' at {chunks[i]['start']:.1f} s"
                                                  for got, i in low) if low else "")
-            + (f"; {late} from the last render check" if late else ""))
+            + (f"; {late} from the last render check" if late else "")
+            + (f"; {same} only so every page has the same treatment" if same else ""))
 
 
 def contrast_floors(edit_dir, out):
@@ -2598,8 +2698,10 @@ def contrast_floors(edit_dir, out):
         order = steps_of(cap.get("style") or {})
         for c in cap["chunks"]:
             hit = lambda ts: any(c["start"] - 0.05 <= t <= c["end"] + 0.05 for t in ts)
-            if hit(low) and not (c.get("treat") == "glow" and not hit(fail)):
-                key, nxt = f"{c['start']:.2f}", order[min(len(order) - 1, order.index(c.get("treat")) + 1)]
+            if hit(low) and not (c.get("treat") == "shadow" and order[-1] == "band" and not hit(fail)):   # a plain page's WARN keeps its look
+                # the next step up on this style's ladder (a step from an older ladder, a glow, counts by its rank)
+                nxt = next((o for o in order if STEPS.index(o) > STEPS.index(c.get("treat"))), order[-1])
+                key = f"{c['start']:.2f}"
                 if STEPS.index(nxt) > STEPS.index(doc["pages"].get(key)):
                     doc["pages"][key] = nxt
         doc["read"].append(stamp)
@@ -3030,6 +3132,19 @@ def demo():
         assert 150 < lu < 170 and sa < 0.02, (lu, sa)
         assert grade_for({"grade": {"luma": 120, "sat": 0.3}}, gv) == {"brightness": 0.76, "saturate": 1.0}
         assert grade_for({"grade": {"luma": lu, "sat": sa}}, gv) is None and grade_for({}, gv) is None
+    ws = [{"text": t, "start": i, "end": i + 0.8} for i, t in enumerate("one two three. four five six seven eight nine ten eleven twelve.".split())]
+    hs = hold_scenes([{"start": 0.5, "end": 1.5, "layout": "scene", "scene_by": "creator"}, {"start": 4.0, "end": 5.0, "layout": "scene",
+                      "scene_by": "creator"}, {"start": 13.0, "end": 14.0}], ws, 14.0, 0.9)
+    assert hs[0]["end"] == 2.8 and hs[1]["end"] == 11.8 and hs[2]["end"] == 14.0, hs   # to the sentence end, held under 8 s
+    # her typography: accent keywords, a light second face, a big keyword, stacked pages; at her shares
+    tw = [{"text": t, "start": i * 0.4, "end": i * 0.4 + 0.3} for i, t in enumerate(
+        "we moved to london and it was the best thing so far but the rain never stops here in the city".split())]
+    tc = type_pages(chunk_captions(tw, 2, "lower"), {"accent_pct": 25, "accent_keyword_pct": 80, "light_pct": 15,
+                                                    "light_keyword_pct": 20, "big_ratio": 2.0, "stack_pct": 40})
+    acc = [w["text"] for c in tc for w in c["words"] if w.get("emph")]
+    assert acc and any(clean(a) not in STOP for a in acc), acc        # the accent lands on keyword pages, whole line
+    assert sum(c.get("face") == "light" for c in tc) == round(len(tc) * 0.15) and any(c.get("big") == 2.0 for c in tc)
+    assert sum(c.get("lines") == 2 for c in tc) == round(len(tc) * 0.4) and abs(page_tall(tc) - 3.14) < 0.01, tc   # a big keyword over one more line
     # a creator off screen half the time: picture cards become full-frame cut-aways, logos stay boxes
     oc, _ = lay_out([{"start": 1, "end": 3, "src": "images/a.png"}, {"start": 5, "end": 6, "lane": "logo", "src": "images/l.svg"}],
                     "9:16", None, {"face": {"present_pct": 44}}, False)
@@ -3080,25 +3195,30 @@ def demo_contrast():
     assert "5.0:1 'w8'" in got and "'w5'" not in got and "1 from the last render check" in got, got
     assert contrast_summary([], ch) == ""
     assert pick_treat([(230, 225, 216)] * 9, white)[:2] == ("backing", "#111111")  # a bright desk
-    # plain captions (the default): a glow where the shadow is not enough, never a stroke while the glow reads at
-    # PLAIN_MIN; under that (a page that would FAIL) the stroke, then the backing
+    # plain captions (the default): the soft shadow while it reads at PLAIN_MIN; under that (a page that would FAIL)
+    # the soft band behind the line, never a glow smear, a stroke or a box
     plain = {"color": "#FFFFFF", "shadow": False, "style": "plain"}
-    assert pick_treat([(160, 160, 160)] * 9, plain)[0] == "glow" and pick_treat([(160, 160, 160)] * 9, white)[0] == "stroke"
+    assert pick_treat([(160, 160, 160)] * 9, plain)[0] == "band" and pick_treat([(160, 160, 160)] * 9, white)[0] == "stroke"
     assert pick_treat([(126, 126, 126)] * 9, plain)[0] == "shadow"
-    assert pick_treat([(190, 190, 190)] * 9, plain)[0] in ("stroke", "backing")
+    assert pick_treat([(190, 190, 190)] * 9, plain)[0] == "band"
     with tempfile.TemporaryDirectory() as d:
         d = Path(d)
         (d / "plan.json").write_text(json.dumps({"captions": {"style": plain, "chunks": [
-            {"start": 1.0, "end": 2.0, "treat": "glow"}, {"start": 2.0, "end": 3.0, "treat": "glow"}, {"start": 3.0, "end": 4.0, "treat": "shadow"}]}}), encoding="utf-8")
+            {"start": 1.0, "end": 2.0, "treat": "shadow"}, {"start": 2.0, "end": 3.0, "treat": "shadow"}, {"start": 3.0, "end": 4.0, "treat": None}]}}), encoding="utf-8")
         (d / "check.json").write_text(json.dumps({"render": {"caption_contrast": {"low_at": [1.5, 2.5, 3.5], "fail_at": [2.5]}}}), encoding="utf-8")
-        assert contrast_floors(d, d / "plan.json") == {"2.00": "stroke", "3.00": "glow"}   # a WARN keeps the glow
+        assert contrast_floors(d, d / "plan.json") == {"2.00": "band", "3.00": "shadow"}   # a WARN keeps the shadow
         # a minimal style with no stroke and no box got the glow from pick_treat: plan again steps it up, no crash
         mini = {"color": "#FFFFFF", "style": "minimal", "stroke": False, "box": False}
         (d / "contrast.json").unlink()
         (d / "plan.json").write_text(json.dumps({"captions": {"style": mini, "chunks": [
             {"start": 5.0, "end": 6.0, "treat": "glow"}]}}), encoding="utf-8")
         (d / "check.json").write_text(json.dumps({"render": {"caption_contrast": {"low_at": [5.5], "fail_at": [5.5]}}}), encoding="utf-8")
-        assert contrast_floors(d, d / "plan.json")["5.00"] == "stroke"
+        assert contrast_floors(d, d / "plan.json")["5.00"] == "band"
+        # one treatment per video: the strongest any page needed goes on every page
+        tp = {"captions": {"style": {"color": "#FFFFFF", "stroke": True}, "chunks": [
+            {"start": 5.0, "end": 6.0, "treat": "shadow", "treat_color": "#111111"}, {"start": 6.0, "end": 7.0}]}}
+        treat_captions(tp, d, None, {"5.00": "backing"})
+        assert [c["treat"] for c in tp["captions"]["chunks"]] == ["backing", "backing"], tp
     assert pick_treat([(230, 225, 216)] * 9, {**white, "stroke_color": "#1B2A4A"})[1] == "#1B2A4A"   # her palette
     assert pick_treat([(250, 250, 250)] * 9, {**white, "highlight_color": "#5A5A5A"})[0] == "backing"
     assert pick_treat([(20, 20, 20)] * 9, {"color": "#111111"})[:2] == ("backing", "#F5F5F5")     # dark text

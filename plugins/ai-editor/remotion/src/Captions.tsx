@@ -7,11 +7,13 @@ import { fitTextOnNLines } from "@remotion/layout-utils";
 import { Motion, ease, prog } from "./motion";
 import { loadFamily } from "./look";
 
-export type Word = { text: string; start: number; end: number; emph?: boolean };
+export type Word = { text: string; start: number; end: number; emph?: boolean; big?: number };
 /** treat: what plan.py added to this page because the footage behind it would drop the creator's look under
  *  3:1 (a stronger soft shadow; then a thin stroke; then a subtle backing), in treat_color. Plain captions
  *  never get a stroke or backing: their step after the shadow is a glow, a wide feathered shadow with no edge. */
-export type Chunk = { text: string; start: number; end: number; words: Word[]; treat?: "shadow" | "glow" | "stroke" | "backing"; treat_color?: string };
+export type Chunk = { text: string; start: number; end: number; words: Word[]; treat?: "shadow" | "glow" | "band" | "stroke" | "backing"; treat_color?: string;
+  /** plan.py type_pages: the creator's second, lighter face; her big keyword size (x the page size); 2 stacked lines */
+  face?: "light"; big?: number; lines?: number };
 export type CaptionStyle = {
   present?: boolean;
   y_pct?: number;
@@ -44,6 +46,8 @@ export type CaptionStyle = {
   shadow?: boolean;
   /** true while a scene is up: dark ink on a flat ground, no shadow and no contrast treatment. */
   flat?: boolean;
+  /** The creator's second face for pages marked "face": "light" (plan.py LIGHT_FONT), set at 400. */
+  light_font?: string;
 };
 
 export const useFamily = (name: string | undefined, weight: number) => {
@@ -63,24 +67,37 @@ const rgba = (hex: string, a: number) => {
   return `rgba(${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)},${a})`;
 };
 
+const STACK_K = 1.25;
+const BAND_HOLD_S = 1.0;   // the contrast band holds across a gap between caption pages up to this long   // a stacked page's lines run this much bigger than a one-line page (each is shorter)
+
 const casing = (s: string, c?: string) => (c === "lower" ? s.toLowerCase() : c === "upper" ? s.toUpperCase() : s);
 
 /** One caption page at time t (seconds on the same clock as the chunk). */
 export const CaptionLine: React.FC<{ style: CaptionStyle; chunk: Chunk; t: number; family: string; m: Motion; boxW: number; maxSize: number }> =
   ({ style, chunk, t, family, m, boxW, maxSize }) => {
-    const weight = style.weight ?? 800;
+    const light = chunk.face === "light";
+    const weight = light ? 400 : style.weight ?? 800;
     const color = style.color ?? "#FFFFFF";
     const hi = style.highlight_color ?? color;
     const fx = style.effect ?? style.animation ?? "pop";
     const words = chunk.words.map((w) => ({ ...w, text: casing(w.text, style.case) }));
-    const lines = style.max_lines ?? 1;
-    const heavy = Math.min(900, weight + 100);
+    // a stacked page: its words on two lines, each fitted as one line and up to STACK_K bigger, as the creator stacks
+    // a big keyword (plan.py type_pages "big" on the word) sits on its own line at its size, the rest at the page's
+    const bi = style.flat ? -1 : chunk.words.findIndex((w) => w.big);   // over a scene's card the page stays one size
+    const breaks = new Set<number>(bi >= 0 ? [bi, bi + 1].filter((k) => k > 0 && k < chunk.words.length) : []);
+    const brk = bi < 0 && chunk.lines === 2 && chunk.words.length >= 2 ? Math.ceil(chunk.words.length / 2) : -1;
+    if (brk > 0) breaks.add(brk);
+    const lines = breaks.size ? 1 : style.max_lines ?? 1;
+    const heavy = light ? weight : Math.min(900, weight + 100);
     const activeScale = style.active_scale ?? (fx === "lift" || fx === "pop" ? 1.08 : fx === "karaoke" ? 1.12 : 1);
     // one size per page, on one line unless the style asks for more: fitted at the stressed word's weight with
     // room for the active word's scale, and never wrapped
-    const { fontSize } = fitTextOnNLines({ text: words.map((w) => w.text).join(" "), maxLines: lines, maxBoxWidth: boxW / activeScale,
-      fontFamily: family, fontWeight: heavy, maxFontSize: maxSize });
-    const size = fontSize * 0.96;
+    const segs: string[] = [];   // the page's lines, the big word's line left out (it is fitted on its own)
+    words.forEach((w, i) => { if (i === bi) return; if (!segs.length || breaks.has(i) || i === bi + 1) segs.push(w.text); else segs[segs.length - 1] += ` ${w.text}`; });
+    const fit = (text: string, max: number) => fitTextOnNLines({ text, maxLines: lines, maxBoxWidth: boxW / activeScale, fontFamily: family,
+      fontWeight: heavy, maxFontSize: max }).fontSize * 0.96;
+    const size = segs.length ? fit(segs.reduce((a, b) => (b.length > a.length ? b : a)), maxSize * (brk > 0 ? STACK_K : 1)) : maxSize;
+    const bigSize = bi >= 0 ? fit(words[bi].text, maxSize * (chunk.words[bi].big ?? 1)) : size;
     const lt = t - chunk.start;
     const enter = ease(m.pop)(Math.min(1, Math.max(0, lt / (0.38 * m.k))));
     const pageT = fx === "pop" ? `scale(${0.8 + 0.2 * enter})` : fx === "slide" ? `translateY(${(1 - prog(lt, 0, 0.35 * m.k, m.enter)) * size * 0.6}px)` : "none";
@@ -91,7 +108,7 @@ export const CaptionLine: React.FC<{ style: CaptionStyle; chunk: Chunk; t: numbe
     const tr = style.flat ? undefined : chunk.treat;
     const tc = chunk.treat_color ?? "#111111";
     const boxed = style.box || tr === "backing";
-    const shadow = tr === "glow" ? [0.05, 0.1, 0.15, 0.2, 0.3].map((r) => `0 0 ${size * r}px ${rgba(tc, 1)}`).join(", ") + `, 0 0 ${size * 0.6}px ${rgba(tc, 0.5)}`
+    const shadow = tr === "glow" || tr === "band" ? [0.05, 0.1, 0.15, 0.2, 0.3].map((r) => `0 0 ${size * r}px ${rgba(tc, 1)}`).join(", ") + `, 0 0 ${size * 0.6}px ${rgba(tc, 0.5)}`
       : tr ? `0 0 ${size * 0.02}px ${rgba(tc, 1)}, 0 0 ${size * 0.06}px ${rgba(tc, 0.9)}, 0 ${size * 0.04}px ${size * 0.18}px ${rgba(tc, 0.6)}`
       : style.flat || style.shadow === false || style.box || style.stroke ? undefined : `0 ${size * 0.04}px ${size * 0.18}px rgba(0,0,0,0.5)`;
     return (
@@ -110,15 +127,16 @@ export const CaptionLine: React.FC<{ style: CaptionStyle; chunk: Chunk; t: numbe
           const pill = fx === "word_highlight" && on;
           const pillP = pill ? ease("back.out(2)")(Math.min(1, (t - w.start) / 0.18)) : 0;
           const base = w.emph ? style.emphasis_color ?? hi : color;
-          const textColor = fx === "karaoke" ? undefined : on && !pill && fx !== "reveal" ? hi : base;
+          const textColor = fx === "karaoke" ? undefined : on && !pill && fx !== "reveal" && fx !== "none" ? hi : base;
           const stroke = pill ? undefined : style.stroke ? `${Math.max(2, size * 0.1)}px #000`
             : tr === "stroke" || tr === "backing" ? `${Math.max(2, size * 0.1)}px ${tc}` : undefined;
           return (
             <React.Fragment key={i}>
-              {i ? " " : null}
+              {i ? (breaks.has(i) ? <br /> : " ") : null}
               <span style={{ display: "inline-block", position: "relative", transform: `translateY(${-lift * a + (1 - rev) * size * 0.35}px) scale(${sc})`,
                 margin: `0 ${(sc - 1) * 0.5 * size * Math.max(1, w.text.length * 0.5)}px`,
-                opacity: op, color: textColor ?? base, fontWeight: w.emph ? heavy : weight, WebkitTextStroke: stroke, paintOrder: "stroke fill",
+                opacity: op, color: textColor ?? base, fontWeight: w.emph ? heavy : weight, fontSize: i === bi ? bigSize : undefined,
+                lineHeight: i === bi ? 1.0 : undefined, WebkitTextStroke: stroke, paintOrder: "stroke fill",
                 textShadow: shadow }}>
                 {pill ? <span style={{ position: "absolute", left: -size * 0.12, right: -size * 0.12,
                   top: size * 0.02, bottom: 0, background: hi, borderRadius: size * 0.16, transform: `scale(${0.6 + 0.4 * pillP})`, opacity: pillP, zIndex: -1 }} /> : null}
@@ -139,15 +157,26 @@ export const CaptionLine: React.FC<{ style: CaptionStyle; chunk: Chunk; t: numbe
 export const Captions: React.FC<{ style: CaptionStyle; chunks: Chunk[]; t: number; m: Motion }> = ({ style, chunks, t, m }) => {
   const { width, height } = useVideoConfig();
   const family = useFamily(style.font_match, style.weight ?? 800);
+  const lightFamily = useFamily(style.light_font ?? style.font_match, 400);
   const chunk = chunks.find((c) => t >= c.start && t < c.end);
-  if (!family || !chunk || style.present === false) return null;
+  // the band stays down across a short gap between pages, so it never flashes on and off between words
+  const near = chunk ?? chunks.find((c) => c.treat === "band" && t >= c.start - BAND_HOLD_S && t < c.end + BAND_HOLD_S);
+  if (!family || !lightFamily || !near || style.present === false) return null;
   // size_pct is measured on vertical video, where height is the long side; the long side keeps a 16:9
   // render as readable on a phone as a vertical one.
   const size = ((style.size_pct ?? 6) / 100) * Math.max(width, height);
   const boxW = ((style.width_pct ?? 86) / 100) * width;
   return (
     <div style={{ position: "absolute", left: 0, right: 0, top: `${style.y_pct ?? 70}%`, transform: "translateY(-50%)", display: "flex", justifyContent: "center" }}>
-      <CaptionLine style={style} chunk={chunk} t={t} family={family} m={m} boxW={boxW} maxSize={size} />
+      {near.treat === "band" && !style.flat ? (
+        // plain captions' last contrast step: the footage behind the line darkened across the frame, no edge
+        <div style={{ position: "absolute", left: 0, right: 0, top: "50%", transform: "translateY(-50%)",
+          // fades over the last 0.3 s of a hold, so a long pause lets the footage back without a jump
+          opacity: chunk ? 1 : Math.max(0, Math.min(1, (BAND_HOLD_S - Math.max(near.start - t, t - near.end)) / 0.3)),
+          height: size * 2.9 * 2.4,   // one height for every page: the band never jumps with a big or stacked page
+          background: `linear-gradient(to bottom, ${rgba(near.treat_color ?? "#111111", 0)}, ${rgba(near.treat_color ?? "#111111", 0.5)} 35%, ${rgba(near.treat_color ?? "#111111", 0.5)} 65%, ${rgba(near.treat_color ?? "#111111", 0)})` }} />
+      ) : null}
+      {chunk ? <CaptionLine style={style} chunk={chunk} t={t} family={chunk.face === "light" ? lightFamily : family} m={m} boxW={boxW} maxSize={size} /> : null}
     </div>
   );
 };

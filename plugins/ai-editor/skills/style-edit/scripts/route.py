@@ -104,6 +104,9 @@ def prefer(style):
     return out
 
 
+OFF_SCENE_S = 3.0   # a cut-away's length, for counting how many reach a b-roll-led creator's off-screen share
+
+
 def want(beats, style):
     """Marks "want": true on as many beats as the creator shows cards in a video this long (plan.card_rate: her
     graphics.per_min under the user's own cards cap),
@@ -115,6 +118,10 @@ def want(beats, style):
         return 0, None
     n = max(1, round(beats[-1]["end"] / 60 * pm))
     gap = 30 / pm
+    from plan import off_screen
+    if off_screen(style or {}) and not (style.get("cards") or {}).get("per_min"):   # a b-roll-led creator (the user's cap wins): enough cut-aways of OFF_SCENE_S to reach her off-screen share
+        away = 1 - style["face"]["present_pct"] / 100
+        n, gap = max(n, round(beats[-1]["end"] * away / OFF_SCENE_S)), min(gap, 2.0)
     picked = []
     for b in sorted(beats, key=lambda b: (not b.get("names"), -(b["end"] - b["start"]), b["start"])):
         if len(picked) < n and b["end"] > 1.0 and all(abs(b["start"] - x["start"]) >= gap for x in picked):
@@ -203,6 +210,7 @@ def demo():
     assert [b["start"] for b in wb if b["want"]] == [9.0, 14.0, 25.0], wb
     assert want(wb, {"graphics": {"per_min": 6}, "blend": {"take": ["captions"]}}) == (0, None)
     assert want(wb, {"graphics": {"per_min": 6}, "cards": {"per_min": 2}}) == (1, 2)   # the user's cap wins
+    assert want(wb, {"graphics": {"per_min": 6}, "face": {"present_pct": 40}})[0] == 6   # off screen 60%: 30 s x 0.6 / 3 s
     assert where({"graphics": {"layout": {"zones_pct": {"top": 84, "bottom": 12}}}}) == "top of the frame (84% of hers)"
     hl = rank_highlight(["Pricing starts at $5.", "It answers in 40 ms, 200x faster than a frontier model."],
                         "it's 40 to 200 times faster")

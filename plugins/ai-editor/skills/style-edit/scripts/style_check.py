@@ -17,7 +17,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from plan import SAFE, card_rate, graphics, took  # noqa: E402
+from plan import SAFE, card_rate, graphics, off_screen, took  # noqa: E402
+from route import OFF_SCENE_S  # noqa: E402
 
 # a plan card -> the creator-teardown graphics.kinds it counts as
 CARD_KIND = {"shot": ("photo", "real screenshot", "meme"), "browser": ("UI recording", "real screenshot"),
@@ -94,6 +95,8 @@ def check(plan, style):
     g = graphics(style, "graphics")
     cards = plan.get("cards") or []
     rate = card_rate(style)   # her rate under the user's own cap
+    if rate and off_screen(style) and not (style.get("cards") or {}).get("per_min"):   # route.py want: her cut-aways
+        rate = max(rate, round(60 * (1 - style["face"]["present_pct"] / 100) / OFF_SCENE_S, 1))
     if rate and off(len(cards), rate, dur):
         out.append((f"{len(cards)} cards ({per_min(len(cards), dur)} a minute), {h} {rate:g} a minute "
                     f"(about {round(rate * dur / 60)} here)",

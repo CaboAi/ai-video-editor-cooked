@@ -145,8 +145,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/review.py" edits/<name> round --sta
    --video edits/<name>/stills/stills.mp4 --plan edits/<name>/plan.json
 ```
 
-Then review.py's `wait` in the background and say in one line that the stills are
-on the page. **Do not render until `wait` prints `APPROVE`.** A `SEND`: fix the notes (taste skill,
+Then review.py's `wait` in the background and say in one line that the stills are on the page (`round --stills`
+also starts a low-priority laptop render that step 7 takes over). **Do not render until `wait` prints `APPROVE`.** A `SEND`: fix the notes (taste skill,
 visuals.json, images.json), plan, stills, `round --stills` again. Moving cards by hand only when the user
 asks: `references/render.md` "The live preview".
 

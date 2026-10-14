@@ -89,6 +89,8 @@ from review import disposition, download_name, load, now, save, set_theme, theme
 
 HTML = Path(__file__).with_name("home.html")
 SETUP = Path(__file__).resolve().parents[2] / "skills" / "setup" / "scripts" / "setup.py"
+TRANSCRIBE = Path(__file__).resolve().parents[2] / "skills" / "cut" / "scripts" / "transcribe.py"
+EDIT_PY = Path(__file__).resolve().parents[2] / "skills" / "style-edit" / "scripts" / "edit.py"
 BEAT_S = 6
 JOBS = ("teardown", "skill", "video", "modal", "modal-test", "setup", "style-change", "update", "skill-change", "skill-new")
 TAKE = ("captions", "pace", "graphics", "sound")          # the page's parts; editplan.py --take names
@@ -1933,7 +1935,7 @@ def make_handler(token):
             if path == "/lookup":
                 return self.lookup(str(body.get("text") or "").strip(), body.get("platform"))
             if path == "/probe":
-                return self.send(200, probe(body.get("path") or ""))
+                return self.send(200, added(probe(body.get("path") or "")))
             if path == "/job":
                 return self.job(body)
             if path == "/reveal":   # Show in Finder / Explorer: the library, one of its videos, or the custom folder
@@ -2345,7 +2347,7 @@ def make_handler(token):
                 tmp.unlink(missing_ok=True)
                 return self.send(400, {"ok": False, "msg": "The upload stopped part way. Drop it again."})
             os.replace(tmp, out)
-            return self.send(200, probe(str(out)))
+            return self.send(200, added(probe(str(out))))
     return H
 
 
@@ -2390,6 +2392,59 @@ def probe(path):
 
 
 _spawned = []   # review servers this page started (the demo stops its own)
+_warming = threading.Lock()   # one renderer warm-up at a time
+_pre = threading.Lock()       # one transcription at a time: five clips added at once queue, never five Whispers
+
+
+def added(p):
+    """A clip added on New video (picked or dropped), before Make: when it was added (timings.json's "added"), and
+    the slow first steps start now while the user still picks a style. First its transcription (transcribe.py --pre,
+    free engines only; the cut after Make reuses the result or waits for it), then the renderer's bundle (edit.py
+    warm: webpack's cache, so the first stills pay nothing for it). One after the other: run together, the warm-up
+    slowed the transcription the user waits on from 32 s to 49 s. Nothing starts before setup made the venv or
+    the renderer. Returns p, the probe."""
+    if not p.get("ok"):
+        return p
+
+    def note(d):
+        a = d.setdefault("added", {})
+        a.setdefault(p["path"], time.time())
+        d["added"] = dict(list(a.items())[-20:])
+    update(note)
+    threading.Thread(target=head_start, args=(p["path"],), daemon=True).start()
+    return p
+
+
+def head_start(path):
+    import run
+    quiet = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL, "start_new_session": os.name != "nt"}
+    try:
+        if run.venv_python().exists():
+            with _pre:
+                subprocess.run([sys.executable, str(Path(run.__file__)), str(TRANSCRIBE), path, "--pre"], timeout=3600, **quiet)
+        if (home().parent / "remotion" / "node_modules" / "remotion").exists() and _warming.acquire(blocking=False):
+            try:
+                subprocess.run([sys.executable, str(EDIT_PY), "warm"], timeout=600, **quiet)
+            finally:
+                _warming.release()
+    except (OSError, subprocess.SubprocessError):   # a head start only: Make still does all of it
+        pass
+
+    def note(d):
+        a = d.setdefault("added", {})
+        a.setdefault(p["path"], time.time())
+        d["added"] = dict(list(a.items())[-20:])
+    update(note)
+    import run
+    quiet = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL, "start_new_session": os.name != "nt"}
+    try:
+        if run.venv_python().exists():
+            subprocess.Popen([sys.executable, str(Path(run.__file__)), str(TRANSCRIBE), p["path"], "--pre"], **quiet)
+        if (home().parent / "remotion" / "node_modules" / "remotion").exists() and not any(w.poll() is None for w in _warming):
+            _warming[:] = [subprocess.Popen([sys.executable, str(EDIT_PY), "warm"], **quiet)]
+    except OSError:   # a head start only: Make still does all of it
+        pass
+    return p
 
 
 def review_url(d):

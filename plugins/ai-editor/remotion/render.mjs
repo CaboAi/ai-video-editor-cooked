@@ -3,7 +3,7 @@
 //   node render.mjs stills <publicDir> <plan.json> <outDir> name=frame ...
 //   node render.mjs many   <publicDir> <jobs.json>             [{plan: {...}, frame, out: x.jpg}]: one bundle, several plans (style page tiles)
 //   node render.mjs bench  <publicDir> <plan.json>            -> JSON: laptop seconds per frame
-//   node render.mjs local  <publicDir> <plan.json> <out.mp4> [--draft] [--concurrency=N]
+//   node render.mjs local  <publicDir> <plan.json> <out.mp4> [--draft] [--concurrency=N|max]
 //   node render.mjs chunk  <publicDir> <plan.json> <out.mkv> <from> <to> [--draft] [--concurrency=N]   frames from..to inclusive
 //   node render.mjs bundle <publicDir> <outDir>               a bundle folder another machine renders from (Modal)
 //
@@ -47,7 +47,9 @@ const pos = args.filter((a) => !a.startsWith("--"));
 const CORES = RenderInternals.getMaxConcurrency();
 // A busy machine (load over 70% of the cores) gets half the tabs: a starved tab misses its
 // delayRender deadline while it fetches the video. Windows reports no load average (0).
-const concurrency = () => Number(flags.concurrency) ||
+// --concurrency=max: every core whatever the load (edit.py's background render: the tab count changes the video's
+// pixels, so it renders with the count an idle laptop's render uses, and a render it stands in for matches it).
+const concurrency = () => flags.concurrency === "max" ? CORES : Number(flags.concurrency) ||
   (os.loadavg()[0] > CORES * 0.7 ? Math.max(1, Math.floor(CORES / 2)) : CORES);
 // Every delayRender (the video frame, fonts, Lottie) may take this long; Remotion's default is 30 s,
 // which a still fetching cut.mp4 under heavy load once missed.

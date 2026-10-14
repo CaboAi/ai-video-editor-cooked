@@ -875,6 +875,7 @@ function renderList(){
   h+=mine.map(noteHtml).join('');
   if(!mine.length&&!prev.length&&!(S.raw&&isCur())&&!(isCur()&&(makingEdit()||p==='approve')))h+=isCur()?'<div class="empty"><b>No notes yet</b>Pause where something is off and leave a note. It is pinned to that moment.</div>':'<p class="empty2">No notes on this round.</p>';
   if(!mine.length&&prev.length&&isCur()&&!p)h+=`<p class="empty2">No notes on round ${view.round} yet. Pause where something is off and leave a note.</p>`;
+  if(isCur()&&S.made&&S.stage==='edit'&&!S.stills&&view.stage==='edit')h+=`<p class="since made">${esc(S.made)}</p>`;
   if(isCur())h+=workHtml();
   const queued=isCur()?S.comments.filter(c=>c.queued&&c.stage===S.stage&&onAlt(c)).sort((a,b)=>a.t-b.t):[];
   if(queued.length)h+=`<p class="sub">${S.raw?'For the cut':'For the next round'}</p>`+queued.map(noteHtml).join('');

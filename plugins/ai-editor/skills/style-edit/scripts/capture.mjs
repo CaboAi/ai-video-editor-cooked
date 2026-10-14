@@ -25,7 +25,11 @@
 // phone shows it) and, with a "find" mark and no clip or selector, the shot is a band-shaped window (CARD_BAND
 // wide per tall, at most 1.2x the mark's width) round that mark, so the named thing fills the card above the head.
 // Cookie banners: a bundled list of consent-manager selectors is hidden and a reject/accept button clicked.
+// Cache: page captures and logos are kept per user in $AI_EDITOR_HOME/cache/ for CACHE_DAYS, keyed by the beat's
+// shot settings (URL, size, marks, format) or the brand, and by this file's own text (a changed capture.mjs shoots
+// again). The same page in the next video is copied, not shot again. `--fresh` shoots and fetches everything anew.
 import { spawn, spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -33,6 +37,44 @@ import path from "node:path";
 const HOME = process.env.AI_EDITOR_HOME || path.join(os.homedir(), ".ai-video-editor");
 const SHELLS = path.join(HOME, "remotion", "node_modules", ".remotion", "chrome-headless-shell");
 const PREFIX = "images/capture-";
+const CACHE = path.join(HOME, "cache");
+const CACHE_DAYS = 7;
+const FRESH = process.argv.includes("--fresh");
+const SELF = crypto.createHash("sha1").update(fs.readFileSync(new URL(import.meta.url))).digest("hex");
+const cacheKey = (o) => crypto.createHash("sha1").update(JSON.stringify(o)).digest("hex").slice(0, 20);
+// {meta, file} for a fresh entry of kind ("captures", "logos"), else null. Old entries are removed as they are met.
+function cacheGet(kind, key) {
+  if (FRESH) return null;
+  const m = path.join(CACHE, kind, `${key}.json`);
+  try {
+    if (Date.now() - fs.statSync(m).mtimeMs > CACHE_DAYS * 86400e3) {
+      for (const f of fs.readdirSync(path.dirname(m)).filter((f) => f.startsWith(key))) fs.rmSync(path.join(path.dirname(m), f), { force: true });
+      return null;
+    }
+    const meta = JSON.parse(fs.readFileSync(m, "utf8"));
+    const file = path.join(CACHE, kind, `${key}.${meta.ext}`);
+    return fs.existsSync(file) ? { meta, file } : null;
+  } catch { return null; }
+}
+// Keeps file (and its .text.json beside it, when there is one) under key. Never fails the capture.
+function cachePut(kind, key, file, meta) {
+  try {
+    const dir = path.join(CACHE, kind);
+    fs.mkdirSync(dir, { recursive: true });
+    const ext = path.extname(file).slice(1);
+    fs.copyFileSync(file, path.join(dir, `${key}.${ext}`));
+    const txt = file.replace(/\.png$/, ".text.json");
+    if (txt !== file && fs.existsSync(txt)) fs.copyFileSync(txt, path.join(dir, `${key}.text.json`));
+    fs.writeFileSync(path.join(dir, `${key}.json`), JSON.stringify({ ...meta, ext }));
+  } catch { /* a full disk: the next video shoots it again */ }
+}
+// A cached file into the edit (out), with its .text.json; the shot's numbers back.
+function cacheCopy(hit, out) {
+  fs.copyFileSync(hit.file, out);
+  const txt = hit.file.replace(/\.png$/, ".text.json");
+  if (txt !== hit.file && fs.existsSync(txt)) fs.copyFileSync(txt, out.replace(/\.png$/, ".text.json"));
+  return hit.meta;
+}
 
 const findBinary = (dir) => {
   if (!fs.existsSync(dir)) return null;
@@ -572,6 +614,14 @@ async function fetchLogos(edit, beats, got = {}) {
     const brand = b.brand || b.word;
     const have = ["svg", "png"].find((e) => fs.existsSync(path.join(edit, logoPath(brand, e))));
     if (have) { got[slug(brand)] ??= { file: logoPath(brand, have), from: null }; return 0; }
+    const key = cacheKey(["logo", slug(brand), b.url || null, b.domain || null]);
+    const hit = cacheGet("logos", key);
+    if (hit) {
+      cacheCopy(hit, path.join(edit, logoPath(brand, hit.meta.ext)));
+      console.log(`${logoPath(brand, hit.meta.ext)}  <- ${hit.meta.from} (kept from an earlier video)`);
+      got[slug(brand)] = { file: logoPath(brand, hit.meta.ext), from: hit.meta.from };
+      return 0;
+    }
     const si = slug(brand).replace(/-/g, "");
     // cdn.simpleicons.org serves the brand colour but refuses some networks (cloud machines, some
     // offices); the same icon set on jsDelivr always answers, in black.
@@ -593,6 +643,7 @@ async function fetchLogos(edit, beats, got = {}) {
       }
       fs.writeFileSync(path.join(edit, logoPath(brand, ext)), Buffer.from(await r.arrayBuffer()));
       console.log(`${logoPath(brand, ext)}  <- ${url}`);
+      cachePut("logos", key, path.join(edit, logoPath(brand, ext)), { from: url });
       got[slug(brand)] = { file: logoPath(brand, ext), from: url };
       ok = true;
       break;
@@ -762,13 +813,22 @@ async function main() {
   })).filter(Boolean);
   const captures = async () => {
     if (!beats.length) return [];
-    const cdp = launch(bin);
+    let cdp = null;   // Chrome starts only when a shot is not in the cache
     try {
       return (await pool(beats, TABS, async (b, i) => {
         const src = `${PREFIX}${i + 1}-${slug(b.word)}.png`;
+        const { word, nth, box, hold_s, entrance, layout, ...how } = b;   // what changes the picture
+        const key = cacheKey(["capture", SELF, how]);
+        const hit = cacheGet("captures", key);
         let shot;
         try {
-          shot = await shoot(cdp, b, path.join(edit, src));
+          if (hit) {
+            shot = cacheCopy(hit, path.join(edit, src));
+            console.log(`  kept from an earlier video: ${b.url}`);
+          } else {
+            shot = await shoot(cdp ??= launch(bin), b, path.join(edit, src));
+            cachePut("captures", key, path.join(edit, src), shot);
+          }
         } catch (e) {
           failed++;
           console.error(`  failed ${b.url}: ${e.message}`);
@@ -785,7 +845,7 @@ async function main() {
         return im;
       })).filter(Boolean);
     } finally {
-      cdp.close();
+      cdp?.close();
     }
   };
   const [nLogos, nIcons, fromSources, shots] = await Promise.all([

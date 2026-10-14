@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.9, creator-teardown 2.7.9 (2026-10-14)
+
 - Go back to a draft now undoes the fixes made after it, so a zoom you brought back stays. Prep never changes the
   style you picked. Only notes you tick "Keep as a rule" become rules, with no question, and styles go by their
   names. The cut keeps your opening hook unless you said it again later.

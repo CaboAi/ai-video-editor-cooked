@@ -4,6 +4,14 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Skills lists every skill that helps with an edit, from your own skills folder, the library's .claude/skills and
+  your other plugins (named plugin:skill). A skill counts when its name or description is about video, captions,
+  cuts, overlays, animation, thumbnails, sound or logos. The rest sit behind Not for editing at the bottom, which
+  opens in place with the same rows.
+- Update in Settings runs in the window without Claude. It updates ai-editor and creator-teardown, restarts the
+  window on the new version and reloads the tab. It shows the new version, and the /reload-plugins line to copy
+  until your Claude session runs on it.
+
 - A Claude making a video can no longer edit the editor's own files. On the installed plugin a hook blocks
   Edit and Write inside it with a plain message, and Claude sessions the window opens get an Edit deny rule on
   the plugin folder. A checkout or fork you own is not blocked outside the window. The start, cut and

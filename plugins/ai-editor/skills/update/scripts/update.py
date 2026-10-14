@@ -2,7 +2,9 @@
 """Pull new versions of the editor into a fork, keeping the user's own changes. Stdlib only.
 
     python3 update.py where              which install this is, and how it updates
-    python3 update.py market             the official plugin: runs the two `claude plugin` update commands
+    python3 update.py market             the official plugin: updates the marketplace, then ai-editor and
+                                         creator-teardown with `claude plugin`; prints STEP lines, VERSION <new
+                                         ai-editor version> and "Updated." (the window shows them on its Update job)
                                          (a git checkout of the plugin: exit 2, "update it with git yourself")
     python3 update.py add-upstream       add the `upstream` remote (ask the user first)
     python3 update.py check              fetch upstream: new commits, their CHANGELOG lines, files both sides changed
@@ -26,6 +28,12 @@ from pathlib import Path
 
 UPSTREAM = "https://github.com/nextwork-projects/ai-video-editor-cooked.git"
 LIB = Path(__file__).resolve().parents[3] / "lib"
+PLUGINS = ("ai-editor", "creator-teardown")   # creator-teardown is a dependency: an update moves both
+
+
+def claude_dir():
+    """Claude Code's own folder: $CLAUDE_CONFIG_DIR, else ~/.claude."""
+    return Path(os.environ.get("CLAUDE_CONFIG_DIR", "").strip() or Path.home() / ".claude").expanduser()
 
 
 def upstream_url():
@@ -62,7 +70,7 @@ def find_repo(arg):
 
 def where(repo):
     """('marketplace' | 'clone' | 'fork', upstream remote url or None)."""
-    plugins = Path.home() / ".claude" / "plugins"
+    plugins = claude_dir() / "plugins"
     if (repo is None or not (repo / "plugins/ai-editor/.claude-plugin/plugin.json").exists()
             or repo.resolve().as_posix().startswith(plugins.resolve().as_posix())):
         return "marketplace", None
@@ -75,6 +83,7 @@ def where(repo):
 
 SLASH = ("  /plugin marketplace update nextwork\n"
          "  /plugin update ai-editor@nextwork\n"
+         "  /plugin update creator-teardown@nextwork\n"
          "  /reload-plugins\n")
 
 
@@ -84,25 +93,47 @@ DEV = "This is a developer copy; update it with git yourself."
 def dev_copy():
     """True when this plugin runs from a git checkout (a clone, fork or worktree), not the marketplace install."""
     root = LIB.parent.resolve()
-    if root.as_posix().startswith((Path.home() / ".claude" / "plugins").resolve().as_posix()):
+    if root.as_posix().startswith((claude_dir() / "plugins").resolve().as_posix()):
         return False   # the marketplace's own copy (itself a git clone Claude Code keeps)
     return any((d / ".git").exists() for d in (root, *root.parents))
 
 
+def installed(plugin="ai-editor", market="nextwork"):
+    """(version, install folder) Claude Code has for plugin@market, from installed_plugins.json, or (None, None)."""
+    try:
+        import json
+        rows = json.loads((claude_dir() / "plugins" / "installed_plugins.json").read_text(encoding="utf-8"))["plugins"][f"{plugin}@{market}"]
+        return rows[-1].get("version"), rows[-1].get("installPath")
+    except (OSError, ValueError, KeyError, IndexError, TypeError, AttributeError):
+        return None, None
+
+
 def market():
-    """The official plugin: run the same two commands /plugin runs. Without the claude command, the slash lines.
-    A developer copy (a git checkout) is never touched: exit 2 with DEV."""
+    """The official plugin: the marketplace, then both plugins, with the same commands /plugin runs. Without the
+    claude command, the slash lines. A developer copy (a git checkout) is never touched: exit 2 with DEV."""
     if dev_copy():
         print(DEV)
+        print("FAIL " + DEV)
         return 2
     exe = shutil.which("claude")
-    for args in (["plugin", "marketplace", "update", "nextwork"], ["plugin", "update", "ai-editor@nextwork"]):
+    old = installed()[0]
+    steps = [("Getting the list of new versions", ["plugin", "marketplace", "update", "nextwork"])]
+    steps += [(f"Updating {p}", ["plugin", "update", f"{p}@nextwork"]) for p in PLUGINS
+              if p == "ai-editor" or installed(p)[0]]   # creator-teardown only when it is installed
+    for text, args in steps:
+        print(f"STEP {text}", flush=True)
         r = subprocess.run([exe, *args], capture_output=True, text=True, timeout=600) if exe else None
         out = (r.stdout + r.stderr).strip().splitlines()[-1:] if r else []
-        print(f"claude {' '.join(args)}: {out[0] if out else 'no claude command'}")
+        print(f"claude {' '.join(args)}: {out[0] if out else 'no claude command'}", flush=True)
         if not r or r.returncode:
             print("Could not update from here. Type these in Claude Code:\n" + SLASH)
+            print("FAIL Type /plugin marketplace update nextwork, then /plugin update ai-editor@nextwork and "
+                  "/plugin update creator-teardown@nextwork, then /reload-plugins.")
             return 1
+    new, where_ = installed()
+    print(f"VERSION {new or old or '?'}")
+    if where_:
+        print(f"PATH {where_}")
     print("Updated. Type /reload-plugins in Claude Code to load it.")
     return 0
 
@@ -110,7 +141,7 @@ def market():
 def say_where(repo):
     kind, up = where(repo)
     if kind == "marketplace":
-        for m in sorted((Path.home() / ".claude/plugins/marketplaces").glob("*/plugins/ai-editor")):
+        for m in sorted((claude_dir() / "plugins/marketplaces").glob("*/plugins/ai-editor")):
             o = git(m.parents[1], "remote", "get-url", "origin", check=False).stdout.strip()
             if o and not is_upstream(o):
                 print(f"Your plugin comes from {o}, a fork. Run this from your clone of it, or pass --repo <that folder>.")
@@ -261,6 +292,7 @@ def demo():
 
         def run(repo, *a):
             env = {**os.environ, "AI_EDITOR_UPSTREAM": up.as_posix(), "HOME": str(tmp), "USERPROFILE": str(tmp)}
+            env.pop("CLAUDE_CONFIG_DIR", None)
             return subprocess.run([sys.executable, script, *a, "--repo", str(repo)], capture_output=True,
                                   text=True, encoding="utf-8", env=env)
 
@@ -338,9 +370,46 @@ def demo():
     # (a developer copy, such as this checkout, is left alone: exit 2 and the one line)
     r = subprocess.run([sys.executable, __file__, "market"], capture_output=True, text=True, env={**os.environ, "PATH": ""})
     if dev_copy():
-        assert r.returncode == 2 and r.stdout.strip() == DEV, r.stdout
+        assert r.returncode == 2 and r.stdout.splitlines()[0] == DEV, r.stdout
     else:
         assert r.returncode == 1 and "/plugin update ai-editor@nextwork" in r.stdout, r.stdout
+    # market on an installed copy: the marketplace, then ai-editor AND creator-teardown, then the new version.
+    # A fake `claude` on PATH and a throwaway CLAUDE_CONFIG_DIR: nothing of the real install is touched.
+    # (POSIX only: the fake is a #! script, which Windows does not run as `claude`.)
+    with tempfile.TemporaryDirectory() as tmp:
+        if os.name == "nt":
+            print("update demo ok")
+            return 0
+        tmp, import_json = Path(tmp), __import__("json")
+        cfg = tmp / "cfg"
+        inst = cfg / "plugins" / "cache" / "nextwork" / "ai-editor" / "1.0.0"
+        (inst / "skills" / "update" / "scripts").mkdir(parents=True)
+        (inst / "lib").mkdir()
+        shutil.copy(__file__, inst / "skills" / "update" / "scripts" / "update.py")
+        rows = lambda v: {"ai-editor@nextwork": [{"version": v, "installPath": str(inst.parent / v)}],
+                          "creator-teardown@nextwork": [{"version": v, "installPath": str(tmp / "ct" / v)}]}
+        (cfg / "plugins" / "installed_plugins.json").write_text(import_json.dumps({"version": 2, "plugins": rows("1.0.0")}), encoding="utf-8")
+        bin_ = tmp / "bin"
+        bin_.mkdir()
+        (bin_ / "claude").write_text(f"""#!{sys.executable}
+import json, os, sys
+open({str(tmp / 'log')!r}, 'a', encoding='utf-8').write(' '.join(sys.argv[1:]) + '\\n')
+if sys.argv[1:3] == ['plugin', 'update']:
+    f = os.path.join(os.environ['CLAUDE_CONFIG_DIR'], 'plugins', 'installed_plugins.json')
+    d = json.load(open(f, encoding='utf-8')); d['plugins'][sys.argv[3]][-1].update(version='2.0.0', installPath=d['plugins'][sys.argv[3]][-1]['installPath'].replace('1.0.0', '2.0.0'))
+    json.dump(d, open(f, 'w', encoding='utf-8'))
+print('ok')
+""", encoding="utf-8")
+        (bin_ / "claude").chmod(0o755)
+        r = subprocess.run([sys.executable, str(inst / "skills/update/scripts/update.py"), "market"], capture_output=True, text=True,
+                           env={**os.environ, "PATH": f"{bin_}{os.pathsep}{os.environ.get('PATH', '')}", "CLAUDE_CONFIG_DIR": str(cfg)})
+        assert r.returncode == 0, r.stdout + r.stderr
+        assert (tmp / "log").read_text(encoding="utf-8").splitlines() == ["plugin marketplace update nextwork", "plugin update ai-editor@nextwork",
+                                                          "plugin update creator-teardown@nextwork"], (tmp / "log").read_text(encoding="utf-8")
+        lines = r.stdout.splitlines()
+        assert [x for x in lines if x.startswith("STEP")] == ["STEP Getting the list of new versions", "STEP Updating ai-editor",
+                                                              "STEP Updating creator-teardown"], lines
+        assert "VERSION 2.0.0" in lines and f"PATH {inst.parent / '2.0.0'}" in lines and lines[-1].startswith("Updated."), lines
     print("update demo ok")
     return 0
 

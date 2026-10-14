@@ -20,8 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
 NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 RESERVED = ("claude", "anthropic")
 MAX_LINES = 500
-# home.py editing_skills(): a skill is listed under "Use your own skill" when its name or description says one of these
-VIDEO_WORDS = re.compile(r"\b(edits?|editing|editor|videos?|reels?|footage|clips?)\b", re.I)
+from ai_editor.skillrules import for_editing  # noqa: E402  the test home.py editing_skills() lists a skill by
 
 TEMPLATE = """---
 name: {name}
@@ -101,8 +100,8 @@ def check(folder):
         out.append(("WARN", "no check step: say how to tell the result is right and what to fix"))
     if "\\" in re.sub(r"```.*?```", "", body, flags=re.S):
         out.append(("WARN", "backslash outside a code block: write paths with forward slashes"))
-    if not VIDEO_WORDS.search(name.replace("-", " ") + " " + desc.split(". ")[0]):
-        out.append(("WARN", "name and first sentence never say video, edit, reel, clip or footage: cooked.'s "
+    if not for_editing(name, desc):
+        out.append(("WARN", "name and description never say video, captions, reel, footage or thumbnail: cooked.'s "
                             "\"Use your own skill\" list will not show it"))
     for ref in re.findall(r"\]\(((?:references|scripts)/[^)]+)\)|`((?:references|scripts)/[\w./-]+)`", body):
         ref = ref[0] or ref[1]

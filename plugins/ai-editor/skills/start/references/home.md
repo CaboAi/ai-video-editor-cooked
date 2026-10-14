@@ -305,22 +305,13 @@ owned by `home`. `wait` never hands them out and `status` never writes to them.
 The user pressed Start setup on the first-run Home. Run `setup.py install-all --report` in the background
 (the setup skill's step 0); it reports its own steps onto this job, as in Setup from the page below.
 
-### `JOB update`
+### Update (no job for Claude)
 
-The user pressed Update in Settings (the page saw a newer version on GitHub main than this plugin.json).
-Do it here, not through the update skill, and end the job either way so the page never hangs on it:
-
-```bash
-python3 "$H" status update --step "Getting the new version"
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/update/scripts/update.py" market
-```
-
-Exit 0: `status update --done`, then tell the user to type `/reload-plugins`. Exit 1 (no `claude`
-command, or it failed): `status update --failed "Type /plugin marketplace update nextwork, then /plugin update
-ai-editor@nextwork, then /reload-plugins."` and say the same lines. Exit 2 (a git checkout, a developer copy):
-`status update --failed "This is a developer copy; update it with git yourself."`, say the same, and run no git
-command in that folder (no pull, checkout or merge). Keep your background `wait` running afterwards: the
-update never ends listening.
+The window runs Update itself, as job `update` owned by `home`: `update.py market` updates the nextwork
+marketplace, then `ai-editor@nextwork` and `creator-teardown@nextwork`, and the window server restarts from the new
+version's folder on the same port with the same token, so the open tab reloads itself. `wait` never hands it out.
+An open Claude session keeps the version it loaded until the user types `/reload-plugins`; the page says so and
+shows the command until a command from that session runs on the new version.
 
 ### `JOB cancel teardown`
 

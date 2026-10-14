@@ -848,6 +848,8 @@ video.ex{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opaci
 .chain .cx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.chain .cx b{font-size:15px;line-height:20px;font-weight:600}
 .chain .cx span{font-size:13px;line-height:18px;color:var(--t2)}.chain .al{font-size:12px;color:var(--t3);white-space:nowrap}
 .skl{display:flex;flex-direction:column;gap:28px}
+.skg{font:600 13px/18px system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--t2);margin-bottom:-12px}
+.skq{align-self:flex-start;font-size:13px;color:var(--t2)}
 .skr{display:flex;flex-direction:column;gap:10px}.skr .snm{font:600 16px/22px var(--mono);color:var(--ink)}
 .skr .acts{display:flex;gap:8px;flex-wrap:wrap}
 .mlooks{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
@@ -1475,10 +1477,11 @@ function vSkills(){
       ${open?`<div class="fld"><div class="in2"><input id="sk-imp" placeholder="never zoom in the first second" aria-label="What to change in this skill" onkeydown="if(event.key==='Enter')improveSkill(${J(x.name)})"></div><button class="b1" onclick="improveSkill(${J(x.name)})">Send</button></div>
         <div class="t2" style="white-space:normal">Claude turns it into a rule, shows you the exact line and saves it when you say yes.</div>`:''}
       ${j&&(j.state!=='done'||Date.now()/1000-(j.finished||0)<600)?`<div class="t2" style="white-space:normal;color:var(--ink)">${jobText(j)}</div>`:''}</div>`};
-  const fold=(k,lbl,n)=>`<button class="back" style="text-decoration:none;margin:0" aria-expanded="${!!ui[k]}" onclick="ui.${k}=!ui.${k};render()">${ic('chev',14,2).replace('<svg','<svg style="transform:rotate('+(ui[k]?90:0)+'deg)"')}${lbl} (${n})</button>`;
-  const more=(ols.length?`<div class="ssec" style="gap:28px">${fold('skOth','Other skills',ols.length)}${ui.skOth?`<div class="t2" style="white-space:normal;margin-top:-16px">Skills that don't mention video, reels, captions or cuts.</div><div class="skl">${ols.map(row).join('')}</div>`:''}</div>`:'')
-    +(hid.length?`<div class="ssec" style="gap:28px">${fold('skHid','Show hidden',hid.length)}${ui.skHid?`<div class="skl">${hid.map(row).join('')}</div>`:''}</div>`:'');
-  const body=(ui.skills==null&&!ls.length?'<div class="none">Looking for skills...</div>':ls.length?`<div class="skl">${ls.map(row).join('')}</div>`
+  // one list, the same rows everywhere: yours, then plugins'. Hidden and Not for editing open in place at the bottom
+  const grp=xs=>{const a=xs.filter(x=>!x.plugin),b=xs.filter(x=>x.plugin);return a.length&&b.length?`<b class="skg">Your skills</b>${a.map(row).join('')}<b class="skg">From plugins</b>${b.map(row).join('')}`:xs.map(row).join('')};
+  const tail=(k,lbl,xs)=>xs.length?`<button class="ul skq" aria-expanded="${!!ui[k]}" onclick="ui.${k}=!ui.${k};render()">${ui[k]?'Hide '+lbl.toLowerCase():lbl+' ('+xs.length+')'}</button>${ui[k]?`<div class="skl">${xs.map(row).join('')}</div>`:''}`:'';
+  const more=hid.length||ols.length?`<div class="ssec">${tail('skHid','Hidden',hid)}${tail('skOth','Not for editing',ols)}</div>`:'';
+  const body=(ui.skills==null&&!ls.length?'<div class="none">Looking for skills...</div>':ls.length?`<div class="skl">${grp(ls)}</div>`
     :ui.skNew?'':`<div class="ssec"><div class="t1" style="white-space:normal;line-height:22px">You have no skills that edit videos yet. Claude can make one with you: say what it should do, and it writes and tests it.</div><button class="b1" style="align-self:flex-start" onclick="newSkill()">${ic('plus',16,2.2)}Make a new skill</button></div>`)+more;
   return `<div class="pgc"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px"><div class="ph"><h1>Skills</h1><p>A skill is a set of steps Claude follows. A style can use one to make your edit.</p></div>
       <div class="row hact">${ls.length?`<button class="b1" onclick="newSkill()">${ic('plus',16,2.2)}Make a new skill</button>`:''}</div></div>${mk}${njl}${body}</div>`;
@@ -1490,7 +1493,7 @@ async function useSkill(n){const r=await post('/style/new',{name:skStyleName(n),
 // a skill row's menu: Hide (the editor's own list, the skill stays on disk) and Delete (to the Trash, own folder only)
 const skMenu=x=>dotsBtn('k:'+x.name,'More for this skill')+cMenu('k:'+x.name,[x.hidden?['Show in this list',`skHide(${J(x.name)},false)`,'minus']:['Hide from this list',`skHide(${J(x.name)},true)`,'minus'],'hr',
   x.deletable?['Delete',`ui.skdel=${J(x.name)};ui.delmsg=null;render()`,'trash']:`<div class="mnote">${ic('trash',16)}<span>Delete<small>This skill is outside your skills folder, so it can't be deleted here.</small></span></div>`]);
-async function skHide(name,on){const r=await post('/skill/hide',{name,on});if(!r._ok){toast(r.error||'That did not work.');return}await loadSkills();toast(on?`Hid /${name}. Show hidden brings it back.`:`/${name} is back in the list.`)}
+async function skHide(name,on){const r=await post('/skill/hide',{name,on});if(!r._ok){toast(r.error||'That did not work.');return}await loadSkills();toast(on?`Hid /${name}. It is under Hidden at the bottom.`:`/${name} is back in the list.`)}
 function skDelModal(){
   const n=ui.skdel,us=(L?[...(L.styles||[]),...(L.archived_styles||[])]:[]).filter(c=>c.kind==='skill'&&c.skill===n);
   return `<div class="modalbg" onclick="if(event.target===this){ui.skdel=null;render()}"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dtitle">
@@ -2197,17 +2200,23 @@ function stModal(){
 async function stCheck(id){ui.keys[id]={busy:1};render();await post('/key/check',{name:id});ui.keys[id]={};await load();render()}
 async function stRemove(id){const r=await post('/key/remove',{name:id});ui.strm=null;ui.keys[id]=r._ok?{}:{bad:1,edit:1,msg:r.msg||'Not removed.'};await load();render()}
 function stUpdate(){
-  const u=S.update||{},j=latest('update'),busy=j&&(j.state==='queued'||j.state==='taken'),ok=u.latest&&!u.newer;
-  const wq=j&&j.state==='queued'&&!S.listening,st=!j?'':j.state==='queued'?(S.listening?'Claude is picking this up.':''):j.state==='taken'?`Claude: ${(j.steps.at(-1)||{}).text||'updating'}`:j.state==='done'?'Updated. Type /reload-plugins in Claude Code.':j.state==='failed'?j.error:'';
+  // the window runs Update itself (update.py market), then restarts on the new version and this tab reloads
+  const u=S.update||{},j=latest('update'),busy=j&&j.state==='taken',ok=u.latest&&!u.newer,jr=(j&&j.result)||{};
+  const st=!j?'':busy?`${(j.steps.at(-1)||{}).text||'Updating'}...`:j.state==='done'?`Updated to ${jr.version||u.installed}.`:j.state==='failed'?j.error:'';
+  // Claude sessions keep the version they loaded until /reload-plugins: u.claude is the version their last command ran
+  const old=u.claude&&u.installed&&u.claude!==u.installed,recent=j&&j.state==='done'&&Date.now()/1000-(j.finished||0)<86400;
+  const rl=old||recent&&!u.claude?`<div style="display:flex;flex-direction:column;gap:8px"><div class="t2" style="white-space:normal">Claude sessions that are open still run ${old?esc(u.claude):'the old version'}. Type this in each one:</div><span class="codebox"><span>/reload-plugins</span><button class="hlink" onclick="copyText('/reload-plugins',this)">Copy</button></span></div>`
+    :recent&&u.claude===u.installed?`<div class="t2">Claude is on ${esc(u.installed)} too.</div>`:'';
   const line=u.checking?'Checking...':u.newer?'A new version is out':u.latest?'Up to date':u.checked?'Could not reach GitHub':'';
   return `<div class="scd"><div class="hd"><b>Updates</b><span class="ss">${ok?OKTICK:''}${line}</span></div>
     <div class="kvs"><div><span>Installed</span><b>${esc(u.installed||'?')}</b></div><div><span>Latest</span><b>${esc(u.latest||'?')}</b></div></div>
     ${u.dev?'':'<div class="t2" style="white-space:normal">Turn on auto-updates: type <b>/plugin</b>, open Marketplaces, pick nextwork, choose Enable auto-update.</div>'}
     ${u.newer&&(u.notes||[]).length?`<div><div class="t2">What changed</div>${u.notes.map(n=>`<div class="dash">${esc(n)}</div>`).join('')}</div>`:''}
     ${u.dev?'<div class="t2" style="white-space:normal">Developer copy: update with git.</div>':''}
-    <div class="lks">${u.newer&&!u.dev?`<button class="b1 s" ${busy?'disabled':''} onclick="queue({type:'update'})">${busy?'Updating...':'Update'}</button>`:`<button class="b2 s" ${u.checking?'disabled':''} onclick="stCheckUpd()">Check now</button>`}<a href="https://github.com/nextwork-projects/ai-video-editor-cooked/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Full changelog</a></div>
-    ${wq?`<div class="msg">${connectHTML('Waiting for Claude.')}</div>`:st?`<div class="msg ${j.state==='failed'?'bad':''}">${esc(st)}</div>`:''}</div>`;
+    <div class="lks">${u.newer&&!u.dev?`<button class="b1 s" ${busy?'disabled':''} onclick="stDoUpdate()">${busy?'Updating...':'Update'}</button>`:`<button class="b2 s" ${u.checking?'disabled':''} onclick="stCheckUpd()">Check now</button>`}<a href="https://github.com/nextwork-projects/ai-video-editor-cooked/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Full changelog</a></div>
+    ${st?`<div class="msg ${j.state==='failed'?'bad':''}">${esc(st)}</div>`:''}${rl}</div>`;
 }
+async function stDoUpdate(){const r=await post('/job',{type:'update'});if(!r._ok)toast(r.error||'That did not start.');await load()}
 async function stCheckUpd(){await post('/update/check',{});await load();render();setTimeout(async()=>{await load();render()},2500)}
 function stFolder(){
   const d=ui.disk,c=ui.clean,mb=b=>b==null?'...':b>=1e9?(b/1e9).toFixed(1)+' GB':Math.round(b/1e6)+' MB';
@@ -2368,7 +2377,7 @@ function render(){
 setInterval(tickClocks,1000);
 addEventListener('resize',()=>render());
 async function load(){
-  try{const r=await fetch('/state');if(!r.ok)throw 0;S=await r.json();if(S.listening)ui.connect=null;if(Date.now()-themeAt>3000)applyTheme(S.theme)}catch(e){const lv=$('#live');lv.className='live';lv.style.width='auto';lv.style.maxWidth='520px';lv.style.whiteSpace='normal';lv.textContent='The editor stopped. Run nextwork-editor to start it again.';return}
+  try{const r=await fetch('/state');if(!r.ok)throw 0;S=await r.json();if(S.listening)ui.connect=null;if(Date.now()-themeAt>3000)applyTheme(S.theme)}catch(e){const uj=latest('update');if(uj&&uj.state==='done'&&Date.now()/1000-(uj.finished||0)<60){if(!ui.rst){ui.rst=1;toast('Restarting on the new version...')}return}const lv=$('#live');lv.className='live';lv.style.width='auto';lv.style.maxWidth='520px';lv.style.whiteSpace='normal';lv.textContent='The editor stopped. Run nextwork-editor to start it again.';return}
   // live reload: a new page version (home.html, ask.js or the Python changed) reloads this tab, keeping the view
   if(S.page){if(PV&&S.page!==PV&&canReload()){keepView();location.reload();return}PV=PV||S.page}
   // typing in a key box: do not redraw under the cursor

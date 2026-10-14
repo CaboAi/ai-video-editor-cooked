@@ -4,7 +4,7 @@
     nextwork-editor                 open the window (the same address every time), with a listening Claude behind it
     nextwork-editor --window-only   open the window only, never start Claude
     nextwork-editor --dry-run [--os Darwin|Linux|Windows]   print what it would run, and where
-    open_claude(folder, prompt)     the home page's "Open a new Claude for this video": a new terminal window
+    open_claude(folder, prompt)     a Claude of its own for each new video (home.py claude_for): a new terminal window
     connect(folder)                 the home page's "Connect Claude": a new terminal with a listening Claude
     python3 launcher.py demo        self-check
 
@@ -248,7 +248,7 @@ def demo():
         assert lines[0] == f"cd {q}{library.path(make=False)}{q}" and lines[1].endswith(f"{q}{PROMPT}{q}"), lines
         print(f"{os_name:<8} {lines[0]}  &&  {lines[1]}")
     assert not (tmp / "My Videos").exists(), "a dry run makes nothing"
-    # "Open a new Claude for this video": the window it would open, per OS (recorded, never run)
+    # a Claude of its own for a new video: the window it would open, per OS (recorded, never run)
     for os_name in ("Darwin", "Windows", "Linux"):
         ran = []
         opened, text = open_claude(Path("/lib/My Videos"), "/ai-editor:start take job video-2", os_name,

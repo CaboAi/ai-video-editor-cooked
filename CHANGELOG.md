@@ -4,6 +4,15 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Several videos at once, with nothing to set up: every video you make gets its own Claude in a new Terminal
+  window straight away (one each when several clips become separate videos), unless a listening Claude is free
+  to take it now. The editor and the video card say "Claude is working on this video in its own Terminal window".
+  Where no terminal can open, the editor shows the command to run. The "Make it in a new Claude chat" button is gone.
+- Add images or links on New video: paste web pages, X posts, YouTube, GitHub or docs links, or drop, paste or
+  choose images (12 at most, under 15 MB each), each with optional "Show when I say..." words. They are saved with
+  the video (`edits/<name>/assets/` and `assets.json`, on your computer only) and go in first, as cards on those
+  words, before Claude searches for anything. The editor's notes have an "Anything to add?" line for more.
+
 ## ai-editor 2.6.9 (2026-10-13)
 
 - Card edit: cards move. Most beats are now animations built from what is said: a like counter ticking with

@@ -42,7 +42,7 @@ the launcher and a bookmark always open the same page.
 
 Sessions: the window is shared by every Claude Code session on the computer, so each job remembers the
 session that took it (`owner`, from CLAUDE_CODE_SESSION_ID). `status` from another session never writes
-to it, `wait` never takes a job reserved for a new Claude ("Open a new Claude for this video"), and a
+to it, `wait` never takes a job reserved for the Claude opened for that video (every video gets one, claude_for), and a
 question (askhook.py) reaches this page only from a session holding one of its jobs or listening for one.
 """
 import argparse
@@ -72,6 +72,7 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import askhook  # noqa: E402
+import assets  # noqa: E402
 import custom  # noqa: E402
 import keys  # noqa: E402
 import library  # noqa: E402
@@ -314,6 +315,7 @@ def latest(d, kind):
 
 
 RESERVE_S = 180   # a job the page opened a new Claude for: other waits leave it alone this long (home.html too)
+OPENED_S = 900    # ... and this long once its Terminal window opened (a trust prompt can hold it there)
 STALE_S = 900     # a taken job nobody reported on this long: its session stopped, another may adopt it
 
 
@@ -1228,7 +1230,8 @@ def job_line(j, root):
     if j["type"] == "video":
         src = f"takes={a['takes']}" if a.get("takes") else a["path"]
         return f"JOB video {src} as={a['as']} aspect={a['aspect']}" + (f" edit={a['edit']}" if a.get("edit") else "") + \
-            (f" script={a['script']}" if a.get("script") else "") + (f" skill={a['skill']}" if a.get("skill") else "") + f" root={root}"
+            (f" script={a['script']}" if a.get("script") else "") + (f" skill={a['skill']}" if a.get("skill") else "") + \
+            (f" assets={Path(a['edit']) / 'assets.json'}" if a.get("edit") and (Path(a["edit"]) / "assets.json").exists() else "") + f" root={root}"
     if j["type"] == "style-change":
         return f"JOB style-change {'my-style' if a['style'] == 'mine' else a['style']}" + \
             (f" style={a['path']}" if a.get("path") else "") + f" text={a['text']}"
@@ -1249,9 +1252,9 @@ def getting_started(d):
 
 
 def claude_for(jid):
-    """A new terminal with a Claude that takes video job jid only ("take job <id>"): reserved first, so the listening
-    Claude leaves it alone. {opened, command} (also kept on the job as "claude", so the page shows it), or None when
-    the job is not queued any more."""
+    """A new terminal with a Claude that takes video job jid only ("take job <id>", `wait --job`): reserved first, so
+    the listening Claude leaves it alone. {opened, command} (also kept on the job as "claude", so the page shows it, or
+    the command to run where no terminal opened), or None when the job is not queued any more."""
     def reserve(d):
         j = next((j for j in d["jobs"] if j["id"] == jid and j["state"] == "queued"), None)
         if j:
@@ -1280,7 +1283,7 @@ def takeable(j, sid, d, job=None):
         return False
     if job:
         return j["id"] == job
-    if j.get("reserved") and time.time() - j["reserved"] < RESERVE_S:
+    if j.get("reserved") and time.time() - j["reserved"] < (OPENED_S if (j.get("claude") or {}).get("opened") else RESERVE_S):
         return False
     return not (j["type"] == "video" and busy_with(d, sid))
 
@@ -1498,7 +1501,7 @@ def make_handler(token):
                 d["profile"] = (home().parent / "profile.json").exists()   # set up before: a returning user
                 d["update"] = update_info()
                 d["getting_started"] = getting_started(d)
-                import launcher   # "Make it in a new Claude chat" only where a terminal window can be opened
+                import launcher   # a Claude of its own per video only where a terminal window can be opened
                 d["new_claude"] = bool(launcher.terminal(d["root"], ["claude"], platform.system()))
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
                 lk = d.get("lookup") or {}
@@ -1625,7 +1628,7 @@ def make_handler(token):
                 with live.busy():   # no live-reload restart under an upload
                     return self.upload() if path == "/upload" else self.cover()
             try:
-                cap = askhook.MAX_BODY if path == "/ask/answer" else 1 << 20   # an answer can carry images
+                cap = askhook.MAX_BODY if path in ("/ask/answer", "/job") else 1 << 20   # an answer or a new video can carry images
                 body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), cap)) or b"{}")
             except ValueError:
                 return self.send(400, {"error": "not json"})
@@ -1823,8 +1826,6 @@ def make_handler(token):
                     return self.send(400, {"msg": f"Could not use that folder: {e.strerror or e}"})
                 update(lambda d: d.__setitem__("root", str(p)))
                 return self.send(200, {"path": str(p)})
-            if path == "/claude":   # "Open a new Claude for this video": a new terminal that takes this one job
-                return self.new_claude(str(body.get("id") or ""))
             if path == "/connect":   # "Connect Claude": a new terminal with a listening Claude, one at a time
                 import launcher
                 st, cmd = launcher.connect(read()["root"])
@@ -1837,10 +1838,6 @@ def make_handler(token):
                 update(c)
                 return self.send(200, {})
             self.send(404, {})
-
-        def new_claude(self, jid):
-            r = claude_for(jid)
-            return self.send(200, r) if r else self.send(409, {"msg": "Claude already has this video."})
 
         def lookup(self, text, platform=None):
             parts = text.split()
@@ -1936,6 +1933,9 @@ def make_handler(token):
             script = str(b.get("script") or "").strip()
             if len(script.encode("utf-8")) > SCRIPT_MAX:
                 return self.send(400, {"ok": False, "msg": "That script is over 200 KB. Paste only the lines you film."})
+            adds = [x for x in b.get("assets") or [] if isinstance(x, dict)][:askhook.MAX_IMAGES + assets.MAX_LINKS]
+            if sum(bool(x.get("image")) for x in adds) > askhook.MAX_IMAGES:
+                return self.send(400, {"ok": False, "msg": f"{askhook.MAX_IMAGES} images at most."})
             groups = [ps] if b.get("join") and len(ps) > 1 else [[p] for p in ps]
             ids, edits = [], []
 
@@ -1953,15 +1953,17 @@ def make_handler(token):
                 if script:   # the text only, in the edit folder; the cut's script_match.py reads it there
                     (edit / "script.md").write_text(script + "\n", encoding="utf-8")
                     args["script"] = str(edit / "script.md")
+                assets.add(edit, adds)   # "Add images or links": edit/assets/ + assets.json, before the job line is read
                 ids.append(update(lambda d: queue(d, "video", args))["id"])
                 edits.append(str(edit))
                 # the editor opens at once on the clip (round 0, "The cut / your clip"); Claude's cut lands there
                 subprocess.run([sys.executable, str(REVIEW), str(edit), "start", "--raw", "--video", g[0]["path"], "--stage", "cut"],
                                capture_output=True, timeout=60)
-            lis = listener()   # the listening Claude makes one video at a time: every other one gets a Claude of its own now
-            if lis is not None:
-                for jid in ids if busy_with(read(), lis) else ids[1:]:
-                    claude_for(jid)
+            # every video gets a Claude of its own in a new Terminal window, unless an idle listening Claude takes it now
+            lis, d = listener(), read()
+            idle = lis is not None and not busy_with(d, lis) and not any(takeable(j, lis, d) for j in d["jobs"] if j["id"] not in ids)
+            for jid in ids[1:] if idle else ids:
+                claude_for(jid)
             return self.send(200, {"id": ids[0], "ids": ids, "edits": edits})
 
         def cover(self):
@@ -2200,6 +2202,8 @@ def demo():
     globals()["run_listing"] = lambda *a: calls.append(a)
     globals()["fetch_latest"] = lambda: ("99.0.0", ["Dark mode in the window"])   # never the network in a self-check
     os.environ.pop("CLAUDE_CODE_SESSION_ID", None)   # run from inside Claude Code: never that session
+    real_claude_for, own = claude_for, []
+    globals()["claude_for"] = own.append   # no Terminal opens here: the plain `wait` below takes each video (sessions part: the real one)
     srv, url = serve(root, 0, open_browser=False)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     base, tok = url.split("/?t=")
@@ -2435,6 +2439,7 @@ def demo():
     import launcher
     opened = []
     launcher.open_claude = lambda folder, prompt: (opened.append((folder, prompt)) or True, "claude '" + prompt + "'")
+    globals()["claude_for"] = real_claude_for
     vs = lambda **k: out(cmd_status, ns(**{"job": "video", "step": None, "detail": None, "progress": None, "result": None,
                                          "done": False, "failed": None, "if_active": False, **k}))
     ja = update(lambda d: queue(d, "video", {"path": str(vid), "as": "mine", "aspect": "9:16", "edit": str(root / "edits" / "team-250k-general")}))
@@ -2465,17 +2470,21 @@ def demo():
     os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"   # a second terminal: never writes to A's job
     assert vs(step="B was here", done=True).startswith("no video job")
     assert next(j for j in read()["jobs"] if j["id"] == ja["id"]) == ja, "A's job untouched"
-    # Make my video while A is busy: the page offers a new Claude; it opens with that one job, which no other wait takes
+    # Make my video with nobody listening: a Claude of its own opens with that one job, which no other wait takes
+    opened.clear()
     jb = post("/job", {"type": "video", "path": str(vid), "aspect": "9:16", "as": "mine"})["id"]
+    assert opened == [(str(root.resolve()), f"/ai-editor:start take job {jb}")], opened
+    assert next(j for j in read()["jobs"] if j["id"] == jb)["claude"] == {"opened": True, "command": f"claude '/ai-editor:start take job {jb}'"}
     assert vs(step="B grabs it").startswith("no video job"), "status never takes a queued job inside Claude"
     os.environ.pop("CLAUDE_CODE_SESSION_ID")
     vs(step="a script", if_active=True)   # nor a script's own report (it lands on the taken job, A's, outside Claude)
     os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"
     assert next(j for j in read()["jobs"] if j["id"] == jb)["state"] == "queued"
     assert not takeable(next(j for j in read()["jobs"] if j["id"] == jb), "sess-A", read()), "A makes one video at a time"
-    r = post("/claude", {"id": jb})
-    assert r == {"opened": True, "command": f"claude '/ai-editor:start take job {jb}'"} and opened == [(str(root.resolve()), f"/ai-editor:start take job {jb}")], r
     assert not takeable(next(j for j in read()["jobs"] if j["id"] == jb), "sess-B", read()), "reserved for the new Claude"
+    update(lambda d: next(j for j in d["jobs"] if j["id"] == jb).__setitem__("reserved", time.time() - RESERVE_S - 1))
+    assert not takeable(next(j for j in read()["jobs"] if j["id"] == jb), "sess-B", read()), "its window opened: held longer"
+    update(lambda d: next(j for j in d["jobs"] if j["id"] == jb).__setitem__("reserved", time.time()))
     os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-C"
     assert out(cmd_wait, 0.01, jb).startswith("JOB video ") and next(j for j in read()["jobs"] if j["id"] == jb)["owner"] == "sess-C"
     (home() / ".listening").write_text("sess-A", encoding="utf-8")   # A's wait still listens while C works
@@ -2483,11 +2492,7 @@ def demo():
     (home() / ".listening").unlink()
     os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-B"
     assert out(cmd_wait, 0.01, jb).startswith("GONE"), "another Claude has it"
-    try:
-        post("/claude", {"id": jb})
-        raise AssertionError("opened a second Claude for a taken job")
-    except urllib.error.HTTPError as e:
-        assert e.code == 409
+    assert claude_for(jb) is None, "never a second Claude for a taken job"
     # "Connect Claude" (nobody listening): one terminal with the listen prompt, none while it is pending or once one listens
     opened.clear()
     assert post("/connect", {})["status"] == "opened" and opened == [(str(root.resolve()), launcher.LISTEN)], opened
@@ -2514,6 +2519,42 @@ def demo():
     vs(done=True)
     assert next(j for j in read()["jobs"] if j["id"] == jb)["state"] == "done" and get("/state")["busy"] is None
     os.environ.pop("CLAUDE_CODE_SESSION_ID")
+    # one Make, two separate videos: an idle listening Claude takes the first now, the second gets a Claude of its own;
+    # with nobody listening, each gets its own. Images and links go with each video (assets.json, the job line)
+    opened.clear()
+    (home() / ".listening").write_text("sess-L", encoding="utf-8")
+    png = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJ"
+           "RU5ErkJggg==")
+    big = "data:image/png;base64," + base64.b64encode(bytes(2 << 20)).decode()   # over the 1 MB cap of other POSTs
+    adds = [{"url": "https://github.com/a/b", "say": "the repo"}, {"image": png, "name": "chart.png", "say": "the chart"},
+            {"image": big, "name": "big.png"}]
+    r2 = post("/job", {"type": "video", "paths": [str(vid), str(vid)], "join": False, "aspect": "9:16", "as": "mine", "assets": adds})
+    assert [p for _, p in opened] == [f"/ai-editor:start take job {r2['ids'][1]}"], opened
+    for jid, e in zip(r2["ids"], r2["edits"]):
+        items = json.loads((Path(e) / "assets.json").read_text(encoding="utf-8"))["items"]
+        assert [x.get("url") or x["name"] for x in items] == ["https://github.com/a/b", "chart.png", "big.png"], items
+        assert items[0]["site"] == "github" and items[1]["say"] == "the chart" and (Path(e) / items[1]["src"]).is_file()
+        assert f" assets={Path(e) / 'assets.json'} " in job_line(next(j for j in read()["jobs"] if j["id"] == jid), root)
+    assert takeable(next(j for j in read()["jobs"] if j["id"] == r2["ids"][0]), "sess-L", read())
+    assert not takeable(next(j for j in read()["jobs"] if j["id"] == r2["ids"][1]), "sess-L", read()), "the other Claude's job"
+    try:
+        post("/job", {"type": "video", "path": str(vid), "as": "mine", "assets": [{"image": png}] * (askhook.MAX_IMAGES + 1)})
+        raise AssertionError("13 images were taken")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    (home() / ".listening").unlink()
+    opened.clear()
+    r3 = post("/job", {"type": "video", "paths": [str(vid), str(vid)], "join": False, "aspect": "9:16", "as": "mine"})
+    assert [p for _, p in opened] == [f"/ai-editor:start take job {i}" for i in r3["ids"]], opened
+    assert not (Path(r3["edits"][0]) / "assets.json").exists() and " assets=" not in job_line(latest(read(), "video"), root)
+    # no terminal can open (Linux without x-terminal-emulator): the job keeps the command, the editor shows it to run
+    rec = launcher.open_claude
+    launcher.open_claude = lambda folder, prompt: (False, "claude '" + prompt + "'")
+    r4 = post("/job", {"type": "video", "path": str(vid), "aspect": "9:16", "as": "mine"})["id"]
+    assert next(j for j in read()["jobs"] if j["id"] == r4)["claude"] == {"opened": False, "command": f"claude '/ai-editor:start take job {r4}'"}
+    launcher.open_claude = rec
+    update(lambda d: [j.update(state="done") for j in d["jobs"] if j["id"] in r2["ids"] + r3["ids"] + [r4]])
+    globals()["claude_for"] = own.append
     update(lambda d: [j.update(state="taken") for j in d["jobs"] if j["id"] in held])   # the earlier checks' jobs, as they were
 
     # New video: several picked clips as one video -> one JOB with the takes file, in the order picked
@@ -2537,8 +2578,9 @@ def demo():
     assert out(cmd_wait, 0.01) == f"JOB video takes={ea / 'takes.txt'} as=mine aspect=16:9 edit={ea} root={root.resolve()}"
     assert (ea / "takes.txt").read_text(encoding="utf-8").split() == [str(Path(x).resolve()) for x in order]
     # ...or separate videos: one JOB each, each with its own edit folder
+    own.clear()
     r = post("/job", {"type": "video", "paths": order, "join": False, "as": "@sample.creator", "aspect": "9:16"})
-    assert len(r["ids"]) == 3
+    assert len(r["ids"]) == 3 and own == r["ids"], (own, r)   # nobody listening: a Claude of its own for each
     lines = [out(cmd_wait, 0.01) for _ in range(3)]
     assert [ln.split(" edit=")[1].split()[0] for ln in lines] == [str(root.resolve() / "edits" / n) for n in ("a-2", "b", "c")], lines
 

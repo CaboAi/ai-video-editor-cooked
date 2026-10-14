@@ -3171,7 +3171,8 @@ def demo():
     post("/job", {"type": "teardown", "handle": "liked", "platform": "youtube", "notes": "The captions pop in word by word.",
                   "files": [pic["path"], str(vid)]})
     lk = Path(read()["root"]) / "creator-teardowns" / "liked" / "likes.md"
-    assert "word by word" in lk.read_text() and pic["path"] in lk.read_text() and str(vid) not in lk.read_text()
+    lt = lk.read_text(encoding="utf-8")
+    assert "word by word" in lt and pic["path"] in lt and str(vid) not in lt
     assert out(cmd_wait, 0.01).endswith(f"notes={lk} root={read()['root']}")
     post("/cancel", {"type": "teardown", "handle": "liked"}); out(cmd_wait, 0.01)
     # Stop on one analysing card stops that creator only

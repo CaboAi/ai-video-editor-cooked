@@ -50,7 +50,7 @@ Every round also rewrites <folder>/timings.json: each stage's real time (the cut
 the stills, the stills check, the render) from the home job and review.json, and once the edit is back the line
 the page shows under it, "Made in 6 min (cut 3:10, edit 1:40, render 0:52)". `round --stills` starts the laptop
 render in the background (edit.py render --speculative); notes sent on the stills, or Stop, end it.
-Every round snapshots the edit's own files (top-level .json/.txt under 2 MB, and .sfx/music.wav) into
+Every round snapshots the edit's own files (top-level .json/.txt under 2 MB, .sfx/music.wav and the card files plan.json shows) into
 review/snap-<stage><round>/, so the page can show what changed ("Changed in this draft": the notes Claude answered,
 then cards, zooms, captions, title, music and cut words that differ from the round before, plus each --changed line)
 and go back to any round. On the edit, a click on a card, caption, title or zoom on the frame starts a note naming it
@@ -80,6 +80,7 @@ the notes or press send.
 import argparse
 import base64
 import contextlib
+import difflib
 import hashlib
 import hmac
 import io
@@ -336,7 +337,8 @@ def screen_items(folder, p):
         if "start" not in c or "end" not in c:
             continue
         w, an = (c.get("trigger_word") or "").strip(), c.get("anim") or {}
-        what = names.get(c.get("src")) or (f"the {an['type']} animation" if an.get("type") else None) or names.get(w.lower()) or "the picture"
+        what = (names.get(c.get("src")) or ("the motion clip" if an.get("type") == "video_card" else f"the {an['type']} animation" if an.get("type") else None)
+                or names.get(w.lower()) or (f"the {c['format']}" if c.get("format") in ("logo", "browser", "post") else "the picture"))
         box = c.get("box") if isinstance(c.get("box"), list) and len(c["box"]) == 4 else [0, 0, 100, 50] if c.get("layout") == "split" else [0, 0, 100, 100]
         cards.append({"i": i, "s": round(c["start"], 2), "e": round(c["end"], 2), "box": [round(float(v), 1) for v in box],
                       "label": what + (f' on "{w}"' if w else "")})
@@ -382,6 +384,16 @@ def snapshot(folder, stage, rnd):
             clone(f, dst / f.name)
     if (folder / ".sfx" / "music.wav").is_file():
         clone(folder / ".sfx" / "music.wav", dst / "music.wav")
+    try:   # the pictures and clips the plan shows: a fix can rebuild one in place (a motion clip, a capture)
+        p = load(folder / "plan.json")
+    except (OSError, ValueError):
+        p = {}
+    for c in p.get("cards") or [] if isinstance(p, dict) else []:
+        for rel in (c.get("src"), ((c.get("anim") or {}).get("props") or {}).get("src")):
+            f = folder / str(rel or "-")
+            if rel and f.is_file() and folder.resolve() in f.resolve().parents:
+                (dst / "files" / rel).parent.mkdir(parents=True, exist_ok=True)
+                clone(f, dst / "files" / rel)
     return dst.name
 
 
@@ -457,15 +469,24 @@ def plan_changes(a, b, music=False):
     rest = sorted(k for k in sa.keys() | sb.keys() if k != "size_pct" and sa.get(k) != sb.get(k))
     if rest:
         out.append((None, "Caption look changed: " + ", ".join(k.replace("_pct", "").replace("_", " ") for k in rest[:4])))
-    nb = [c for c in cb.get("chunks") or [] if "start" in c]
-    for c in ca.get("chunks") or []:   # an old caption's moment, read in the new captions (a fix can regroup them)
-        if "start" not in c or "end" not in c:
-            continue
-        ws = [w for x in nb for w in x.get("words") or [] if "start" in w]   # word times: regrouped lines still line up
-        now_ = (" ".join(w.get("text", "") for w in ws if c["start"] - 0.05 <= w["start"] < c["end"] - 0.05) if ws else
-                " ".join(x.get("text", "") for x in nb if c["start"] - 0.05 <= x["start"] < c["end"] - 0.05))
-        if now_ and now_.lower().split() != str(c.get("text", "")).lower().split():
-            out.append((c["start"], f'Caption now reads "{now_}"'))
+    # the caption words in order, both rounds: a word fixed reads differently, words cut or put back go or come
+    # (by order, not time: a cut moves every later caption)
+    def cwords(cap):
+        out_ = []
+        for ch in cap.get("chunks") or []:
+            ws = ch.get("words") or [{"text": w, "start": ch.get("start", 0)} for w in str(ch.get("text", "")).split()]
+            out_ += [(str(w.get("text", "")).strip(), w.get("start", ch.get("start", 0))) for w in ws if str(w.get("text", "")).strip()]
+        return out_
+    wa, wb = cwords(ca), cwords(cb)
+    norm = lambda ws: [re.sub(r"[^\w']", "", w.lower()) for w, _ in ws]
+    say = lambda ws: " ".join(w for w, _ in ws[:6]) + (" ..." if len(ws) > 6 else "")
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, norm(wa), norm(wb), autojunk=False).get_opcodes():
+        if op == "replace":
+            out.append((wb[j1][1], f'Caption now reads "{say(wb[j1:j2])}"'))
+        elif op == "insert":
+            out.append((wb[j1][1], f'Put back "{say(wb[j1:j2])}"'))
+        elif op == "delete":
+            out.append((wb[j1][1] if j1 < len(wb) else wa[i1][1], f'Cut "{say(wa[i1:i2])}"'))
     xa, xb = a.get("texts") or [], b.get("texts") or []
     for i in range(max(len(xa), len(xb))):
         x, y = (xa[i] if i < len(xa) else None), (xb[i] if i < len(xb) else None)
@@ -474,8 +495,10 @@ def plan_changes(a, b, music=False):
             out.append((x.get("start"), f"Removed the {kind.lower()}"))
         elif y and not x:
             out.append((y.get("start"), f'Added a {kind.lower()}: "{y.get("text", "")}"'))
-        elif x.get("text") != y.get("text"):
+        elif str(x.get("text", "")).split() != str(y.get("text", "")).split():
             out.append((y.get("start"), f'{kind} now reads "{y.get("text", "")}"'))
+        elif (y.get("size_pct") or 0) != (x.get("size_pct") or 0) and x.get("size_pct") and y.get("size_pct"):
+            out.append((y.get("start"), f"{kind} {'bigger' if y['size_pct'] > x['size_pct'] else 'smaller'}"))
         elif x != y:
             out.append((y.get("start"), f"Changed the {kind.lower()}"))
     if ("music" in a) != ("music" in b):
@@ -1648,8 +1671,13 @@ def go_back(folder, n):
         for c in d["comments"]:   # the open round's notes go with the user onto the restored round
             if c["stage"] == d["stage"] and c["round"] == d["round"] and c["status"] == "open":
                 c["queued"] = True
-        for f in snap.iterdir():   # the files come back before the new round snapshots them
-            clone(f, folder / ".sfx" / "music.wav" if f.name == "music.wav" else folder / f.name)
+        for f in snap.rglob("*"):   # the files come back before the new round snapshots them
+            if f.is_file():
+                rel = f.relative_to(snap)
+                out_ = folder / ".sfx" / "music.wav" if rel.name == "music.wav" and len(rel.parts) == 1 else \
+                    folder / Path(*rel.parts[1:]) if rel.parts[0] == "files" else folder / rel
+                out_.parent.mkdir(parents=True, exist_ok=True)
+                clone(f, out_)
         out = Path(r.get("src") or "-")
         if r.get("src") and folder.resolve() in out.resolve().parents and (folder / "review").resolve() not in out.resolve().parents:
             # the render the next fix starts from (cut.mp4, render.mp4)
@@ -3068,7 +3096,7 @@ def demo():
     B["captions"]["style"]["size_pct"], B["captions"]["chunks"][0]["text"] = 5, "hello world"
     got = [c["text"] for c in plan_changes(A, B, music=True)]
     for want in ('Swapped the card on "notion"', 'Removed the card on "github"', 'Made the card on "react" bigger',
-                 "Removed the zoom at 0:00.5", 'Title now reads "new"', "Captions bigger", 'Caption now reads "hello world"',
+                 "Removed the zoom at 0:00.5", 'Title now reads "new"', "Captions bigger", 'Caption now reads "world"',
                  "Changed the music"):
         assert want in got, (want, got)
     assert plan_changes(A, A) == [] and plan_changes(None, A) == []
@@ -3085,6 +3113,7 @@ def demo():
     gb = tmp / "edits" / "goback"
     gb.mkdir(parents=True)
     (gb / "plan.json").write_text(json.dumps(A), encoding="utf-8")
+    (gb / "a.png").write_text("old", encoding="utf-8")
     shutil.copy(vid, gb / "render.mp4")
     with contextlib.redirect_stdout(io.StringIO()):
         cmd_start(ns(video=str(gb / "render.mp4"), stage="edit", transcript=None, plan=str(gb / "plan.json"), note=None, name=None), gb)
@@ -3103,7 +3132,9 @@ def demo():
             raise AssertionError(f"went back to round {bad}")
         except ValueError:
             pass
+    (gb / "a.png").write_text("new", encoding="utf-8")   # round 2 rebuilt round 1's picture in place
     d3 = go_back(gb, 1)
+    assert (gb / "a.png").read_text(encoding="utf-8") == "old", "the picture round 1 showed is back"
     assert d3["round"] == 3 and d3["back_to"] == 1 and load(gb / "plan.json") == A, "round 1's plan is back"
     assert d3["comments"][0]["round"] == 3 and "queued" not in d3["comments"][0], "the open note moved onto the restored round"
     assert 'Swapped the card on "notion"' in [c["text"] for c in data_of(gb, d3["data"])["changes"]], "round 3 shows the undo"

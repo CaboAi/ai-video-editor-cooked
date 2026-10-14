@@ -654,7 +654,7 @@ def text_items(visuals, words, duration, cards, face=None, cap_y=66.0):
                 continue
             start = max(0.0, t - CARD_LEAD_S) if t else 0.0
             x = {"kind": "title", "text": v["text"], "start": round(start, 3), "end": round(min(duration, start + (v.get("hold_s") or TITLE_HOLD_S)), 3),
-                 "y_pct": 0, "size_pct": TITLE_SIZE}
+                 "y_pct": 0, "size_pct": v.get("size_pct") or TITLE_SIZE}
             x["y_pct"] = round(TITLE_BOTTOM - title_bottom(x), 1)
             out.append(x)
         elif k == "cta" and v.get("text") and v.get("word"):

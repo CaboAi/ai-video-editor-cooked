@@ -197,7 +197,7 @@ tab follows the new round by itself; `round` never opens another.
 The **Drafts** tab plays any round at the same moment, compares two side by side, and has **Go back to
 this draft** on earlier rounds of the open stage. It needs no Claude: review.py puts that round's files
 back (`review/snap-<stage><n>/`: plan.json, spans.json, visuals.json and the other top-level .json/.txt, and
-`.sfx/music.wav`) and its render (`cut.mp4`, `render.mp4`), and opens them as a new round, "Back to draft N".
+`.sfx/music.wav`, and every picture and clip its plan.json shows) and its render (`cut.mp4`, `render.mp4`), and opens them as a new round, "Back to draft N".
 The user's unsent notes move onto it. The next `wait` says `this round is round N again`: fix from those
 files. In the terminal, "go back to round 2" is `python3 "$R" edits/<name> back 2`.
 

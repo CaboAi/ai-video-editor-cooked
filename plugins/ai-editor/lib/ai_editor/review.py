@@ -1102,6 +1102,11 @@ def make_handler(folder, token):
                 d["jobs"] = home_jobs() if d["home"] else 0   # the rail's Making ring
                 d["intro"] = intro(folder, d)
                 d["style_name"] = style_label(folder)   # "Keep as a rule for <style>" and the receipts
+                try:   # a sample style (the plugin's own): the learn panel offers your own style instead of teaching it
+                    sp = edit_style(folder)
+                    d["style_sample"] = bool(sp and Path(sp).parent.name.startswith("sample-"))
+                except Exception:
+                    d["style_sample"] = False
                 if isinstance(d.get("learn"), dict):   # "Teach <style>": its name now, even renamed after the approve
                     d["learn"]["style"] = d["style_name"]
                 d["assets"] = assets.load(folder)   # "Anything to add?": the images and links added to this video
@@ -1946,7 +1951,7 @@ def making_style(folder):
         except Exception:
             n = "@" + re.sub(r"-mine$", "", src[0].parent.name)
         return f"{n}'s style" if n.startswith("@") else "your style" if n == "My style" else f"the {n} style"
-    return "your blended style" if src else "your style"
+    return "your blended style" if src else None   # not known yet (no style.json in the edit): the page names none
 
 
 def cmd_final(folder):
@@ -2092,12 +2097,13 @@ def style_label(folder):
 
 
 def download_name(folder, d=None):
-    """What the finished video is saved as: "<video name> - <style name>.mp4" ("<video name>.mp4" for a cut)."""
+    """What the finished video is saved as: "<video name> - <style name>.mp4" ("<video name>.mp4" for a cut).
+    A slash in a name becomes a dash ("50/50" saves as "50-50"); other characters a file name cannot hold go."""
     d = d or load(folder / "review.json")
     base = d.get("name") or folder.name
     if d.get("stage") == "edit":
         base += " - " + style_label(folder)
-    return (re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", base).strip() or "video") + ".mp4"
+    return (re.sub(r'[\\:*?"<>|\x00-\x1f]', "", base.replace("/", "-")).strip() or "video") + ".mp4"
 
 
 def disposition(name):
@@ -2813,7 +2819,7 @@ def demo():
         mid = {"listening": False, "busy": True, "sent": False, "round": 1, "stage": "edit", "comments": [], "events": []}
         o = subprocess.run(["node", "-e", js.group(0) + "for(const s of " + json.dumps([ev("approve", 0), ev("send", 1), mid])
                             + ")console.log(listenText(s))"], capture_output=True, text=True, check=True).stdout
-        assert o.splitlines() == ["Approved", "Claude is working on draft 2", "Claude is working. Notes you send now are next."], o
+        assert o.splitlines() == ["Approved", "Claude is working on the next draft", "Claude is working. Notes you send now are next."], o
     # approve on the cut: the style-edit's scripts fill the page's "Making the edit" steps, in place, never twice
     sf = tmp / "edits" / "steps"
     sf.mkdir(parents=True)
@@ -2835,7 +2841,7 @@ def demo():
     threading.Thread(target=srv3.serve_forever, daemon=True).start()
     b3, t3 = url3.split("/?t=")
     s3 = json.loads(urllib.request.urlopen(b3 + "/state?t=" + t3).read())
-    assert s3["making"]["style"] == "your style" and list(s3["making"]["steps"]) == list(EDIT_STEPS), s3.get("making")
+    assert s3["making"]["style"] is None and list(s3["making"]["steps"]) == list(EDIT_STEPS), s3.get("making")
     keep_d = load(sf / "review.json")
     update(sf / "review.json", lambda d: d["events"][-1].update(handled=False))   # Stop before `wait` took the approve
     urllib.request.urlopen(urllib.request.Request(b3 + "/event?t=" + t3, b'{"type":"stop"}', method="POST"))
@@ -2857,7 +2863,7 @@ def demo():
         assert e.code == 3
     srv3.shutdown()
     save(sf / "review.json", keep_d)
-    assert making_style(sf) == "your style" and making_style(folder) == "@alice's style"
+    assert making_style(sf) is None and making_style(folder) == "@alice's style"
     with tempfile.TemporaryDirectory() as pd:   # the approve shows what visual-prep already made on this cut
         pd = Path(pd)
         for f in ("decisions.json", "prep-decisions.json", "captions.json", "visuals.json"):

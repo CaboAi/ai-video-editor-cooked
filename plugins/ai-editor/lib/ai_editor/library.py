@@ -104,6 +104,32 @@ def status(r):
     return "making" if r.get("sent") else "ready"
 
 
+def draft_name(r, rounds):
+    """One name for a round everywhere (Home card, editor tab, Drafts list): "draft N" counts the cut's videos, and
+    on the edit the videos after the preview; a preview is "the preview" ("preview 1", "preview 2" when there are more); round 0 is
+    the clip itself. Lower case: callers capitalise. review.html rn() is the same rule."""
+    if not r or not r.get("round"):
+        return "your clip"
+    same = [x for x in rounds if x.get("stage") == r.get("stage") and 1 <= (x.get("round") or 0) <= r["round"]]
+    if r.get("stills"):
+        n = sum(1 for x in same if x.get("stills"))
+        more = sum(1 for x in rounds if x.get("stage") == r.get("stage") and x.get("stills")) > 1
+        return f"preview {max(1, n)}" if more else "the preview"
+    return f"draft {max(1, sum(1 for x in same if not x.get('stills')))}"
+
+
+def is_sample(d, r=None):
+    """The edit made by Try it with a sample video (home.py marks its review.json; older ones used the sample style)."""
+    r = r if r is not None else _review(d)
+    if (r or {}).get("sample"):
+        return True
+    try:
+        src = json.loads((d / "style.json").read_text(encoding="utf-8")).get("source") or []
+    except (OSError, ValueError, AttributeError):
+        return False
+    return any("sample-card-edit" in str(x) for x in src) and d.name.startswith("sample-video")
+
+
 def entry(d):
     r = _review(d)
     video = (r or {}).get("video") or next((str(d / n) for n in ("render.mp4", "cut.mp4", "joined.mp4") if (d / n).exists()), None)
@@ -112,6 +138,7 @@ def entry(d):
     t = max([q.stat().st_mtime for q in (d / "review.json", d) if q.exists()])
     return {"name": (r or {}).get("label") or (r or {}).get("name") or d.name, "dir": str(d), "kind": d.parent.name,
             "status": status(r), "stage": (r or {}).get("stage"), "round": (r or {}).get("round"),
+            "draft": draft_name(r, (r or {}).get("rounds") or []) if r else None, "sample": is_sample(d, r),
             "video": video if video and Path(video).is_file() else None, "review": bool(r), "updated": t}
 
 
@@ -397,6 +424,11 @@ def demo():
     assert t and t.stat().st_size > 500 and thumb(rs[0]["path"]) == t
     assert reveal_cmd(mine, "Darwin") == ["open", str(mine)] and reveal_cmd(vid, "Windows")[0] == "explorer"
     assert disk()["library"] > 0
+    # one draft name everywhere: draft 1, the preview, then the edit's first video is draft 1 again
+    rr = [{"stage": "cut", "round": 0}, {"stage": "cut", "round": 1}, {"stage": "edit", "round": 1, "stills": True},
+          {"stage": "edit", "round": 2, "stills": True}, {"stage": "edit", "round": 3}]
+    assert [draft_name(r, rr) for r in rr] == ["your clip", "draft 1", "preview 1", "preview 2", "draft 1"]
+    assert draft_name(rr[2], rr[:3]) == "the preview"
     shutil.rmtree(tmp, ignore_errors=True)
     print("library demo ok")
 

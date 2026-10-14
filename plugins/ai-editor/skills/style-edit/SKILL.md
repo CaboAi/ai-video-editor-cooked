@@ -198,11 +198,11 @@ those pages up). The full list: `references/plan.md`.
 A `loudness ... LUFS` or take's own `true peak` WARN is the take's level, not a fault in the edit. `loudness`
 in the profile: do that, no question. Not set: ask once, then `profile.py set loudness='"leave|normalize"'`:
 
-> Your video plays at <N> LUFS; the apps play speech at about -14, so it will sound <quieter|louder>
-> than the videos around it. Change the volume?
+> Your video is quieter than most reels. Make it as loud as Instagram and TikTok expect? (louder: "...louder than most reels. Bring it down to what they expect?") Details: <N> LUFS; the apps play speech at about -14.
 > - **Leave my audio as it is (Recommended).** Nothing is touched.
-> - **Make it one level louder/quieter.** One gain on the whole track to -14 LUFS, never past a -1 dB
->   peak. No compression, no noise removal: the voice sounds the same, only louder or quieter.
+> - **Make it as loud as the apps expect** (or **Bring it down**). One volume change, never past a -1 dB peak.
+
+Numbers only on the Details line. Check output (FAIL, WARN, "2 frames short") never reaches the user.
 
 Only on the second answer: `python3 "$S/quality.py" normalize edits/<name>/render.mp4`. It writes
 `render-normalized.mp4` beside it; hand over that file.

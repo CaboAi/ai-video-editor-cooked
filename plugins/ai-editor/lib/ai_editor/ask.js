@@ -47,17 +47,27 @@ document.body.appendChild(el);
 // Esc folds the card into a bar that reopens it: the question is never lost
 const bar=document.createElement('button');bar.id='askbar';bar.type='button';bar.innerHTML='<i></i>Claude is asking you something<span>Open</span>';
 bar.onclick=()=>{bar.classList.remove('on');el.classList.add('on');el.querySelector('button,input')?.focus()};document.body.appendChild(bar);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&A&&el.classList.contains('on')){e.preventDefault();e.stopPropagation();fold()}},true);
+document.addEventListener('keydown',e=>{if(!A||!el.classList.contains('on'))return;
+  if(e.key==='Escape'){e.preventDefault();e.stopPropagation();fold();return}
+  // the card is modal: a key pressed outside it (focus left on the page after attaching an image) goes to the Other box,
+  // never to the page's shortcuts ('c' opened a note, space played)
+  if(!el.contains(e.target)&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.stopPropagation();el.querySelector('#asko')?.focus()}},true);
 function fold(){el.classList.remove('on');bar.classList.add('on')}
 // the page's header says so while a question is open (review.html reads data-ask, redraws on "askchange").
 // window.askq: the open question {about, elsewhere}; elsewhere (Home only): the video's editor has it as the card, so
 // Home shows a row "Claude is asking about <video>" whose Open calls window.askOpen()
 function flag(on){const r=document.documentElement;window.askq=on&&A?{about:A.about||'',elsewhere:!!A.elsewhere}:null;if(!!r.dataset.ask===on)return;on?r.dataset.ask='1':delete r.dataset.ask;dispatchEvent(new Event('askchange'))}
+// the card up (not folded, not Home's row): the page's shortcuts stay off (review.html reads data-ask-open)
+new MutationObserver(()=>{const on=el.classList.contains('on')&&!!A,r=document.documentElement;if(!!r.dataset.askOpen!==on)on?r.dataset.askOpen='1':delete r.dataset.askOpen}).observe(el,{attributes:true,attributeFilter:['class']});
+// the tab's title holds "(1) Claude is asking" while a question is open: a page that retitles itself (review.html on
+// every refresh) is put back before the next paint, its own title kept for after (QA: the title flipped every 5-10 s)
+const T0=document.querySelector('title')||document.head.appendChild(document.createElement('title'));
+new MutationObserver(()=>{if(A&&document.title!==TITLE){title=document.title;document.title=TITLE}}).observe(T0,{childList:true,characterData:true,subtree:true});
 window.askOpen=()=>{if(!A)return;bar.classList.remove('on');el.classList.add('on');el.querySelector('button,input')?.focus()};
 let A=null,i=0,ans=[],imgs=[],pics=[],sel=new Set(),title=null;
 // images on this answer: picked, pasted or dropped; data urls until Send
 function showPics(){const b=el.querySelector('.aq-pics');if(!b)return;b.innerHTML=pics.map((p,k)=>`<span><img src="${p}" alt="attached image ${k+1}"><button data-rm="${k}" aria-label="remove image" title="remove">×</button></span>`).join('');el.querySelector('#asko')?.dispatchEvent(new Event('input'))}
-function addFiles(fs){[...fs].filter(f=>TYPES.test(f.type)&&f.size<=MAXB).slice(0,MAXN-pics.length).forEach(f=>{const r=new FileReader();r.onload=()=>{if(A&&pics.length<MAXN){pics.push(r.result);showPics()}};r.readAsDataURL(f)})}
+function addFiles(fs){[...fs].filter(f=>TYPES.test(f.type)&&f.size<=MAXB).slice(0,MAXN-pics.length).forEach(f=>{const r=new FileReader();r.onload=()=>{if(A&&pics.length<MAXN){pics.push(r.result);showPics();el.querySelector('#asko')?.focus()}};r.readAsDataURL(f)})}
 el.addEventListener('paste',e=>{const fs=[...(e.clipboardData?.files||[])];if(A&&fs.length){e.preventDefault();addFiles(fs)}});
 el.addEventListener('dragover',e=>{if(!A)return;e.preventDefault();el.querySelector('.aq-card')?.classList.add('aq-drag')});
 el.addEventListener('dragleave',e=>{if(!el.contains(e.relatedTarget))el.querySelector('.aq-card')?.classList.remove('aq-drag')});

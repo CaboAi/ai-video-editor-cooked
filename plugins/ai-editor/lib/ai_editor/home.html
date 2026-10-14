@@ -1719,7 +1719,7 @@ async function connectClaude(){if(ui.connecting)return;ui.connecting=1;try{const
 
 // ---- home (welcome back), your videos, my style, settings
 // where a video is (home.py phase): the user's turn, done, or what Claude is doing now
-const TURN={cut:'Your turn: watch the cut',approve:'Your turn: approve the preview',edit:'Your turn: watch the edit'};
+const TURN={ask:"Your turn: answer Claude's question",cut:'Your turn: watch the cut',approve:'Your turn: approve the preview',edit:'Your turn: watch the edit'};
 const DOING={notes:'Fixing your notes',stills:'Making the preview',rendering:'Making the video',cutting:'Being made'};
 const vPh=v=>v.phase||(v.status==='done'?'done':v.status==='ready'?(v.stage==='cut'?'cut':'edit'):v.status==='making'?'notes':'cutting');
 // one count for Home and Your videos: done, your turn, being made

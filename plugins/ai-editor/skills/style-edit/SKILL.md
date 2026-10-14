@@ -164,10 +164,8 @@ laptop otherwise. `render` in the profile: render there, no question; say it in 
 `Recommended:` one marked (Recommended), then `profile.py set render='"laptop|modal|github|lambda"'`.
 
 1. **Laptop**: its time, free.
-2. **Modal**: its time and cost ($30 free credit a month). Not connected: label it **Connect Modal** ("one
-   login in the browser"); on that pick run
-   `python3 "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.py" modal-connect` in the background (the setup skill's
-   Modal step), say each `STEP` line, then render on Modal once it prints `Connected.`
+2. **Modal**: its time and cost ($30 free credit a month). Not connected: label it **Connect Modal**; on that
+   pick run `setup.py modal-connect` in the background (the setup skill's Modal step), then render on Modal.
 3. **Other: GitHub Actions or AWS Lambda**: both `Other:` lines in the description. On this pick, ask
    a second question with the two. GitHub Actions: free, needs `gh` logged in, the footage goes into
    a **private** repo in their account; ask before creating the repo. Lambda: their own AWS account.

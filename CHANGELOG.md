@@ -4,6 +4,14 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.8, creator-teardown 2.7.8 (2026-10-14)
+
+- The style you pick is always used, whichever Claude takes the video. Each question goes only to the video it is
+  about, named on the card, and never falls back to the Terminal while a page is open. Each new video gets its own
+  Claude. "Made in" leaves out time spent waiting for you.
+- Buttons no longer get rebuilt under your cursor, and the first Download click works. Drafts have one name
+  everywhere. The sample does not count as your first video. Plainer words, and no check output in Claude's notes.
+
 ## ai-editor 2.7.7, creator-teardown 2.7.7 (2026-10-14)
 
 - The Card edit and 50/50 samples have a real picture and an example video, both from their own edit of the

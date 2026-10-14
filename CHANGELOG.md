@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.7, creator-teardown 2.7.7 (2026-10-14)
+
 - The Card edit and 50/50 samples have a real picture and an example video, both from their own edit of the
   public sample take (the one "Try it with a sample video" uses): a frame with a card fully in, the speaker's
   eyes open and the caption on, cropped around a focus point so the card stays inside every shape it shows

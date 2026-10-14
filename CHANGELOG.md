@@ -10,6 +10,18 @@ What changed for every user, newest first.
 - Animations install themselves: an editor set up before the motion tools existed installs them on the first edit
   (a few seconds). If they cannot install, the edit says once that animations fell back.
 
+- Skills lists every skill that helps with an edit, from your own skills folder, the library's .claude/skills and
+  your other plugins (named plugin:skill). A skill counts when its name or description is about video, captions,
+  cuts, overlays, animation, thumbnails, sound or logos. The rest sit behind Not for editing at the bottom, which
+  opens in place with the same rows.
+- Update in Settings runs in the window without Claude. It updates ai-editor and creator-teardown, restarts the
+  window on the new version and reloads the tab. It shows the new version, and the /reload-plugins line to copy
+  until your Claude session runs on it.
+
+- A Claude making a video can no longer edit the editor's own files. On the installed plugin a hook blocks
+  Edit and Write inside it with a plain message, and Claude sessions the window opens get an Edit deny rule on
+  the plugin folder. A checkout or fork you own is not blocked outside the window. The start, cut and
+  style-edit skills say to report a wrong script and use a supported override instead.
 ## ai-editor 2.7.10, creator-teardown 2.7.10 (2026-10-14)
 
 - Skills: every skill has a ⋯ menu with Hide from this list and Delete. Delete moves the skill to the Trash, only from

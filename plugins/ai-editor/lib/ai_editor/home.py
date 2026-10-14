@@ -32,8 +32,9 @@ for it, and reports back with `status`:
                                  <job> is teardown, skill, video or setup: its latest job
     python3 home.py demo                         self-check (no network, no keys)
 
-Connect Modal and Test render run here, not through Claude: the server runs `setup.py modal-connect` or
-`modal-test` and shows its STEP lines as the job's steps (jobs `modal` and `modal-test`, owner "home").
+Connect Modal, Test render and Update run here, not through Claude: the server runs `setup.py modal-connect`,
+`modal-test` or `update.py market` and shows its STEP lines as the job's steps (jobs `modal`, `modal-test` and
+`update`, owner "home"). A finished update restarts the server from the new version (restart_on).
 
 State: $AI_EDITOR_HOME/home/state.json (default ~/.ai-video-editor). Keys typed on the page go
 straight to keys.py (prefix check, one free verify request, then saved 0600); a key value is never
@@ -93,6 +94,7 @@ from review import disposition, download_name, load, now, save, set_theme, theme
 
 HTML = Path(__file__).with_name("home.html")
 SETUP = Path(__file__).resolve().parents[2] / "skills" / "setup" / "scripts" / "setup.py"
+UPDATE = Path(__file__).resolve().parents[2] / "skills" / "update" / "scripts" / "update.py"
 TRANSCRIBE = Path(__file__).resolve().parents[2] / "skills" / "cut" / "scripts" / "transcribe.py"
 EDIT_PY = Path(__file__).resolve().parents[2] / "skills" / "style-edit" / "scripts" / "edit.py"
 BEAT_S = 6
@@ -650,43 +652,77 @@ def skill_of(st):
     return v if isinstance(v, str) and re.fullmatch(r"[a-z0-9][a-z0-9:_-]{0,63}", v) else None
 
 
+OWN_PLUGINS = ("ai-editor", "creator-teardown")   # the editor's own plugins: their skills are its steps, not styles
+
+
+def plugin_skill_dirs():
+    """[(plugin, its skills folder)] of every plugin Claude Code has installed and not turned off, other than the
+    editor's own: installed_plugins.json for where, settings.json enabledPlugins for off (read only)."""
+    from ai_editor import skillrules
+    cd = skillrules.claude_dir()
+    try:
+        inst = json.loads((cd / "plugins" / "installed_plugins.json").read_text(encoding="utf-8")).get("plugins") or {}
+    except (OSError, ValueError, AttributeError):
+        inst = {}
+    try:
+        on = json.loads((cd / "settings.json").read_text(encoding="utf-8")).get("enabledPlugins") or {}
+    except (OSError, ValueError, AttributeError):
+        on = {}
+    out = []
+    for key, rows in sorted(inst.items()):
+        name = key.split("@")[0]
+        if name in OWN_PLUGINS or on.get(key) is False or not isinstance(rows, list) or not rows:
+            continue
+        p = rows[-1].get("installPath") if isinstance(rows[-1], dict) else None
+        if p and (Path(p) / "skills").is_dir():
+            out.append((name, Path(p) / "skills"))
+    return out
+
+
 def skill_dirs(root):
-    """Where Claude Code loads skills from, as far as the page can see (read only): $AI_EDITOR_SKILLS, the library's and
-    the working folder's .claude/skills, ~/.claude/skills, then the plugins' own skills."""
+    """Where Claude Code loads skills from for a session in the library, as far as the page can see (read only):
+    $AI_EDITOR_SKILLS, the library's and the working folder's .claude/skills, the user's skills, the editor's own
+    plugin skills, then every other installed plugin's. [(plugin or "", folder)]."""
+    from ai_editor import skillrules
     env = [Path(x) for x in os.environ.get("AI_EDITOR_SKILLS", "").split(os.pathsep) if x]
-    return env + [Path(root) / ".claude" / "skills", Path.cwd() / ".claude" / "skills", Path.home() / ".claude" / "skills",
-                  *sorted(Path(__file__).resolve().parents[3].glob("*/skills"))]
+    mine = [("", d) for d in env + [Path(root) / ".claude" / "skills", Path.cwd() / ".claude" / "skills", skillrules.claude_dir() / "skills"]]
+    own = [(q.parent.name if q.parent.name in OWN_PLUGINS else "ai-editor", q) for q in sorted(Path(__file__).resolve().parents[3].glob("*/skills"))]
+    return mine + own + plugin_skill_dirs()
+
+
+def skill_head(md):
+    """(the whole description, the body) of a SKILL.md."""
+    text = md.read_text(encoding="utf-8", errors="replace")
+    head, body = (text.split("---", 2)[1:] + [""])[:2] if text.startswith("---") else ("", text)
+    m = re.search(r"^description:[ \t]*(.*(?:\n[ \t]+.*)*)", head, re.M)
+    return re.sub(r"^[>|][-+]?\s*", "", " ".join((m.group(1) if m else "").split())).strip("'\""), body
 
 
 def find_skill(root, name, calls=False):
     """A skill style's skill: found, the first sentence of its description and, with calls, the other skills its
-    SKILL.md names (hyphenated or in backticks, and only names of skills that exist here)."""
+    SKILL.md names (hyphenated or in backticks, and only names of skills that exist here). A plugin skill
+    (plugin:skill) is looked for in that plugin's folder first."""
     dirs = skill_dirs(root)
-    name = name.split(":")[-1]   # a plugin skill (plugin:skill) lives in <plugin>/skills/<skill>
-    md = next((d / name / "SKILL.md" for d in dirs if (d / name / "SKILL.md").is_file()), None)
+    plug, _, name = name.rpartition(":")
+    md = next((d / name / "SKILL.md" for p, d in sorted(dirs, key=lambda x: x[0] != plug) if (d / name / "SKILL.md").is_file()), None)
     if not md:
         return {"found": False, "description": "", "calls": [], "path": None}
-    text = md.read_text(encoding="utf-8", errors="replace")
-    head, body = (text.split("---", 2)[1:] + [""])[:2] if text.startswith("---") else ("", text)
-    m = re.search(r"^description:[ \t]*(.*(?:\n[ \t]+.*)*)", head, re.M)
-    desc = re.sub(r"^[>|][-+]?\s*", "", " ".join((m.group(1) if m else "").split())).strip("'\"")
+    desc, body = skill_head(md)
     out = {"found": True, "description": re.split(r"(?<=[.!?])\s", desc, maxsplit=1)[0][:240], "calls": [], "path": str(md)}
     if calls:
-        known = {q.parent.name for d in dirs for q in d.glob("*/SKILL.md")} - {name}
+        known = {q.parent.name for _, d in dirs for q in d.glob("*/SKILL.md")} - {name}
         said = re.findall(r"`/?([a-z0-9][a-z0-9-]*)`|\b([a-z0-9]+(?:-[a-z0-9]+)+)\b", body)
         out["calls"] = [x for x in dict.fromkeys(a or b for a, b in said) if x in known][:8]
     return out
 
 
-# a skill that edits video: one of these words in its name or first sentence. "edit" alone is not enough (notion-editing)
-VIDEO_WORDS = re.compile(r"\b(videos?|reels?|captions?|captioning|cuts?|cutting|footage|clips?|shorts|tiktoks?)\b", re.I)
-
-
 def editing_skills(root):
-    """The Skills view and "Use your own skill": every skill folder the page can see outside this plugin, split into
-    skills that edit video (VIDEO_WORDS, or a style runs it) and the rest ("Other skills"). Each one says whether the
-    user hid it (hidden_skills in the editor's state) and whether Delete may move it to the Trash. First found wins."""
-    plugins = Path(__file__).resolve().parents[3]
+    """The Skills view and "Use your own skill": every skill Claude Code loads in the library outside the editor's
+    own plugins, split into skills for editing videos (skillrules.for_editing on the name and the whole description,
+    or a style runs it) and the rest ("Not for editing"). A plugin skill is named plugin:skill, as Claude Code
+    calls it, with "plugin" set. Each one says whether the user hid it and whether Delete may move it to the Trash.
+    First found wins."""
+    from ai_editor import skillrules
     _, ss = _taste()
     ours = {ss.MINE} | {v.get("skill") for v in ss.names().values()}   # the editor's own thin style skills
     used = set()
@@ -697,23 +733,26 @@ def editing_skills(root):
             pass
     hidden = set(read().get("hidden_skills") or [])
     seen, video, other = set(), [], []
-    for d in skill_dirs(root):
-        if d.resolve().parent.parent == plugins.resolve():   # the editor's own skills are not styles
+    for plug, d in skill_dirs(root):
+        if plug in OWN_PLUGINS:   # the editor's own steps (cut, overlays, logo-pack...) already run inside every edit
             continue
         for md in sorted(d.glob("*/SKILL.md")):
-            n = md.parent.name
-            if n not in seen and n not in ours and not n.startswith("edit-like-") and skill_of({"skill": n}):
-                seen.add(n)
-                f = find_skill(root, n)
-                x = {**skill_info(root, n, f), "hidden": n in hidden, "deletable": bool(deletable_skill(n))}
-                (video if n in used or VIDEO_WORDS.search(n.replace("-", " ") + " " + f["description"]) else other).append(x)
+            n = (plug + ":" if plug else "") + md.parent.name
+            if n in seen or md.parent.name in ours or md.parent.name.startswith("edit-like-") or not skill_of({"skill": n}):
+                continue
+            seen.add(n)
+            desc, _ = skill_head(md)
+            f = {"found": True, "description": re.split(r"(?<=[.!?])\s", desc, maxsplit=1)[0][:240], "path": str(md)}
+            x = {**skill_info(root, n, f), "plugin": plug, "hidden": n in hidden, "deletable": bool(deletable_skill(n))}
+            (video if md.parent.name in used or skillrules.for_editing(n, desc) else other).append(x)
     return {"skills": video, "other": other}
 
 
 def user_skills_roots():
     """The user's own skills folders, the only place Delete may touch: $AI_EDITOR_SKILLS, else ~/.claude/skills."""
+    from ai_editor import skillrules
     env = [Path(x) for x in os.environ.get("AI_EDITOR_SKILLS", "").split(os.pathsep) if x]
-    return [p.resolve() for p in env or [Path.home() / ".claude" / "skills"]]
+    return [p.resolve() for p in env or [skillrules.claude_dir() / "skills"]]
 
 
 def deletable_skill(name):
@@ -1110,6 +1149,15 @@ def fetch_latest():
     return v, notes
 
 
+def my_version():
+    """This copy's plugin.json version, or None. A Claude session's commands run the copy it loaded, so after an
+    update this says whether that session has typed /reload-plugins yet."""
+    try:
+        return json.loads(PLUGIN_JSON.read_text(encoding="utf-8"))["version"]
+    except (OSError, ValueError, KeyError):
+        return None
+
+
 def update_info():
     """Installed vs latest. The GitHub check runs in the background at most once an hour; offline it says nothing."""
     if time.time() - _UPD["at"] > 3600 and not _UPD["busy"]:
@@ -1119,12 +1167,10 @@ def update_info():
             v, notes = fetch_latest()
             _UPD.update(at=time.time(), busy=False, **({"latest": v, "notes": notes} if v else {}))
         threading.Thread(target=go, daemon=True).start()
-    try:
-        mine = json.loads(PLUGIN_JSON.read_text(encoding="utf-8"))["version"]
-    except (OSError, ValueError, KeyError):
-        mine = None
+    mine = my_version()
     newer = bool(mine and _UPD["latest"] and vtuple(_UPD["latest"]) > vtuple(mine))
-    plug, cache = PLUGIN_JSON.resolve().parents[1], (Path.home() / ".claude" / "plugins" / "cache").resolve()
+    from ai_editor import skillrules
+    plug, cache = PLUGIN_JSON.resolve().parents[1], (skillrules.claude_dir() / "plugins" / "cache").resolve()
     up = [q for q in [plug, *plug.parents] if cache in q.parents] if cache in plug.parents else [plug, *plug.parents]
     dev = any((q / ".git").exists() for q in up if q != cache)   # a git checkout (a clone or worktree): git updates it
     return {"installed": mine, "latest": _UPD["latest"], "newer": newer, "notes": _UPD["notes"] if newer else [],
@@ -1416,10 +1462,14 @@ def modal_state():
     return {"installed": inst, "logged_in": inst and ("token_id" in cfg or bool(os.environ.get("MODAL_TOKEN_ID")))}
 
 
-def run_modal(kind, jid):
-    """Connect Modal (setup.py modal-connect) or Test render (modal-test) for job jid: each STEP line becomes a
-    step, LOGIN/CREDIT/TIME go into the result, FAIL fails the job. Modal's CLI keeps the token itself; no
-    line here carries it."""
+_SRV = []   # the running window server, for the restart onto a new version
+
+
+def run_home(kind, jid):
+    """A job the window runs itself, without Claude: Connect Modal (setup.py modal-connect), Test render
+    (modal-test) or Update (update.py market). Each STEP line becomes a step, LOGIN/CREDIT/TIME/VERSION/PATH go into
+    the result, FAIL fails the job. Modal's CLI keeps the token itself; no line here carries it. A finished update
+    restarts the window on the new version (restart_on)."""
     def edit(fn):
         def f(d):
             j = next(x for x in d["jobs"] if x["id"] == jid)
@@ -1443,38 +1493,60 @@ def run_modal(kind, jid):
                     s["done"], s["secs"] = True, round(t - s["t"])
             j["state"], j["error"], j["finished"] = ("failed" if err else "done"), err, t
         edit(f)
-    err = "The setup step stopped without saying why. Try again."
+    err = "The update stopped without saying why. Try again." if kind == "update" else "The setup step stopped without saying why. Try again."
     try:
-        p = subprocess.Popen([sys.executable, str(SETUP), "modal-connect" if kind == "modal" else "modal-test"],
-                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace")
+        cmd = {"modal": [SETUP, "modal-connect"], "modal-test": [SETUP, "modal-test"], "update": [UPDATE, "market"]}[kind]
+        p = subprocess.Popen([sys.executable, *map(str, cmd)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                             text=True, encoding="utf-8", errors="replace")
         for line in p.stdout:
             word, _, rest = line.strip().partition(" ")
             if word == "STEP":
                 step(rest)
-            elif word in ("LOGIN", "CREDIT", "TIME"):
-                key = {"LOGIN": "login", "CREDIT": "credit", "TIME": "time"}[word]
-                edit(lambda j, t, k=key, v=rest: j["result"].__setitem__(k, v))
+            elif word in ("LOGIN", "CREDIT", "TIME", "VERSION", "PATH"):
+                edit(lambda j, t, k=word.lower(), v=rest: j["result"].__setitem__(k, v))
             elif word == "FAIL":
                 err = rest
-            elif word in ("Connected.", "Tested."):
+            elif word in ("Connected.", "Tested.", "Updated."):
                 err = None
         p.wait()
     except OSError as e:
         err = f"Could not start the setup step: {e}"
     finish(err)
+    if kind == "update" and not err:
+        restart_on(next((j["result"].get("path") for j in read()["jobs"] if j["id"] == jid), None))
+
+
+def restart_on(plugin):
+    """After an update: the window server starts again from the new version's home.py, on the same port with the
+    same token (both kept in AI_EDITOR_HOME), so the open tab reconnects and reloads itself (its page version
+    changes). The launcher is pointed at the new version by that server's own start (serve, may_refresh)."""
+    new = Path(plugin or "") / "lib" / "ai_editor" / "home.py"
+    if not plugin or not new.is_file() or new.resolve() == Path(__file__).resolve() or not _SRV:
+        return False
+    while live._busy[0]:   # an upload in flight finishes first
+        time.sleep(0.5)
+    srv = _SRV[0]
+    port = srv.server_address[1]
+    srv.server_close()
+    argv = live.argv_with_port(sys.argv, port)
+    os.execv(sys.executable, [sys.executable, str(new), *argv[1:]])
 
 
 def drop_modal_runs(d):
-    """A server starting: a Connect or Test left running by the last one has no thread watching it now."""
+    """A server starting: a Connect, Test or Update left running by the last one has no thread watching it now.
+    An Update a Claude session took (before the window ran updates itself) is closed too: none finishes it."""
     for j in d["jobs"]:
-        if j["type"] in ("modal", "modal-test") and j["state"] == "taken" and j.get("owner") == "home":
+        if j["type"] in ("modal", "modal-test") and j["state"] == "taken" and j.get("owner") == "home" \
+                or j["type"] == "update" and j["state"] in ("queued", "taken"):
             j.update(state="failed", error="Stopped when the window restarted. Press it again.", finished=time.time())
 
 
 def start_modal(kind):
-    """One Connect (or Test) at a time: a running one is returned instead of a second."""
+    """One Connect (or Test, or Update) at a time: a running one is returned instead of a second."""
+    group = ("update",) if kind == "update" else ("modal", "modal-test")
+
     def f(d):
-        j = next((x for x in reversed(d["jobs"]) if x["type"] in ("modal", "modal-test") and x["state"] == "taken"), None)
+        j = next((x for x in reversed(d["jobs"]) if x["type"] in group and x["state"] == "taken"), None)
         if j:
             return j, False
         j = queue(d, kind, {})
@@ -1482,7 +1554,7 @@ def start_modal(kind):
         return j, True
     j, new = update(f)
     if new:
-        threading.Thread(target=run_modal, args=(kind, j["id"]), daemon=True).start()
+        threading.Thread(target=run_home, args=(kind, j["id"]), daemon=True).start()
     return j
 
 
@@ -1649,7 +1721,7 @@ def cmd_wait(poll=1.0, job=None):
     if listening():   # one waiter at a time, so each job reaches exactly one background task
         print("ALREADY: another `home.py wait` is running; the next job comes out of that one.", flush=True)
         return "ALREADY"
-    update(lambda d: d.update(claude_seen=time.time()) or d.pop("connect", None))   # a pending "Connect Claude" has connected
+    update(lambda d: d.update(claude_seen=time.time(), claude_v=my_version()) or d.pop("connect", None))   # a pending "Connect Claude" has connected
     beat.write_text(sid, encoding="utf-8")   # who listens: the page's "busy" and askhook read it
     try:
         while True:
@@ -1740,7 +1812,7 @@ def mine(d, kind, key=None, sid=""):
 def cmd_status(a):
     def f(d):
         t = time.time()
-        d["claude_seen"] = t   # the page's heartbeat: Claude (or a script it runs) is still at work
+        d["claude_seen"], d["claude_v"] = t, my_version()   # the page's heartbeat: Claude (or a script it runs) is still at work
         sid = askhook.session()
         if if_active:   # a script's own report (progress.py): only onto a taken job of this session, never makes or takes one
             j = mine(d, a.job, getattr(a, "key", None), sid)
@@ -1865,11 +1937,11 @@ def make_handler(token):
                 bz = busy_with(d, listener())   # the listening Claude is making a video: the next one can get its own
                 d["busy"] = bz and {"id": bz["id"], "name": job_name(bz)}
                 d["profile"] = (home().parent / "profile.json").exists()   # set up before: a returning user
-                d["update"] = update_info()
+                d["update"] = {**update_info(), "claude": d.get("claude_v")}   # the version the last Claude command ran
                 d["getting_started"] = getting_started(d)
                 import launcher   # a Claude of its own per video only where a terminal window can be opened
                 d["new_claude"] = bool(launcher.terminal(d["root"], ["claude"], platform.system()))
-                d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
+                d["page"] = f'{live.page_version(HTML, HTML.with_name("ask.js"))}-{my_version()}'   # the tab reloads when this changes (an update too)
                 lk = d.get("lookup") or {}
                 if lk.get("handle"):
                     lk["listing"] = listing(d["root"], lk["handle"])
@@ -2360,8 +2432,12 @@ def make_handler(token):
                 args = {"handle": td["args"]["handle"], "take": take}
             elif kind == "video":
                 return self.videos(b, d)
-            elif kind in ("update", "setup"):   # setup: the first run's Start setup (JOB setup, install-all --report)
-                if kind == "setup" and any(j["type"] == "setup" and j["state"] in ("queued", "taken") for j in d["jobs"]):
+            elif kind == "update":   # Settings, Update: the window runs it itself (run_home), no Claude needed
+                if update_info()["dev"]:
+                    return self.send(409, {"error": "This is a developer copy; update it with git yourself."})
+                return self.send(200, {"id": start_modal("update")["id"]})
+            elif kind == "setup":   # the first run's Start setup (JOB setup, install-all --report)
+                if any(j["type"] == "setup" and j["state"] in ("queued", "taken") for j in d["jobs"]):
                     return self.send(200, {"id": latest(d, "setup")["id"]})
                 args = {}
             elif kind == "style-change":   # "Tell it what to change": Claude turns the words into rules at that style's scope
@@ -2730,6 +2806,7 @@ def serve(root=None, port=None, open_browser=True):
         return None, url
     token = stable_token()
     srv = bind(make_handler(token), port)
+    _SRV[:] = [srv]
     if port != 0:
         update(lambda d: d.__setitem__("port", srv.server_address[1]))
     url = f"http://127.0.0.1:{srv.server_address[1]}/?t={token}"
@@ -2756,7 +2833,9 @@ def may_refresh(plugin, home_dir=None, env=None):
     home_dir = Path(home_dir or Path.home())
     if env.get("AI_EDITOR_HOME", "").strip() and Path(env["AI_EDITOR_HOME"]).expanduser().resolve() != (home_dir / ".ai-video-editor").resolve():
         return False
-    cache, p = (home_dir / ".claude" / "plugins" / "cache").resolve(), Path(plugin).resolve()
+    from ai_editor import skillrules
+    cd = home_dir / ".claude" if home_dir != Path.home() else skillrules.claude_dir()
+    cache, p = (cd / "plugins" / "cache").resolve(), Path(plugin).resolve()
     if cache not in p.parents:
         return False
     return not any((q / ".git").exists() for q in [p, *p.parents] if q != cache and cache in q.parents)
@@ -3000,7 +3079,7 @@ def demo():
         c = latest(read(), "modal")
         assert c["state"] == "done" and c["owner"] == "home" and [x["text"] for x in c["steps"]] == ["Installing Modal", "Building"], c
         assert c["result"] == {"login": "https://modal.com/token-flow/tf-x", "credit": "$0.10 used this month"}, c["result"]
-        run_modal("modal-test", update(lambda d: queue(d, "modal-test", {}))["id"])
+        run_home("modal-test", update(lambda d: queue(d, "modal-test", {}))["id"])
         t = latest(read(), "modal-test")
         assert t["state"] == "failed" and t["error"] == "Your Modal account is out of credit.", t
         assert get("/state")["modal"] == {"installed": False, "logged_in": False}
@@ -3539,6 +3618,25 @@ def demo():
     vsk, oth = {x["name"]: x for x in sl["skills"]}, {x["name"]: x for x in sl["other"]}
     assert "notion-editing" in oth and "notion-editing" not in vsk and oth["notion-editing"]["deletable"], sl
     assert vsk["gone-cuts"]["deletable"] and not vsk["my-captions"]["deletable"] and not vsk["linked-cuts"]["deletable"], vsk   # a project's; a link out
+    # plugin skills: every installed, enabled plugin but the editor's own, named plugin:skill, sorted by the same test
+    cc, old_cc = tmp / "claude-config", os.environ.get("CLAUDE_CONFIG_DIR")
+    for plug, n_, d_ in (("fx", "broll-picker", "Picks b-roll for a video."), ("fx", "notion-sync", "Syncs Notion pages."),
+                         ("off", "captions-x", "Captions a video."), ("ai-editor", "cut", "Cuts a video.")):
+        (cc / "p" / plug / "skills" / n_).mkdir(parents=True, exist_ok=True)
+        (cc / "p" / plug / "skills" / n_ / "SKILL.md").write_text(f"---\nname: {n_}\ndescription: {d_}\n---\n", encoding="utf-8")
+    (cc / "plugins").mkdir()
+    (cc / "plugins" / "installed_plugins.json").write_text(json.dumps({"version": 2, "plugins": {
+        f"{q}@m": [{"version": "1.0.0", "installPath": str(cc / "p" / q)}] for q in ("fx", "off", "ai-editor")}}), encoding="utf-8")
+    (cc / "settings.json").write_text(json.dumps({"enabledPlugins": {"off@m": False}}), encoding="utf-8")
+    os.environ["CLAUDE_CONFIG_DIR"] = str(cc)
+    try:
+        sl = get("/skills")
+        vsk, oth = {x["name"]: x for x in sl["skills"]}, {x["name"]: x for x in sl["other"]}
+        assert vsk["fx:broll-picker"]["plugin"] == "fx" and not vsk["fx:broll-picker"]["deletable"] and "fx:notion-sync" in oth, sl
+        assert not any(k.startswith(("off:", "ai-editor:")) for k in [*vsk, *oth]), sl   # turned off; the editor's own steps
+        assert find_skill(root, "fx:broll-picker")["description"] == "Picks b-roll for a video."
+    finally:
+        os.environ.pop("CLAUDE_CONFIG_DIR") if old_cc is None else os.environ.__setitem__("CLAUDE_CONFIG_DIR", old_cc)
     assert post("/skill/hide", {"name": "notion-editing"})["ok"] and next(x for x in get("/skills")["other"] if x["name"] == "notion-editing")["hidden"]
     assert (tmp / "skills" / "notion-editing" / "SKILL.md").is_file()   # hidden, still on disk
     assert post("/skill/hide", {"name": "notion-editing", "on": False})["ok"] and not next(x for x in get("/skills")["other"] if x["name"] == "notion-editing")["hidden"]
@@ -3694,7 +3792,7 @@ def demo():
     assert is_output(root / "edits" / "x" / "render.mp4") and is_output(tmp / "v-edit2.mp4") and is_output(root / "edits" / "x" / "review" / "a.mp4")
     assert is_output(ed / "anything.mp4", [ed]) and not is_output(root / "videos" / "drop.mp4", [ed])
     assert all("raw" in v for v in get("/recent")["videos"])
-    assert get("/state")["page"] == live.page_version(HTML, HTML.with_name("ask.js")), "the tab's reload key"
+    assert get("/state")["page"] == f'{live.page_version(HTML, HTML.with_name("ask.js"))}-{my_version()}', "the tab's reload key"
     # hide or trash a listed clip, remove an edit: only what the page listed, to the Trash (faked here), never a folder
     assert library.trash_cmd("/a b/x.mov", "Darwin")[-1] == "/a b/x.mov" and "item 1 of argv" in " ".join(library.trash_cmd("x", "Darwin"))
     assert library.trash_cmd("C:/x y.mp4", "Windows")[-1] == "C:/x y.mp4" and library.trash_cmd("/x", "Linux") == ["gio", "trash", "/x"]
@@ -3882,8 +3980,37 @@ def demo():
     u = get("/state")["update"]
     assert u["newer"] and u["latest"] == "99.0.0" and u["installed"] == json.loads(PLUGIN_JSON.read_text(encoding="utf-8"))["version"], u
     assert u["notes"] == ["Dark mode in the window"] and vtuple("2.10.0") > vtuple("2.9.1")
-    post("/job", {"type": "update"})
-    assert out(cmd_wait, 0.01) == "JOB update"
+    # Update runs in the window itself (no Claude): a developer copy is refused; an installed one runs update.py
+    # market, shows its steps, keeps the new version and restarts the server from the new version's folder
+    try:
+        post("/job", {"type": "update"})
+        raise AssertionError("a git checkout must not update itself")
+    except urllib.error.HTTPError as e:
+        assert e.code == 409
+    real_update, real_restart, restarted = UPDATE, globals()["restart_on"], []
+    fake = tmp / "fake_update.py"
+    fake.write_text("print('STEP Getting the list of new versions', flush=True)\nprint('STEP Updating ai-editor', flush=True)\n"
+                    f"print('VERSION 99.0.0')\nprint('PATH {(tmp / 'v99').as_posix()}')\nprint('Updated. Type /reload-plugins.')\n", encoding="utf-8")
+    globals().update(UPDATE=fake, restart_on=lambda p: restarted.append(p))
+    try:
+        update(lambda d: d["jobs"].append({"id": "update-old", "type": "update", "args": {}, "state": "taken", "owner": "sess-gone",
+                                           "at": now(), "steps": [], "result": {}}))
+        update(drop_modal_runs)   # a server start closes an Update a Claude session took and never finished
+        assert next(j for j in read()["jobs"] if j["id"] == "update-old")["state"] == "failed"
+        j = start_modal("update")
+        assert start_modal("update")["id"] == j["id"] or latest(read(), "update")["state"] == "done", "one at a time"
+        for _ in range(100):
+            if latest(read(), "update")["state"] == "done":
+                break
+            time.sleep(0.05)
+        j = latest(read(), "update")
+        assert j["state"] == "done" and j["owner"] == "home" and j["result"] == {"version": "99.0.0", "path": (tmp / "v99").as_posix()}, j
+        assert [s["text"] for s in j["steps"]] == ["Getting the list of new versions", "Updating ai-editor"] and restarted == [(tmp / "v99").as_posix()]
+        assert not any(x["type"] == "update" and x["state"] == "queued" for x in read()["jobs"]), "nothing queued for Claude"
+    finally:
+        globals().update(UPDATE=real_update, restart_on=real_restart)
+        update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["type"] != "update"]))
+    assert restart_on(str(tmp / "no-such-version")) is False and restart_on(None) is False
     # clear working files: counted first, then deleted; the cut, the render and review.json stay
     (other / "chunks").mkdir()
     (other / "chunks" / "chunk-0.mkv").write_bytes(b"x" * 2000)

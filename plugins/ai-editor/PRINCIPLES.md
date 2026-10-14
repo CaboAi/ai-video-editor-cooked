@@ -5,6 +5,7 @@ The rules every skill follows. Each names where it is enforced; tests: `docs/fee
 ## Where
 
 - Work in the library (cd to `lib/ai_editor/library.py path`) or a folder the user names. (`library.py`)
+- Never edit the plugin's own files. (`guard.py`)
 
 ## Asking
 

@@ -141,6 +141,11 @@ def video_row(vdir, vid, tdir, cache=True):
         "box": cap.get("box") if cap.get("present") else None,
         "y_pct": cap.get("y_pct") if cap.get("present") else None,
         "cap_side": side_of(cap, look.get("face") or {}) if cap.get("present") else None,
+        **{k: cap.get(k) if cap.get("present") else None for k in ("accent_pct", "accent_keyword_pct", "light_pct", "stack_pct")},
+        # look.py's rule: a second face under 10% of the lines is noise, not a face
+        "light_face": (cap.get("light_face") if (cap.get("light_pct") or 0) >= 10 else None) or "none"
+        if cap.get("present") and "light_pct" in cap else None,
+        "big_ratio": round(cap["size_max_pct"] / cap["size_pct"], 2) if cap.get("present") and cap.get("size_max_pct") and cap.get("size_pct") else None,
         "highlight": (cap.get("highlight_color") or "none") if cap.get("present") and "color" in cap else None,
         "card_pct": round(100 * min(dur, sum(g["hold_s"] for g in gs)) / dur) if dur and gfx else None,
         "card_kind": kinds.most_common(1)[0][0] if kinds else ("none" if gfx else None),
@@ -158,10 +163,18 @@ def video_row(vdir, vid, tdir, cache=True):
 def side(rows):
     """Per-video rows -> one value a feature (median, or the majority)."""
     num = ("shots_per_min", "longest_hold_s", "zooms_per_min", "zoom_scale", "words_per_line", "weight", "y_pct",
-           "card_pct", "broll_pct", "safe_pct", "wpm", "luma", "sat", "sfx_per_min")
+           "card_pct", "broll_pct", "safe_pct", "wpm", "luma", "sat", "sfx_per_min", "accent_pct", "accent_keyword_pct",
+           "light_pct", "stack_pct", "big_ratio")
     out = {k: med([r[k] for r in rows], 3 if k == "sat" else 2 if k == "zoom_scale" else 1) for k in num}
-    for k in ("captions", "case", "color", "box", "highlight", "card_kind", "music", "cap_side"):
+    for k in ("captions", "case", "color", "box", "highlight", "card_kind", "music", "cap_side", "light_face"):
         out[k] = mode(r[k] for r in rows)
+    faces = [r["light_face"] for r in rows if r["light_face"] not in (None, "none")]
+    if faces and (out["light_pct"] or 0) >= 10:   # her second face is the one the videos that use one agree on
+        out["light_face"] = mode(faces)
+    # an accent in a third of the videos or more is hers (each video's hex differs a little): the one most others sit near
+    hs = [r["highlight"] for r in rows if r["highlight"] not in (None, "none")]
+    if hs and len(hs) >= len([r for r in rows if r["highlight"] is not None]) / 3:
+        out["highlight"] = max(hs, key=lambda h: sum(_le(cdist(h, x), 60) for x in hs))
     t = [r["title_open"] for r in rows if r["title_open"] is not None]
     out["title_open"] = (sum(t) >= len(t) / 2) if t else None
     kinds = Counter()
@@ -198,6 +211,12 @@ def rules(c, o):
         ("box", "caption box", lambda: c["box"] == o["box"]),
         ("y_pct", "caption height (% down)", num("y_pct", 0, 6)),
         ("cap_side", "captions against the face", lambda: c["cap_side"] == o["cap_side"]),
+        ("accent_pct", "caption lines in the accent colour (%)", num("accent_pct", 0, 10)),
+        ("accent_keyword_pct", "accent lines that are keywords (%)", lambda: (c["accent_keyword_pct"] >= 50) == (o["accent_keyword_pct"] >= 50)),
+        ("light_pct", "caption lines in a second, lighter face (%)", num("light_pct", 0, 8)),
+        ("light_face", "that second face", lambda: c["light_face"] == o["light_face"]),
+        ("big_ratio", "big keyword size (x the usual)", num("big_ratio", 0.25, 0.2)),
+        ("stack_pct", "caption pages stacked on 2+ lines (%)", num("stack_pct", 0, 15)),
         ("highlight", "caption highlight colour", lambda: c["highlight"] == o["highlight"] == "none"
          or _le(cdist(c["highlight"], o["highlight"]), 60)),
         ("card_pct", "card / overlay time (%)", num("card_pct", 0.3, 10)),
@@ -291,7 +310,8 @@ def measure_render(render, work):
 def demo():
     row = {"shots_per_min": 9.0, "longest_hold_s": 6.0, "zooms_per_min": 4.0, "zoom_scale": 1.15, "captions": True,
            "words_per_line": 3.0, "weight": 700, "case": "lower", "color": "#FFFFFF", "box": False, "y_pct": 65.0,
-           "highlight": "none", "cap_side": "below", "card_pct": 40, "card_kind": "real screenshot", "kinds": {"real screenshot": 30.0},
+           "highlight": "none", "cap_side": "below", "accent_pct": 16, "accent_keyword_pct": 80,
+           "light_pct": 11, "light_face": "serif", "stack_pct": 40, "big_ratio": 1.6, "card_pct": 40, "card_kind": "real screenshot", "kinds": {"real screenshot": 30.0},
            "broll_pct": 10, "title_open": True, "safe_pct": 98, "wpm": 180, "luma": 110.0, "sat": 0.25,
            "sfx_per_min": 2.0, "music": False}
     c = side([row, {**row, "shots_per_min": 11.0, "title_open": False}, {**row, "title_open": True}])

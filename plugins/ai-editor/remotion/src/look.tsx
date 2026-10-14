@@ -80,8 +80,9 @@ export type Ground = "ground" | "ink" | "accent";
 /** The same look on another of its own colours, so consecutive scenes do not all sit on one ground. */
 export const onGround = (look: Look, g: Ground): Look =>
   g === "ink" ? { ...look, ground: look.ink, ink: look.ground, muted: hexA(look.ground, 0.62), line: hexA(look.ground, 0.18) }
-    : g === "accent" ? { ...look, ground: look.accent, ink: look.ink, muted: hexA(look.ink, 0.62), line: hexA(look.ink, 0.18),
-      accent: look.ground, accent_ink: look.ink }
+    // on the accent ground the type is the accent's own ink (neutral's accent is near-black: its ink was invisible on it)
+    : g === "accent" ? { ...look, ground: look.accent, ink: look.accent_ink ?? look.ink, muted: hexA(look.accent_ink ?? look.ink, 0.62),
+      line: hexA(look.accent_ink ?? look.ink, 0.18), accent: look.ground, accent_ink: look.ink }
       : look;
 
 /** plan.json "look" may name a preset and override any key. */

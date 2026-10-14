@@ -4,6 +4,16 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- The Card edit sample has a new picture and an example video, both from its own demo edit: a frame with
+  the terminal card fully in, the face and the caption, cropped around a focus point so the card and the
+  face stay inside every shape it shows in. On Pick a style and the Styles list, hovering or focusing the
+  card plays the 12 s example muted (a small play mark says it is a video). The style page has the
+  example as a player at the top. The caption preview on a sample's page no longer draws over a frame
+  that already has a caption.
+- `thumbs.py make <edit> <style folder>` picks and crops that frame and cuts the example (720p, under
+  3 MB) from any finished edit, for new samples and styles built here. Creator styles keep the creator's
+  account picture.
+
 ## ai-editor 2.6.11 (2026-10-13)
 
 - Modal is one button. Settings (and the first-run keys page) has **Connect Modal**: it installs Modal, opens

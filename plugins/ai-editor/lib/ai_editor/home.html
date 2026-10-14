@@ -776,6 +776,8 @@ body.rail .sb-theme{margin-top:2px}
 .lr{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--line);border-radius:10px;min-width:0}
 .lr b{font-size:15px;font-weight:600}.lr .u{font-size:14px;line-height:18px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 .lth{width:36px;height:60px;border-radius:6px;background:var(--card);display:grid;place-items:center;flex-shrink:0}
+.lkb{display:flex;flex-direction:column;gap:8px;margin-top:4px}.lkb textarea{height:72px;padding:10px 12px;font:14px/20px system-ui,sans-serif;resize:vertical}
+.lr.rf{padding:8px 10px}.lr.rf .t1{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nbox.over{border-color:var(--ink)}
 .lin{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;border:1.5px solid var(--ink);border-radius:10px;color:var(--t3);cursor:text}
 .lin input{flex:1;min-width:0;border:0;outline:0;background:none;font:15px/20px system-ui,sans-serif;color:var(--ink)}
 .ul{border:0;background:none;padding:0;color:var(--ink);font-size:14px;line-height:20px;text-decoration:underline 1px;text-underline-offset:3px;cursor:pointer}
@@ -1374,8 +1376,11 @@ function studyCard(c){
   return `<div class="cs" id="sc-${esc(c.id)}"><div class="steps">${rows||`<div class="sr cur">${SPIN}<span>${j&&j.state==='queued'&&!S.listening?connectHTML('Waiting for Claude.'):'Starting'}</span></div>`}</div>
     <div class="who">${avaHTML(c.face)}<div style="min-width:0"><div class="nm">${esc(c.name)}</div><div class="t2">${esc(crSub({...c,studying:0}))}</div></div></div>
     <div><div class="t1" style="font-weight:600">Analysing ${n?n+' videos':'the videos'} · <span data-since="${t}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-t)))}</span></div><div class="t2" style="white-space:normal;margin-top:4px">It keeps going if you leave.</div></div>
-    <div class="bar"><i style="width:${Math.round((f||0)*100)}%"></i></div></div>`;
+    <div class="bar"><i style="width:${Math.round((f||0)*100)}%"></i></div>
+    ${j?`<button class="b2 s" style="align-self:flex-start" onclick="stopStudy(${J(j.args.handle)})">Stop</button>`:''}</div>`;
 }
+// Stop on an analysing card or page: that creator's analysis only; Claude stops its commands (JOB cancel teardown @handle)
+async function stopStudy(h){await post('/cancel',{type:'teardown',handle:h});toast('Stopped analysing.');ui.ob=null;await load();await loadLib();render()}
 function crCard(c,i){
   if(c.studying)return studyCard(c);
   const pic=picOf(c,i);
@@ -1394,7 +1399,7 @@ function mineCard(c,i){
       ${line?`<div class="chg">${esc(line)}</div>`:'<div class="t2" style="white-space:normal">No changes yet. Your notes on videos change it.</div>'}
       ${factList(c)}</div></div>`;
 }
-const newTile=()=>`<button class="cs newt" onclick="buildYourself()">${ic('plus',20,2)}<b>Build a style yourself</b><span class="t2">Name it, then pick captions, zooms, cut and sound.</span></button>`;
+const newTile=()=>`<button class="cs newt" onclick="openCreate()">${ic('plus',20,2)}<b>New style</b><span class="t2">Analyse a format, build one yourself, or use your own skill.</span></button>`;
 // rows of three equal cards (My style takes two places)
 function gridRows(items,per=3){const out=[];for(let i=0;i<items.length;i+=per){const r=items.slice(i,i+per);out.push(`<div class="cgrid" style="--per:${per}">${r.join('')}</div>`)}return `<div class="cgrids">${out.join('')}</div>`}
 const STABS=[['all','All'],['own','Built by you'],['cr','From creators'],['sample','Samples'],['arch','Archived']];
@@ -1527,15 +1532,39 @@ function createModal(){
   if(st.skills)return skillModal();
   return `<div class="modalbg" onclick="if(event.target===this)closeCreate()"><div class="modal nsm" role="dialog" aria-modal="true" aria-labelledby="mtitle">
     <div class="row" style="justify-content:space-between"><b class="mt2" id="mtitle">New style</b><button class="mx2" aria-label="Close" title="Close" onclick="closeCreate()">${ic('x',18,2)}</button></div>
-    <div class="nbox"><div class="row" style="justify-content:space-between;align-items:baseline"><b>Analyse a format</b></div>
+    <div class="nbox" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();event.stopPropagation();this.classList.remove('over');addRefs(event.dataTransfer.files)"><div class="row" style="justify-content:space-between;align-items:baseline"><b>Analyse a format</b></div>
       <p>Paste 3 to 6 videos edited the same way. They can be from different creators.</p>
       ${rows.map(linkRow).join('')}
       <label class="lin">${ic('plus',16,2)}<input id="lb-study" placeholder="${rows.length?'Paste another link':'Paste a video link'}" value="${esc(b.draft)}" oninput="lbInput('study',this.value)" onkeydown="lbKey(event,'study')" onpaste="lbPaste(event,'study')" autocomplete="off" spellcheck="false"></label>
+      ${likesBox(b)}
       ${st.msg?`<div class="msg bad">${CROSS}<span>${esc(st.msg)}</span></div>`:''}
       <div class="row" style="justify-content:space-between;gap:16px;flex-wrap:wrap"><div><div class="t1" style="font-weight:600">${rows.length} video${rows.length===1?'':'s'} · 6 works best</div><button class="ul" onclick="ui.study={pick:{}};render();setTimeout(()=>{const e=$('#pf-in');if(e)e.focus()},0)">Or paste a profile and pick its videos</button></div>
         <button class="b1" ${rows.length&&!st.busy?'':'disabled'} onclick="studyLink()">${st.busy?'Starting...':'Analyse this format'}</button></div></div>
     <button class="nbox brow" onclick="buildYourself()"><div><b>Build it yourself</b><p>Pick captions, zooms, cut and sound yourself.</p></div>${ic('chev',18,2)}</button>
     <button class="nbox brow" onclick="openSkills()"><div><b>Use your own skill</b><p>A Claude Code skill that edits videos makes the edit.</p></div>${ic('chev',18,2)}</button></div></div>`;
+}
+// Analyse a format: what the user likes (Claude looks closer at those) and their own files (videos, pictures, PDFs, notes),
+// copied to <library>/references and named in the teardown's likes.md
+function likesBox(b){
+  const fs=b.files||[];
+  return `<div class="lkb"><b>What do you like about them?</b><span class="t2">Optional. Claude looks closer at these parts.</span>
+    <textarea id="lk-notes" class="input" placeholder="The captions pop in one word at a time. The zoom on every punchline. The sound on each cut." oninput="lbOf('study').notes=this.value">${esc(b.notes||'')}</textarea>
+    ${fs.map((f,i)=>`<div class="lr rf">${ic('file',16,2)}<span class="t1" title="${esc(f.name)}">${esc(f.name)}</span><span class="t2">${f.bad?esc(f.bad):f.path?'Added':`Adding... ${f.pct||0}%`}</span><button class="lx" aria-label="Remove this file" title="Remove" onclick="lbOf('study').files.splice(${i},1);render()">${ic('x',16,2)}</button></div>`).join('')}
+    <label class="ul" style="align-self:flex-start;cursor:pointer">Add files<input type="file" multiple hidden onchange="addRefs(this.files);this.value=''"></label>
+    <span class="t2">Example videos, screenshots, PDFs or notes. Or drop them on this box.</span></div>`;
+}
+const REF_RE=/\.(mp4|mov|m4v|webm|mkv|avi|mts|3gp|png|jpe?g|webp|gif|heic|pdf|txt|md|docx)$/i;
+async function addRefs(list){
+  const b=lbOf('study'),items=[...list].map(f=>({name:f.name,f,pct:0,bad:REF_RE.test(f.name)?null:'Not a video, picture, PDF or text file.'}));
+  b.files=[...(b.files||[]),...items];render();
+  for(const u of items){
+    if(u.bad)continue;
+    const j=await new Promise(res=>{const x=new XMLHttpRequest();x.open('POST','/upload?ref=1&name='+encodeURIComponent(u.f.name));
+      x.upload.onprogress=e=>{if(e.lengthComputable){u.pct=Math.round(e.loaded/e.total*100);render()}};
+      x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}res(j)};x.onerror=()=>res({msg:'The copy stopped. Try again.'});x.send(u.f)});
+    if(j.ok){u.path=j.path;u.name=j.name}else u.bad=j.msg||'That did not add.';
+    delete u.f;render();
+  }
 }
 // "Use your own skill": the editing skills Claude Code can load (/skills), pick one, name it, Create
 async function openSkills(forId){ui.study={skills:{list:null,for:forId||null}};if(forId)ui.create=true;render();try{ui.study.skills.list=(await (await fetch('/skills')).json()).skills.filter(x=>!x.hidden)}catch(e){ui.study.skills.list=[]}render()}
@@ -1585,11 +1614,12 @@ async function studyLink(){
   const b=lbOf('study');if(b.draft.trim())lbAdd('study',b.draft);
   const rows=b.rows.filter(r=>!isProfile(r));if(!rows.length){ui.study={msg:'Paste links to 3 to 6 videos edited the same way.'};return render()}
   if(rows.some(r=>platOf(r)==='instagram')&&rows.some(r=>platOf(r)!=='instagram')){ui.study={msg:'Use links from one app at a time.'};return render()}
+  if((b.files||[]).some(f=>!f.bad&&!f.path)){ui.study={msg:'Wait for your files to finish adding.'};return render()}
   ui.study={busy:1};render();
-  const j=await post('/job',{type:'teardown',urls:rows,take:PARTS.map(p=>p[0])});
+  const j=await post('/job',{type:'teardown',urls:rows,take:PARTS.map(p=>p[0]),notes:b.notes||'',files:(b.files||[]).filter(f=>f.path).map(f=>f.path)});
   if(!j._ok){ui.study={msg:j.error||'That did not start.'};return render()}
   if(rv==='style'&&j.handle)nv.style='@'+j.handle;
-  LB.study={rows:[],draft:''};ui.create=false;ui.study=null;toast(`Analysing ${rows.length} video${rows.length>1?'s':''}.`);await load();await loadLib();
+  LB.study={rows:[],draft:'',notes:'',files:[]};ui.create=false;ui.study=null;toast(`Analysing ${rows.length} video${rows.length>1?'s':''}.`);await load();await loadLib();
 }
 
 // ---- Pick a style (New video, step 2): radio cards, Your styles then Creator styles
@@ -1899,7 +1929,8 @@ function obAnalysing(td){
       ${vs.length?`<div class="obth">${vs.map((v,i)=>`<span style="${v.thumbnail?`background-image:url('${esc(v.thumbnail)}')`:''}" class="${i<k?'got':i===k?'now':''}">${i<k?OKDOT:''}</span>`).join('')}</div>`:''}
       ${td.state==='queued'&&!S.listening?`<div class="t2" style="white-space:normal">${connectHTML('',`Type ${CMD} in Terminal, or say "edit my video" in Claude Code.`)}</div>`:''}</div>
       <div class="obrs">${obRows(tdPlan(td),tdSteps(td))}</div></div>
-    <div class="obnext"><div><span class="cap">Next</span><b>Make your first video</b><p>Drop a clip now if you like. It starts when the style is ready.</p></div><button class="b1" onclick="ui.ob='drop';render()">Drop a clip now</button></div></div>`;
+    <div class="obnext"><div><span class="cap">Next</span><b>Make your first video</b><p>Drop a clip now if you like. It starts when the style is ready.</p></div><button class="b1" onclick="ui.ob='drop';render()">Drop a clip now</button></div>
+    <button class="b2" style="align-self:flex-start" onclick="stopStudy(${J(td.args.handle)})">Stop analysing</button></div>`;
 }
 const MROWS=[['pace','cut','Cuts'],['zooms','zoom','Zooms'],['captions','caption','Captions'],['graphics','image','Visuals'],['sound','sound','Sound']];
 function obReady(td){
@@ -1985,7 +2016,7 @@ async function trashEdit(dir){const r=await post('/edit/trash',{dir});ui.edittra
 // ---------------------------------------------------------------- the app shell (Paper "P App: main")
 // A labelled sidebar (brand, New video, Home / Your videos / My styles, video folders, the live job, Settings,
 // theme), or the icon rail: collapsed by the toggle (remembered in this browser) or always under 1100 px wide.
-const IC={home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+const IC={file:'<path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z"/><path d="M14 3v4h4"/>',home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
  videos:'<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M10 9.2v5.6l4.6-2.8z"/>',styles:'<path d="M12 3 3 8l9 5 9-5z"/><path d="M3 13l9 5 9-5"/>',
  folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
@@ -2304,13 +2335,13 @@ function rrender(){
     el.ondragstart=e=>{e.dataTransfer.setData('text/plain',el.dataset.i)};el.ondragover=e=>e.preventDefault();
     el.ondrop=e=>{e.preventDefault();e.stopPropagation();const a=+e.dataTransfer.getData('text/plain'),b=+el.dataset.i;if(isNaN(a)||a===b)return;const [x]=nv.sel.splice(a,1);nv.sel.splice(b,0,x);render()}});
 }
-window.addEventListener('drop',e=>{if(inApp()&&e.dataTransfer.files.length){const fs=[...e.dataTransfer.files],sc=fs.filter(f=>SCRIPT_EXT.test(f.name)),im=fs.filter(isImg),vs=fs.filter(f=>!SCRIPT_EXT.test(f.name)&&!isImg(f));if(rv!=='new')rgo('new');if(sc.length)scriptFile(sc[0]);if(im.length)addImages(im);if(vs.length)chooseFiles(vs)}});   // a script file dropped anywhere is the script, an image goes to Add images or links
+window.addEventListener('drop',e=>{if(inApp()&&!ui.create&&e.dataTransfer.files.length){const fs=[...e.dataTransfer.files],sc=fs.filter(f=>SCRIPT_EXT.test(f.name)),im=fs.filter(isImg),vs=fs.filter(f=>!SCRIPT_EXT.test(f.name)&&!isImg(f));if(rv!=='new')rgo('new');if(sc.length)scriptFile(sc[0]);if(im.length)addImages(im);if(vs.length)chooseFiles(vs)}});   // a script file dropped anywhere is the script, an image goes to Add images or links
 // while files are dragged over the window: one overlay, so it is clear where they go
 let dragN=0;const hasFiles=e=>[...((e.dataTransfer||{}).types||[])].includes('Files');
 // The overlay lives only while files are being dragged over the window: every dragover renews a short timer,
 // so a lost dragleave (the page re-renders while you drag) can never leave it stuck. Esc, drop or a click clears it.
 let dragT=null;const dragOff=()=>{dragN=0;clearTimeout(dragT);document.body.classList.remove('dragging')};
-window.addEventListener('dragenter',e=>{if(hasFiles(e)&&inApp()){dragN++;document.body.classList.add('dragging');clearTimeout(dragT);dragT=setTimeout(dragOff,400)}});
+window.addEventListener('dragenter',e=>{if(hasFiles(e)&&inApp()&&!ui.create){dragN++;document.body.classList.add('dragging');clearTimeout(dragT);dragT=setTimeout(dragOff,400)}});
 window.addEventListener('dragover',e=>{if(document.body.classList.contains('dragging')){clearTimeout(dragT);dragT=setTimeout(dragOff,400)}});
 window.addEventListener('dragleave',e=>{if(!e.relatedTarget||(dragN&&--dragN===0))dragOff()});
 for(const ev of ['drop','dragend','blur','mousedown'])window.addEventListener(ev,dragOff,true);

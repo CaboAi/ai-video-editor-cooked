@@ -22,6 +22,14 @@ local, so they are made now and made again if the cut changes.
 2. **Style and images:** `python3 "<ROOT>/lib/ai_editor/profile.py" style EDIT`; copy the images in the
    profile's `assets_dir` that fit a line into `EDIT/images/` and write `EDIT/images.json`
    (`<ROOT>/skills/style-edit/references/shapes.md`, each with `word` and `nth`).
+   **What the user added comes first:** `EDIT/assets.json` (the page's "Add images or links", `assets.py`) lists
+   images (`src` in `EDIT/assets/`) and links (`url`, `site`), each with optional `say` words. Every item becomes a
+   card on its `say` words (the first time they are said after the previous card; no `say`: the line it is about,
+   from its name or page), before you search for anything else or add any other card: an image is copied into
+   `EDIT/images/` and gets an images.json entry; a link becomes a visuals.json beat in step 4 by its `site`: `x` a
+   `post`, `youtube` a `youtube`, `github` a `github` (`repo` from the url), `web` a `capture` (`shot` with a
+   `find` mark on the line's words). Never leave one out: the user chose it. When no line names it, put it on the
+   earliest sentence that has no card yet.
 3. **Captions and beats**, one Bash call: `python3 "$C/retakes.py" captions EDIT && python3 "$S/route.py" beats EDIT`.
    Proofread `captions.txt`; a wrong word is `retakes.py fix` (it fixes captions.json in place, no re-run). Every
    pick is null: decide the picks yourself.

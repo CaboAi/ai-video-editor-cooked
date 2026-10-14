@@ -40,9 +40,11 @@ running: leave it.
 Every job remembers the session that took it (`CLAUDE_CODE_SESSION_ID`). `status` from another session
 never writes to it, `status` never takes a queued job (only `wait` does), and each session makes one
 video at a time. A taken job with no report for 15 minutes belonged to a session that stopped: the next
-`status` or `wait --job` from another session adopts it and prints `adopted <id>`. When the user presses Make my video while
-this session is making another, the page offers "Open a new Claude for this video": a new Terminal window
-starts Claude Code in the library with the prompt `/ai-editor:start take job <id>`. On that prompt run
+`status` or `wait --job` from another session adopts it and prints `adopted <id>`. Every video gets a Claude of its
+own: when the user presses Make my video, each new video job (one per clip for "Separate videos") opens a new
+Terminal window running Claude Code in the library with the prompt `/ai-editor:start take job <id>`, unless an idle
+listening Claude can take it right now (then that one does, and the rest still get their own). Where no terminal can
+open (Linux without x-terminal-emulator), the editor shows that command to run instead. On that prompt run
 `python3 "$H" serve --no-open` and `python3 "$H" wait --job <id>` (both in the background): it prints that
 job's line (or `GONE` when it is done or another session has it), then do the job as below. Do not start a
 plain `wait` afterwards unless the user asks for more.
@@ -142,7 +144,7 @@ Five prompts, each one the user can paste into Claude Code as it is. Every numbe
 
 ### `JOB video <path> as=<mine|@handle|defaults> aspect=<9:16|16:9> edit=<dir> root=<dir>`
 ### `JOB video takes=<dir>/takes.txt as=... aspect=... edit=<dir> root=<dir>`
-### either one with ` script=<edit>/script.md` and/or ` skill=<skill>` before `root=`
+### either one with ` script=<edit>/script.md`, ` skill=<skill>` and/or ` assets=<edit>/assets.json` before `root=`
 
 The user picked clips and a style and pressed "Make my video" (or "Start the cut" on a first run).
 `edit=` is the edit folder the page already made and listed in the library: use it, never make
@@ -159,6 +161,10 @@ no question: the page asked it). "Separate videos" arrives as one JOB per clip; 
 there if the path is elsewhere). Pass `--script <edit>/script.md` to `transcribe.py`; the cut then runs
 `script_match.py` before deciding spans (cut skill step 2).
 `skill=`: a skill style (its `style.json` has `"skill"`), see Skill style below.
+`assets=`: images and links the user added on the page ("Add images or links"; more can come from the editor's
+"Anything to add?", and review.py `wait` then prints an `assets:` line). Images are in `<edit>/assets/`. Hand the
+file to visual-prep and style-edit: each item goes in first, as a card on its `say` words (else the line it is
+about), before anything is searched for.
 
 The page already opened the editor on the raw clip when the user pressed Make my video (round 0, "Your
 clip, before the cut", `review.json` is there) and lists every step of the cut beside it, ticked as the

@@ -57,6 +57,8 @@ Follow every taste rule; the scripts read the settings themselves. When the user
   they hand over, goes in `edits/<name>/images/` and `images.json`:
   `[{"src": "images/dashboard.png", "word": "dashboard", "nth": 1}]` (optional `layout`, `hold_s`,
   `entrance`; transparent PNG and Lottie `.json` work).
+- **What the user added on the page** (`assets.json`, review.py `wait`'s `assets:` line): first, before any search,
+  each on its `say` words, as `agents/visual-prep.md` step 2 says. One not in images.json or visuals.json yet is new.
 
 ## 2. Captions text
 

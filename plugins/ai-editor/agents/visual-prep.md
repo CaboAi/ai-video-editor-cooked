@@ -19,7 +19,8 @@ local, so they are made now and made again if the cut changes.
 
 1. **Snapshot the cut:** `cp EDIT/decisions.json EDIT/prep-decisions.json`. Everything below is keyed
    to this cut by word and `nth`, never by seconds, so `retakes.py remap` can re-point it after a re-cut.
-2. **Style and images:** `python3 "<ROOT>/lib/ai_editor/profile.py" style EDIT`; copy the images in the
+2. **Style and images:** only when `EDIT/style.json` is missing, `python3 "<ROOT>/lib/ai_editor/profile.py" style EDIT`
+   (the window wrote the style the user picked: never rewrite it, never pass `--as` yourself); copy the images in the
    profile's `assets_dir` that fit a line into `EDIT/images/` and write `EDIT/images.json`
    (`<ROOT>/skills/style-edit/references/shapes.md`, each with `word` and `nth`).
    **What the user added comes first:** `EDIT/assets.json` (the page's "Add images or links", `assets.py`) lists
@@ -45,7 +46,10 @@ local, so they are made now and made again if the cut changes.
    `toasts`, `curve`, `side_by_side` with `arrow`, `flow`; motion-design.md "What a beat becomes"), a `capture`
    only where the real page is the point and once per page (`"format": "shot"` with a `find` mark, or
    `browser` to scroll to it), the user's own screenshots cropped to about 2:1, a big `logo`. Never a sticker.
-   A line with nothing to show gets no card. beats.json `motion` says what a sentence is doing (`counter`,
+   A card edit keeps its rate: 60 / `graphics.per_min` s apart (30 a minute: one about every 2 s), and no
+   stretch longer than twice that without one, the opening included (check.py plan FAILs it). Fill every gap
+   with the user's assets first, then captures, then animations from the words; a song or demo the speaker
+   stops to play holds that item's own card through it (`hold_s`), one card per item, none held over twice the gap. Elsewhere a line with nothing to show gets no card. beats.json `motion` says what a sentence is doing (`counter`,
    `list`, `flow`, `before_after`, `ui_demo`): there, the matching moving format (`likes`, `notes`, `flow`,
    `side_by_side` with `arrow`, `progress` or `terminal`), which the motion skill then builds as a clip. Also a
    `title` (the hook's promise in 2 short lines of their words, emoji allowed, from 0 s), a `cta` on the ask word, a `list`

@@ -8,6 +8,30 @@ What changed for every user, newest first.
   Edit and Write inside it with a plain message, and Claude sessions the window opens get an Edit deny rule on
   the plugin folder. A checkout or fork you own is not blocked outside the window. The start, cut and
   style-edit skills say to report a wrong script and use a supported override instead.
+## ai-editor 2.7.10, creator-teardown 2.7.10 (2026-10-14)
+
+- Skills: every skill has a ⋯ menu with Hide from this list and Delete. Delete moves the skill to the Trash, only from
+  your own skills folder, and says which styles use it. Skills that don't edit video sit under Other skills. A style
+  whose skill was deleted says so and lets you pick another skill or archive it.
+
+## ai-editor 2.7.9, creator-teardown 2.7.9 (2026-10-14)
+
+- Go back to a draft now undoes the fixes made after it, so a zoom you brought back stays. Prep never changes the
+  style you picked. Only notes you tick "Keep as a rule" become rules, with no question, and styles go by their
+  names. The cut keeps your opening hook unless you said it again later.
+- Card edit keeps its pace: a card about every 2 s, none on screen under 1.2 s, lists at caption size and photos
+  at their own shape. A note is tagged with what you clicked and quotes the caption on screen then.
+- The Making count in the editor hides at 0 and counts every video being made. "Making draft 2" names the right
+  draft. A style with no zooms says "No zooms". One name for the preview, one row per open question, and the
+  sample offered once.
+
+## ai-editor 2.7.8, creator-teardown 2.7.8 (2026-10-14)
+
+- The style you pick is always used, whichever Claude takes the video. Each question goes only to the video it is
+  about, named on the card, and never falls back to the Terminal while a page is open. Each new video gets its own
+  Claude. "Made in" leaves out time spent waiting for you.
+- Buttons no longer get rebuilt under your cursor, and the first Download click works. Drafts have one name
+  everywhere. The sample does not count as your first video. Plainer words, and no check output in Claude's notes.
 
 ## ai-editor 2.7.7, creator-teardown 2.7.7 (2026-10-14)
 

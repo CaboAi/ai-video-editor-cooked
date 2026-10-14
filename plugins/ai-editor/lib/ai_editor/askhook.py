@@ -7,7 +7,8 @@ in the page: the hook returns the answers as the tool's input (permissionDecisio
 with "answers", the documented way to answer AskUserQuestion from a hook), so the terminal box never shows.
 
     python3 askhook.py           the hook (stdin: hook JSON). Prints nothing and exits 0 when no page is
-                                 showing, on "Answer in Claude Code instead", on timeout and on any error:
+                                 showing, on "Answer in Claude Code instead", once every page that had the
+                                 question closed (never on time alone while one is open) and on any error:
                                  Claude Code then shows its own question box
     python3 askhook.py demo      self-check against a throwaway server
 
@@ -18,6 +19,14 @@ background tab, which the browser slows to about once a minute). A file touched 
 showing or not: a question for a video in a background tab waits there, the tab's title says "(1) Claude is asking"
 and the page shows it the moment the tab is looked at. A closed tab says so (POST /ask/gone). No port is ever
 scanned. An old file holding only the URL belongs to no session, so it never gets a question.
+
+Which video: a question belongs to one video (asking_edit). The hook reads the asking Claude's own transcript
+(transcript_path) and takes the video its latest command named, by its edit folder's full path or as edits/<name>
+(a later `home.py status teardown|setup|skill...` means it moved on: no video). Else the video job that session took
+last, else the edit it last ran a review.py command on. The hook sends it as "edit": only that video's editor takes
+it, every page labels it with that video's name (review.json label or name, else the folder), and while it waits
+<edit>/review/asking marks the video "Your turn" in Your videos; its open time goes to <edit>/review/asks.jsonl, which
+review.py's "Made in" leaves out. With no video known, the session rules below decide.
 
 Whose question: the hook sends its session_id with the question, and each server takes it only when that
 session is working there (srv.ask_owner, set by register): a review page, the session that last ran a
@@ -32,7 +41,8 @@ card says what it is about ("Claude (team-250k-general) asks"). No server takes 
 The servers (route() below, called from both):
     GET  /ask.js                 the card's script
     GET  /ask[?v=1]              the page's poll: the oldest open question or null (v=1: the page is showing)
-                                 {id, questions, about, elsewhere}: elsewhere, the editor page has it too
+                                 {id, questions, about, elsewhere}: elsewhere, the editor page has it too; "all":
+                                 every open one, oldest first (Home: one row per question)
     GET  /ask?id=X               the hook's poll: {"result": null | {"answers": [...]} | {"terminal": true}}
     POST /ask {id, questions, elsewhere?}   the hook asks (elsewhere: the video's editor page has it too)
     POST /ask/answer {id, answers | terminal, images?}   the page answers (one string per question; images: one
@@ -58,8 +68,12 @@ from pathlib import Path
 
 JS = Path(__file__).with_name("ask.js")
 LIVE_S = 90          # a page polled this recently is open (a background tab polls about once a minute)
-TIMEOUT_S = 600      # then the terminal box shows (hooks.json gives the hook 900 s)
-KEEP_S = TIMEOUT_S + 60   # a question whose hook was stopped (Esc in Claude Code) leaves the pages by then
+# No timeout while a page that has the question is open (polled in the last LIVE_S): the user answers there, however
+# long they take (hooks.json gives the hook a day). Only once every such page closed does the terminal box show.
+# AI_EDITOR_ASK_TIMEOUT (seconds) caps it anyway (the self-check).
+KEEP_S = 120         # a question whose hook stopped polling (Esc in Claude Code) leaves the pages by then
+CHECK_S = 20         # how often the waiting hook looks for an open page
+MARK_S = 120         # <edit>/review/asking older than this: its hook stopped (the hook touches it while it waits)
 MAX_IMAGE = 15 << 20      # an attached image (review notes and answers)
 MAX_IMAGES = 6
 MAX_BODY = MAX_IMAGES * MAX_IMAGE * 4 // 3 + (1 << 20)   # a POST carrying that many, base64
@@ -111,19 +125,22 @@ def session():
     return os.environ.get("CLAUDE_CODE_SESSION_ID", "").strip()
 
 
-def register(srv, url, kind=None, owner=None, where=None):
+def register(srv, url, kind=None, owner=None, where=None, folder=None):
     """A server's page file, touched while a page is showing. owner(session_id) -> what the question is
     about ("" for nothing to name), or None when that session's questions do not belong on this page.
-    where(session_id) -> the folder an answer's images are saved in (default $AI_EDITOR_HOME/asks)."""
+    where(session_id) -> the folder an answer's images are saved in (default $AI_EDITOR_HOME/asks).
+    folder: a review page's edit folder (in the page file, so the hook knows which video each editor shows)."""
     srv.ask_url, srv.asks = url, {}
     srv.ask_kind = kind or getattr(srv, "ask_kind", None)
     srv.ask_owner = owner or getattr(srv, "ask_owner", None)
     srv.ask_where = where or getattr(srv, "ask_where", None)
+    srv.ask_folder = folder or getattr(srv, "ask_folder", None)
     p = pages() / str(srv.server_address[1])
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         with os.fdopen(os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
-            json.dump({"url": url, "kind": srv.ask_kind, "session": session()}, f)
+            json.dump({"url": url, "kind": srv.ask_kind, "session": session(),
+                       **({"folder": str(Path(srv.ask_folder).resolve())} if srv.ask_folder else {})}, f)
         os.utime(p, (0, 0))   # not showing until a page polls
     except OSError:
         pass
@@ -154,33 +171,41 @@ def route(h, method, path, query, body=None):
     asks = getattr(srv, "asks", None)
     if asks is None:
         srv.asks = asks = {}
-    for k in [k for k, a in asks.items() if time.time() - a["at"] > KEEP_S]:
+    for k in [k for k, a in asks.items() if time.time() - a.get("polled", a["at"]) > KEEP_S]:
         asks.pop(k, None)
     if method == "GET" and path == "/ask.js":
         h.send(200, JS.read_bytes(), "text/javascript; charset=utf-8")
     elif method == "GET" and path == "/ask":
         if query.get("id"):
             a = asks.get(query["id"])
+            if a:   # the hook still waits on it: it stays
+                a["polled"] = time.time()
             h.send(200 if a else 404, {"result": a and a.get("result")})
         else:
             if getattr(srv, "ask_url", None):   # open, showing or in a background tab
                 _seen(srv)
-            a = next((dict(id=k, questions=a["questions"], about=a.get("about") or "", **({"elsewhere": True} if a.get("elsewhere") else {}))
-                      for k, a in sorted(asks.items(), key=lambda x: x[1]["at"])
-                      if not a.get("result")), None)
-            h.send(200, {"ask": a})
+            every = [dict(id=k, questions=a["questions"], about=a.get("about") or "", **({"elsewhere": True} if a.get("elsewhere") else {}))
+                     for k, a in sorted(asks.items(), key=lambda x: x[1]["at"]) if not a.get("result")]
+            h.send(200, {"ask": every[0] if every else None, "all": every})   # all: Home shows one row per open question
     elif method == "POST" and path == "/ask":
         qs = body.get("questions")
         if not (isinstance(body.get("id"), str) and isinstance(qs, list) and 0 < len(qs) <= 10):
             return h.send(400, {}) or True
         owner, sid = getattr(srv, "ask_owner", None), body.get("session")
-        about = owner(sid if isinstance(sid, str) else "") if owner else None
+        edit = Path(body["edit"]).resolve() if isinstance(body.get("edit"), str) and body["edit"] else None
+        mine = getattr(srv, "ask_folder", None)
+        if edit:   # the hook knows the video: that video's editor only, and Home names it
+            if mine and Path(mine).resolve() != edit:
+                return h.send(409, {}) or True
+            about = edit_name(edit)
+        else:
+            about = owner(sid if isinstance(sid, str) else "") if owner else None
         if about is None:   # another session's question: not for this page
             return h.send(409, {}) or True
         where = getattr(srv, "ask_where", None)
-        folder = where(sid if isinstance(sid, str) else "") if where else None
+        folder = (edit / ("review" if mine else "asks")) if edit else where(sid if isinstance(sid, str) else "") if where else None
         asks[body["id"]] = {"questions": qs, "at": time.time(), "about": about, "elsewhere": body.get("elsewhere") is True,
-                            "dir": str(folder or pages().parent / "asks")}
+                            "dir": str(folder or pages().parent / "asks"), **({"edit": str(edit)} if edit else {})}
         h.send(200, {})
     elif method == "POST" and path == "/ask/answer":
         a = asks.get(body.get("id"))
@@ -217,8 +242,9 @@ def route(h, method, path, query, body=None):
 
 
 # ---------------------------------------------------------------- the hook
-def live(kind=None):
-    """The URLs of pages showing now (of that kind). Old plain-URL files are left out: no session owns them."""
+def live_pages(kind=None):
+    """The page files of pages showing now (of that kind): {url, kind, session, folder?}. Old plain-URL files are
+    left out: no session owns them."""
     out = []
     try:
         for f in pages().iterdir():
@@ -230,10 +256,107 @@ def live(kind=None):
                 url = d.get("url") if isinstance(d, dict) else None
                 if isinstance(url, str) and url.startswith(("http://127.0.0.1:", "http://localhost:")) and "/?t=" in url \
                         and (kind is None or d.get("kind") == kind):
-                    out.append(url)
+                    out.append(d)
     except OSError:
         pass
     return out
+
+
+def live(kind=None):
+    """The URLs of pages showing now (of that kind)."""
+    return [d["url"] for d in live_pages(kind)]
+
+
+def edit_name(edit):
+    """A video's name as Your videos shows it: the editor's label or name, else its folder's name."""
+    try:
+        r = json.loads((Path(edit) / "review.json").read_text(encoding="utf-8"))
+        return str(r.get("label") or r.get("name") or Path(edit).name)
+    except (OSError, ValueError, AttributeError):
+        return Path(edit).name
+
+
+def home_jobs():
+    try:
+        jobs = json.loads((pages().parent / "home" / "state.json").read_text(encoding="utf-8")).get("jobs") or []
+        return [j for j in jobs if isinstance(j, dict)]
+    except (OSError, ValueError, AttributeError):
+        return []
+
+
+def commands(transcript, tail=4 << 20):
+    """The tool calls in a Claude Code transcript (JSONL), oldest first, as text: what that Claude ran, in order."""
+    try:
+        with open(transcript, "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - tail))
+            lines = f.read().decode("utf-8", "replace").splitlines()
+    except (OSError, TypeError, ValueError):
+        return []
+    out = []
+    for ln in lines:
+        if '"tool_use"' not in ln:
+            continue
+        try:
+            msg = json.loads(ln).get("message") or {}
+        except ValueError:
+            continue
+        for c in msg.get("content") or [] if isinstance(msg, dict) else []:
+            if isinstance(c, dict) and c.get("type") == "tool_use" and c.get("name") != "AskUserQuestion":
+                out.append(json.dumps(c.get("input"), ensure_ascii=False))
+    return out
+
+
+OTHER_JOB = re.compile(r"(?:home\.py|\$\{?H\}?)\W{0,3}\s*status (?:setup|teardown|skill|style-change|skill-change|skill-new)\b")
+
+
+def asking_edit(payload, sid=""):
+    """The one video a question is about, or None. Best: of the videos the window knows (the home jobs' edit folders
+    and every open editor), the one the asking Claude's own last command named (its transcript, the hook's
+    transcript_path), by full path or as edits/<name> from the library. Else the video job that session holds, the
+    one it took last. Else the edit it last ran a review.py command on (review/.session)."""
+    cands = {Path(j["args"]["edit"]).resolve() for j in home_jobs() if j.get("type") == "video"
+             and isinstance((j.get("args") or {}).get("edit"), str) and j["args"]["edit"]}
+    cands |= {Path(d["folder"]).resolve() for d in live_pages("review") if isinstance(d.get("folder"), str)}
+    pats = [(f, re.compile("(?:" + "|".join(re.escape(x) for x in {str(f), json.dumps(str(f))[1:-1], f"edits/{f.name}"})
+                            + r")(?![\w.-])")) for f in cands]
+    for cmd in reversed(commands(payload.get("transcript_path"))):
+        hit = max(((m.start(), f) for f, p in pats for m in p.finditer(cmd)), default=None, key=lambda x: x[0])
+        if hit:
+            return hit[1]
+        if OTHER_JOB.search(cmd):   # it moved on to setup, a creator or a skill since: about no video
+            return None
+    if not sid:
+        return None
+    held = [j for j in home_jobs() if j.get("type") == "video" and j.get("state") == "taken" and j.get("owner") == sid
+            and isinstance((j.get("args") or {}).get("edit"), str)]
+    if held:
+        return Path(max(held, key=lambda j: j.get("u") or 0)["args"]["edit"]).resolve()
+    ran = []
+    for f in cands:
+        try:
+            p = f / "review" / ".session"
+            if p.read_text(encoding="utf-8").strip() == sid:
+                ran.append((p.stat().st_mtime, f))
+        except OSError:
+            pass
+    return max(ran)[1] if ran else None
+
+
+def mark(edit, start, end=None):
+    """<edit>/review/asking while a question waits on the user (Your videos: "Your turn"), and each one's open time in
+    <edit>/review/asks.jsonl once it closes (review.py timings takes it out of "Made in")."""
+    try:
+        d = Path(edit) / "review"
+        d.mkdir(parents=True, exist_ok=True)
+        if end is None:
+            (d / "asking").write_text(str(start), encoding="utf-8")
+            return
+        (d / "asking").unlink(missing_ok=True)
+        with open(d / "asks.jsonl", "a", encoding="utf-8") as f:
+            f.write(json.dumps({"start": round(start, 2), "end": round(end, 2)}) + "\n")
+    except OSError:
+        pass
 
 
 def _call(url, path, body=None, timeout=3):
@@ -256,19 +379,33 @@ def relay(payload, timeout=None, poll=0.5):
     sid = sid if isinstance(sid, str) else ""
     qid = secrets.token_urlsafe(12)
     sent = []
+    about = asking_edit(payload, sid)
     edit = live("review")
     for u in edit + [u for u in live() if u not in edit]:   # the video's editor first; Home marked when an editor has it
         try:
-            _call(u, "/ask", {"id": qid, "questions": qs, "session": sid, "elsewhere": bool(sent) and u not in edit})
+            _call(u, "/ask", {"id": qid, "questions": qs, "session": sid, "elsewhere": bool(sent) and u not in edit,
+                              **({"edit": str(about)} if about else {})})
             sent.append(u)
         except Exception:   # 409: another session's page
             pass
     if not sent:
         return None
-    result = None
-    end = time.time() + (timeout or float(os.environ.get("AI_EDITOR_ASK_TIMEOUT") or TIMEOUT_S))
+    t0, result = time.time(), None
+    if about:
+        mark(about, t0)
+    cap = timeout or float(os.environ.get("AI_EDITOR_ASK_TIMEOUT") or 0)
+    end, beat = time.time() + cap if cap else None, 0
     try:
-        while result is None and time.time() < end:
+        while result is None and (end is None or time.time() < end):
+            if time.time() - beat > CHECK_S:
+                beat = time.time()
+                if not set(sent) & set(live()):   # every page that had it closed: the terminal box
+                    break
+                if about:
+                    try:
+                        os.utime(Path(about) / "review" / "asking")
+                    except OSError:
+                        pass
             for u in list(sent):
                 try:
                     result = _call(u, "/ask?id=" + qid).get("result")
@@ -281,6 +418,8 @@ def relay(payload, timeout=None, poll=0.5):
             if result is None:
                 time.sleep(poll)
     finally:
+        if about:
+            mark(about, t0, time.time())
         for u in sent:
             try:
                 _call(u, "/ask/clear", {"id": qid})
@@ -510,6 +649,58 @@ def demo():
     srv2.shutdown()
     srv2.server_close()
     (pages() / str(srv2.server_address[1])).unlink()
+    # one session, three videos open (QA round 3: the question showed in all three editors, each with its own name):
+    # the video its last command named gets it, labelled with that video's name; no other editor; Home names it too
+    eds = [tmp / "lib" / "edits" / n for n in ("take", "take-2", "sample-video")]
+    vs = []
+    for e in eds:
+        (e / "review").mkdir(parents=True)
+        (e / "review" / ".session").write_text("sess-M", encoding="utf-8")
+        s_, u_ = mk("sess-M", e.name)
+        register(s_, u_, "review", folder=e)
+        _call(u_, "/ask?v=1")
+        vs.append((s_, u_))
+    (eds[1] / "review.json").write_text(json.dumps({"name": "Second take"}), encoding="utf-8")
+    sH, uH = mk("sess-M", "", "home")
+    _call(uH, "/ask?v=1")
+    tr = tmp / "t.jsonl"
+    use = lambda *cmds: tr.write_text("\n".join(json.dumps({"type": "assistant", "message": {"content": [
+        {"type": "tool_use", "name": "Bash", "input": {"command": c}}]}}) for c in cmds) + "\n", encoding="utf-8")
+    use(f"python3 review.py {eds[0]} wait", f'cd {tmp / "lib"} && python3 "$R" edits/take-2 status rendering', "ls")
+    pm = dict(payload, session_id="sess-M", transcript_path=str(tr))
+    assert asking_edit(pm, "sess-M") == eds[1].resolve(), "edits/take-2, the last one named (never take)"
+    th, box = run_hook(pm)
+    a = page(vs[1][1])
+    assert a["about"] == "Second take" and not vs[0][0].asks and not vs[2][0].asks, "that video's editor only, by its name"
+    h = page(uH)
+    assert h["about"] == "Second take" and h["elsewhere"] is True, h
+    assert (eds[1] / "review" / "asking").is_file(), "Your videos: its turn"
+    _call(vs[1][1], "/ask/answer", {"id": a["id"], "answers": ["Loose", "Zooms"]})
+    th.join()
+    w = [json.loads(x) for x in (eds[1] / "review" / "asks.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert len(w) == 1 and w[0]["end"] >= w[0]["start"] and not (eds[1] / "review" / "asking").exists(), w
+    use(f"python3 review.py {eds[2]} round", 'python3 "$H" status teardown --step "Listed their videos"')
+    assert asking_edit(pm, "") is None, "moved on to a creator: about no video"
+    use("ls")   # nothing named: the edit it last ran review.py on
+    os.utime(eds[0] / "review" / ".session", (time.time() + 5,) * 2)
+    assert asking_edit(pm, "sess-M") == eds[0].resolve()
+    for s_, _ in vs + [(sH, uH)]:
+        s_.shutdown()
+        s_.server_close()
+        (pages() / str(s_.server_address[1])).unlink()
+    # no time limit while the page is open: a question waits there; the terminal box only once that page closed
+    global CHECK_S
+    CHECK_S, box = 0.2, {}
+    _call(url, "/ask?v=1")
+    th = threading.Thread(target=lambda: box.update(r=relay(payload)))
+    th.start()
+    page()
+    time.sleep(1)
+    assert th.is_alive(), "still waiting on the open page"
+    os.utime(pages() / str(srv.server_address[1]), (0, 0))   # the tab closed
+    th.join(10)
+    assert not th.is_alive() and box["r"] is None and not srv.asks, "every page closed: the terminal box"
+    CHECK_S = 20
     # the page went away (not polled for LIVE_S): silent again
     os.utime(pages() / str(srv.server_address[1]), (time.time() - LIVE_S - 1,) * 2)
     assert live() == [] and relay(payload) is None

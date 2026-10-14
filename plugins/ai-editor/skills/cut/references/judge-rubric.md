@@ -53,7 +53,12 @@ elsewhere". Search what plays for that better take. Two shapes:
 - the removed take carries a **detail the kept take drops**: a name, a number, a reason. A partly
   repeated line is not a repeat. Fix `restore`.
 
-`redundant` cuts are out of scope for B3. They remove good content on purpose, so "the content
+**The opening hook.** The take's first complete sentence is the hook ("Steal these background songs
+for your next reels."). A cut of any kind that removes it is B3 unless the take says it again later
+(then it is a retake and the later take plays). Fix `restore`. `judge_cut.py` marks it in the paper
+edit as `OPENING HOOK CUT` and `apply` restores it even when you miss it.
+
+`redundant` cuts are out of scope for B3, except the opening hook above. They remove good content on purpose, so "the content
 is gone" is true of every one and proves nothing. Judge them on B4, and raise W5 when the case is
 weak. (`apply` turns B3 on a `redundant` cut into W5.)
 

@@ -78,13 +78,13 @@ refuses while stopped. Send and approve are refused while Claude has the changes
 
 Review notes flow into the user's taste (memory) and, when marked for everyone, to the maintainers.
 
-1. Pick the notes that are preferences: "captions too small", "too many zooms". Leave out one-off
-   fixes ("cut the 'um' at 0:12"). Write each as a general rule, as the taste skill does.
-2. If any, ask the scope ONCE for the whole batch in the question box: `My style (Recommended)` /
-   `Just this video` / `Would help everyone`. When `wait`'s LEARN line names a creator's style, put
-   `This style (@handle) (Recommended)` first (`--scope this-style`: that style's overrides and its
-   `edit-like-<handle>` skill).
-3. Run `learn`. One `--rule` per preference note; add `key=value` when a taste setting maps:
+1. Only the notes the user ticked "Keep as a rule" on the page become rules (`wait` marks them
+   `[keep as a rule for <style>]`, and its `LEARN:` line names them). Save them with no question: the
+   tick is the answer. Every other note is a one-off fix. Never ask a scope or "save as a rule?"
+   question about a note the user did not tick. Nothing ticked: `learn --none`.
+2. Name a style the way the page does (`LEARN:` gives it: "50/50", "My style"), never its folder
+   or `@id` (`@sample-50-50`).
+3. Run `learn`. One `--rule` per ticked note; add `key=value` when a taste setting maps:
 
 ```bash
 python3 "$R" edits/<name> learn --scope style --rule 2 captions "Captions bigger" captions.size_pct=6 --rule 4 visuals "Logos stay small"
@@ -143,7 +143,8 @@ answers 409); a change then is a new note or **fix it anyway**.
 The page has a **Stop** button while Claude works. When the user presses it, the round's notes open
 again (queued notes join them) and the next `status` exits 3 with `STOPPED`: stop the work, say so in one line, run `wait`.
 
-Answer every note, then open the round with the new render:
+Answer every note, then open the round with the new render. The answer goes in `--reply`, never in `status`:
+a `status` line is work in progress, not an answer to a note.
 
 ```bash
 python3 "$R" edits/<name> resolve 1 fixed --reply "pause is 0.10 s now" --new-t 2.4

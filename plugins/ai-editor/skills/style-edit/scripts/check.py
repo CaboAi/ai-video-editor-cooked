@@ -396,7 +396,8 @@ def unsaid_numbers(plan):
         if a.get("type") in REAL_ANIMS:
             continue
         shown = {k: v for k, v in (a.get("props") or {}).items() if k not in ("enter", "exit", "ambient")}   # motion, not text ("power1.in")
-        for n in sorted({n for _, t in strings(shown) for n in nums(t)} - said):
+        # a file the card draws (images/frame-24.jpg) or a link is not a number on screen
+        for n in sorted({n for _, t in strings(shown) if not re.match(r"(images/|https?:)", t) for n in nums(t)} - said):
             out.append((c, n))
     return out
 

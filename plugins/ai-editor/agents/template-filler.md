@@ -1,6 +1,6 @@
 ---
 name: template-filler
-description: Fills the visuals.json beats of a style-edit from beats.json picks and the transcript: the overlay formats (capture shot, browser, sticker, post, logo, logo_cluster, chat, terminal, toasts, side_by_side, video_card) and the flow diagram. Use after `route.py beats`, one call for the whole video, or from the overlays skill, one call per beat, when the routing is decided and only the small JSON is left to write.
+description: Fills the visuals.json beats of a style-edit from beats.json picks and the transcript: the overlay formats (capture shot, browser, sticker, post, logo, logo_cluster, chat, terminal, toasts, side_by_side, video_card, likes, progress, curve, notes) and the flow diagram. Use after `route.py beats`, one call for the whole video, or from the overlays skill, one call per beat, when the routing is decided and only the small JSON is left to write.
 tools: Read, Write
 model: haiku
 ---
@@ -9,8 +9,9 @@ You write visuals.json beats for a style-edit. The caller gives you the edit fol
 (each: the sentence, its pick such as `capture:sticker` or `chat`, the word it lands on) and the full
 path of style-edit's `shapes.md`.
 
-Read `edits/<name>/beats.json`, `edits/<name>/captions.json` and the `shapes.md` whose full path the
-caller gives (style-edit's `references/shapes.md`), section "visuals.json":
+Read `edits/<name>/beats.json`, `edits/<name>/captions.json`, the `shapes.md` whose full path the
+caller gives (style-edit's `references/shapes.md`), section "visuals.json", and `motion-design.md` beside it
+("What a beat becomes"):
 the beat shape for every pick. There are no type cards (words on a ground); they were removed:
 
 | pick | writes |
@@ -18,7 +19,7 @@ the beat shape for every pick. There are no type cards (words on a ground); they
 | `capture:shot`, `capture:browser`, `capture:sticker` | a `capture` beat with that `format`, the page `url`, and a `highlight` or `ring` mark whose `find` is the page's exact text for what the speaker says |
 | `post` | a `post` beat: `url`, `highlight` (the phrase said, as the post writes it) |
 | `logo` | a `logo` beat: `brand`, `domain` when Simple Icons may lack it |
-| `logo_cluster`, `chat`, `terminal`, `toasts`, `side_by_side`, `video_card`, `flow` | an `anim` beat of that `type` with its props (`flow`: real logos or capture files as nodes, each landing on its word) |
+| `logo_cluster`, `chat`, `terminal`, `toasts`, `side_by_side`, `video_card`, `flow`, `likes`, `progress`, `curve`, `notes` | an `anim` beat of that `type` with its props (`flow`: real logos or capture files as nodes, each landing on its word; `likes`: counts up to the number said) |
 
 Rules:
 
@@ -34,8 +35,10 @@ Rules:
 7. A card edit (the caller says so, or `edits/<name>/style.json` has `card_kinds` without `text`): every
    `capture` is `"format": "shot"` with a `find` mark on the named thing, never a sticker; with nothing to
    capture, a `logo` of a brand the line names or an animation of the concept from real parts, else no beat.
-   Picks `title`, `list`, `stamp`: `{"kind": "title", "text", "word"?}`, `{"kind": "list", "items": [{"text",
-   "word"}], "until"?}`, `{"kind": "stamp", "word"}`, the speaker's words only.
+   Most beats are animations; never two captures of the same URL.
+   Picks `title`, `cta`, `list`, `stamp`: `{"kind": "title", "text", "word"?}`, `{"kind": "cta", "text", "label"?,
+   "word"}`, `{"kind": "list", "items": [{"text", "word"}], "until"?}`, `{"kind": "stamp", "word"}`, the speaker's
+   words only (the title may keep the user's emoji).
 8. A `flow` is an overlay over the footage: never set `"layout": "scene"` unless the caller says the user
    asked for a full-frame scene. Each node is a thing the sentence names, in spoken order, 2-3 nodes,
    labels of 1-3 of the speaker's words.

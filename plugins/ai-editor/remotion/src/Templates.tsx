@@ -7,7 +7,7 @@
 import React from "react";
 import { Img, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { fitTextOnNLines, measureText } from "@remotion/layout-utils";
-import { Motion, SplitText, camera, exit, prog, rng, useTl } from "./motion";
+import { Motion, SplitText, camera, exit, fitIn, fitOut, landAt, prog, rng, useTl } from "./motion";
 import { Fonts, Look, Texture, shadowOf, textCase } from "./look";
 import { Diagram } from "./Diagrams";
 
@@ -119,11 +119,15 @@ const LogoSting: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
   const ref = useTl((tl, q, root) => {
     camera(tl, q, root, m, dur, u, p.ambient);
     const IMPACT = 0.55 * m.k;
+    const U = Math.min(w, h) / 100;
+    // a card edit's logo card (p.card) enters and leaves whole on the style's measured motion, no light sweep
+    if (p.card && p.enter) fitIn(tl, q(".ls-in")[0], landAt(p, m, false), p.enter, U);
     tl.fromTo(q(".ls-logo")[0], { scale: 1.15, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: IMPACT, ease: "expo.out" }, 0.05);
-    tl.fromTo(q(".ls-sweep")[0], { xPercent: -160 }, { xPercent: 160, duration: 0.9 * m.k, ease: "power2.inOut" }, 0.05 + IMPACT);
+    if (!p.card) tl.fromTo(q(".ls-sweep")[0], { xPercent: -160 }, { xPercent: 160, duration: 0.9 * m.k, ease: "power2.inOut" }, 0.05 + IMPACT);
     if (lab) tl.fromTo(q(".ls-label")[0], { yPercent: 110 }, { yPercent: 0, duration: 0.5 * m.k, ease: m.text }, 0.05 + IMPACT * 0.8);
     tl.fromTo(q(".ls-logo")[0], { y: 0 }, { y: -u * 0.8, duration: Math.max(0.6, dur - 1.2), ease: "sine.inOut", immediateRender: false }, 0.05 + IMPACT);
-    exit(tl, root, m, dur, u);
+    if (p.card && p.exit) fitOut(tl, q(".ls-in")[0], dur, p.exit, U);
+    else exit(tl, root, m, dur, u);
   }, [p.src, lab, dur, m.name, JSON.stringify([p.enter, p.exit, p.ambient, p.word_at])]);
   const mask = p.src ? { WebkitMaskImage: `url(${src_(p.src)})`, maskImage: `url(${src_(p.src)})`, WebkitMaskSize: "contain", maskSize: "contain",
     WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat", WebkitMaskPosition: "center", maskPosition: "center" } as React.CSSProperties : {};
@@ -131,14 +135,14 @@ const LogoSting: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
   const cw = p.card ? Math.min(w * 0.98, h * 0.98 * 1.6) : L, ch = p.card ? cw / 1.6 : L, lg = p.card ? ch * 0.62 : L * 0.8;
   return (
     <div ref={ref} style={center}>
-      <div style={{ position: "relative", width: cw, height: ch, display: "flex", alignItems: "center", justifyContent: "center",
+      <div className="ls-in" style={{ position: "relative", width: cw, height: ch, display: "flex", alignItems: "center", justifyContent: "center",
         ...(p.card ? { background: "#FFFFFF", borderRadius: ch * 0.08 } : {}) }}>
         <div className="ls-logo" style={{ position: "relative", width: lg, height: lg }}>
           {p.src ? <Img src={src_(p.src)!} style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : null}
-          <div style={{ ...fill, ...mask, overflow: "hidden" }}>
+          {p.card ? null : <div style={{ ...fill, ...mask, overflow: "hidden" }}>
             <div className="ls-sweep" style={{ position: "absolute", top: "-20%", bottom: "-20%", left: "30%", width: "40%",
               background: "linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.75) 50%, rgba(255,255,255,0) 100%)", transform: "skewX(-18deg)" }} />
-          </div>
+          </div>}
         </div>
       </div>
       {lab && !small ? <div style={{ overflow: "hidden", marginTop: L * 0.06 }}>
@@ -188,7 +192,7 @@ const SocialPost: React.FC<TP> = ({ p, w, h, look, m, fonts, dur }) => {
   const ref = useTl((tl, q, root) => {
     camera(tl, q, root, m, dur, u, p.ambient);
     tl.fromTo(q(".sp-card")[0], { y: u * 14, autoAlpha: 0, rotate: 1.5 }, { y: 0, autoAlpha: 1, rotate: 0, duration: 0.7 * m.k, ease: m.antic }, 0.05);
-    tl.fromTo(q(".sp-av")[0], { scale: 0 }, { scale: 1, duration: 0.45, ease: "back.out(1.6)" }, 0.25);
+    tl.fromTo(q(".sp-av")[0], { scale: 0 }, { scale: 1, duration: 0.45, ease: "power3.out" }, 0.25);
     tl.fromTo(q(".sp-meta")[0], { autoAlpha: 0, y: u }, { autoAlpha: 1, y: 0, duration: 0.4, ease: "power2.out" }, 0.37);
     const split = SplitText.create(q(".sp-text")[0], { type: "words" });
     tl.fromTo(split.words, { autoAlpha: 0, y: size * 0.3 }, { autoAlpha: 1, y: 0, duration: 0.3, ease: "power2.out",

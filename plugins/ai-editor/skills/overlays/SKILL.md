@@ -75,8 +75,10 @@ capture beat lives in both visuals.json and images.json: `beat` changes both. Wh
 becomes (move, bigger, off the face, off the caption, real page, animate a screenshot, smoother,
 lands late): `references/changes.md` "Requests".
 
-**New visuals** (an animation, a diagram, a real page): pick the format from what is said, in
-style-edit's order (`${CLAUDE_PLUGIN_ROOT}/skills/style-edit/references/shapes.md`): the user's own
+**New visuals** (an animation, a diagram, a real page): read style-edit's
+`${CLAUDE_PLUGIN_ROOT}/skills/style-edit/references/motion-design.md` (the default look and motion: built
+animations over static captures, big in the band, one capture per page), then pick the format from what is
+said, in style-edit's order (`${CLAUDE_PLUGIN_ROOT}/skills/style-edit/references/shapes.md`): the user's own
 asset, the real thing captured, UI rebuilt from real parts, real logos. A diagram is a `flow` of the
 real logos or captures the words name, lighting each part on its spoken word, as an overlay beside or
 above the head: the speaker stays on screen (`references/changes.md` "A diagram"). Never a text

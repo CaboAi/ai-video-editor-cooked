@@ -38,7 +38,11 @@ hook's subject. A capture on the hook (first 3 s) needs a `find` mark on what is
 | `chat` | `{"kind": "anim", "type": "chat", "props": {"app", "logo": {"logo"}, "model"?, "messages": [{"from": "user" or "app", "text", "word"}]}}` |
 | `terminal` | `{"kind": "anim", "type": "terminal", "props": {"title"?, "lines": [{"text", "kind": "cmd" or "out", "word"?}]}}` |
 | `toasts` | `{"kind": "anim", "type": "toasts", "props": {"items": [{"app", "logo": {"logo"}, "title", "body"?, "word"}]}}` |
-| `side_by_side` | `{"kind": "anim", "type": "side_by_side", "props": {"a": {"src", "size", "crop"?, "label"?}, "b": {...}}}` (`src`: a capture's file) |
+| `side_by_side` | `{"kind": "anim", "type": "side_by_side", "props": {"a": {"src", "size", "crop"?, "label"?}, "b": {...}, "arrow"?: true}}` (`src`: a capture's file; `arrow`: before -> after) |
+| `likes` | `{"kind": "anim", "type": "likes", "props": {"logo": "<platform>", "counts": [{"n": 0}, {"n": <said number>, "word"}], "comments"?: [{"user", "text", "word"}]}}` |
+| `progress` | `{"kind": "anim", "type": "progress", "props": {"label", "title"?, "thumbs"?: ["images/<own frame>"], "word"?}}` |
+| `curve` | `{"kind": "anim", "type": "curve", "props": {"label"?, "src"?: "images/<own still>", "bezier"?: [x1, y1, x2, y2]}}` |
+| `notes` | `{"kind": "anim", "type": "notes", "props": {"title"?, "lines": [{"text", "sub"?, "time"?, "word"}]}}` |
 | `video_card` | `{"kind": "anim", "type": "video_card", "props": {"src", "start_s"?, "label"?}}` |
 | `flow` | `{"kind": "anim", "type": "flow", "props": {"nodes": [{"logo", "label", "word"}], "split"?: [{"logo", "label" or "lines": [{"text", "word"}], "word"}], "tasks"?: [{"text", "word", "heavy"?}], "accent"?}}`: one beat for the whole explanation, `hold_s` to its last word |
 | `app` | `{"kind": "app", "url" or "app_id", "brand"?}`: the App Store icon and first screenshot |
@@ -51,10 +55,12 @@ something the capture does not already show.
 
 ## Card edit
 
-style.json `card_kinds` without `"text"`: pictures only. A `capture:shot` of the thing named, a `find`
-mark on it (capture.mjs frames the page round it), a logo, their photo, or an animation from real
-parts (`flow`, `chat`, `terminal`) where nothing can be shown. No sticker. Nothing real: no card.
-Plus `title`, `list`, `stamp` beats (`visuals.md` "Card edit").
+style.json `card_kinds` without `"text"`: pictures and animations only (`motion-design.md`). Most beats
+are animations built from the words (`likes`, `progress`, `notes`, `terminal`, `chat`, `toasts`, `curve`,
+`side_by_side` with `arrow`, `flow`); a `capture` only where the real page is the point, once per page
+(plan.py drops a second capture of the same URL), `shot` with a `find` mark or `browser` to scroll to it;
+the user's own app screenshots cropped to about 2:1; a big `logo`. No sticker. A line with nothing to show
+gets no card. Plus `title` (at the open), `cta` (on the ask), `list`, `stamp` beats (`visuals.md` "Card edit").
 
 ## Rules (plan.py enforces them and warns)
 

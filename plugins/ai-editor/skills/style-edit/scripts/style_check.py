@@ -23,7 +23,9 @@ from plan import SAFE, card_rate, graphics, took  # noqa: E402
 CARD_KIND = {"shot": ("photo", "real screenshot", "meme"), "browser": ("UI recording", "real screenshot"),
              "sticker": ("text card", "chart", "real screenshot"), "plain": ("photo",), "logo": ("logo",),
              "logo_cluster": ("logo",), "logo_sting": ("logo",), "video_card": ("b-roll", "UI recording"),
-             "social_post": ("real screenshot",), "post": ("real screenshot",)}
+             "social_post": ("real screenshot",), "post": ("real screenshot",),
+             **dict.fromkeys(("chat", "terminal", "toasts", "flow", "likes", "progress", "curve", "notes"), ("animation",)),
+             "side_by_side": ("animation", "real screenshot")}
 
 
 def card_kind(c):

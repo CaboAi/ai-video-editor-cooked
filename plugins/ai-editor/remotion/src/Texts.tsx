@@ -4,11 +4,14 @@ import { useFamily } from "./Captions";
 
 // The card edit's words on screen besides the captions (plan.json "texts", plan.py text_items). Seconds on the cut,
 // boxes in % of the frame, all inside the reels safe zone (plan.py keeps them there).
-//   title: the hook's title (and the CTA at the end): each line its own off-white pill, bold near-black type, centred
+//   title: the hook's title: one plain white box, black bold type, tight to the words (emoji kept), no border or shadow,
+//          centred on the lower chest; it pops in, breathes while up and leaves on a quick fade
+//   cta:   the ask near the end: a black pill, a small label over the big quoted word, white type, above the head
 //   list:  a running numbered list; each line lands on its word and stays until the list ends
 //   stamp: a red circled X drawn over the card that is up, when the speaker says it does not apply
 export type TextItem =
   | { kind: "title"; text: string; start: number; end: number; y_pct: number; size_pct: number }
+  | { kind: "cta"; text: string; label?: string; start: number; end: number; y_pct: number; size_pct: number }
   | { kind: "list"; items: { text: string; at: number }[]; start: number; end: number; x_pct: number; y_pct: number; size_pct: number }
   | { kind: "stamp"; start: number; end: number; box: [number, number, number, number] };
 
@@ -19,15 +22,24 @@ export const Texts: React.FC<{ items: TextItem[]; t: number; width: number; heig
   return (
     <>
       {items.filter((x) => t >= x.start && t < x.end).map((x, i) => {
-        if (x.kind === "title") {
+        if (x.kind === "title" || x.kind === "cta") {
           const fs = (x.size_pct / 100) * height;
+          const p = prog(t, x.start, POP_S * 1.6, "power3.out"), out = 1 - prog(t, x.end - 0.18, 0.18, "power1.in");
+          const breathe = 1 + 0.015 * Math.sin((t - x.start) * 2.4);
+          const cta = x.kind === "cta";
           return (
-            <div key={i} style={{ position: "absolute", left: "13%", width: "74%", top: `${x.y_pct}%`, display: "flex", flexDirection: "column",
-              alignItems: "center", gap: fs * 0.08 }}>
-              {x.text.split("\n").map((ln, j) => (
-                <div key={j} style={{ background: "#FDFDF3", color: "#030100", fontFamily: family, fontWeight: 700, fontSize: fs, lineHeight: 1.12,
-                  padding: `${fs * 0.06}px ${fs * 0.22}px`, borderRadius: fs * 0.14, textAlign: "center" }}>{ln}</div>
-              ))}
+            <div key={i} style={{ position: "absolute", left: "13%", width: "74%", top: `${x.y_pct}%`, display: "flex", justifyContent: "center",
+              opacity: Math.min(prog(t, x.start, POP_S, "power1.out"), out), transform: `scale(${(0.86 + 0.14 * p) * breathe})`, transformOrigin: "50% 50%" }}>
+              {cta ? (
+                <div style={{ background: "#0B0B0C", color: "#FFFFFF", fontFamily: family, fontWeight: 800, borderRadius: fs * 0.26, textAlign: "center",
+                  padding: `${fs * 0.12}px ${fs * 0.34}px ${fs * 0.08}px`, lineHeight: 1.05 }}>
+                  {x.label ? <div style={{ fontSize: fs * 0.32, fontWeight: 700 }}>{x.label}</div> : null}
+                  <div style={{ fontSize: fs }}>{x.text}</div>
+                </div>
+              ) : (
+                <div style={{ background: "#FFFFFF", color: "#000000", fontFamily: `${family}, "Apple Color Emoji", "Noto Color Emoji"`, fontWeight: 800,
+                  fontSize: fs, lineHeight: 1.15, padding: `${fs * 0.25}px ${fs * 0.3}px`, borderRadius: fs * 0.16, textAlign: "center", whiteSpace: "pre-line" }}>{x.text}</div>
+              )}
             </div>
           );
         }

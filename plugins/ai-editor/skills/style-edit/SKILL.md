@@ -79,8 +79,8 @@ Use captions.json from here on.
 
 ## 3. Visuals
 
-**Read `references/shapes.md` first**: the visuals.json shape for every pick, the order of what goes
-on screen and the rules plan.py enforces.
+**Read `references/shapes.md` and `references/motion-design.md` first**: each pick's shape and plan.py's
+rules, then the default look and motion (built animations over captures, big in the band, one capture a page).
 
 1. **Propose:** `python3 "$S/route.py" beats edits/<name>` splits captions.json into sentences,
    marks the named things (profile, logo-pack) into beats.json. Pick one route per sentence yourself

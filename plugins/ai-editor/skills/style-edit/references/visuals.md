@@ -123,12 +123,13 @@ inside the reels safe zone:
 
 | beat | draws |
 |---|---|
-| `{"kind": "title", "text": "line one\nline two"}` (no `word`: from 0 s; with `word`, `nth`: on that word, e.g. the CTA) | each line its own off-white pill, bold near-black type, centred at the top of the safe zone (y 13.6%, not the dead zone above it), `hold_s` (3.8). A card up with it moves below the pills, or starts when the title ends |
+| `{"kind": "title", "text": "line one\nline two"}` (no `word`: from 0 s; with `word`, `nth`: on that word) | one plain white box, black bold type, tight to the words, emoji kept, no border or shadow, on the lower chest with its bottom on the safe zone's bottom line, `hold_s` (3.8). Captions wait while it is up; cards above the head carry on |
+| `{"kind": "cta", "text": "\u201cedit\u201d", "label": "comment", "word", "nth"}` | a black pill, the small label over the big word, white type, in the band above the head, `hold_s` (2.4). A card up then ends as it lands |
 | `{"kind": "list", "items": [{"text", "word", "nth"}], "until"?: word}` | a running numbered list at the left, each line on its word, held to `until` (else the end); under the chin, else just above or below the captions, never over the head; skipped in a shot too close for it |
 | `{"kind": "stamp", "word", "nth"}` | a red circled X drawn over the card up on that word ("that one doesn't count") |
 
-Title and list words are the speaker's (a title may be the video's promise in a few of their words); emoji are
-stripped like everywhere else.
+Title, cta and list words are the speaker's (a title may be the video's promise in a few of their words); the
+title keeps its emoji, every other text loses them.
 
 ## From the teardown
 

@@ -33,7 +33,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
 # card edit (style.json "card_kinds" without "text"), to a shot of the real page.
 KIND_ROUTES = {"real screenshot": ("capture:shot", "capture:sticker"), "UI recording": ("capture:browser", "video_card"),
                "text card": ("capture:sticker",), "chart": ("capture:sticker",), "photo": ("capture:shot",),
-               "meme": ("capture:shot",), "logo": ("logo", "logo_cluster"), "b-roll": ("video_card",)}
+               "meme": ("capture:shot",), "logo": ("logo", "logo_cluster"), "b-roll": ("video_card",),
+               "animation": ("likes", "progress", "notes", "terminal", "chat", "toasts", "curve", "side_by_side", "flow")}
 MAX_LINES = 30   # sentences printed for a highlight, nearest the spoken words first
 
 
@@ -214,9 +215,10 @@ def main():
         style = effective_style(st, prof, edit, count=False) if st.exists() else {}
         from plan import pictures_only
         if pictures_only(style):
-            print(f"this style's cards ({', '.join(style['card_kinds'])}): a capture:shot of the real thing named, "
-                  "a logo, the user's photo, or an animation (flow, chat, terminal, toasts, side_by_side, video_card) "
-                  "from real parts. Never a sticker or words on a ground; a line that names nothing real gets none")
+            print(f"this style's cards ({', '.join(style['card_kinds'])}): mostly animations of what is said (likes, "
+                  "progress, notes, terminal, chat, toasts, curve, side_by_side with arrow, flow), a capture of a real page "
+                  "only where the page is the point (one capture per page; browser to scroll it), a logo, the user's photo. "
+                  "A title card at the open, a cta on the ask. Never a sticker or words on a ground (shapes.md \"Card edit\")")
         pref = prefer(style)
         if pref:
             print("the creator's mix: " + ", ".join(f"{k} {v:.0%}" for k, v in sorted(pref.items(), key=lambda kv: -kv[1])))

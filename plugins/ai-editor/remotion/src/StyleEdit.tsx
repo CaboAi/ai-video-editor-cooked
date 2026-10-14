@@ -205,7 +205,10 @@ export const CardView: React.FC<{ card: Card; t: number; prev?: Card; next?: Car
   const lt = t - card.start, dur = card.end - card.start;
   const SWAP = 0.5 * m.k;
   let transform = "none", opacity = 1, clipPath: string | undefined;
-  if (prev) {
+  // a card with its own measured entrance and exit (props.enter / exit) swaps in place: the old one is out before the
+  // new one lands (references/motion-design.md "Swaps"); the wipe and the darken-under are for cards without them
+  const fit = (c?: Card) => !!(c && ((c.anim?.props ?? c.props ?? {}) as Record<string, unknown>).enter);
+  if (prev && !fit(card)) {
     // the new card wipes over the old one from the right edge (transitions-cover), riding in a little
     const p = prog(lt, 0, SWAP, m.move);
     clipPath = `inset(0% 0% 0% ${(1 - p) * 100}%)`;
@@ -216,7 +219,7 @@ export const CardView: React.FC<{ card: Card; t: number; prev?: Card; next?: Car
       fade: ["none", p], scale: [`scale(${0.92 + 0.08 * p})`, p] } as Record<string, (string | number)[]>)[card.entrance] ?? ["none", 1];
     transform = e[0] as string; opacity = e[1] as number;
   }
-  if (next) {
+  if (next && !fit(next)) {
     // covered by the next card: slides back and darkens under it
     const q = prog(t, next.start, SWAP, m.move);
     transform += ` translateX(${-q * bw * 0.06}px) scale(${1 - 0.04 * q})`;

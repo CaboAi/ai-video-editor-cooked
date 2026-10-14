@@ -53,7 +53,7 @@ ENTRANCES = ("pop", "slide", "fade", "scale")
 # a capture lifts, a post or a chat slides, a sticker or a logo pops, a terminal fades up.
 FORMAT_ENTRANCE = {"shot": "scale", "browser": "slide", "sticker": "pop", "plain": "scale", "social_post": "slide", "chat": "slide",
                    "terminal": "fade", "toasts": "slide", "logo_cluster": "pop", "side_by_side": "slide", "video_card": "scale",
-                   "logo": "pop", "logo_sting": "pop"}
+                   "logo": "pop", "logo_sting": "pop", "likes": "pop", "progress": "scale", "curve": "scale", "notes": "slide"}
 # Above the head in a vertical frame, the right side in a wide one.
 DEFAULT_BOX = {"9:16": [10, 15, 74, 20], "16:9": [54, 10, 40, 48]}
 # Where the app's own UI sits, in percent: left, top, right, bottom. Vertical: the
@@ -68,7 +68,7 @@ SAFE = {"9:16": (5.6, 13.1, 13.0, 25.0), "16:9": (3, 5, 3, 10)}
 OVERLAY_TOP, OVERLAY_EDGE = SAFE["9:16"][1], SAFE["9:16"][0]
 LOGO_S = 1.2           # a logo stays up this long
 LOGO_BOX_H = 11        # logo tile height, % of the frame
-LOGO_CARD_BOX = (30, 13.1, 40, 17)   # a card edit's logo card on white: centred in the band above the head
+LOGO_CARD_BOX = (18, 13.1, 64, 18)   # a card edit's logo card on white: centred in the band above the head, the logo 200+ px
 # logo_cluster on vertical (Overlays.tsx reads props.band and props.size): the logos' outer edges span this
 # band of the width, centred, each this % of the width wide. check.py plan FAILs a vertical cluster whose
 # ink is under INK_MIN_W of the width or off centre, the same as check.py render measures it.
@@ -79,7 +79,10 @@ SCENES = ("flow",)   # picture scenes: parts land on their own words
 # Every template in remotion/src/Templates.tsx (references/motion.md), plus the two original names that remain.
 TEMPLATES = ("flow", "logo_sting", "social_post", "arrow_callout", "icon_burst", "caption_page")
 # The overlay formats (remotion/src/Overlays.tsx): real pictures floating over the footage. The default.
-OVERLAYS = ("shot", "browser", "sticker", "chat", "terminal", "toasts", "logo_cluster", "side_by_side", "video_card")
+OVERLAYS = ("shot", "browser", "sticker", "chat", "terminal", "toasts", "logo_cluster", "side_by_side", "video_card",
+            "likes", "progress", "curve", "notes")
+# The moving ones: a card edit leans on these over static captures (references/shapes.md "Card edit").
+MOVING = ("chat", "terminal", "toasts", "logo_cluster", "side_by_side", "video_card", "likes", "progress", "curve", "notes", "flow")
 FORMATS = ("shot", "browser", "sticker", "plain")    # how an image card is drawn
 # Type cards (words on a ground) were removed from the product (2026-10-06): an old visuals.json naming one
 # is skipped with a pointer to the overlay format that shows the real source instead.
@@ -92,7 +95,7 @@ INSTEAD = {"counter": "a capture (sticker) of the page that published the number
            "pile": "a logo_cluster of the real logos"}
 # Content aspect (width / height) of each overlay, to pick the free region around the head it fills best.
 ASPECT = {"browser": 1.45, "chat": 1.9, "terminal": 1.8, "toasts": 3.2, "social_post": 2.2, "side_by_side": 2.6,
-          "video_card": 16 / 9, "flow": 2.4, "icon_burst": 1.6}
+          "video_card": 16 / 9, "flow": 2.4, "icon_burst": 1.6, "likes": 2.6, "progress": 2.2, "curve": 2.0, "notes": 2.2}
 FIXED_BOX = ("logo", "logo_sting", "arrow_callout", "caption_page")   # keep their own box
 LEGACY = ("logo", "flow")
 ANIMS = tuple(dict.fromkeys(TEMPLATES + OVERLAYS + LEGACY))
@@ -538,7 +541,8 @@ def anti_generic(visuals, profile=None, warn=None):
             warn(f"anti-generic: the '{where}' {v.get('type')} card is only stock icons; use a logo, a capture, the "
                  f"user's own image or a type-led template (or set \"allow_icons\": true). Skipped")
             continue
-        out.append(strip_emoji(v, where, warn) if avoid.get("emoji", True) else v)
+        # the title card keeps its emoji: it is the user's own hook line, set as they wrote it
+        out.append(strip_emoji(v, where, warn) if avoid.get("emoji", True) and v.get("kind") != "title" else v)
     return out
 
 
@@ -584,15 +588,19 @@ def text_labels(cards, style):
     return out
 
 
-# A card edit's words besides the captions (visuals.json "title", "list", "stamp" beats; remotion Texts.tsx). % of the frame.
-TITLE_Y, TITLE_SIZE, TITLE_HOLD_S = SAFE["9:16"][1] + 0.5, 3.6, 3.8   # the pill's top just inside the safe zone (y 250+)
+# A card edit's words besides the captions (visuals.json "title", "cta", "list", "stamp" beats; remotion Texts.tsx). % of the frame.
+# The title: one plain white box, black bold type, tight to the words, on the lower chest with its bottom on the safe
+# zone's bottom line (y 1440); captions wait while it is up. The cta: a black pill with white type in the band above the head.
+TITLE_SIZE, TITLE_HOLD_S = 3.0, 3.8
+TITLE_BOTTOM = 100 - SAFE["9:16"][3] - 0.5
+CTA_Y, CTA_SIZE, CTA_HOLD_S = SAFE["9:16"][1] + 3, 5.2, 2.4
 LIST_X, LIST_SIZE = SAFE["9:16"][0] + 1, 1.8
 TEXT_KINDS = ("title", "list", "stamp")
 
 
 def text_items(visuals, words, duration, cards, face=None, cap_y=66.0):
-    """plan.json "texts" from visuals.json: a "title" (text, "\\n" between lines; on its word, else from 0 s, for
-    hold_s), a running numbered "list" (items: [{text, word, nth}], each on its word, all held to the list's word
+    """plan.json "texts" from visuals.json: a "title" (text, "\\n" between lines, emoji kept; on its word, else from 0 s,
+    for hold_s), a "cta" (text, label?; on its word, for hold_s), a running numbered "list" (items: [{text, word, nth}], each on its word, all held to the list's word
     "until" or the end), a "stamp" (a red X over the card up on its word). Every box inside the reels safe zone."""
     def at(word, nth=None):
         hits = [w["start"] for w in words if clean(w["text"]).lower() == clean(word or "").lower()]
@@ -606,8 +614,18 @@ def text_items(visuals, words, duration, cards, face=None, cap_y=66.0):
                 print(f"warning: title '{v['text']}': '{v['word']}' is never said, skipped", file=sys.stderr)
                 continue
             start = max(0.0, t - CARD_LEAD_S) if t else 0.0
-            out.append({"kind": "title", "text": v["text"], "start": round(start, 3), "end": round(min(duration, start + (v.get("hold_s") or TITLE_HOLD_S)), 3),
-                        "y_pct": TITLE_Y, "size_pct": TITLE_SIZE})
+            x = {"kind": "title", "text": v["text"], "start": round(start, 3), "end": round(min(duration, start + (v.get("hold_s") or TITLE_HOLD_S)), 3),
+                 "y_pct": 0, "size_pct": TITLE_SIZE}
+            x["y_pct"] = round(TITLE_BOTTOM - title_bottom(x), 1)
+            out.append(x)
+        elif k == "cta" and v.get("text") and v.get("word"):
+            t = at(v["word"], v.get("nth"))
+            if t is None:
+                print(f"warning: cta '{v['text']}': '{v['word']}' is never said, skipped", file=sys.stderr)
+                continue
+            start = max(0.0, t - CARD_LEAD_S)
+            out.append({"kind": "cta", "text": v["text"], "label": v.get("label") or "", "start": round(start, 3),
+                        "end": round(min(duration, start + (v.get("hold_s") or CTA_HOLD_S)), 3), "y_pct": CTA_Y, "size_pct": CTA_SIZE})
         elif k == "list":
             items = [{"text": it["text"], "at": at(it.get("word"), it.get("nth"))} for it in v.get("items") or [] if it.get("text")]
             items = [{**it, "at": round(max(0.0, it["at"] - CARD_LEAD_S), 3)} for it in items if it["at"] is not None]
@@ -639,20 +657,31 @@ def text_items(visuals, words, duration, cards, face=None, cap_y=66.0):
 
 
 def title_bottom(x):
-    """Where a title's pills end, % of the frame: its lines as Texts.tsx wraps them (74% wide, bold, about 0.55 em a
-    character) at 1.25 em each with the gaps."""
+    """Where a title's box ends, % of the frame: its lines as Texts.tsx wraps them (74% wide, bold, about 0.55 em a
+    character) at 1.15 em each, plus the box's 0.5 em of padding."""
     per = max(8, int(74 * 1080 / 100 / (0.55 * x["size_pct"] / 100 * 1920)))
     n = sum(max(1, math.ceil(len(ln) / per)) for ln in x["text"].split("\n"))
-    return x["y_pct"] + n * x["size_pct"] * 1.25 + 1
+    return x["y_pct"] + (n * 1.15 + 0.5) * x["size_pct"]
 
 
 def under_titles(cards, texts):
-    """A card up with a title moves below the title's pills (keeping its bottom edge), as the title sits above the
-    cards in a card edit; one that would lose over 40% of its height starts when the title ends instead."""
+    """A card up with a cta gives way: it ends as the cta lands, or starts when it ends (the pill owns the band above
+    the head). A card up with a title that overlaps its box moves below the title (keeping its bottom edge); one that
+    would lose over 40% of its height starts when the title ends instead. Returns the cards kept."""
+    for x in (x for x in texts if x["kind"] == "cta"):
+        for c in cards:
+            if c.get("layout") == "scene" or c["end"] <= x["start"] or c["start"] >= x["end"]:
+                continue
+            if c["start"] < x["start"]:
+                c["end"] = x["start"]
+            else:
+                c["start"] = x["end"]
+    cards[:] = [c for c in cards if c["end"] - c["start"] >= MIN_CARD_S]
     for x in (x for x in texts if x["kind"] == "title"):
         tb = title_bottom(x)
         for c in cards:
-            if c.get("layout") == "scene" or c["end"] <= x["start"] or c["start"] >= x["end"] or c["box"][1] >= tb:
+            if c.get("layout") == "scene" or c["end"] <= x["start"] or c["start"] >= x["end"] or c["box"][1] >= tb \
+                    or c["box"][1] + c["box"][3] <= x["y_pct"]:
                 continue
             bx, by, bw, bh = c["box"]
             if by + bh - tb >= max(MIN_CARD_H, 0.6 * bh):   # still most of its size: shrink it under the title
@@ -1235,7 +1264,9 @@ def place_overlays(cards, face, cap_y, aspect, prefer=None):
 
 # Cards behind the speaker (references/motion.md "Behind the speaker"): these formats sit above the
 # footage and under the speaker's cutout (matte.py), so a card may tuck behind the hair and grow.
-BEHIND = ("shot", "sticker", "logo_cluster", "social_post")
+# the moving cards tuck behind the hair too, so they fill the band down to the hairline (references/motion-design.md)
+BEHIND = ("shot", "sticker", "logo_cluster", "social_post", "browser", "chat", "terminal", "toasts", "side_by_side",
+          "likes", "progress", "curve", "notes")
 BEHIND_TUCK = 0.4      # a behind card reaches at most this far down the head (share of the head's height)
 FILL = 0.92            # an overlay's picture fills about this much of its box (Overlays.tsx fitBox)
 
@@ -1255,13 +1286,14 @@ def content_rect(c, box, aspect):
 
 def key_rect(c, content):
     """What must stay in view, % of the frame: the marks (grown by the shot's push-in), else the
-    picture less its bottom fifth (a post's stats row, a page's foot)."""
+    picture less its bottom fifth (a post's stats row, a page's foot), or for a screenshot with no mark its top
+    three fifths (an app window reads from its top; the hair may cross the rest, as the band is filled)."""
     x, y, w, h = content
     p = {**((c.get("anim") or {}).get("props") or {}), **(c.get("props") or {})}
     marks = c.get("marks") or p.get("marks") or []
     size = c.get("size") or p.get("size")
     if not (marks and size):
-        return [x, y, w, h * 0.8]
+        return [x, y, w, h * (0.6 if kind_of(c) == "shot" else 0.8)]
     ox, oy, iw, ih = p.get("crop") or [0, 0, *size]
     z = (p.get("zoom") or 1.45) if kind_of(c) == "shot" else 1
     rs = [r for mk in marks for r in [mk["rect"]] + (mk.get("rects") or [])]
@@ -1781,6 +1813,68 @@ def with_formats(images, visuals):
     return out
 
 
+CAP_GLYPH = 0.35      # half a one-word lowercase caption's ink height, in font sizes (bold, x-height plus ascenders)
+CHIN_SHARE = 0.1      # face.py grows the face down by 0.15 of its height; that is a tenth of the head box
+
+
+def heads_median(face):
+    """(top, bottom) of the head box, the median over the take, % down; None with no head found."""
+    bs = sorted((h["box"] for h in (face or {}).get("heads", []) if h.get("box")), key=lambda b: b[1] + b[3])
+    if not bs:
+        return None
+    m = bs[len(bs) // 2]
+    tops = sorted(b[1] for b in bs)
+    return tops[len(tops) // 2], m[1] + m[3]
+
+
+def caption_under_chin(cap, face, aspect):
+    """Captions never on the face. A vertical caption line that falls inside the head (face.json, the median head
+    over the take) moves to the head box's bottom edge, the chin line just below the mouth, held inside the safe
+    zone (its ink above y 1440). Changes cap["y_pct"]; returns the chin line (% down) when it moved, else None."""
+    hm = aspect == "9:16" and heads_median(face)
+    if not hm or not hm[0] - 2 < cap["y_pct"] < hm[1]:
+        return None
+    lowest = 100 - SAFE[aspect][3] - CAP_GLYPH * (cap.get("size_pct") or 4.4)
+    cap["y_pct"] = round(min(hm[1] + 0.6, lowest), 1)
+    return hm[1]
+
+
+def clear_chin(zooms, face, cap):
+    """A push zoom grows the head from its top, so the chin moves down into captions set under it. Each zoom's scale
+    is held to what keeps the chin (face.json's head bottom less the chin margin) above the captions' ink; one
+    held under 1.02 is dropped."""
+    top = cap["y_pct"] - CAP_GLYPH * (cap.get("size_pct") or 4.4)
+    out = []
+    for z in zooms:
+        hd = head_during(face["heads"], face.get("step_s", 0.5), z["start"], z["end"])
+        oy = (z.get("origin") or [50, 30])[1]
+        chin = hd and hd[3] - CHIN_SHARE * (hd[3] - hd[1])
+        if chin and chin > oy:
+            k = (top - oy) / (chin - oy)
+            if k < 1.02:
+                continue
+            z = {**z, "scale": round(min(z["scale"], k), 3)}
+        out.append(z)
+    return out
+
+
+def one_per_page(images, visuals):
+    """Never the same page twice: a capture of a URL already captured in this edit is dropped (one capture of a
+    page, cropped to the line that matters, then an animation or another page)."""
+    url = {(clean(v.get("word", "")).lower(), v.get("nth") or 1): v["url"].rstrip("/").lower()
+           for v in visuals if v.get("kind") == "capture" and v.get("url")}
+    seen, out = set(), []
+    for im in images:
+        u = url.get((clean(im.get("word", "")).lower(), im.get("nth") or 1))
+        if u and u in seen:
+            print(f"warning: '{im.get('word')}' captures {u} again; the same page twice reads as one screenshot "
+                  "on repeat. Dropped: show an animation of what is said there instead", file=sys.stderr)
+            continue
+        seen.add(u)
+        out.append(im)
+    return out
+
+
 @with_sfx
 def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edit_dir=None, layout=None, profile=None,
           behind=None):
@@ -1805,6 +1899,7 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         if cap.get("present", True) else []
     fj = edit_dir and Path(edit_dir) / "face.json"
     face = json.loads(fj.read_text(encoding="utf-8")) if fj and fj.exists() else None
+    chin = caption_under_chin(cap, face, aspect)
     lay = {**SPLIT, **(style.get("layout") or {}), **(layout or {})}
     sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
     from ai_editor import profile as prof_mod
@@ -1826,7 +1921,7 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
     seam = lay["seam"]
     split_y = min(seam + SPLIT_CAP_BELOW, 100 - bottom - 4)
     split_now = split_ok and (explicit == "split")
-    images = text_labels(kind_formats(with_formats(images, visuals), style), style)
+    images = text_labels(kind_formats(with_formats(one_per_page(images, visuals), visuals), style), style)
     probe_cards = place_cards(list(images) + anim_items(visuals, edit_dir, style), words, duration, style, aspect)
     _, wants_split = lay_out(probe_cards, aspect, face, style, split_ok)
     split_now = split_now or wants_split
@@ -1847,6 +1942,8 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         hd = head_during(face["heads"], face.get("step_s", 0.5), z["start"], z["end"])
         if hd:
             z["origin"] = [round((hd[0] + hd[2]) / 2, 1), round(hd[1], 1)]
+    if chin is not None and not split_now:
+        zooms = clear_chin(zooms, face, cap)
     for a, b in quiet:
         said = [f"'{n}' at {x['start']:.1f} s" for x in named_beats(edit_dir) if a <= x["start"] < b for n in x["names"]]
         print(f"warning: no card for {b - a:.1f} s ({a:.1f}-{b:.1f} s, the rule is {gap:.0f} s): "
@@ -1904,6 +2001,9 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
     texts = text_items(visuals, words, duration, cards, face, cap["y_pct"])
     if texts:
         extra["texts"] = texts
+        # the title sits where the captions do: they wait until it has gone
+        titles = [x for x in texts if x["kind"] == "title"]
+        chunks = [c for c in chunks if not any(c["start"] < x["end"] and x["start"] < c["end"] for x in titles)]
         under_titles(cards, texts)   # check.py plan: screenshots stay pictures, text labels FAIL
     pans = place_pans((style.get("camera") or {}) if took(style, "pace") else {}, duration)
     if pans and not split_now:
@@ -2073,6 +2173,8 @@ def treat_captions(plan, edit_dir, meta, floors=None):
     cs, chunks = plan["captions"]["style"], plan["captions"]["chunks"]
     floors = floors or {}
     done = {}
+    if cs.get("treat") is False:   # the creator's plain captions, as measured: no shadow, glow, stroke or box added
+        return []
     if chunks and not (cs.get("stroke") or cs.get("box")):
         for i, px in caption_backdrops(plan, edit_dir, meta).items():
             if not px:
@@ -2396,10 +2498,13 @@ def demo():
           "marks": [{"kind": "highlight", "rect": [100, 100, 1600, 200]}]}
     low = {**sh, "marks": [{"kind": "highlight", "rect": [100, 650, 1600, 140]}], "trigger_word": "low"}
     chat = {"anim": {"type": "chat", "props": {}}, "start": 0.0, "end": 3.0, "trigger_word": "c", "box": [4, 10, 92, 21.6]}
-    gs, gl, gc = tuck_behind([dict(sh), dict(low), dict(chat)], bf, "9:16")
+    vc = {"anim": {"type": "video_card", "props": {}}, "start": 0.0, "end": 3.0, "trigger_word": "v", "box": [4, 10, 92, 21.6]}
+    gs, gl, gc, gv = tuck_behind([dict(sh), dict(low), dict(chat), dict(vc)], bf, "9:16")
     assert gs["layer"] == "behind" and gs["box"][1] + gs["box"][3] > 34 and gs["key"][1] + gs["key"][3] < 34 - HEAD_GAP, gs
     assert gl["box"][1] + gl["box"][3] < gs["box"][1] + gs["box"][3], (gl, gs)    # a low mark tucks less
-    assert "layer" not in gc and gc["box"] == chat["box"]
+    # a moving card tucks too (it fills the band down to the hairline), its key part clear of the head; a clip does not
+    assert gc["layer"] == "behind" and gc["key"][1] + gc["key"][3] < 34 - HEAD_GAP + 0.1, gc
+    assert "layer" not in gv and gv["box"] == vc["box"]
     # the creator's measured fields: dealt in her shares, used only when the blend took their part
     d = deal({"cut": 58, "slide": 12}, 12)
     assert d.count("cut") == 10 and d[:2] == ["cut", "cut"] and deal({"x": 1}, 2) == ["x", "x"] and deal({}, 1) == [None]
@@ -2520,9 +2625,34 @@ def demo():
                     tw, 5.0, [{"start": 3.0, "end": 4.5, "box": [13, 14, 74, 20]}], None, 66)
     assert [x["kind"] for x in tx] == ["title", "list", "stamp"], tx
     assert tx[0]["start"] == 0 and tx[0]["y_pct"] >= SAFE["9:16"][1] and [i["at"] for i in tx[1]["items"]] == [1.4, 2.4], tx
+    # the title box sits on the chest, its bottom on the safe zone's bottom line; a card above it keeps its box
+    assert abs(title_bottom(tx[0]) - TITLE_BOTTOM) < 0.15 and tx[0]["y_pct"] > 60, tx[0]
     cs = [{"start": 0.5, "end": 3, "box": [13, 13.1, 74, 30]}]
     under_titles(cs, tx)
-    assert cs[0]["box"][1] == round(title_bottom(tx[0]), 1) and cs[0]["box"][1] + cs[0]["box"][3] == 43.1, cs
+    assert cs[0]["box"] == [13, 13.1, 74, 30], cs
+    # the cta owns the band: a card up with it ends as it lands, one starting under it waits until it ends
+    cta = text_items([{"kind": "cta", "text": "edit", "label": "comment", "word": "page"}], tw, 5.0, [], None, 66)
+    assert cta[0]["kind"] == "cta" and cta[0]["start"] == 2.9, cta
+    cc = [{"start": 2.0, "end": 4.0, "box": [13, 14, 74, 20]}, {"start": 3.0, "end": 5.0, "box": [13, 14, 74, 20]}]
+    under_titles(cc, cta)
+    assert cc[0]["end"] == 2.9 and len(cc) == 1 or (cc[1]["start"] == cta[0]["end"]), cc
+    # the title keeps its emoji; every other text loses it
+    ag = anti_generic([{"kind": "title", "text": "New tool \U0001F929"}, {"kind": "anim", "type": "notes", "props": {"lines": [{"text": "ok \U0001F929"}]}}],
+                      warn=lambda m: None)
+    assert ag[0]["text"].endswith("\U0001F929") and ag[1]["props"]["lines"][0]["text"] == "ok", ag
+    # captions never on the face: a line inside the head moves to the chin line, inside the safe zone
+    fc = {"step_s": 0.5, "heads": [{"t": i / 2, "box": [35, 31, 48, 41.5]} for i in range(9)]}
+    cp = {"y_pct": 64, "size_pct": 4.4}
+    assert caption_under_chin(cp, fc, "9:16") == 72.5 and cp["y_pct"] == 73.1 <= 100 - SAFE["9:16"][3] - CAP_GLYPH * 4.4, cp
+    assert caption_under_chin({"y_pct": 80, "size_pct": 4}, fc, "9:16") is None and caption_under_chin({"y_pct": 64}, None, "9:16") is None
+    # a push zoom from the head's top is held so the chin stays above the captions; one that cannot move is dropped
+    zz = clear_chin([{"start": 0, "end": 2, "scale": 1.15, "origin": [59, 31]}, {"start": 2, "end": 4, "scale": 1.15, "origin": [59, 70]}], fc, cp)
+    assert 1.02 <= zz[0]["scale"] < 1.15 and zz[1]["scale"] == 1.15, zz     # grown from under the chin: it rises, kept
+    assert clear_chin([{"start": 0, "end": 2, "scale": 1.15, "origin": [59, 31]}], fc, {"y_pct": 68, "size_pct": 4.4}) == []
+    # one capture per page: the second capture of the same URL is dropped
+    vis = [{"kind": "capture", "word": "a", "url": "https://x.dev/"}, {"kind": "capture", "word": "b", "url": "https://x.dev"},
+           {"kind": "capture", "word": "c", "url": "https://y.dev"}]
+    assert [i["word"] for i in one_per_page([{"word": w, "src": w} for w in "abc"], vis)] == ["a", "c"]
     assert tx[1]["end"] == 5.0 and tx[1]["x_pct"] >= SAFE["9:16"][0] and tx[2]["box"] == [13, 14, 74, 20] and tx[2]["start"] == 4.0, tx
     demo_contrast()
     demo_beats()

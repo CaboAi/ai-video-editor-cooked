@@ -177,12 +177,13 @@ export const wordTl = (timeline: gsap.core.Timeline, p: Record<string, any>, lan
   return { tl, L };
 };
 
-/** Drop in just before the word: falls from above, tipped back and blurred, lands on expo.out. `px` is the
- *  fall in frame px (70 on a 1080 frame). The fall is a few % of the frame, never from the edge. */
+/** Drop in just before the word: falls from a little above and settles, on expo.out (its fast start is what
+ *  plan.py OVERLAY_LEAD_S times). `px` is the fall in frame px (70 on a 1080 frame), a few % of the frame, never
+ *  from the edge. No blur and no 3D tilt (references/motion-design.md "Banned"). */
 export const dropIn = (tl: gsap.core.Timeline, el: Element | undefined, at: Pos, m: Motion, px: number) => {
   if (!el) return;
-  tl.fromTo(el, { autoAlpha: 0, y: -px, rotationX: 16, scale: 0.94, filter: "blur(10px)", transformPerspective: 1400, transformOrigin: "50% 0%" },
-    { autoAlpha: 1, y: 0, rotationX: 0, scale: 1, filter: "blur(0px)", duration: 0.62 * m.k, ease: "expo.out" }, at);
+  tl.fromTo(el, { autoAlpha: 0, y: -px, scale: 0.94, transformOrigin: "50% 0%" },
+    { autoAlpha: 1, y: 0, scale: 1, duration: 0.62 * m.k, ease: "expo.out" }, at);
 };
 
 /** The hit on a spoken word: a short punch up, then an elastic settle. Put it on its own wrapper so it never
@@ -200,11 +201,11 @@ export const punchAt = (t: number, ats: number[], k = 1.025) => {
   return d < 0.55 ? 1 + (k - 1) * (1 - ease("elastic.out(1, 0.5)")((d - 0.1) / 0.45)) : 1;
 };
 
-/** Out upward, faster than the entrance, on the personality's .in ease, blurring as it goes. */
+/** Out upward, faster than the entrance, on the personality's .in ease. */
 export const exitUp = (tl: gsap.core.Timeline, el: Element | undefined, m: Motion, dur: number, px: number) => {
   if (!el || dur <= m.out * 2) return;
   const d = Math.max(0.24, m.out * 0.7);
-  tl.to(el, { autoAlpha: 0, y: -px, scale: 0.97, filter: "blur(8px)", duration: d, ease: m.exit }, dur - d);
+  tl.to(el, { autoAlpha: 0, y: -px, scale: 0.97, duration: d, ease: m.exit }, dur - d);
 };
 
 /** A creator's measured entrance or exit (style.json graphics.entrances[] / exits[]; plan.py deals one per card

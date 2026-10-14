@@ -1514,9 +1514,10 @@ def getting_started(d):
     style = bool(d.get("style_skipped")) or any(j["type"] == "teardown" and j["state"] == "done" for j in d["jobs"]) \
         or any(not h.startswith(("own-", "sample-")) for h, _ in library.styles(d["root"]))
     es = library.entries()
-    video = any(e["status"] in ("ready", "done") for e in es)
+    video = any(e["status"] in ("ready", "done") and not e.get("sample") for e in es)   # the sample is not your first video
+    sample = any(e.get("sample") and e["status"] in ("ready", "done") for e in es)
     # a user with a made video set up long ago (before the doctor rows were checked): never back to step 1
-    return {"setup": setup or video and not running, "style": style or video, "video": video}
+    return {"setup": setup or (video or sample) and not running, "style": style or video, "video": video, "sample": sample}
 
 
 def seed_style(args, root):
@@ -2399,7 +2400,7 @@ def make_handler(token):
                                capture_output=True, timeout=60)
                 if sample:   # its name in Your videos and on the editor
                     rj = edit / "review.json"
-                    save(rj, {**load(rj), "name": SAMPLE_NAME})
+                    save(rj, {**load(rj), "name": SAMPLE_NAME, "sample": True})   # Getting started: the sample is not your first video
             # every video gets a Claude of its own in a new Terminal window, unless an idle listening Claude takes it now
             lis, d = listener(), read()
             idle = lis is not None and not busy_with(d, lis) and not any(takeable(j, lis, d) for j in d["jobs"] if j["id"] not in ids)
@@ -3007,6 +3008,13 @@ def demo():
     import review
     assert review.download_name(se, {"name": "Sample video", "stage": "edit"}) == "Sample video - Card edit.mp4"
     assert library.entry(se)["name"] == "Sample video" and get_sample() == home() / "sample" / "sample-take.mp4"
+    assert library.entry(se)["sample"] and not library.entry(ed)["sample"]   # Getting started: the sample is not your first video
+    rj = se / "review.json"
+    was = load(rj)
+    save(rj, {**was, "stage": "edit", "round": 2, "raw": False, "sent": False})
+    gs = getting_started({**read(), "jobs": [], "doctor": {"rows": []}, "root": str(root)})
+    assert gs["sample"] and not gs["video"], gs
+    save(rj, was)
     assert running() == url and serve(root, 0, open_browser=False) == (None, url)
     # sessions: a job sticks to the Claude Code session that took it
     os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-A"
@@ -3265,7 +3273,7 @@ def demo():
     post("/later", {"names": ["style"]})
     assert read()["style_skipped"] and get("/state")["getting_started"]["style"]
     assert getting_started({**read(), "style_skipped": False, "jobs": [], "doctor": {"rows": [{"ok": False}]}, "root": str(tmp)}) == \
-        {"setup": False, "style": False, "video": False}   # a fresh library: nothing done yet
+        {"setup": False, "style": False, "video": False, "sample": False}   # a fresh library: nothing done yet
     ok_rows = {"rows": [{"ok": True}]}   # every tool passes mid-install: Set up still waits for the setup job to end
     assert not getting_started({**read(), "jobs": [{"type": "setup", "state": "taken"}], "doctor": ok_rows, "root": str(tmp)})["setup"]
     assert getting_started({**read(), "jobs": [], "doctor": ok_rows, "root": str(tmp)})["setup"]

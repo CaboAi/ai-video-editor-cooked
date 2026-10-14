@@ -200,8 +200,9 @@ def group(rows):
         out["line"] = (f"Too few videos to pick one format ({k} of {n} match): the style uses all {n}. "
                        f"More videos of one kind give a truer style.")
     else:
-        out["line"] = (f"These {n} videos do not share one format, so the style mixes them. The biggest group "
-                       f"({k}) is {fmt}; more videos of one kind give a truer style.")
+        out["line"] = (f"These {n} videos are edited in different ways, so the style mixes them. "
+                       + (f"{k} of them are {fmt}. " if k > 1 else "")
+                       + "More videos edited the same way give a truer style.")
     return out
 
 
@@ -297,7 +298,7 @@ def demo():
              row("m4", 0.8, kind="screen recording", shot=9.0)]
     out = group(mixed)
     assert not out["consistent"] and not out["applied"] and out["kept"] == ["m2"] and len(out["left_out"]) == 3, out
-    assert "do not share one format" in out["line"] and "no captions" in {x["id"]: x["why"] for x in out["left_out"]}["m3"]
+    assert "edited in different ways" in out["line"] and "no captions" in {x["id"]: x["why"] for x in out["left_out"]}["m3"]
     # One video: consistent, kept.
     out = group([row("solo", None, words=None)])
     assert out["consistent"] and not out["applied"] and out["kept"] == ["solo"] and out["line"] == "One video: talking-head videos.", out

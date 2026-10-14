@@ -556,7 +556,18 @@ const editsSent=()=>{const e=S.events[S.events.length-1];return !!(S.sent&&e&&e.
 let approving=false,landing=0;   // Approve pressed, before the server answers; the edit round arriving (1 = bar green, 2 = toast)
 const makingEdit=s=>{s=s||S;const e=s.events[s.events.length-1];return !!(s.sent&&!s.final&&e&&e.type==='approve'&&(e.stage==='cut'&&s.stage==='cut'||e.stills&&s.stills))};   // final: the cut is the video, no edit follows; the stills approved: the render is being made
 const stillsOk=()=>!!(S&&S.stills&&makingEdit());   // the approve that makes the edit was the stills', not the cut's
-const rn=r=>r.round===0?'Your clip, before the cut':r.stills?'The preview':'Draft '+r.round;   // round 0: the raw clip, open while the cut is made
+// one name for a round everywhere (library.py draft_name): "draft N" counts the stage's videos, a preview is "the preview"
+// ("preview 1", "preview 2" when there are more), round 0 is the clip. The tab title, the Drafts list and the Home card all use it.
+const roundOf=(st,n)=>(S.rounds||[]).find(r=>r.stage===st&&r.round===n)||(S.stage===st&&S.round===n?S:{stage:st,round:n});
+function dn(r){
+  if(!r||!r.round)return 'your clip';
+  if(r.stills==null)r=roundOf(r.stage,r.round);   // a view key {stage, round}: its round tells a preview
+  const same=(S.rounds||[]).filter(x=>x.stage===r.stage&&x.round>=1&&x.round<=r.round);
+  if(r.stills){const n=same.filter(x=>x.stills).length||1,more=(S.rounds||[]).filter(x=>x.stage===r.stage&&x.stills).length>1;return more?'preview '+n:'the preview'}
+  return 'draft '+(same.filter(x=>!x.stills).length||1);
+}
+const cap=t=>t.charAt(0).toUpperCase()+t.slice(1);
+const rn=r=>r.round===0?'Your clip, before the cut':cap(dn(r));   // round 0: the raw clip, open while the cut is made
 const plural=(n,w)=>n+' '+w+(n===1?'':'s');
 const mainName=r=>r.label||'main';
 const lab=x=>x===''?mainName(viewRound()):x;
@@ -590,13 +601,40 @@ async function load(force){
   if(S&&!landing&&makingEdit()&&d.stage==='edit'&&key(d)!==key(S)){landing=d.stills?3:1;renderMaking();renderList();setTimeout(()=>{landing=2;load(true)},1100);return}   // 3: the stills, the same green bar
   // live reload: the page or the server changed; never while a note is being typed
   if(d.page){const t=document.activeElement;if(PV&&d.page!==PV&&!(t&&/^(INPUT|TEXTAREA)$/.test(t.tagName)&&t.value)){location.reload();return}PV=PV||d.page}
-  S=d;
+  S=d;plainState(S);
   if((d.theme==='light'||d.theme==='dark')&&document.documentElement.dataset.theme!==d.theme&&Date.now()-themeAt>3000){document.documentElement.dataset.theme=d.theme;themeIcon()}   // one theme with the window
   if(!view||followNew&&was!==key(cur())||(was&&was!==key(cur())&&key(view)===was)){view=cur();followNew=false;if(was&&was!==key(cur()))tab='notes'}   // follow a new round when it lands
   for(const r of S.rounds||[])if(!(key(r) in DATA)){DATA[key(r)]=null;fetch('/data?k='+key(r)).then(x=>x.json()).then(j=>{DATA[key(r)]=j;txSig='';render()}).catch(()=>{})}
   setVideo();render();
   if(landing===2){landing=0;toast(S.stills?'The preview is ready':'The edit is ready')}
 }
+// Claude's words reach the page as written. Check output never should ("Render check: 1 FAIL left", "-12.7 LUFS",
+// "2 frames short (187 of 189)"): those sentences are left out; a few frames short at the end reads as a fixed glitch.
+const DEV=/render check|\bcheck\.py\b|\bFAIL\b|\bWARN\b|LUFS|dBTP|true peak|\bframes?\b[^.]*\b(short|of \d+)/i;
+function plainText(t){
+  if(!t||!DEV.test(t))return t;
+  let glitch=false,skip=false;
+  const out=String(t).split(/(?<=[.!?])\s+/).filter(x=>{
+    if(/\bframes?\b[^.]*\bshort\b/i.test(x)){glitch=true;skip=true;return false}
+    if(skip&&/^every word is there/i.test(x))return false;
+    skip=false;return !DEV.test(x)});
+  if(glitch)out.push('Fixed a tiny glitch at the end.');
+  return out.join(' ');
+}
+function plainState(d){
+  for(const a of d.activity||[])a.text=plainText(a.text);
+  for(const r of d.rounds||[])r.note=plainText(r.note);
+  d.note=plainText(d.note);
+  for(const c of d.comments||[])c.reply=plainText(c.reply);
+}
+// Download: the file is checked first (one byte), so a click while Claude is still saving the finished video waits
+// for it and then saves, instead of a silent failed download. The first click always counts.
+$('dl').addEventListener('click',async e=>{
+  e.preventDefault();const a=$('dl'),href=a.href;if(a.dataset.busy)return;a.dataset.busy='1';
+  try{for(let i=0;i<30;i++){try{const r=await fetch(href,{headers:{Range:'bytes=0-0'}});if(r.ok){location.href=href;return}}catch(x){}   // an attachment: the page stays
+      if(i===1)toast('Saving the video. It downloads in a moment.');await new Promise(r=>setTimeout(r,1000))}
+    toast('The video did not download. Try again.')}finally{delete a.dataset.busy}
+});
 function toast(t){const e=$('toast');e.innerHTML=TICK+esc(t);e.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>e.classList.remove('show'),3500)}
 function cmpOptions(){   // what can play beside this round: its other versions, then earlier rounds of this stage
   const r=viewRound(),o=['',...(r.alts||[]).map(a=>a.name)].filter(x=>x!==alt).map(x=>({k:key(view),alt:x,label:lab(x)}));
@@ -653,17 +691,17 @@ function steps(){
     const done=approved(st),viewing=view&&view.stage===st,rs=(S.rounds||[]).filter(r=>r.stage===st);
     const lit=viewing&&(!done||view.stage!==S.stage);   // a finished stage stays green; inked only when looked back at
     $(id).className=(done?'done':'')+(lit?' on':'');$(id).setAttribute('aria-current',viewing?'page':'false');
-    $(id).innerHTML=`<span class="n">${done?TICK:i+1}</span>${STAGE[st]}${viewing&&!done&&rs.length?`<small>${viewRound().stills?'preview':view.round?'draft '+view.round:'your clip'}</small>`:''}`;
+    $(id).innerHTML=`<span class="n">${done?TICK:i+1}</span>${STAGE[st]}${viewing&&!done&&rs.length?`<small>${dn(viewRound()).replace(/^the /,'')}</small>`:''}`;
     $(id).disabled=!has(st);
   });
 }
 function listenText(S){
   const e=S.events[S.events.length-1],picked=!!(S.sent&&e&&e.handled);
   if(picked&&e.type==='approve')return e.stills?'Claude is making the video':e.stage==='cut'?(S.stage==='cut'&&!S.final?'Claude is making the edit':'The cut is approved'):'Approved';
-  if(picked)return S.raw?(S.cut_steps&&S.cut_steps.state==='queued'?((S.cut_steps.claude||{}).opened?'Claude is working in its own Terminal window':'Waiting for Claude'):'Claude is making the cut'):e.type==='edits'?'Claude is applying your changes':'Claude is working on draft '+(S.round+1);
+  if(picked)return S.raw?(S.cut_steps&&S.cut_steps.state==='queued'?((S.cut_steps.claude||{}).opened?'Claude is working in its own Terminal window':'Waiting for Claude'):'Claude is making the cut'):e.type==='edits'?'Claude is applying your changes':'Claude is working on the next draft';
   if(S.sent)return e&&e.type==='edits'?'Changes sent':e&&e.type==='approve'?(e.stills?'Preview approved':e.stage==='cut'?'Cut approved':'Approved'):'Notes sent';
   const first=!(S.rounds||[]).some(r=>r.stage===S.stage&&r.round>=1&&r.round<S.round&&!r.stills);   // the first video of the cut or the edit (the stills before it are not one)
-  if(S.listening)return S.round>1&&!S.comments.some(c=>c.stage===S.stage&&c.round===S.round)?(first?(S.stage==='edit'?(S.stills?'The preview is ready':'The edit is ready'):'The cut is ready'):'Draft '+S.round+' is ready'):'Claude is listening';
+  if(S.listening)return S.round>1&&!S.comments.some(c=>c.stage===S.stage&&c.round===S.round)?(first?(S.stage==='edit'?(S.stills?'The preview is ready':'The edit is ready'):'The cut is ready'):cap(dn(S))+' is ready'):'Claude is listening';
   if(S.busy)return 'Claude is working. Notes you send now are next.';
   return 'Claude is not listening. Notes still save.';
 }
@@ -671,7 +709,7 @@ function render(){
   if(!S)return;
   document.body.classList.toggle('vertical',!!S.vertical);renderRail();
   const p=pending(),lastEv=S.events[S.events.length-1],picked=!!(S.sent&&lastEv&&lastEv.handled),vr=viewRound();
-  $('name').textContent=S.name;$('name').title=S.name;document.title=S.name+(p==='send'?' · Claude working':' · draft '+S.round);steps();
+  $('name').textContent=S.name;$('name').title=S.name;document.title=S.name+(p==='send'?' · Claude working':' · '+dn(S));steps();
   const idleEdit=makingEdit()&&makeState().idle,busyNow=!idleEdit&&(picked&&(p==='send'||!!S.raw)||makingEdit()||approving);
   const nowAct=busyNow&&(S.activity||[]).filter(x=>x.round===S.round&&!x.done).pop();
   const asking=!!document.documentElement.dataset.ask;   // ask.js: Claude's question box is open on this page
@@ -714,7 +752,7 @@ function render(){
   // the composer: open until approve. While Claude works, a note waits for the next round
   const canNote=noteOk();
   ta.disabled=!canNote;box.classList.toggle('off',!canNote);
-  ta.placeholder=previewOn?'Back to the cut to leave a note':p==='send'?(S.raw?'Note for the cut...':'Note for the next draft...'):!isCur()?'Older draft, read only':p==='approve'?(S.stills?'The preview is approved':S.stage==='cut'&&!S.final?'The cut is approved':'Approved'):view.round>1?'Note on draft '+view.round+'...':'Leave a note...';
+  ta.placeholder=previewOn?'Back to the cut to leave a note':p==='send'?(S.raw?'Note for the cut...':'Note for the next draft...'):!isCur()?'Older draft, read only':p==='approve'?(S.stills?'The preview is approved':S.stage==='cut'&&!S.final?'The cut is approved':'Approved'):view.round>1?'Note on '+dn(viewRound())+'...':'Leave a note...';
   const sc=$('scope');sc.style.display=nv&&canNote?'block':'none';
   if(nv)sc.innerHTML=`<option value="">${esc(lab(alt))} only</option><option value="*">${nv===1?'Both':'All'} versions</option>`;
   renderVer();renderTx();renderBar();renderTracks();renderList();renderAdds();boxTime();hitSig='~';renderHits();
@@ -766,12 +804,12 @@ function renderTracks(){
 function noteHtml(c){
   const old=c.round!==view.round&&!c.queued,t=here(c),live=isCur()&&(!pending()||!!c.queued),nv=(viewRound().alts||[]).length;
   const canEdit=!old&&live&&c.status==='open',ed=canEdit&&editing&&editing.id===c.id;   // review.py editable(): open round or queued
-  const why=canEdit?'':old?`From draft ${c.round}. Leave a new note to change it.`:isCur()&&pending()==='send'?'Claude is working on this draft. Leave a new note for the next one.':pending()==='approve'?'This draft is approved.':'An older draft, read only.';
+  const why=canEdit?'':old?`From ${dn(roundOf(c.stage,c.round))}. Leave a new note to change it.`:isCur()&&pending()==='send'?'Claude is working on this draft. Leave a new note for the next one.':pending()==='approve'?'This draft is approved.':'An older draft, read only.';
   const tm=c.t_end!=null&&!old?fmtx(c.t)+'–'+fmtx(c.t_end):fmtx(t);
   const thumb=old?'':`<img class="thumb${S.vertical?'':' wide'}" src="/frames/${encodeURIComponent(c.frame)}" alt="" loading="lazy">`;
   const imgs=(c.images||[]).length?`<div class="att">${c.images.map((x,i)=>`<a href="/frames/${encodeURIComponent(x)}" target="_blank" rel="noopener"><img src="/frames/${encodeURIComponent(x)}" alt="">Image ${i+1}</a>`).join('')}</div>`:'';
   const card=c.card?`<span class="cardm">Card ${c.card.i+1}${c.card.trigger_word?' on "'+esc(c.card.trigger_word)+'"':''}</span>`:'';
-  const moved=old&&c.new_t!=null&&fmt(c.new_t)!==fmt(c.t)?` (${fmt(c.t)} in draft ${c.round})`:'';
+  const moved=old&&c.new_t!=null&&fmt(c.new_t)!==fmt(c.t)?` (${fmt(c.t)} in ${dn(roundOf(c.stage,c.round))})`:'';
   const body=ed?`<textarea class="edta" aria-label="edit note">${esc(editing.text)}</textarea>
     ${editing.images.length?`<div class="att">${editing.images.map((x,i)=>`<span class="rm"><a><img src="${x.startsWith('data:')?x:'/frames/'+encodeURIComponent(x)}" alt="">Image ${i+1}</a><button data-rmimg="${i}" aria-label="remove image">×</button></span>`).join('')}</div>`:''}
     <div class="erow"><button data-addimg>+ Image</button><span class="grow"></span><button data-cancel>Cancel</button><button class="go" data-save>Save</button></div>`
@@ -806,12 +844,12 @@ function workHtml(){
       :`<li class="todo"><span class="ic"><i></i></span>${esc(m.steps[k])}</li>`).join('')
       +(m.extra?`<li class="now"><span class="ic">${SPIN}</span>${esc(m.extra)}</li>`:'');
     const ok=S.stills?'The preview is approved. ':'The cut is approved. ';
-    return `<div class="claude"><div><b>Claude</b><p>${esc(m.idle?ok+m.idle:ok+(S.stills?'Claude is making the video in ':'Claude is making the edit in ')+m.style+'.')}</p></div><ol class="steps">${li}</ol>${m.at&&!m.idle?`<span class="since" data-since="${esc(m.at)}">Working for ${dur((Date.now()-new Date(m.at))/1000)}</span>`:''}</div>`}
+    return `<div class="claude"><div><b>Claude</b><p>${esc(m.idle?ok+m.idle:ok+(S.stills?'Claude is making the video':'Claude is making the edit')+(m.style?' in '+m.style:'')+'.')}</p></div><ol class="steps">${li}</ol>${m.at&&!m.idle?`<span class="since" data-since="${esc(m.at)}">Working for ${dur((Date.now()-new Date(m.at))/1000)}</span>`:''}</div>`}
   if(p==='approve')return `<div class="claude"><div><b>Claude</b><p>${S.stage==='cut'?'The cut is approved. It is the finished video.':'Approved. The edit is finished.'}</p></div></div>`+learnHtml();
   if(S.raw&&S.cut_steps)return cutHtml(S.cut_steps);
   if(p!=='send'&&(!live||S.stage==='cut'))return '';   // the cut is ready: what Claude does next is the edit's prep, not this round
   const ed=editsSent()?S.events[S.events.length-1]:null,nch=ed?plural(ed.n,'transcript change'):'';
-  const head=S.raw?'Making the cut. Your clip plays meanwhile. Notes you leave now go on the cut.':ed?(act.length?`Claude is applying your changes (${nch}). Draft ${S.round+1} opens here.`:picked?`Claude has your ${nch} and is starting draft ${S.round+1}.`:S.listening||S.busy?`${nch} saved. Waiting for Claude to pick them up.`:`${nch} saved, but Claude is not listening. Ask Claude in the terminal to apply them.`):p==='send'?(act.length?`Making draft ${S.round+1}.`:picked?`Claude has your notes and is starting draft ${S.round+1}.`:'Notes sent. Waiting for Claude to pick them up.'+(S.listening||!S.busy?'':' Claude is finishing something and takes them next.')):'Still coming in this draft:';
+  const head=S.raw?'Making the cut. Your clip plays meanwhile. Notes you leave now go on the cut.':ed?(act.length?`Claude is applying your changes (${nch}). The next draft opens here.`:picked?`Claude has your ${nch} and is starting draft ${S.round+1}.`:S.listening||S.busy?`${nch} saved. Waiting for Claude to pick them up.`:`${nch} saved, but Claude is not listening. Ask Claude in the terminal to apply them.`):p==='send'?(act.length?`Making draft ${S.round+1}.`:picked?`Claude has your notes and is starting draft ${S.round+1}.`:'Notes sent. Waiting for Claude to pick them up.'+(S.listening||!S.busy?'':' Claude is finishing something and takes them next.')):'Still coming in this draft:';
   if(p!=='send'&&!ed&&!S.raw&&!act.some(x=>x.step||x.pct!=null))   // the draft is out: a plain line from Claude is a remark, not work still coming
     return `<div class="claude"><div><b>Claude</b>${act.map(x=>`<p>${esc(x.text)}</p>`).join('')}</div></div>`;
   const li=act.map(x=>x.done?`<li><span class="ic">${TICK}</span>${esc(x.text)}</li>`
@@ -843,7 +881,7 @@ function mapT(t,from,to){
   return t;
 }
 function learnHtml(){
-  const L=S.learn;if(!L)return '';const head=`<b>Teach ${!L.style||L.style==='My style'?'your style':esc(L.style)} from this video</b>`;   // own style: "your style"; a creator's: its name
+  const L=S.learn;if(!L)return '';const head=`<b>${S.style_sample?'Save what you liked as your own style':`Teach ${!L.style||L.style==='My style'?'your style':esc(L.style)} from this video`}</b>`;   // own style: "your style"; a creator's: its name
   const say={none:'No notes this time. Your style stays as it is.',empty:'Nothing in your notes was about the style. It stays as it is.',skipped:'Not saved. Your style stays as it is.'}[L.state];
   if(say)return `<div class="learn">${head}<p>${say}</p></div>`;
   if(L.state==='reading')return `<div class="learn">${head}<p class="wait"><i></i>Claude is reading your notes...</p></div>`;
@@ -867,7 +905,7 @@ function makeState(){   // the edit's steps from Claude's status reports (review
   const left='';   // no time estimates on a step
   const alive=S.busy||!!(open&&open.log_age!=null&&open.log_age<120);   // a step is open only while Claude reports or its render log moves
   const idle=!alive?'No word from Claude for a while. If it stopped, go back to Claude and say go on.':'';
-  return {steps,keys,cur,closed,pct,frac,at,left,idle,style:(S.making&&S.making.style)||'your style',
+  return {steps,keys,cur,closed,pct,frac,at,left,idle,style:(S.making&&S.making.style)||'',
     now:open?open.text:cur>=0?steps[keys[cur]]:'Starting',extra:open&&!open.step?open.text:''};
 }
 function renderMaking(){
@@ -876,7 +914,7 @@ function renderMaking(){
   const m=makeState(),ready=landing===1||landing===3,el=$('making');
   if(m.idle&&!ready&&!approving){el.innerHTML=`<div class="mk"><div><b>Claude is not working on the edit</b><p>${esc(m.idle)} Your ${S.stills?'preview is':'cut is'} approved and saved.</p></div></div>`;return}
   const pc=ready?100:Math.max(3,Math.round(m.frac*100)),since=m.at?dur((Date.now()-new Date(m.at))/1000):'0s';
-  el.innerHTML=`<div class="mk${ready?' ready':''}"><div><b>${landing===3?'The preview is ready':ready?'The edit is ready':'Making the edit'}</b><p>Captions, zooms and sound in ${esc(m.style)}</p></div>
+  el.innerHTML=`<div class="mk${ready?' ready':''}"><div><b>${landing===3?'The preview is ready':ready?'The edit is ready':'Making the edit'}</b><p>Captions, zooms and sound${m.style?' in '+esc(m.style):''}</p></div>
     <em role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pc}"><i style="width:${pc}%"></i></em>
     <div class="mrow"><span>${ready?'Opening it now':esc(m.now)}</span><span class="num" data-mk="${esc(m.at||'')}">${ready?'':since+(m.left?' · '+m.left:'')}</span></div></div>`;
 }
@@ -890,7 +928,7 @@ function renderList(){
     $('list').innerHTML=rs.map(r=>{const n=S.comments.filter(c=>c.stage===r.stage&&c.round===r.round).length,k=key(r);
       const acts=[k!==key(view)?`<button data-cmp="${k}">Compare side by side</button>`:'',
         r.stage===S.stage&&r.round!==S.round&&r.round>0&&!r.stills&&r.snap&&!p&&!S.raw?`<button data-back="${r.round}"${sureBack===r.round?' class="sure"':''}>${sureBack===r.round?'Click again to go back':'Go back to this draft'}</button>`:''].filter(Boolean);
-      return `<div class="rnd${k===key(view)?' on':''}" data-k="${k}" role="button" tabindex="0"><div class="rm"><b>${rn(r)}</b><span>${[k===key(cur())?'latest':'',r.back_to?'draft '+r.back_to+' again':'',plural(n,'note'),r.at?ago(r.at):''].filter(Boolean).join(' · ')}</span></div>${acts.length?`<div class="racts">${acts.join('')}</div>`:''}</div>`}).join('')
+      return `<div class="rnd${k===key(view)?' on':''}" data-k="${k}" role="button" tabindex="0"><div class="rm"><b>${rn(r)}</b><span>${[k===key(cur())?'latest':'',r.back_to?dn(roundOf(r.stage,r.back_to))+' again':'',plural(n,'note'),r.at?ago(r.at):''].filter(Boolean).join(' · ')}</span></div>${acts.length?`<div class="racts">${acts.join('')}</div>`:''}</div>`}).join('')
       +(rs.length>1?'<p class="empty2">Click a draft to watch it at the same moment.</p>':'');
     return;
   }
@@ -899,20 +937,20 @@ function renderList(){
   const prev=S.comments.filter(c=>onAlt(c)&&c.stage===view.stage&&c.round===view.round-1).sort((a,b)=>here(a)-here(b));
   let h='';
   const cc=view.stage==='cut'&&S.cutcheck&&!data().transcript?' <a href="/cut-check.html" target="_blank" rel="noopener">See the transcript with every cut word struck through.</a>':'';
-  const also=[...(vr.changed||[]).map(text=>({t:null,text})),...(data().changes||[])];   // Claude's own lines, then what the files say
+  const also=[...(vr.changed||[]).map(text=>({t:null,text})),...(data().changes||[])].map(c=>({...c,text:plainText(c.text)})).filter(c=>c.text);   // check output never shows   // Claude's own lines, then what the files say
   if(prev.length||also.length||vr.back_to){
     const todo=prev.filter(c=>!c.checked||c.status==='wontfix'),done=prev.filter(c=>c.checked&&c.status!=='wontfix'),wf=workedFor(vr);
     h+=`<div class="chhead"><b>Changed in this draft</b>${wf?`<span class="since">Worked for ${wf}</span>`:''}</div>`;
-    if(vr.back_to)h+=`<div class="chg back">Back to draft ${vr.back_to}. Its files and video are restored.</div>`;
+    if(vr.back_to)h+=`<div class="chg back">Back to ${dn(roundOf(vr.stage,vr.back_to))}. Its files and video are restored.</div>`;
     h+=todo.map(noteHtml).join('');
     if(done.length)h+=`<button class="obtn" id="morechk">${done.length} checked, ${showChecked?'hide':'show'}</button>`+(showChecked?done.map(noteHtml).join(''):'');
     h+=also.map(c=>`<button class="chg" ${c.t!=null?`data-t="${c.t}" title="jump to ${fmt(c.t)}"`:'tabindex="-1"'}>${c.t!=null?`<span class="tchip num">${fmt(c.t)}</span>`:''}<span>${esc(c.text)}</span></button>`).join('');
     if(vr.note&&!vr.back_to)h+=`<div class="sum"><p>${esc(vr.note)}</p></div>`;
-    if(mine.length)h+=`<p class="sub">Your notes on draft ${view.round}</p>`;
+    if(mine.length)h+=`<p class="sub">Your notes on ${dn(viewRound())}</p>`;
   }else if((vr.note||cc)&&!(isCur()&&p==='send'))h+=`<div class="claude"><div><b>Claude</b><p>${esc(vr.note||'')}${cc}</p></div></div>`;
   h+=mine.map(noteHtml).join('');
   if(!mine.length&&!prev.length&&!(S.raw&&isCur())&&!(isCur()&&(makingEdit()||p==='approve')))h+=isCur()?'<div class="empty"><b>No notes yet</b>Pause where something is off and leave a note. It is pinned to that moment.</div>':'<p class="empty2">No notes on this draft.</p>';
-  if(!mine.length&&prev.length&&isCur()&&!p)h+=`<p class="empty2">No notes on draft ${view.round} yet. Pause where something is off and leave a note.</p>`;
+  if(!mine.length&&prev.length&&isCur()&&!p)h+=`<p class="empty2">No notes on ${dn(viewRound())} yet. Pause where something is off and leave a note.</p>`;
   if(isCur()&&S.made&&S.stage==='edit'&&!S.stills&&view.stage==='edit')h+=`<p class="since made">${esc(S.made)}</p>`;
   if(isCur())h+=workHtml();
   const queued=isCur()?S.comments.filter(c=>c.queued&&c.stage===S.stage&&onAlt(c)).sort((a,b)=>a.t-b.t):[];
@@ -970,7 +1008,7 @@ $('list').addEventListener('click',async e=>{
   const bk=e.target.closest('[data-back]');
   if(bk){const n=+bk.dataset.back;if(sureBack!==n){sureBack=n;clearTimeout(sureBack.h);setTimeout(()=>{if(sureBack===n){sureBack=null;renderList()}},4000);return renderList()}
     sureBack=null;bk.disabled=true;const r=await fetch('/back',{method:'POST',body:JSON.stringify({round:n})}),j=await r.json().catch(()=>({}));
-    if(!r.ok)return alert(j.error||'Could not go back');toast('Back to draft '+n);tab='notes';followNew=true;return load(true)}
+    if(!r.ok)return alert(j.error||'Could not go back');toast('Back to '+dn(roundOf(S.stage,+n)));tab='notes';followNew=true;return load(true)}
   const r=e.target.closest('.rnd');if(r){const[stage,n]=r.dataset.k.split('-');seekTo=mapT(v.currentTime,key(view),r.dataset.k);view={stage,round:+n};inT=outT=null;setVideo();render();return}
   const ch=e.target.closest('.chg[data-t]');if(ch){v.currentTime=+ch.dataset.t;return}
   const sc=e.target.closest('[data-scope]');
@@ -1076,7 +1114,7 @@ function renderTools(){
   else h=txSeen()?'<p></p>':'<p>Select words to cut or restore them.</p>';
   if(canPreview()&&(ed||previewOn))h+=`<button class="pbtn${previewOn?' on':''}" data-preview>${previewOn?'Back to the cut':'Play your changes'}</button>`;
   const nf=ed&&p!=='send'&&p!=='approve'?$('txlines').querySelectorAll('[data-acc]').length:0;   // Claude's suggested cuts still showing
-  if(nf>1)h+=`<button class="pbtn" data-accall title="keep every suggested cut">Accept all ${nf}</button>`;
+  if(nf>1)h+=`<button class="pbtn" data-accall title="keep every flagged cut and shortened pause">Accept all ${nf} suggestions</button>`;
   if(ed&&n)h+='<button class="pbtn go" data-apply>Apply</button>';
   const el=$('txtools');if(el._h!==h){el._h=h;el.innerHTML=h}
 }
@@ -1088,7 +1126,7 @@ function renderTx(){
   const sig=txFor+'|'+txVer+'|'+txEditable();
   if(sig===txSig)return;txSig=sig;txCur=-1;txNow=-1;txPast=-1;
   const tx=src[0],box=$('txlines'),top=box.scrollTop;
-  $('txmeta').textContent=`Struck words were cut · ${plural(tx.cuts,'cut')} · ${fmt(tx.source_s)} to ${fmt((DATA[src[1]]||{}).duration||D())}`;
+  $('txmeta').textContent=`Struck words were cut · ${plural(tx.cuts,'cut')} in the video · ${fmt(tx.source_s)} to ${fmt((DATA[src[1]]||{}).duration||D())}`;
   box.innerHTML=txHtml(tx);box.scrollTop=top;txLines=[...box.children];
   renderTools();tickTx();if(txSel)showBar();
 }

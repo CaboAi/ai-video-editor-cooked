@@ -83,7 +83,7 @@ Do each step in order, skipping what is already done. Read each skill's SKILL.md
    run step 2 again.
 4. **cut** on the raw take, from its step 0b (start has already decided: cut, wait for the cut page
    approval, then style). The user approves the cut page. This is approval 1 of 2.
-5. **style-edit** with `edits/<name>/style.json`. Its stills round on the same review page is approval 2 of 2. It reads the
+5. **style-edit** with `edits/<name>/style.json`. Renders on the cut's approve; the edit is approval 2. It reads the
    profile itself: the brand kit sets the look, `names` get real logos and captures, `assets_dir`
    images go on screen first, `avoid` is enforced by plan.py. Letterbox (wide take, title on top):
    cut `--max-pause 0.5`, `--layout letterbox`.

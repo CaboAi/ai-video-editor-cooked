@@ -135,8 +135,8 @@ the render's objects are deleted after the download; with false, the render prin
 
 ## The live preview
 
-Only when the user asks to drag, trim or swap cards by hand ("let me move the cards"); the stills round on
-the review page (SKILL.md step 5) is what every user sees first. Run `python3 "$S/preview.py" edits/<name>
+Only when the user asks to drag, trim or swap cards by hand ("let me move the cards"); every other user sees
+the rendered edit first (SKILL.md step 5). Run `python3 "$S/preview.py" edits/<name>
 [--plan plan.json]`; it waits for **Render**. Then read `preview-done.json`, save preferences with the taste
 skill, `python3 "$S/preview.py" apply edits/<name> [--plan plan.json]`, and go to SKILL.md step 6.
 

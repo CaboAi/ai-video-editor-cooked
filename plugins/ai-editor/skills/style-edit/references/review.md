@@ -3,8 +3,8 @@
 Every render is handed over on one local page, never as a file path alone: the cut (cut skill), the
 styled edit (style-edit), each clip (clips) and a product video (product-video). The user watches it,
 pauses, and leaves a note at the moment. Claude reads the notes, fixes, renders again and opens the
-next round on the same page. The stills before the render go there too, as the edit stage's stills round
-(`round --stage edit --stills --video stills/stills.mp4`, SKILL.md step 5): its Approve means render it.
+next round on the same page. The stills before the render are Claude's own check, never a round on the page: the cut's Approve
+means make the edit (SKILL.md step 5). `round --stills` still works for a user who asks to see the frames first.
 The live preview (`preview.py`) is only for a user who asks to move cards by hand.
 
 Script: `${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/review.py` (stdlib), page `review.html` beside it.

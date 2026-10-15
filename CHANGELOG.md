@@ -4,6 +4,11 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Approving the cut goes straight to the full edit. The frames preview, and its second approve, are gone; Claude
+  still checks the frames itself before rendering.
+- The note box keeps its shape while you type: the time and your words on top, the version, attach and send buttons
+  always in the same place underneath.
+
 - The New style tile at the end of Styles opens the same New style window as the button, instead of making a blank
   style straight away.
 - An analysing card has a Stop button, and the first-run "Analysing your format" page has Stop analysing. Stop ends

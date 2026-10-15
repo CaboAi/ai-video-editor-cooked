@@ -236,16 +236,15 @@ cp <edit>/words.json <edit>/cut.transcript.json && \
 python3 "$R" <edit> start --video <edit>/cut.mp4 --stage cut --transcript <edit>/words.json
 ```
 
-3. On the cut's `APPROVE`: the stills, then `wait`:
+3. On the cut's `APPROVE`: plan and check the stills yourself, then render (no stills round on the page):
 
 ```bash
 python3 "$C/retakes.py" captions <edit> && node "$SE/capture.mjs" <edit> && \
 python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/run.py" "$SE/face.py" <edit> && \
-python3 "$SE/plan.py" <edit>/style.json <edit>/captions.json --aspect 9:16 && python3 "$SE/edit.py" stills <edit> && \
-python3 "$R" <edit> round --stage edit --stills --video <edit>/stills/stills.mp4 --plan <edit>/plan.json
+python3 "$SE/plan.py" <edit>/style.json <edit>/captions.json --aspect 9:16 && python3 "$SE/edit.py" stills <edit>
 ```
 
-4. On the stills' `APPROVE`: `python3 "$SE/edit.py" render <edit>` on the laptop, then
+4. Then `python3 "$SE/edit.py" render <edit>` on the laptop, then
    `python3 "$R" <edit> round --stage edit --video <edit>/render.mp4` and `wait`. Say in one line that the
    sample is done and they can drop their own clip on Home next.
 

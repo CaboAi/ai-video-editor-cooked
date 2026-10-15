@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.14, creator-teardown 2.7.14 (2026-10-15)
+
 - Approving the cut goes straight to the full edit. The frames preview, and its second approve, are gone; Claude
   still checks the frames itself before rendering.
 - The note box keeps its shape while you type: the time and your words on top, the version, attach and send buttons

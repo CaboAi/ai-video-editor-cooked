@@ -6,6 +6,9 @@
                                          creator-teardown with `claude plugin`; prints STEP lines, VERSION <new
                                          ai-editor version> and "Updated." (the window shows them on its Update job)
                                          (a git checkout of the plugin: exit 2, "update it with git yourself")
+    python3 update.py window             Settings, Update, for any install: market (above) for the plugin; for a clone of
+                                         the editor on main with no changes of its own, git pull --ff-only; a fork or a
+                                         clone with changes is refused with the one thing to do (exit 2)
     python3 update.py add-upstream       add the `upstream` remote (ask the user first)
     python3 update.py check              fetch upstream: new commits, their CHANGELOG lines, files both sides changed
     python3 update.py merge              backup branch, then merge upstream/main (refuses a dirty tree)
@@ -165,6 +168,39 @@ def market():
     print(f"VERSION {new or old or '?'}")
     if where_:
         print(f"PATH {where_}")
+    print("Updated. Type /reload-plugins in Claude Code to load it.")
+    return 0
+
+
+def window(repo=None):
+    """The window's one Update button, whatever the install. STEP / VERSION / FAIL lines as market() prints."""
+    repo = repo or (find_repo(str(LIB.parent)) if dev_copy() else None)
+    if not repo:
+        return market()
+    kind, _ = where(repo)
+    if kind == "fork":
+        print("FAIL Your editor is your own copy (a fork). Ask Claude Code: update my editor.")
+        return 2
+    branch = out(repo, "rev-parse", "--abbrev-ref", "HEAD")
+    if branch != "main":
+        print(f"FAIL Your copy of the editor is on the branch {branch}. Switch to main (git switch main), then press Update again.")
+        return 2
+    if dirty(repo):
+        print(f"FAIL Your copy of the editor in {repo} has changes of its own, so it was not updated. "
+              "In that folder run: git stash && git pull")
+        return 2
+    print("STEP Getting the new version", flush=True)
+    p = git(repo, "pull", "--ff-only", "-q", "origin", "main", check=False)
+    if p.returncode:
+        why = (p.stderr.strip().splitlines() or ["git pull failed"])[-1]
+        print(f"FAIL git pull in {repo} did not work ({why}). Run git pull there, then press Update again.")
+        return 1
+    try:
+        import json
+        print("VERSION " + json.loads((repo / "plugins/ai-editor/.claude-plugin/plugin.json").read_text(encoding="utf-8"))["version"])
+    except (OSError, ValueError, KeyError):
+        pass
+    print(f"PATH {repo / 'plugins' / 'ai-editor'}")
     print("Updated. Type /reload-plugins in Claude Code to load it.")
     return 0
 
@@ -362,6 +398,15 @@ def demo():
         write(up, "b.txt", "new\n")
         write(up, "CHANGELOG.md", "# Changelog\n\n## Unreleased\n\n- A new thing.\n")
         commit(up, "new thing")
+        # the window's Update: a clean clone on main pulls; one with its own change, or a fork, is told what to do
+        write(clone, "a.txt", "one\ntwo\nedited\n")
+        r = run(clone, "window")
+        assert r.returncode == 2 and "changes of its own" in r.stdout and not (clone / "b.txt").exists(), r.stdout
+        g(clone, "checkout", "-q", "--", "a.txt")
+        r = run(clone, "window")
+        assert r.returncode == 0 and "STEP Getting the new version" in r.stdout and (clone / "b.txt").exists(), r.stdout + r.stderr
+        assert r.stdout.strip().endswith("Type /reload-plugins in Claude Code to load it."), r.stdout
+        assert run(fork, "window").returncode == 2 and "fork" in run(fork, "window").stdout
         r = run(fork, "check")
         assert "1 new commit" in r.stdout and "- A new thing." in r.stdout and "also changes 0" in r.stdout, r.stdout
 
@@ -482,6 +527,8 @@ def main(argv):
         return demo()
     if cmd == "market":
         return market()
+    if cmd == "window":
+        return window(Path(rest[rest.index("--repo") + 1]) if "--repo" in rest else None)
     repo = find_repo(rest[rest.index("--repo") + 1] if "--repo" in rest else None)
     if cmd == "where":
         say_where(repo)

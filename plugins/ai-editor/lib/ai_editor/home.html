@@ -2296,8 +2296,8 @@ function stUpdate(){
     <div class="kvs"><div><span>Installed</span><b>${esc(u.installed||'?')}</b></div><div><span>Latest</span><b>${esc(u.latest||'?')}</b></div></div>
     ${u.dev?'':'<div class="t2" style="white-space:normal">Turn on auto-updates: type <b>/plugin</b>, open Marketplaces, pick nextwork, choose Enable auto-update.</div>'}
     ${u.newer&&(u.notes||[]).length?`<div><div class="t2">What changed</div>${u.notes.map(n=>`<div class="dash">${esc(n)}</div>`).join('')}</div>`:''}
-    ${u.dev?'<div class="t2" style="white-space:normal">Developer copy: update with git.</div>':''}
-    <div class="lks">${u.newer&&!u.dev?`<button class="b1 s" ${busy?'disabled':''} onclick="stDoUpdate()">${busy?'Updating...':'Update'}</button>`:`<button class="b2 s" ${u.checking?'disabled':''} onclick="stCheckUpd()">Check now</button>`}<a href="https://github.com/nextwork-projects/ai-video-editor-cooked/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Full changelog</a></div>
+    ${u.fork?'<div class="t2" style="white-space:normal">Your own copy (a fork): ask Claude Code to update my editor.</div>':''}
+    <div class="lks">${u.newer&&!u.fork?`<button class="b1 s" ${busy?'disabled':''} onclick="stDoUpdate()">${busy?'Updating...':'Update'}</button>`:`<button class="b2 s" ${u.checking?'disabled':''} onclick="stCheckUpd()">Check now</button>`}<a href="https://github.com/nextwork-projects/ai-video-editor-cooked/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Full changelog</a></div>
     ${st?`<div class="msg ${j.state==='failed'?'bad':''}">${esc(st)}</div>`:''}${rl}</div>`;
 }
 async function stDoUpdate(){const r=await post('/job',{type:'update'});if(!r._ok)toast(r.error||'That did not start.');await load()}

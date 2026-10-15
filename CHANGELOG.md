@@ -30,7 +30,8 @@ What changed for every user, newest first.
 - The notes panel says Submit feedback to Claude, and notes not sent yet say so.
 - After Accept all suggestions, Undo brings them back, and Show suggestions again lists every kept one so you can
   bring any back.
-- Settings, Update works for an editor installed from a cloned repo: it runs git pull in that folder first.
+- Settings, Update works however the editor was installed. A cloned repo on main with no changes of its own gets
+  git pull; a marketplace added from a cloned folder is pulled first; only a fork is sent to Claude to update.
 - An approve can be taken back. While Claude works on it the button says Stop and undo approve; after the final
   approve it says Undo approve. Either opens the draft for notes again.
 - Approve sits in the top right of the video page, not under the notes.

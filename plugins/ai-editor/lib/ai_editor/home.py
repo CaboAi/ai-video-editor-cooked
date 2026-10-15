@@ -1181,9 +1181,16 @@ def update_info():
     from ai_editor import skillrules
     plug, cache = PLUGIN_JSON.resolve().parents[1], (skillrules.claude_dir() / "plugins" / "cache").resolve()
     up = [q for q in [plug, *plug.parents] if cache in q.parents] if cache in plug.parents else [plug, *plug.parents]
-    dev = any((q / ".git").exists() for q in up if q != cache)   # a git checkout (a clone or worktree): git updates it
+    dev = any((q / ".git").exists() for q in up if q != cache)   # a git checkout (a clone or worktree): Update pulls it
+    fork = False
+    if dev:   # a fork is the user's own: the update skill merges it with them, the button does not
+        try:
+            o = subprocess.run(["git", "-C", str(plug), "remote", "get-url", "origin"], capture_output=True, text=True, timeout=5).stdout
+            fork = "nextwork-projects/ai-video-editor-cooked" not in o.strip().lower().removesuffix(".git") and bool(o.strip())
+        except (OSError, subprocess.TimeoutExpired):
+            pass
     return {"installed": mine, "latest": _UPD["latest"], "newer": newer, "notes": _UPD["notes"] if newer else [],
-            "checking": _UPD["busy"], "checked": _UPD["at"] or None, "dev": dev}
+            "checking": _UPD["busy"], "checked": _UPD["at"] or None, "dev": dev, "fork": fork}
 
 
 def trash(p):
@@ -1526,7 +1533,7 @@ def run_home(kind, jid):
         edit(f)
     err = "The update stopped without saying why. Try again." if kind == "update" else "The setup step stopped without saying why. Try again."
     try:
-        cmd = {"modal": [SETUP, "modal-connect"], "modal-test": [SETUP, "modal-test"], "update": [UPDATE, "market"]}[kind]
+        cmd = {"modal": [SETUP, "modal-connect"], "modal-test": [SETUP, "modal-test"], "update": [UPDATE, "window"]}[kind]
         p = subprocess.Popen([sys.executable, *map(str, cmd)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                              text=True, encoding="utf-8", errors="replace")
         for line in p.stdout:
@@ -2518,8 +2525,8 @@ def make_handler(token):
             elif kind == "video":
                 return self.videos(b, d)
             elif kind == "update":   # Settings, Update: the window runs it itself (run_home), no Claude needed
-                if update_info()["dev"]:
-                    return self.send(409, {"error": "This is a developer copy; update it with git yourself."})
+                if update_info()["fork"]:
+                    return self.send(409, {"error": "Your editor is your own copy (a fork). Ask Claude Code: update my editor."})
                 return self.send(200, {"id": start_modal("update")["id"]})
             elif kind == "setup":   # the first run's Start setup (JOB setup, install-all --report)
                 if any(j["type"] == "setup" and j["state"] in ("queued", "taken") for j in d["jobs"]):
@@ -4159,13 +4166,16 @@ def demo():
     u = get("/state")["update"]
     assert u["newer"] and u["latest"] == "99.0.0" and u["installed"] == json.loads(PLUGIN_JSON.read_text(encoding="utf-8"))["version"], u
     assert u["notes"] == ["Dark mode in the window"] and vtuple("2.10.0") > vtuple("2.9.1")
-    # Update runs in the window itself (no Claude): a developer copy is refused; an installed one runs update.py
-    # market, shows its steps, keeps the new version and restarts the server from the new version's folder
+    # Update runs in the window itself (no Claude): a fork is refused (the update skill merges it with the user); any
+    # other install runs update.py window, shows its steps, keeps the new version and restarts from its folder
+    real_info = update_info
+    globals()["update_info"] = lambda: {**real_info(), "fork": True}
     try:
         post("/job", {"type": "update"})
-        raise AssertionError("a git checkout must not update itself")
+        raise AssertionError("a fork must not update from the button")
     except urllib.error.HTTPError as e:
         assert e.code == 409
+    globals()["update_info"] = real_info
     real_update, real_restart, restarted = UPDATE, globals()["restart_on"], []
     fake = tmp / "fake_update.py"
     fake.write_text("print('STEP Getting the list of new versions', flush=True)\nprint('STEP Updating ai-editor', flush=True)\n"

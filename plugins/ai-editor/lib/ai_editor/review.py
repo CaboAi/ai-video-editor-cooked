@@ -719,6 +719,37 @@ def home_url():
     return url
 
 
+def video_skills(folder, now=None):
+    """The skills on this video, for the notes panel: each one Claude ran (toolhook.py, <edit>/review/skills.jsonl), "now"
+    for the last one while the video is being made, then the style's skill and chained skills still to run ("next").
+    [{"skill", "state": "done" | "now" | "next"}]."""
+    import toolhook
+    used = toolhook.used(folder)
+    f = askhook.pages().parent / "home" / "state.json"
+    try:
+        jobs = [j for j in json.loads(f.read_text(encoding="utf-8")).get("jobs") or [] if isinstance(j, dict)
+                and j.get("type") == "video" and Path((j.get("args") or {}).get("edit") or "/").resolve() == Path(folder).resolve()]
+    except (OSError, ValueError, AttributeError):
+        jobs = []
+    a = (jobs[-1].get("args") or {}) if jobs else {}
+    plan = [t.split(":", 1)[1] for t in str(a.get("chain") or "").split(",") if t.startswith("before:")] + \
+        ([a["skill"]] if a.get("skill") else []) + [t.split(":", 1)[1] for t in str(a.get("chain") or "").split(",") if t.startswith("after:")]
+    making = bool(jobs) and jobs[-1].get("state") == "taken" or (library_status(folder) in ("making", "cutting"))
+    out = [{"skill": u["skill"], "state": "done"} for u in used]
+    if out and making and (now or time.time()) - used[-1]["last"] < 3600:
+        out[-1]["state"] = "now"
+    ran = {u["skill"].split(":")[-1] for u in used}
+    return out + [{"skill": x, "state": "next"} for x in plan if x.split(":")[-1] not in ran]
+
+
+def library_status(folder):
+    try:
+        import library
+        return library.status(library._review(Path(folder)))
+    except Exception:
+        return None
+
+
 def home_jobs():
     """How many videos are being made (the home window's video jobs queued or taken, and every library video being cut,
     edited, previewed or rendered, as Home counts them): the rail's Making ring."""
@@ -1145,6 +1176,10 @@ def make_handler(folder, token):
                 if isinstance(d.get("learn"), dict):   # "Teach <style>": its name now, even renamed after the approve
                     d["learn"]["style"] = d["style_name"]
                 d["assets"] = assets.load(folder)   # "Anything to add?": the images and links added to this video
+                try:
+                    d["skills"] = video_skills(folder)   # the skills this video ran, runs now and will run
+                except Exception:
+                    d["skills"] = []
                 try:   # "Made in 6 min (cut 3:10, edit 1:40, render 0:52)" under the finished video: real times only
                     d["made"] = json.loads((folder / "timings.json").read_text(encoding="utf-8")).get("line")
                 except (OSError, ValueError, AttributeError):
@@ -1285,7 +1320,9 @@ def make_handler(folder, token):
                     return self.send(409, {"error": "The first cut is on its way."})
                 if body["type"] == "stop":   # the round's notes open again; `status` tells Claude to stop
                     def st(d):
-                        if d.get("sent") and d["events"] and (d["events"][-1]["type"] in ("send", "edits") or making_edit(d)):
+                        last = d["events"][-1]["type"] if d["events"] else None
+                        # an approve (even the final one) can be taken back too: the draft opens for notes again
+                        if last == "approve" or d.get("sent") and (last in ("send", "edits") or making_edit(d)):
                             e = d["events"][-1]
                             for ev in d["events"]:   # a send or approve `wait` has not taken yet is taken back
                                 ev["handled"] = True
@@ -2464,6 +2501,19 @@ def demo():
     tmp = Path(tempfile.mkdtemp(prefix="review_demo_"))
     os.environ["AI_EDITOR_HOME"] = str(tmp / "home")   # start records the folder in the library index there
     demo_timings(tmp)
+    # the skills on a video: ran (the last one now while it is made), then the style's and chained ones still to run
+    ve = tmp / "edits" / "sk"
+    (ve / "review").mkdir(parents=True)
+    (ve / "review" / "skills.jsonl").write_text("".join(json.dumps({"skill": k, "at": time.time()}) + "\n" for k in ("ai-editor:cut", "my-broll")), encoding="utf-8")
+    sf = tmp / "home" / "home" / "state.json"
+    sf.parent.mkdir(parents=True, exist_ok=True)
+    old = sf.read_bytes() if sf.exists() else None
+    sf.write_text(json.dumps({"jobs": [{"type": "video", "state": "taken", "args": {
+        "edit": str(ve), "skill": "my-edit", "chain": "logo-pack,before:my-broll,after:my-thumbnail"}}]}), encoding="utf-8")
+    assert video_skills(ve) == [{"skill": "ai-editor:cut", "state": "done"}, {"skill": "my-broll", "state": "now"},
+                                {"skill": "my-edit", "state": "next"}, {"skill": "my-thumbnail", "state": "next"}], video_skills(ve)
+    sf.write_bytes(old) if old is not None else sf.unlink()
+    shutil.rmtree(tmp / "edits")
     vid = tmp / "v.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30:duration=6",
                     "-f", "lavfi", "-i", "sine=duration=6", "-shortest", "-pix_fmt", "yuv420p", str(vid)], check=True)
@@ -2688,6 +2738,13 @@ def demo():
         raise AssertionError("status after stop")
     except SystemExit as e:
         assert e.code == 3 and "STOPPED" in o.getvalue()
+    # Undo approve: an approve, even one Claude already took, is taken back and the draft opens for notes again
+    d["events"] = [{"type": "approve", "stage": d["stage"], "round": d["round"], "at": now(), "handled": True}]
+    d["sent"] = False
+    save(folder / "review.json", d)
+    post("/event", {"type": "stop"})
+    d = load(folder / "review.json")
+    assert d["events"][-1]["type"] == "stop" and not d["sent"], d["events"]
     d["events"] = []
     save(folder / "review.json", d)
     # send: wait prints the note and its still; the page says the round is with Claude

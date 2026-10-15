@@ -91,15 +91,39 @@ def allow_rules(plugin=PLUGIN):
     return own + ["Bash(ffmpeg *)", "Bash(ffprobe *)", "Bash(npx remotion *)"]
 
 
-def plan(os_name=None, plugin=PLUGIN, claude=None, prompt=PROMPT):
-    """The Claude Code command. A plugin installed through /plugin lives under ~/.claude/plugins and loads
-    by itself; a checkout of this repo loads for this session with --plugin-dir (its plugins/ folder, so
-    creator-teardown comes too)."""
+def installed():
+    """Claude Code's installed_plugins.json "plugins" ({} when unread)."""
+    from ai_editor import skillrules
+    try:
+        return json.loads((skillrules.claude_dir() / "plugins" / "installed_plugins.json").read_text(encoding="utf-8"))["plugins"] or {}
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+
+
+def not_everywhere(plugins):
+    """Install folders of the editor's plugins Claude Code does not load in every folder: installed for a project
+    or locally only (the repo's .claude/settings.json does that), so a Claude started in the library would not
+    have /ai-editor:start. The newest row of each; [] when they are installed for the user."""
+    out = []
+    for name in ("ai-editor", "creator-teardown"):
+        rows = [r for k, v in plugins.items() if k.split("@")[0] == name and isinstance(v, list) for r in v if isinstance(r, dict)]
+        if rows and not any(r.get("scope") == "user" for r in rows) and rows[-1].get("installPath"):
+            out.append(rows[-1]["installPath"])
+    return out
+
+
+def plan(os_name=None, plugin=PLUGIN, claude=None, prompt=PROMPT, plugins=None):
+    """The Claude Code command. A plugin installed through /plugin for the user lives under ~/.claude/plugins and
+    loads by itself; one installed for a project only, and a checkout of this repo, load for this session with
+    --plugin-dir (a checkout's plugins/ folder, so creator-teardown comes too)."""
     os_name = os_name or platform.system()
     claude = claude or shutil.which("claude") or ("claude.exe" if os_name == "Windows" else "claude")
     cmd = [claude]
     if "/.claude/plugins/" not in Path(plugin).as_posix() + "/":
         cmd += ["--plugin-dir", str(Path(plugin).parent)]
+    else:
+        for d in not_everywhere(installed() if plugins is None else plugins):
+            cmd += ["--plugin-dir", d]
     return cmd + ["--settings", json.dumps({"permissions": {"allow": allow_rules(plugin)}}), prompt]
 
 
@@ -238,8 +262,14 @@ def demo():
         assert "Bash(python3 /repo/plugins/ai-editor/*)" in rules and "Bash(ffmpeg *)" in rules, rules
         assert all(r.startswith("Bash(") and r != "Bash(*)" and len(r) > 12 for r in rules), "never broad Bash"
         assert set(json.loads(cmd[cmd.index("--settings") + 1])) == {"permissions"}, "only Allow rules"
-        cached = plan(os_name, plugin=Path.home() / ".claude/plugins/cache/nextwork/ai-editor/2.3.0", claude="claude")
+        c = Path.home() / ".claude/plugins/cache/nextwork"
+        rows = lambda scope: {"ai-editor@nextwork": [{"scope": scope, "installPath": str(c / "ai-editor/2.3.0")}],
+                              "creator-teardown@nextwork": [{"scope": scope, "installPath": str(c / "creator-teardown/2.3.0")}]}
+        cached = plan(os_name, plugin=c / "ai-editor/2.3.0", claude="claude", plugins=rows("user"))
         assert "--plugin-dir" not in cached, cached
+        # installed for the cloned repo only: the library is another folder, so the session loads both itself
+        proj = plan(os_name, plugin=c / "ai-editor/2.3.0", claude="claude", plugins=rows("project"))
+        assert proj[1:5] == ["--plugin-dir", str(c / "ai-editor/2.3.0"), "--plugin-dir", str(c / "creator-teardown/2.3.0")], proj
         o = io.StringIO()
         with contextlib.redirect_stdout(o):
             assert main(["--dry-run", "--os", os_name]) == 0

@@ -24,7 +24,7 @@ python3 "$R" edits/<name> wait       # run in the background: it exits when the 
 ```
 
 (`py` instead of `python3` on Windows.) Tell the user in one line that the page is open: watch,
-pause, add a note, then **send notes** or **approve**. Then wait for `wait` to exit. Do not ask in
+pause, add a note, then **Submit feedback to Claude** or **approve**. Then wait for `wait` to exit. Do not ask in
 the question box meanwhile.
 
 `wait` prints `SEND` or `APPROVE`, then every note of the round:

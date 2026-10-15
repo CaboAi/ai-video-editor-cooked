@@ -11,6 +11,32 @@ What changed for every user, newest first.
 - Analyse a format has "What do you like about them?": write what you like (the captions, the zooms, the sound) and
   Claude looks closer at those parts. Add files too, by Add files or by dropping them on the box: example videos,
   screenshots, PDFs or notes. They are copied to your library's references folder and handed to the analysis.
+- A new video opens its Claude with the editor loaded when the editor was installed for one folder only (a cloned
+  repo). Before, the new Terminal said it could not find /ai-editor:start.
+- Every style page starts with a chat box. Type what to change (Enter sends, Shift+Enter is a new line) and a Claude
+  opens in a new Terminal window and changes the style. A skill style's words go into its skill. Your words and
+  Claude's reply show above the box.
+- Make a new skill is a chat box too: say what you like (the look, the pace, creators to copy) and a Claude opens to
+  build it with you.
+- A skill style's page is shorter: the skills it calls are one line under What runs.
+- The Skills page scrolls.
+- Each style's What runs can take other skills: Add a skill, before the edit (on the cut) or after the video (on
+  the finished video, like a thumbnail or a description). Or tell Claude in the style's chat. New video shows what
+  will run for the picked style.
+- The video's notes panel lists its skills: the ones it ran, the one running now and the ones still to come.
+- The sidebar's Making card has Stop. Claude stops at its next step, even mid-run.
+- When Claude waits for you in the Terminal (a permission prompt, a question), every open page says so and chimes once.
+- Pressing Make my video again on the same clip while it waits for its Claude opens no second job or Terminal window.
+- The notes panel says Submit feedback to Claude, and notes not sent yet say so.
+- After Accept all suggestions, Undo brings them back, and Show suggestions again lists every kept one so you can
+  bring any back.
+- Settings, Update works for an editor installed from a cloned repo: it runs git pull in that folder first.
+- An approve can be taken back. While Claude works on it the button says Stop and undo approve; after the final
+  approve it says Undo approve. Either opens the draft for notes again.
+- Approve sits in the top right of the video page, not under the notes.
+- A new draft opens where you were in the video, not at the start.
+- On the video page, drag the line between the video and the transcript, or the edge of the notes panel, to resize
+  them. Double-click a line to put it back.
 
 ## ai-editor 2.7.13, creator-teardown 2.7.13 (2026-10-14)
 

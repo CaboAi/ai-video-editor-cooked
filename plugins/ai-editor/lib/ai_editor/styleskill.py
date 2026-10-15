@@ -139,6 +139,32 @@ def set_chain(style_path, step, on):
     return chain(style_path)
 
 
+# Skills the user chained onto a style's "What runs": [{"skill", "at"}], "before" the edit (after the cut's approve)
+# or "after" (on the finished video, after the final approve), in the order added (style-names.json "skills").
+CHAIN_AT = ("before", "after")
+
+
+def chain_skills(style_path=None):
+    xs = names().get(key(style_path), {}).get("skills") or []
+    return [{"skill": x["skill"], "at": x.get("at") if x.get("at") in CHAIN_AT else "after"}
+            for x in xs if isinstance(x, dict) and isinstance(x.get("skill"), str) and x["skill"]]
+
+
+def set_chain_skill(style_path, skill, at=None):
+    """Add skill at "before" or "after" (moved there when already chained), or take it out with at=None."""
+    skill = str(skill or "").strip().lstrip("/")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9:_-]{0,63}", skill):
+        raise ValueError("not a skill name")
+    if at is not None and at not in CHAIN_AT:
+        raise ValueError(f"at is one of {', '.join(CHAIN_AT)}")
+    d = names()
+    e = d.get(key(style_path), {})
+    xs = [x for x in chain_skills(style_path) if x["skill"] != skill] + ([{"skill": skill, "at": at}] if at else [])
+    d[key(style_path)] = {**e, "skills": xs, "path": e.get("path") or (str(preferred(style_path)) if style_path else None)}
+    _save_names(d)
+    return xs
+
+
 def plugin_skill_names():
     return {p.parent.name for p in Path(__file__).resolve().parents[3].glob("*/skills/*/SKILL.md")}
 

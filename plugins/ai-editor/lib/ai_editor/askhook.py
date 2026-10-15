@@ -73,6 +73,7 @@ LIVE_S = 90          # a page polled this recently is open (a background tab pol
 # AI_EDITOR_ASK_TIMEOUT (seconds) caps it anyway (the self-check).
 KEEP_S = 120         # a question whose hook stopped polling (Esc in Claude Code) leaves the pages by then
 CHECK_S = 20         # how often the waiting hook looks for an open page
+TERM_S = 1800       # a Terminal notice older than this: Claude gave up waiting, or the user answered elsewhere
 MARK_S = 120         # <edit>/review/asking older than this: its hook stopped (the hook touches it while it waits)
 MAX_IMAGE = 15 << 20      # an attached image (review notes and answers)
 MAX_IMAGES = 6
@@ -186,7 +187,7 @@ def route(h, method, path, query, body=None):
                 _seen(srv)
             every = [dict(id=k, questions=a["questions"], about=a.get("about") or "", **({"elsewhere": True} if a.get("elsewhere") else {}))
                      for k, a in sorted(asks.items(), key=lambda x: x[1]["at"]) if not a.get("result")]
-            h.send(200, {"ask": every[0] if every else None, "all": every})   # all: Home shows one row per open question
+            h.send(200, {"ask": every[0] if every else None, "all": every, "terminal": terminal()})   # all: Home shows one row per open question
     elif method == "POST" and path == "/ask":
         qs = body.get("questions")
         if not (isinstance(body.get("id"), str) and isinstance(qs, list) and 0 < len(qs) <= 10):
@@ -242,6 +243,15 @@ def route(h, method, path, query, body=None):
 
 
 # ---------------------------------------------------------------- the hook
+def terminal():
+    """Claude waiting for the user in a Terminal window (toolhook.py notify), under TERM_S old, else None."""
+    try:
+        t = json.loads((pages().parent / "terminal.json").read_text(encoding="utf-8"))
+        return t if time.time() - float(t["at"]) < TERM_S else None
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
 def live_pages(kind=None):
     """The page files of pages showing now (of that kind): {url, kind, session, folder?}. Old plain-URL files are
     left out: no session owns them."""

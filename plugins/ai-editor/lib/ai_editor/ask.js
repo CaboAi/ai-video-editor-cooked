@@ -43,6 +43,9 @@ const css=`#askq{position:fixed;inset:0;z-index:9999;display:none;align-items:ce
 #askq .aq-term{border:0;background:none;margin:0;padding:4px;color:var(--a-muted);font:inherit;font-size:13px;text-decoration:underline 1px;text-underline-offset:3px;cursor:pointer}
 #askq .aq-done{padding:18px 0 10px;font-size:15px;color:var(--a-body);text-align:center}
 #askbar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:9999;display:none;align-items:center;gap:10px;margin:0;padding:11px 18px;border:1px solid var(--line,#E7E5E4);border-radius:999px;background:var(--panel,#fff);color:var(--ink,#0C0A09);font:600 14px/20px system-ui,-apple-system,"Segoe UI",sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.16);cursor:pointer}
+#askterm{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:9998;display:none;max-width:min(560px,calc(100vw - 32px));gap:12px;align-items:flex-start;padding:12px 16px;border-radius:14px;background:var(--ink,#0C0A09);color:var(--onink,#fff);font:14px/20px system-ui,-apple-system,"Segoe UI",sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+#askterm.on{display:flex}#askterm b{display:block;font-weight:600}#askterm span{display:block;opacity:.75;font-size:13px;line-height:18px}#askterm i{width:9px;height:9px;margin-top:6px;border-radius:50%;background:#F59E0B;flex-shrink:0;animation:aqp 1.2s ease-in-out infinite}
+@keyframes aqp{50%{opacity:.35}}
 #askbar.on{display:flex}#askbar i{width:8px;height:8px;border-radius:50%;background:currentColor}#askbar span{font-weight:400;color:var(--muted,var(--t3,#78716C))}
 @media (max-width:520px){#askq{align-items:flex-end}#askq .aq-card{padding:22px 18px 14px;border-radius:18px}#askq h2{font-size:18px;line-height:25px}}`;
 const CLIP='<svg width="16" height="16" viewBox="0 0 16 16"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3l-5.5 5.5a1 1 0 01-1.5-1.5L9.9 4.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
@@ -55,6 +58,16 @@ el.addEventListener('keydown',e=>{if(e.key==='Escape'&&A){e.preventDefault();fol
 document.body.appendChild(el);
 // Esc folds the card into a bar that reopens it: the question is never lost
 const bar=document.createElement('button');bar.id='askbar';bar.type='button';bar.innerHTML='<i></i>Claude is asking you something<span>Open</span>';
+const term=document.createElement('div');term.id='askterm';term.setAttribute('role','status');document.body.appendChild(term);
+// Claude waits in a Terminal window (a permission prompt, a question no page took): say so on every page, chime once
+let TT=null;
+function terminal(t){
+  if(!t){if(TT){term.classList.remove('on');if(document.title===TT)document.title=title0;TT=null}return}
+  term.innerHTML=`<i></i><div><b>Claude needs you in the Terminal window</b><span>${esc(t.message||'Go back to Claude Code to answer it.')}</span></div>`;term.classList.add('on');
+  if(!A&&document.title!==TITLE&&document.title!=='(1) Go to the Terminal'){title0=document.title;document.title=TT='(1) Go to the Terminal'}
+  if(askedNow('t'+t.at))alert1('Claude needs you in the Terminal',t.message||'');
+}
+let title0=document.title;
 bar.onclick=()=>{bar.classList.remove('on');el.classList.add('on');el.querySelector('button,input')?.focus()};document.body.appendChild(bar);
 document.addEventListener('keydown',e=>{if(!A||!el.classList.contains('on'))return;
   if(e.key==='Escape'){e.preventDefault();e.stopPropagation();fold();return}
@@ -126,7 +139,7 @@ function draw(){
 }
 async function poll(){
   let a=null,all=[];
-  try{const r=await fetch('/ask'+(document.visibilityState==='visible'?'?v=1':''));if(!r.ok)return;const j=await r.json();a=j.ask;all=j.all||(a?[a]:[])}catch(e){return}
+  try{const r=await fetch('/ask'+(document.visibilityState==='visible'?'?v=1':''));if(!r.ok)return;const j=await r.json();a=j.ask;all=j.all||(a?[a]:[]);terminal(a?null:j.terminal)}catch(e){return}
   if(!a){ALL=[];if(A)close();return}
   if(document.title!==TITLE){title=document.title;document.title=TITLE}
   const was=ALL.map(x=>x.id).join();ALL=all;

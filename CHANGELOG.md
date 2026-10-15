@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.15, creator-teardown 2.7.15 (2026-10-15)
+
 - An Update button in the sidebar when a new version is out. One press installs it and the card shows the steps.
 - A question from Claude that no page could show (or one it typed in the Terminal) now puts "Claude needs you in the
   Terminal window" with the question on every open page, with a chime.

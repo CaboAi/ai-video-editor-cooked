@@ -128,27 +128,20 @@ python3 "$S/check.py" plan edits/<name> [--plan plan.json] [--style edits/<name>
 
 Fix every FAIL and plan again. What it FAILs: `references/plan.md`.
 
-## 5. Stills on the review page, then wait
+## 5. Stills, checked by you, then straight to the render
+
+The user approved the cut: that approve means make the edit. Never put the stills on the review page and never wait
+for a second approve (Max, 2026-10-15: users did not like the frames step).
 
 ```bash
 python3 "$S/edit.py" stills edits/<name>
 ```
 
 The first run installs the renderer (a few minutes, once; say so first). Writes one still per beat,
-`stills/sheet.png` (labelled with beat, time and card kind) and `stills/stills.mp4` (each still over the
-cut's sound). Review the sheet; open a single still only to zoom in. Fix before showing: a box on the
-face, a zoom cutting the head, the wrong part of a capture, text too small for a phone, a default AI
-look. `stills-critic` can check it. Then show them on the cut's review page, never in the terminal first:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/review.py" edits/<name> round --stage edit --stills \
-   --video edits/<name>/stills/stills.mp4 --plan edits/<name>/plan.json
-```
-
-Then review.py's `wait` in the background and say in one line that the stills are on the page (`round --stills`
-also starts a low-priority laptop render that step 7 takes over). **Do not render until `wait` prints `APPROVE`.** A `SEND`: fix the notes (taste skill,
-visuals.json, images.json), plan, stills, `round --stills` again. Moving cards by hand only when the user
-asks: `references/render.md` "The live preview".
+`stills/sheet.png` (labelled with beat, time and card kind). Review the sheet yourself; open a single still only to
+zoom in. Fix before rendering: a box on the face, a zoom cutting the head, the wrong part of a capture, text too small
+for a phone, a default AI look. `stills-critic` can check it. Then go on to step 6 and render; the user's notes come on
+the rendered edit. Moving cards by hand only when the user asks: `references/render.md` "The live preview".
 
 ## 6. Where to render
 

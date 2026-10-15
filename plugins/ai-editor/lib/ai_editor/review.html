@@ -350,20 +350,20 @@ aside{width:var(--sidew,320px);flex-shrink:0;background:var(--panel);border-left
 #addsay{flex:none}
 .addin input:focus,#addsay:focus{border-color:var(--ink)}
 .amsg{font-size:12px;line-height:16px;color:var(--quiet)}
-#box{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-height:40px;padding:5px 4px 5px 6px;background:var(--panel);border:1px solid var(--line2);border-radius:10px}
+#box{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:6px 8px;min-height:40px;padding:5px 4px 5px 6px;background:var(--panel);border:1px solid var(--line2);border-radius:10px}
 #box .crow{display:contents}
 #box.drag{border-color:var(--ink)}
-#ta{order:2;flex:1 1 150px;min-width:0;border:0;background:transparent;resize:none;outline:none;padding:5px 0;font-size:14px;line-height:18px;min-height:28px;max-height:120px;color:var(--ink)}
+#ta{grid-row:1;grid-column:2/-1;min-width:0;border:0;background:transparent;resize:none;outline:none;padding:5px 0;font-size:14px;line-height:18px;min-height:28px;max-height:120px;color:var(--ink)}
 #ta::placeholder{color:var(--quiet);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#clock{order:1;display:flex;align-items:center;gap:5px;height:28px;padding:0 8px;background:var(--chip);border-radius:6px;font-size:12px;line-height:16px;font-weight:600;color:var(--strong);white-space:nowrap;flex-shrink:0}
+#clock{grid-row:1;grid-column:1;align-self:start;display:flex;align-items:center;gap:5px;height:28px;padding:0 8px;background:var(--chip);border-radius:6px;font-size:12px;line-height:16px;font-weight:600;color:var(--strong);white-space:nowrap;flex-shrink:0}
 #clock svg{color:var(--body)}
 #clock.pinned{box-shadow:inset 0 0 0 1px var(--ink)}
-#scope{order:3;display:none;border:1px solid var(--line2);background:var(--panel);border-radius:8px;height:28px;padding:0 6px;font-size:12px;max-width:130px}
-#picbtn{order:4;width:32px;height:28px;border-radius:8px;color:var(--body);display:grid;place-items:center;flex-shrink:0}
+#scope{grid-row:2;grid-column:1/3;justify-self:start;display:none;border:1px solid var(--line2);background:var(--panel);border-radius:8px;height:28px;padding:0 6px;font-size:12px;max-width:130px}
+#picbtn{grid-row:2;grid-column:3;justify-self:end;width:32px;height:28px;border-radius:8px;color:var(--body);display:grid;place-items:center;flex-shrink:0}
 #picbtn:hover{background:var(--chip)}
-#savebtn{order:5;display:none;width:28px;height:28px;border-radius:7px;background:var(--ink);color:var(--onink);place-items:center;flex-shrink:0}
-#savebtn.ready{display:grid}
-#pics{order:6;width:100%;display:flex;gap:8px;flex-wrap:wrap;padding:2px}#pics:empty{display:none}
+#savebtn{grid-row:2;grid-column:4;display:grid;width:28px;height:28px;border-radius:7px;background:var(--ink);color:var(--onink);place-items:center;flex-shrink:0;opacity:.25;pointer-events:none}
+#savebtn.ready{opacity:1;pointer-events:auto}
+#pics{grid-row:3;grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;padding:2px}#pics:empty{display:none}
 #pics span{position:relative}#pics img{height:52px;border-radius:8px;border:1px solid var(--line);display:block}
 #pics button{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--ink);color:var(--onink);font-size:12px;line-height:20px}
 .actions{display:flex;flex-direction:column;gap:8px}
@@ -723,7 +723,7 @@ function steps(){
 }
 function listenText(S){
   const e=S.events[S.events.length-1],picked=!!(S.sent&&e&&e.handled);
-  if(picked&&e.type==='approve')return e.stills?'Claude is making the video':e.stage==='cut'?(S.stage==='cut'&&!S.final?'Claude is making the preview':'The cut is approved'):'Approved';
+  if(picked&&e.type==='approve')return e.stills?'Claude is making the video':e.stage==='cut'?(S.stage==='cut'&&!S.final?'Claude is making the edit':'The cut is approved'):'Approved';
   if(picked)return S.raw?(S.cut_steps&&S.cut_steps.state==='queued'?((S.cut_steps.claude||{}).opened?'Claude is working in its own Terminal window':'Waiting for Claude'):'Claude is making the cut'):e.type==='edits'?'Claude is applying your changes':'Claude is working on the next draft';
   if(S.sent)return e&&e.type==='edits'?'Changes sent':e&&e.type==='approve'?(e.stills?'Preview approved':e.stage==='cut'?'Cut approved':'Approved'):'Notes sent';
   const first=!(S.rounds||[]).some(r=>r.stage===S.stage&&r.round>=1&&r.round<S.round&&!r.stills);   // the first video of the cut or the edit (the stills before it are not one)
@@ -749,7 +749,7 @@ function render(){
   sb.classList.toggle('stop',working);sb.querySelector('span').textContent=undoAp?(makingEdit()?'Stop and undo approve':'Undo approve'):working?(S.raw?'Making the cut':'Stop'):mine?`Submit feedback to Claude (${mine})`:'Submit feedback to Claude';
   sb.className=S.raw?'primary':(mine&&live&&!working?'primary':'')+(working?' stop':'');   // while Claude works nothing is primary: Stop stays quiet
   sb.disabled=undoAp?false:working?!isCur()||!!S.raw:(!live||!mine);
-  sb.title=undoAp?'Go back: this draft opens for notes again.':working?(S.raw?'the first cut is on its way':makingEdit()?'Stop making the preview. The cut opens again.':'Stop Claude working on this draft. Your notes open again.'):'';
+  sb.title=undoAp?'Go back: this draft opens for notes again.':working?(S.raw?'the first cut is on its way':makingEdit()?'Stop making the edit. The cut opens again.':'Stop Claude working on this draft. Your notes open again.'):'';
   const mk=approving||makingEdit();
   ap.textContent=S.stage==='cut'?(S.final?'Approve the cut':'Approve the cut and add captions'):S.stills?'Approve and make the video':(S.alts||[]).length?'Approve all':'Approve the edit';
   ap.className=!working&&live&&!mine?'primary':'';ap.disabled=!!p||!isCur()||mine>0;
@@ -872,7 +872,7 @@ function workHtml(){
       :`<li class="todo"><span class="ic"><i></i></span>${esc(m.steps[k])}</li>`).join('')
       +(m.extra?`<li class="now"><span class="ic">${SPIN}</span>${esc(m.extra)}</li>`:'');
     const ok=S.stills?'The preview is approved. ':'The cut is approved. ';
-    return `<div class="claude"><div><b>Claude</b><p>${esc(m.idle?ok+m.idle:ok+(S.stills?'Claude is making the video':'Claude is making the preview')+(m.style?' in '+m.style:'')+'.')}</p></div><ol class="steps">${li}</ol>${m.at&&!m.idle?`<span class="since" data-since="${esc(m.at)}">Working for ${dur((Date.now()-new Date(m.at))/1000)}</span>`:''}</div>`}
+    return `<div class="claude"><div><b>Claude</b><p>${esc(m.idle?ok+m.idle:ok+(S.stills?'Claude is making the video':'Claude is making the edit')+(m.style?' in '+m.style:'')+'.')}</p></div><ol class="steps">${li}</ol>${m.at&&!m.idle?`<span class="since" data-since="${esc(m.at)}">Working for ${dur((Date.now()-new Date(m.at))/1000)}</span>`:''}</div>`}
   if(p==='approve')return `<div class="claude"><div><b>Claude</b><p>${S.stage==='cut'?'The cut is approved. It is the finished video.':'Approved. The edit is finished.'}</p></div></div>`+learnHtml();
   if(S.raw&&S.cut_steps)return cutHtml(S.cut_steps);
   if(p!=='send'&&(!live||S.stage==='cut'))return '';   // the cut is ready: what Claude does next is the edit's prep, not this round
@@ -942,7 +942,7 @@ function renderMaking(){
   const m=makeState(),ready=landing===1||landing===3,el=$('making');
   if(m.idle&&!ready&&!approving){el.innerHTML=`<div class="mk"><div><b>Claude is not working on the edit</b><p>${esc(m.idle)} Your ${S.stills?'preview is':'cut is'} approved and saved.</p></div></div>`;return}
   const pc=ready?100:Math.max(3,Math.round(m.frac*100)),since=m.at?dur((Date.now()-new Date(m.at))/1000):'0s';
-  el.innerHTML=`<div class="mk${ready?' ready':''}"><div><b>${landing===3?'The preview is ready':ready?'The edit is ready':'Making the preview'}</b><p>Captions, zooms and sound${m.style?' in '+esc(m.style):''}</p></div>
+  el.innerHTML=`<div class="mk${ready?' ready':''}"><div><b>${landing===3?'The preview is ready':ready?'The edit is ready':'Making the edit'}</b><p>Captions, zooms and sound${m.style?' in '+esc(m.style):''}</p></div>
     <em role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pc}"><i style="width:${pc}%"></i></em>
     <div class="mrow"><span>${ready?'Opening it now':esc(m.now)}</span><span class="num" data-mk="${esc(m.at||'')}">${ready?'':since+(m.left?' · '+m.left:'')}</span></div></div>`;
 }

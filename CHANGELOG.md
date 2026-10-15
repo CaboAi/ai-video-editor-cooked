@@ -4,8 +4,13 @@ What changed for every user, newest first.
 
 ## Unreleased
 
-## ai-editor 2.7.17, creator-teardown 2.7.17 (2026-10-15)
+- The sample styles lean on animations. Card edit: fewer cards (20 a minute, was 30), three in four of them
+  animations, no list cards of words. 50/50: animations 85 in 100, no list cards. Motion design: Lots of animations,
+  the app in use on, more animations than logo tiles.
+- Notes on a sample style's video teach that sample style (they always saved there); the page now says "Teach Card
+  edit from this video" instead of "Save what you liked as your own style".
 
+## ai-editor 2.7.17, creator-teardown 2.7.17 (2026-10-15)
 - The transcript lights the word you hear, not the word the video has reached: it allows for your speakers' or
   headphones' delay, times the playback speed, so it stays in step at 2x and on Bluetooth headphones.
 

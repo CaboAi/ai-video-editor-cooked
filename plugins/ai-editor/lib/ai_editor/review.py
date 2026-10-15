@@ -1193,7 +1193,7 @@ def make_handler(folder, token):
                 d["jobs"] = home_jobs() if d["home"] else 0   # the rail's Making ring
                 d["intro"] = intro(folder, d)
                 d["style_name"] = style_label(folder)   # "Keep as a rule for <style>" and the receipts
-                try:   # a sample style (the plugin's own): the learn panel offers your own style instead of teaching it
+                try:   # a sample style (the plugin's own): taught like any style, its rules in its style.overrides.json
                     sp = edit_style(folder)
                     d["style_sample"] = bool(sp and Path(sp).parent.name.startswith("sample-"))
                 except Exception:

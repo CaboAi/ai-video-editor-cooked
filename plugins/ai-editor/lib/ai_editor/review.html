@@ -1172,8 +1172,14 @@ function renderTx(){
   renderTools();tickTx();if(txSel)showBar();
 }
 let txHand=0,txPast=-1;   // txHand: when the user last scrolled the transcript by hand (auto-scroll waits 3 s)
+// what you hear lags the video's clock by the audio device's delay (most on Bluetooth headphones); at 2x that is
+// twice as much video, so the word lit is the one heard: the clock minus that delay times the speed
+let outLat=null;
+v.addEventListener('play',()=>{if(outLat!=null)return;try{const c=new (window.AudioContext||window.webkitAudioContext)();
+  setTimeout(()=>{outLat=Math.min(.5,Math.max(0,(c.outputLatency||0)+(c.baseLatency||0)));c.close()},300)}catch(e){outLat=0}});
+const heardT=()=>v.currentTime-(v.paused?0:(outLat||0)*v.playbackRate);
 function tickTx(){
-  if(!txSig||!W.length)return;const t=v.currentTime+.05;let k=-1;
+  if(!txSig||!W.length)return;const t=heardT()+.05;let k=-1;
   for(let i=0;i<W.length;i++){const w=W[i];const at=previewOn?(w.nt||cutNow(i)?null:w.s):w.t;if(at!=null&&at<=t)k=i}
   const li=k>=0?W[k].li:-1;
   if(li!==txCur){txCur=li;txLines.forEach((el,i)=>el.classList.toggle('cur',i===li))}

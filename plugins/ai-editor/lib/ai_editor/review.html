@@ -917,7 +917,7 @@ function mapT(t,from,to){
   return t;
 }
 function learnHtml(){
-  const L=S.learn;if(!L)return '';const head=`<b>${S.style_sample?'Save what you liked as your own style':`Teach ${!L.style||L.style==='My style'?'your style':esc(L.style)} from this video`}</b>`;   // own style: "your style"; a creator's: its name
+  const L=S.learn;if(!L)return '';const head=`<b>${`Teach ${!L.style||L.style==='My style'?'your style':esc(L.style)} from this video`}</b>`;   // own style: "your style"; a creator's: its name
   const say={none:'No notes this time. Your style stays as it is.',empty:'Nothing in your notes was about the style. It stays as it is.',skipped:'Not saved. Your style stays as it is.'}[L.state];
   if(say)return `<div class="learn">${head}<p>${say}</p></div>`;
   if(L.state==='reading')return `<div class="learn">${head}<p class="wait"><i></i>Claude is reading your notes...</p></div>`;

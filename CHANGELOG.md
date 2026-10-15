@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.18, creator-teardown 2.7.18 (2026-10-15)
+
 - The sample styles lean on animations. Card edit: fewer cards (20 a minute, was 30), three in four of them
   animations, no list cards of words. 50/50: animations 85 in 100, no list cards. Motion design: Lots of animations,
   the app in use on, more animations than logo tiles.

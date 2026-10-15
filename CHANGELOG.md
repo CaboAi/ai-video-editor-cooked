@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.17, creator-teardown 2.7.17 (2026-10-15)
+
 - The transcript lights the word you hear, not the word the video has reached: it allows for your speakers' or
   headphones' delay, times the playback speed, so it stays in step at 2x and on Bluetooth headphones.
 

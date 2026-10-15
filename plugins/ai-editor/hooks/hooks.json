@@ -57,6 +57,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/toolhook.py\" stop 2>/dev/null || py \"${CLAUDE_PLUGIN_ROOT}/lib/ai_editor/toolhook.py\" stop 2>/dev/null || true",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

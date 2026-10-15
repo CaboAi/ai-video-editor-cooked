@@ -602,6 +602,11 @@ main.pg>*{max-height:none}main.pg>:not(.pgc){padding-bottom:56px}main.pg>.pgc::a
 .sb-job .tx{font-size:13px;line-height:18px;color:var(--t2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .trk{height:4px;border-radius:2px;background:var(--track);overflow:hidden;flex-shrink:0}.trk>i{display:block;height:4px;border-radius:2px;background:var(--ink);transition:width .4s}
 .trk.indet{position:relative}.trk.indet>i{position:absolute;inset:0;width:40%!important;animation:slide 1.3s ease-in-out infinite}
+.sb-upd{display:flex;flex-direction:column;align-items:stretch;gap:10px;padding:10px 12px;margin-bottom:8px;border:1px solid var(--line);border-radius:10px;background:var(--panel);flex-shrink:0}
+.sb-upd>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.sb-upd b{font-size:13px;line-height:16px;font-weight:600;display:flex;align-items:center;gap:6px;overflow-wrap:normal}
+#side .sb-updb{display:flex;align-items:center;justify-content:center;height:32px;border-radius:8px;background:var(--ink);color:var(--onink);font-size:13px;font-weight:600;border:0;cursor:pointer;width:100%}
+#side .sb-updb:hover{opacity:.88}
+.sb-upd span{font-size:12px;line-height:16px;color:var(--t3);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .sb-bot{display:flex;align-items:center;gap:4px;padding-top:8px;flex-shrink:0}.sb-bot .sb-row{flex:1}
 .sb-theme{width:36px;height:36px;border-radius:8px!important;background:var(--panel)!important;border:1px solid var(--line)!important;display:grid;place-items:center;color:var(--ink);flex-shrink:0}.sb-theme:hover{border-color:var(--ring)!important}
 .sring{width:14px;height:14px;flex-shrink:0;animation:spin .9s linear infinite}
@@ -2170,6 +2175,7 @@ function sideHTML(){
       <div class="sb-flist">${fd('videos').folders.map(f=>frow('videos',f)).join('')}${fd('styles').folders.map(f=>frow('styles',f)).join('')}${nf}</div></div>
     <div class="sb-sp"></div>
     ${ji?`<button class="sb-job" onclick="${askAbout()?'askOpen()':ji.go}"><div class="tp"><b>${SPIN}${esc(ji.label)}</b><span class="row" style="gap:8px;flex-shrink:0">${ji.since?`<span data-since="${ji.since}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-ji.since)))}</span>`:''}${ji.id?`<span class="sb-stop" role="button" tabindex="0" title="Stop Claude on this" onclick="event.stopPropagation();stopJob(${J(ji.id)})" onkeydown="if(event.key==='Enter'){event.stopPropagation();stopJob(${J(ji.id)})}">Stop</span>`:''}</span></div><div class="tx">${askAbout()?`Claude is asking about ${esc(askAbout())}: <u>Open</u>`:esc(ji.text)}</div><div class="trk ${ji.frac==null?'indet':''}"><i style="width:${Math.round((ji.frac||0)*100)}%"></i></div></button>`:''}
+    ${rail?'':updCard()}
     ${gsBlock()}
     <div class="sb-bot"><button class="sb-row ${cur==='settings'?'on':''}" onclick="rgo('settings')" ${upd?'title="A new version is out"':''}>${ic('gear')}<span class="lb">Settings</span>${upd?'<span class="sdot"></span>':''}</button>${thm}</div>`;
 }
@@ -2299,6 +2305,14 @@ function stUpdate(){
     ${u.fork?'<div class="t2" style="white-space:normal">Your own copy (a fork): ask Claude Code to update my editor.</div>':''}
     <div class="lks">${u.newer&&!u.fork?`<button class="b1 s" ${busy?'disabled':''} onclick="stDoUpdate()">${busy?'Updating...':'Update'}</button>`:`<button class="b2 s" ${u.checking?'disabled':''} onclick="stCheckUpd()">Check now</button>`}<a href="https://github.com/nextwork-projects/ai-video-editor-cooked/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Full changelog</a></div>
     ${st?`<div class="msg ${j.state==='failed'?'bad':''}">${esc(st)}</div>`:''}${rl}</div>`;
+}
+// the sidebar's Update: a new version is out (or one is installing, or just installed), one press, no Settings trip
+function updCard(){
+  const u=S.update||{},j=latest('update'),busy=j&&j.state==='taken',done=j&&j.state==='done'&&Date.now()/1000-(j.finished||0)<300;
+  if(busy)return `<div class="sb-upd"><div><b>${SPIN}Updating cooked.</b><span>${esc(((j.steps||[]).at(-1)||{}).text||'Starting')}</span></div></div>`;
+  if(done)return `<div class="sb-upd"><div><b>Updated${(j.result||{}).version?' to '+esc(j.result.version):''}</b><span>Type /reload-plugins in Claude Code to load it.</span></div></div>`;
+  if(!u.newer||u.fork)return '';
+  return `<div class="sb-upd"><div><b>New version ${esc(u.latest)}</b><span>${esc((u.notes||[])[0]||'A new version of cooked. is out.')}</span></div><button class="sb-updb" onclick="stDoUpdate()">Update now</button></div>`;
 }
 async function stDoUpdate(){const r=await post('/job',{type:'update'});if(!r._ok)toast(r.error||'That did not start.');await load()}
 async function stCheckUpd(){await post('/update/check',{});await load();render();setTimeout(async()=>{await load();render()},2500)}

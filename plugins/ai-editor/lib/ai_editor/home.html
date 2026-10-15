@@ -1493,6 +1493,7 @@ function chatBox(id,ph,send,j,btn){
       <button class="csend" onclick="${send}" aria-label="${esc(btn||'Send')}">${ic('up',16,2.2)}</button></div></div>`;
 }
 function vSkills(){
+  if(ui.skills==null&&!ui.skLoading){ui.skLoading=1;loadSkills().finally(()=>ui.skLoading=0)}   // opened from a link (#skills), not the sidebar
   const cards=L?[...(L.styles||[]),...(L.archived_styles||[])]:[],used=n=>cards.filter(c=>c.kind==='skill'&&c.skill===n);
   const all=(ui.skills||[]).slice(),oth=ui.skOther||[];
   for(const c of cards)if(c.kind==='skill'&&!all.some(x=>x.name===c.skill)&&!oth.some(x=>x.name===c.skill))all.push({name:c.skill,description:c.description||'',found:!!c.found,own:false,deleted:!!c.deleted});

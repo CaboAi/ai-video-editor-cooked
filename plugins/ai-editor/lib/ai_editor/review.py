@@ -710,13 +710,37 @@ def home_url():
     if time.time() - _HOME["at"] < 10:
         return _HOME["url"]
     f = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home" / ".server"
+    upd = None
     try:
         url = f.read_text(encoding="utf-8").strip()
-        urllib.request.urlopen(url.replace("/?t=", "/state?t="), timeout=1).read()
-    except (OSError, ValueError):
+        st = json.loads(urllib.request.urlopen(url.replace("/?t=", "/state?t="), timeout=1).read() or b"{}")
+        u = st.get("update") or {} if isinstance(st, dict) else {}
+        j = next((x for x in reversed(st.get("jobs") or []) if isinstance(x, dict) and x.get("type") == "update"), None) \
+            if isinstance(st.get("jobs"), list) else None
+        busy = bool(j and j.get("state") == "taken")
+        # the rail's Update: a newer version the window can install (never a fork), or one installing now
+        err = j.get("error") if j and j.get("state") == "failed" and time.time() - float(j.get("finished") or 0) < 300 else None
+        upd = {"latest": u.get("latest"), "busy": busy, "error": err} if busy or err or u.get("newer") and not u.get("fork") else None
+    except (OSError, ValueError, AttributeError):
         url = None
-    _HOME.update(at=time.time(), url=url)
+    _HOME.update(at=time.time(), url=url, update=upd)
     return url
+
+
+def start_update():
+    """The rail's Update: the window runs it (home.py POST /job update), as Settings' button does. True when it started."""
+    url = home_url()
+    if not url:
+        return False
+    base, tok = url.split("/?t=", 1)
+    try:
+        req = urllib.request.Request(f"{base}/job?t={tok}", json.dumps({"type": "update"}).encode(), method="POST",
+                                     headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=5).read()
+        _HOME["at"] = 0   # the next /state asks again: the rail shows it running
+        return True
+    except (OSError, ValueError):
+        return False
 
 
 def video_skills(folder, now=None):
@@ -1165,6 +1189,7 @@ def make_handler(folder, token):
                 d["cutcheck"] = (folder / "cut-check.html").exists()
                 d["rawvideo"] = raw_video(folder, d) is not None   # the transcript editor's preview plays the raw take
                 d["home"] = home_url()   # the Home button: back to the editor's window, or how to start it
+                d["update"] = _HOME.get("update") if d["home"] else None   # the rail's Update
                 d["jobs"] = home_jobs() if d["home"] else 0   # the rail's Making ring
                 d["intro"] = intro(folder, d)
                 d["style_name"] = style_label(folder)   # "Keep as a rule for <style>" and the receipts
@@ -1311,6 +1336,8 @@ def make_handler(folder, token):
                             c["checked"] = True
                 update(rj, ck)
                 return self.send(200, {})
+            if path == "/update":   # the rail's Update: the window installs it; this server then moves onto it (live.py)
+                return self.send(200 if start_update() else 409, {})
             if path == "/event":
                 if body.get("type") not in ("send", "approve", "stop"):
                     return self.send(400, {})

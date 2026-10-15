@@ -50,6 +50,8 @@ a{color:inherit}
 .ritem i{width:52px;height:32px;border-radius:10px;display:grid;place-items:center;color:var(--ink);flex-shrink:0;position:relative}
 .ritem:hover i{background:var(--hover)}
 .ritem[hidden]{display:none}.ritem.on{color:var(--ink);font-weight:600}.ritem.on i{background:var(--railon)}
+button.ritem{border:0;background:none;font:inherit;font-size:12px;line-height:14px;cursor:pointer}
+.ritem.rupd i{background:var(--ink);color:var(--onink)}.ritem.rupd:hover i{background:var(--ink-hover)}.ritem.rupd:disabled{cursor:default;opacity:.7}
 .ritem.rjob i{height:36px;background:var(--panel);border:1px solid var(--line);font-size:11px;line-height:14px;font-weight:700;font-style:normal}
 .ritem.rjob svg{position:absolute;left:13px;top:5px}
 .rail .themebtn{width:36px;height:36px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink);display:grid;place-items:center;flex-shrink:0}
@@ -482,6 +484,7 @@ body.making #making{display:flex}
  <a class="ritem" data-home data-view="mystyle" href="#"><i><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5z"/><path d="M3 13l9 5 9-5"/></svg></i>Styles</a>
  <div class="rflex"></div>
  <a class="ritem rjob" id="railjobs" data-home data-view="videos" href="#" hidden><i><span id="jobn">0</span><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="var(--line)" stroke-width="2.5"/><path d="M12 2a10 10 0 0 1 9.5 13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></i>Making</a>
+ <button class="ritem rupd" id="railupd" type="button" hidden><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></i><span id="railupdt">Update</span></button>
  <a class="ritem" data-home data-view="settings" href="#"><i><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg></i>Settings</a>
  <button class="themebtn"></button>
 </nav>
@@ -611,8 +614,13 @@ document.getElementById('homebtn').onclick=()=>{
 function renderRail(){
   document.body.classList.toggle('nohome',!S.home);
   document.querySelectorAll('.rail [data-view]').forEach(a=>{a.href=S.home?S.home+'#'+a.dataset.view:'#'});
+  const u=S.update,ub=$('railupd');ub.hidden=!u;
+  if(u&&u.busy)updWas=true;if(u&&updWas&&!u.busy)updating=updWas=false;   // the update ended (done: this page restarts on it)
+  if(u){ub.disabled=!!u.busy||updating;$('railupdt').textContent=u.busy||updating?'Updating':u.error?'Try again':'Update';ub.title=u.busy||updating?'Installing the new version. This page restarts on it.':u.error||'Install cooked. '+(u.latest||'')}
   const n=S.home?S.jobs||0:0;$('railjobs').hidden=!n;$('jobn').textContent=n;$('railjobs').title=n?'Making '+plural(n,'video'):'';
 }
+let updating=false,updWas=false;
+$('railupd').onclick=async()=>{updating=true;renderRail();setTimeout(()=>{updating=false;if(S)renderRail()},15000);try{const r=await fetch('/update',{method:'POST',body:'{}'});if(!r.ok){updating=false;alert('The window is not open, so it cannot update. Open cooked. and press Update in Settings.')}}catch(e){updating=false}renderRail()};
 let railx=false;try{railx=localStorage.getItem('review-railx')==='1'}catch(e){}
 document.body.classList.toggle('railx',railx);
 $('railtog').onclick=()=>{railx=!railx;document.body.classList.toggle('railx',railx);try{localStorage.setItem('review-railx',railx?'1':'0')}catch(e){}

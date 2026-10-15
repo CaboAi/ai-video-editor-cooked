@@ -335,6 +335,7 @@ def latest(d, kind):
     return next((j for j in reversed(d["jobs"]) if j["type"] == kind), None)
 
 
+REF_EXT = links.VIDEO_EXT + (".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".pdf", ".txt", ".md", ".docx")   # Analyse a format's files
 RESERVE_S = 180   # a job the page opened a new Claude for: other waits leave it alone this long (home.html too)
 OPENED_S = 900    # ... and this long once its Terminal window opened (a trust prompt can hold it there)
 STALE_S = 900     # a taken job nobody reported on this long: its session stopped, another may adopt it
@@ -1594,7 +1595,8 @@ def job_line(j, root):
     a = j["args"]
     if j["type"] == "teardown":
         src = f"urls={a['urls']}" if a.get("urls") else f"platform={a['platform']}"
-        return f"JOB teardown @{a['handle']} {src} take={','.join(a.get('take') or [])} root={root}"
+        return f"JOB teardown @{a['handle']} {src} take={','.join(a.get('take') or [])}" + \
+            (f" notes={a['notes']}" if a.get("notes") else "") + f" root={root}"
     if j["type"] == "skill":
         return f"JOB skill @{a['handle']} take={','.join(x for t in a.get('take') or [] for x in EDITPLAN_PARTS.get(t, (t,)))} root={root}"
     if j["type"] == "video":
@@ -1737,7 +1739,7 @@ def cmd_wait(poll=1.0, job=None):
         for j in d["jobs"]:
             if j.get("cancel") and not j.get("cancel_sent") and may_write(j, sid):
                 j["cancel_sent"] = True
-                return f"JOB cancel {j['type']}"
+                return f"JOB cancel {j['type']}" + (f" @{j['args']['handle']}" if j["type"] == "teardown" and j["args"].get("handle") else "")
         j = next((j for j in d["jobs"] if takeable(j, sid, d)), None)
         if not j:   # a --job Claude took it between the read and the lock: wait again
             return None
@@ -2375,8 +2377,9 @@ def make_handler(token):
                 st, cmd = launcher.connect(read()["root"])
                 return self.send(200, {"status": st, "command": cmd})
             if path == "/cancel":
-                def c(d):
-                    j = latest(d, body.get("type") or "teardown")
+                def c(d):   # {type, handle?}: the handle picks that creator's analysis when several run
+                    h, kind = body.get("handle"), body.get("type") or "teardown"
+                    j = next((j for j in reversed(d["jobs"]) if j["type"] == kind and (not h or j["args"].get("handle") == h)), None)
                     if j and j["state"] in ("queued", "taken"):
                         j["cancel"], j["state"] = True, "cancelled"
                 update(c)
@@ -2420,6 +2423,16 @@ def make_handler(token):
                     return self.send(400, {"error": "Paste a creator or some video links first."})
                 args = {"handle": handle, "platform": b.get("platform") if b.get("platform") in ("tiktok", "youtube", "instagram") else "tiktok",
                         "take": take}
+                notes = str(b.get("notes") or "").strip()[:2000]   # what the user likes about these videos
+                refs = Path(d["root"]).resolve() / "references"
+                files = [str(f) for f in (Path(x).resolve() for x in b.get("files") or [] if isinstance(x, str))
+                         if f.parent == refs and f.is_file()][:20]
+                if notes or files:
+                    f = Path(d["root"]) / "creator-teardowns" / handle / "likes.md"
+                    f.parent.mkdir(parents=True, exist_ok=True)
+                    f.write_text("# What the user likes about these videos\n\n" + (notes or "(nothing written)") + "\n"
+                                 + ("\n## Their files\n\n" + "\n".join("- " + x for x in files) + "\n" if files else ""), encoding="utf-8")
+                    args["notes"] = str(f)
                 if urls:
                     f = Path(d["root"]) / "creator-teardowns" / handle / "picks.txt"
                     f.parent.mkdir(parents=True, exist_ok=True)
@@ -2601,12 +2614,14 @@ def make_handler(token):
             return self.send(200, {"ok": True, "text": text})
 
         def upload(self):
-            """A dropped video: streamed to <root>/videos/<name>, never held in memory."""
-            name = Path(unquote(parse_qs(urlsplit(self.path).query).get("name", [""])[0])).name
+            """A dropped video: streamed to <root>/videos/<name>, never held in memory. ?ref=1: a file for Analyse a
+            format (a video, picture, PDF or text) to <root>/references/<name>, handed to the teardown as files=."""
+            q = parse_qs(urlsplit(self.path).query)
+            name, ref = Path(unquote(q.get("name", [""])[0])).name, q.get("ref") == ["1"]
             n = body_len(self.headers)
-            if not name.lower().endswith(links.VIDEO_EXT) or n <= 0:
-                return self.send(400, {"ok": False, "msg": "Drop a .mov, .mp4 or .mkv video."})
-            out = Path(read()["root"]) / "videos" / name
+            if not name.lower().endswith(REF_EXT if ref else links.VIDEO_EXT) or n <= 0:
+                return self.send(400, {"ok": False, "msg": "Add a video, picture, PDF or text file." if ref else "Drop a .mov, .mp4 or .mkv video."})
+            out = Path(read()["root"]) / ("references" if ref else "videos") / name
             out.parent.mkdir(parents=True, exist_ok=True)
             k = 1
             while out.exists() and out.stat().st_size != n:   # another file with this name: never overwrite it
@@ -2625,7 +2640,7 @@ def make_handler(token):
                 tmp.unlink(missing_ok=True)
                 return self.send(400, {"ok": False, "msg": "The upload stopped part way. Drop it again."})
             os.replace(tmp, out)
-            return self.send(200, added(probe(str(out))))
+            return self.send(200, {"ok": True, "path": str(out), "name": out.name} if ref else added(probe(str(out))))
     return H
 
 
@@ -3142,7 +3157,31 @@ def demo():
     post("/job", {"type": "teardown", "handle": "other", "platform": "youtube"})
     out(cmd_wait, 0.01)
     post("/cancel", {"type": "teardown"})
-    assert out(cmd_wait, 0.01) == "JOB cancel teardown" and latest(read(), "teardown")["state"] == "cancelled"
+    assert out(cmd_wait, 0.01) == "JOB cancel teardown @other" and latest(read(), "teardown")["state"] == "cancelled"
+    # Analyse a format: what they like and their files go to likes.md, named on the job line; files outside references/ never
+    up = lambda name, data: json.loads(urllib.request.urlopen(urllib.request.Request(
+        base + "/upload?ref=1&name=" + name + "&t=" + tok, data, method="POST")).read())
+    pic = up("caption-look.png", b"png")
+    assert pic["ok"] and Path(pic["path"]).parent.name == "references"
+    try:
+        up("evil.exe", b"x")
+        raise AssertionError("a .exe was taken as a reference file")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    post("/job", {"type": "teardown", "handle": "liked", "platform": "youtube", "notes": "The captions pop in word by word.",
+                  "files": [pic["path"], str(vid)]})
+    lk = Path(read()["root"]) / "creator-teardowns" / "liked" / "likes.md"
+    lt = lk.read_text(encoding="utf-8")
+    assert "word by word" in lt and pic["path"] in lt and str(vid) not in lt
+    assert out(cmd_wait, 0.01).endswith(f"notes={lk} root={read()['root']}")
+    post("/cancel", {"type": "teardown", "handle": "liked"}); out(cmd_wait, 0.01)
+    # Stop on one analysing card stops that creator only
+    post("/job", {"type": "teardown", "handle": "one", "platform": "youtube"}); out(cmd_wait, 0.01)
+    post("/job", {"type": "teardown", "handle": "two", "platform": "youtube"}); out(cmd_wait, 0.01)
+    post("/cancel", {"type": "teardown", "handle": "one"})
+    assert out(cmd_wait, 0.01) == "JOB cancel teardown @one"
+    assert {j["args"]["handle"]: j["state"] for j in read()["jobs"] if j["type"] == "teardown"}.items() >= {"one": "cancelled", "two": "taken"}.items()
+    post("/cancel", {"type": "teardown", "handle": "two"}); out(cmd_wait, 0.01)
     # Try it with a sample video: the downloaded take (here already there), its decisions copied, named, off the recent list
     (home() / "sample").mkdir(parents=True, exist_ok=True)
     shutil.copyfile(vid, home() / "sample" / "sample-take.mp4")

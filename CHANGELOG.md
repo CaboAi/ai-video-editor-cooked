@@ -4,6 +4,14 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- The New style tile at the end of Styles opens the same New style window as the button, instead of making a blank
+  style straight away.
+- An analysing card has a Stop button, and the first-run "Analysing your format" page has Stop analysing. Stop ends
+  that creator's analysis only; others keep going.
+- Analyse a format has "What do you like about them?": write what you like (the captions, the zooms, the sound) and
+  Claude looks closer at those parts. Add files too, by Add files or by dropping them on the box: example videos,
+  screenshots, PDFs or notes. They are copied to your library's references folder and handed to the analysis.
+
 ## ai-editor 2.7.13, creator-teardown 2.7.13 (2026-10-14)
 
 - The window tells you when Claude needs you. A new question plays a soft chime once (not again on reload) and

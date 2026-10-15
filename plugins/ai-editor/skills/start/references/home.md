@@ -92,11 +92,16 @@ python3 "$H" status <teardown|skill|video|setup|update> --step "..." [--detail "
 python3 "$H" status <job> --result '<json>' --done
 ```
 
-### `JOB teardown @handle platform=<p> take=<parts> root=<dir>`
+### `JOB teardown @handle platform=<p> take=<parts> [notes=<file>] root=<dir>`
 
 The user pasted a creator and pressed "Copy this style". Run the creator-teardown skill's
 **Quick mode** (its SKILL.md) on that handle and platform, in `root`. With `urls=<file>` instead of
 a platform, use `list <handle> --urls <file>`. Do not ask the parts question: the page asks it.
+With `notes=<likes.md>`, read it first: what the user wrote they like about these videos, and their own
+files (example videos, screenshots, PDFs, notes, all in `<root>/references/`). Look closer at what they
+named: watch those moments frame by frame, measure them, and say what you found first in `look.md` and in
+the style's notes. Read or look at every file. An example video is one more video of the format: pull
+frames from it with ffmpeg and compare it with the downloaded ones (fetch.py takes links only).
 No Gemini key: skip `gemini.py` (do not offer the key in the chat; the page has it).
 
 The scripts report these steps themselves; use these words if you report one (the page lists the ones still to come):
@@ -313,9 +318,10 @@ version's folder on the same port with the same token, so the open tab reloads i
 An open Claude session keeps the version it loaded until the user types `/reload-plugins`; the page says so and
 shows the command until a command from that session runs on the new version.
 
-### `JOB cancel teardown`
+### `JOB cancel teardown @handle`
 
-Stop the running teardown commands (TaskStop) and say so in one line.
+The user pressed Stop on that creator's analysing card. Stop that teardown's running commands (TaskStop),
+leave any other analysis running, and say so in one line.
 
 ## Setup from the page
 

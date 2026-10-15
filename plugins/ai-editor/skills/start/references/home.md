@@ -6,6 +6,9 @@ Home (welcome back), New video (pick clips, then pick a style), Your videos, My 
 The page only queues jobs. Claude does every job with the usual skills and reports back, so the page
 never decides anything itself.
 
+Ask the user only through AskUserQuestion: the window shows it as a card on the open page. A question typed in your
+reply never reaches the page; the Stop hook (toolhook.py) can only put "Claude needs you in the Terminal" on it.
+
 The `nextwork-editor` command (`setup.py install-launcher`) starts Claude Code in the library with the
 prompt "/ai-editor:start open the home page". When the page is already served it reopens it, and when no
 Claude is listening it also opens a new Terminal window with a listening Claude (`--window-only` skips

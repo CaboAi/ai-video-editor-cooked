@@ -252,6 +252,18 @@ def terminal():
         return None
 
 
+def say_terminal(sid, message):
+    """Every open page shows "Claude needs you in the Terminal window" with message and chimes once (ask.js).
+    The session's next tool call or prompt clears it (toolhook.py)."""
+    try:
+        f = pages().parent / "terminal.json"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps({"session": sid, "message": str(message)[:300], "at": round(time.time(), 2)}), encoding="utf-8")
+        return f
+    except OSError:
+        return None
+
+
 def live_pages(kind=None):
     """The page files of pages showing now (of that kind): {url, kind, session, folder?}. Old plain-URL files are
     left out: no session owns them."""
@@ -398,7 +410,8 @@ def relay(payload, timeout=None, poll=0.5):
             sent.append(u)
         except Exception:   # 409: another session's page
             pass
-    if not sent:
+    if not sent:   # no page took it: it goes to the terminal box, and every open page says so
+        say_terminal(sid, "Claude is asking: " + str(qs[0].get("question") or "a question"))
         return None
     t0, result = time.time(), None
     if about:
@@ -410,6 +423,7 @@ def relay(payload, timeout=None, poll=0.5):
             if time.time() - beat > CHECK_S:
                 beat = time.time()
                 if not set(sent) & set(live()):   # every page that had it closed: the terminal box
+                    say_terminal(sid, "Claude is asking: " + str(qs[0].get("question") or "a question"))
                     break
                 if about:
                     try:

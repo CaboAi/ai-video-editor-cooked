@@ -17,6 +17,7 @@ user typing in it (UserPromptSubmit) clears it.
 
     python3 toolhook.py          the hook (stdin: hook JSON); prints nothing unless it denies; always exits 0
     python3 toolhook.py notify   the Notification hook          python3 toolhook.py clear   the UserPromptSubmit hook
+    python3 toolhook.py stop     the Stop hook: a turn that ends on a question typed in the Terminal shows on the pages
     python3 toolhook.py demo     self-check
 """
 import json
@@ -71,11 +72,41 @@ def notify(payload):
     sid = payload.get("session_id") or ""
     if not sid or not ours(payload, sid):
         return None
-    f = terminal_file()
-    f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(json.dumps({"session": sid, "message": str(payload.get("message") or "")[:300], "at": round(time.time(), 2)}),
-                 encoding="utf-8")
-    return f
+    return askhook.say_terminal(sid, payload.get("message") or "")
+
+
+def last_text(transcript):
+    """The last thing Claude wrote to the user in this session (its transcript), or ""."""
+    try:
+        with open(transcript, "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - (1 << 20)))
+            lines = f.read().decode("utf-8", "replace").splitlines()
+    except (OSError, TypeError):
+        return ""
+    for ln in reversed(lines):
+        try:
+            m = json.loads(ln).get("message") or {}
+        except ValueError:
+            continue
+        if m.get("role") == "assistant":
+            t = " ".join(c.get("text", "") for c in m.get("content") or [] if isinstance(c, dict) and c.get("type") == "text").strip()
+            if t:
+                return t
+    return ""
+
+
+def ended_on_question(payload):
+    """A Stop hook: Claude ended its turn on a question typed in the Terminal (not through AskUserQuestion), so the
+    pages say so. The question is the last sentence with a "?" near the end of what it wrote."""
+    sid = payload.get("session_id") or ""
+    t = last_text(payload.get("transcript_path"))
+    tail = t[-400:]
+    if not sid or "?" not in tail or not ours(payload, sid):
+        return None
+    q = [x.strip() for x in tail.replace("\n", " ").split("?")[:-1] if x.strip()]
+    q = q[-1].split(". ")[-1].split(": ")[-1] + "?" if q else "Claude asked you something."
+    return askhook.say_terminal(sid, "Claude asked: " + q)
 
 
 def clear(sid):
@@ -123,6 +154,8 @@ def main(mode=None):
         payload = json.load(sys.stdin)
         if mode == "notify":
             return notify(payload) and 0
+        if mode == "stop":
+            return ended_on_question(payload) and 0
         clear(payload.get("session_id") or "")
         if mode == "clear":
             return 0
@@ -162,6 +195,16 @@ def demo():
     assert terminal_file().exists()
     clear("s3")
     assert not terminal_file().exists()
+    # a turn that ends on a typed question: the pages say so; one that does not: nothing
+    tr = tmp / "t.jsonl"
+    tr.write_text("\n".join(json.dumps({"message": {"role": "assistant", "content": [{"type": "text", "text": t}]}})
+                            for t in ("Working.", "The cut is ready. Should I keep the long pause at 0:42?")), encoding="utf-8")
+    assert ended_on_question({"session_id": "s3", "transcript_path": str(tr)})
+    assert json.loads(terminal_file().read_text(encoding="utf-8"))["message"] == "Claude asked: Should I keep the long pause at 0:42?"
+    clear("s3")
+    tr.write_text(json.dumps({"message": {"role": "assistant", "content": [{"type": "text", "text": "Done. Rendered."}]}}), encoding="utf-8")
+    assert ended_on_question({"session_id": "s3", "transcript_path": str(tr)}) is None and not terminal_file().exists()
+    assert ended_on_question({"session_id": "stranger", "transcript_path": str(tr)}) is None
     print("toolhook demo ok")
 
 

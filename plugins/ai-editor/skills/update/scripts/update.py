@@ -6,6 +6,9 @@
                                          creator-teardown with `claude plugin`; prints STEP lines, VERSION <new
                                          ai-editor version> and "Updated." (the window shows them on its Update job)
                                          (a git checkout of the plugin: exit 2, "update it with git yourself")
+    python3 update.py window             Settings, Update, for any install: market (above) for the plugin; for a clone of
+                                         the editor on main with no changes of its own, git pull --ff-only; a fork or a
+                                         clone with changes is refused with the one thing to do (exit 2)
     python3 update.py add-upstream       add the `upstream` remote (ask the user first)
     python3 update.py check              fetch upstream: new commits, their CHANGELOG lines, files both sides changed
     python3 update.py merge              backup branch, then merge upstream/main (refuses a dirty tree)
@@ -108,6 +111,30 @@ def installed(plugin="ai-editor", market="nextwork"):
         return None, None
 
 
+def local_market(market="nextwork"):
+    """The folder a marketplace added from a cloned repo reads (known_marketplaces.json source "directory", which the
+    repo's .claude/settings.json sets up), else None. Its new versions come from git, not from Claude Code."""
+    try:
+        import json
+        src = json.loads((claude_dir() / "plugins" / "known_marketplaces.json").read_text(encoding="utf-8"))[market]["source"]
+        p = Path(src["path"]).expanduser() if src.get("source") == "directory" else None
+        return p if p and p.is_absolute() and (p / ".git").exists() else None
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def pull_local(repo):
+    """Fast-forward a cloned marketplace from its remote. None when done, else the FAIL line: a copy with changes of
+    its own, or a pull git refuses, is left as it is."""
+    if git(repo, "status", "--porcelain", check=False).stdout.strip():
+        return f"FAIL Your copy of the editor in {repo} has changes of its own, so it was not updated. In that folder run: git stash && git pull"
+    p = git(repo, "pull", "--ff-only", "-q", check=False)
+    if p.returncode:
+        why = (p.stderr.strip().splitlines() or ["git pull failed"])[-1]
+        return f"FAIL git pull in {repo} did not work ({why}). Run git pull there, then press Update again."
+    return None
+
+
 def market():
     """The official plugin: the marketplace, then both plugins, with the same commands /plugin runs. Without the
     claude command, the slash lines. A developer copy (a git checkout) is never touched: exit 2 with DEV."""
@@ -117,6 +144,13 @@ def market():
         return 2
     exe = shutil.which("claude")
     old = installed()[0]
+    repo = local_market()
+    if repo:   # installed from a cloned folder: that folder is what Claude Code reads, so pull it first
+        print("STEP Getting the new version with git", flush=True)
+        bad = pull_local(repo)
+        if bad:
+            print(bad)
+            return 1
     steps = [("Getting the list of new versions", ["plugin", "marketplace", "update", "nextwork"])]
     steps += [(f"Updating {p}", ["plugin", "update", f"{p}@nextwork"]) for p in PLUGINS
               if p == "ai-editor" or installed(p)[0]]   # creator-teardown only when it is installed
@@ -134,6 +168,39 @@ def market():
     print(f"VERSION {new or old or '?'}")
     if where_:
         print(f"PATH {where_}")
+    print("Updated. Type /reload-plugins in Claude Code to load it.")
+    return 0
+
+
+def window(repo=None):
+    """The window's one Update button, whatever the install. STEP / VERSION / FAIL lines as market() prints."""
+    repo = repo or (find_repo(str(LIB.parent)) if dev_copy() else None)
+    if not repo:
+        return market()
+    kind, _ = where(repo)
+    if kind == "fork":
+        print("FAIL Your editor is your own copy (a fork). Ask Claude Code: update my editor.")
+        return 2
+    branch = out(repo, "rev-parse", "--abbrev-ref", "HEAD")
+    if branch != "main":
+        print(f"FAIL Your copy of the editor is on the branch {branch}. Switch to main (git switch main), then press Update again.")
+        return 2
+    if dirty(repo):
+        print(f"FAIL Your copy of the editor in {repo} has changes of its own, so it was not updated. "
+              "In that folder run: git stash && git pull")
+        return 2
+    print("STEP Getting the new version", flush=True)
+    p = git(repo, "pull", "--ff-only", "-q", "origin", "main", check=False)
+    if p.returncode:
+        why = (p.stderr.strip().splitlines() or ["git pull failed"])[-1]
+        print(f"FAIL git pull in {repo} did not work ({why}). Run git pull there, then press Update again.")
+        return 1
+    try:
+        import json
+        print("VERSION " + json.loads((repo / "plugins/ai-editor/.claude-plugin/plugin.json").read_text(encoding="utf-8"))["version"])
+    except (OSError, ValueError, KeyError):
+        pass
+    print(f"PATH {repo / 'plugins' / 'ai-editor'}")
     print("Updated. Type /reload-plugins in Claude Code to load it.")
     return 0
 
@@ -331,6 +398,15 @@ def demo():
         write(up, "b.txt", "new\n")
         write(up, "CHANGELOG.md", "# Changelog\n\n## Unreleased\n\n- A new thing.\n")
         commit(up, "new thing")
+        # the window's Update: a clean clone on main pulls; one with its own change, or a fork, is told what to do
+        write(clone, "a.txt", "one\ntwo\nedited\n")
+        r = run(clone, "window")
+        assert r.returncode == 2 and "changes of its own" in r.stdout and not (clone / "b.txt").exists(), r.stdout
+        g(clone, "checkout", "-q", "--", "a.txt")
+        r = run(clone, "window")
+        assert r.returncode == 0 and "STEP Getting the new version" in r.stdout and (clone / "b.txt").exists(), r.stdout + r.stderr
+        assert r.stdout.strip().endswith("Type /reload-plugins in Claude Code to load it."), r.stdout
+        assert run(fork, "window").returncode == 2 and "fork" in run(fork, "window").stdout
         r = run(fork, "check")
         assert "1 new commit" in r.stdout and "- A new thing." in r.stdout and "also changes 0" in r.stdout, r.stdout
 
@@ -373,6 +449,34 @@ def demo():
         assert r.returncode == 2 and r.stdout.splitlines()[0] == DEV, r.stdout
     else:
         assert r.returncode == 1 and "/plugin update ai-editor@nextwork" in r.stdout, r.stdout
+    # a marketplace added from a cloned folder: Update pulls that folder first; one with changes of its own is left alone
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        out(tmp, "init", "-q", "--bare", "-b", "main", "up.git")
+        for d in ("clone", "other"):
+            out(tmp, "clone", "-q", str(tmp / "up.git"), d)
+            for k, v in (("user.name", "Demo"), ("user.email", "demo@example.com"), ("commit.gpgsign", "false")):
+                out(tmp / d, "config", k, v)
+        (tmp / "other" / "a.txt").write_text("1", encoding="utf-8")
+        out(tmp / "other", "add", "-A")
+        out(tmp / "other", "commit", "-q", "-m", "one")
+        out(tmp / "other", "push", "-q", "origin", "HEAD:main")
+        out(tmp / "clone", "pull", "-q", "origin", "main")
+        (tmp / "other" / "a.txt").write_text("2", encoding="utf-8")
+        out(tmp / "other", "commit", "-qam", "two")
+        out(tmp / "other", "push", "-q", "origin", "HEAD:main")
+        (tmp / "cfg" / "plugins").mkdir(parents=True)
+        (tmp / "cfg" / "plugins" / "known_marketplaces.json").write_text(__import__("json").dumps({"nextwork": {"source": {
+            "source": "directory", "path": str(tmp / "clone")}}}), encoding="utf-8")
+        keep = os.environ.get("CLAUDE_CONFIG_DIR")
+        os.environ["CLAUDE_CONFIG_DIR"] = str(tmp / "cfg")
+        try:
+            assert local_market() == tmp / "clone"
+            assert pull_local(tmp / "clone") is None and (tmp / "clone" / "a.txt").read_text(encoding="utf-8") == "2"
+            (tmp / "clone" / "a.txt").write_text("mine", encoding="utf-8")
+            assert "changes of its own" in pull_local(tmp / "clone") and (tmp / "clone" / "a.txt").read_text(encoding="utf-8") == "mine"
+        finally:
+            os.environ.pop("CLAUDE_CONFIG_DIR") if keep is None else os.environ.__setitem__("CLAUDE_CONFIG_DIR", keep)
     # market on an installed copy: the marketplace, then ai-editor AND creator-teardown, then the new version.
     # A fake `claude` on PATH and a throwaway CLAUDE_CONFIG_DIR: nothing of the real install is touched.
     # (POSIX only: the fake is a #! script, which Windows does not run as `claude`.)
@@ -423,6 +527,8 @@ def main(argv):
         return demo()
     if cmd == "market":
         return market()
+    if cmd == "window":
+        return window(Path(rest[rest.index("--repo") + 1]) if "--repo" in rest else None)
     repo = find_repo(rest[rest.index("--repo") + 1] if "--repo" in rest else None)
     if cmd == "where":
         say_where(repo)

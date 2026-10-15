@@ -50,7 +50,8 @@ ZOOM = {
                "zoom": {"per_min": 6, "kind": "punch", "scale": 1.15, "duration_s": 0, "on": "sentence_start"}},
 }
 # Cut presets: the pause the cut tightens to (build_timeline.py cut.max_pause; the taste skill's table).
-CUT = {"relaxed": {"label": "Relaxed", "sub": "Keeps your pauses", "max_pause": 0.25},
+CUT = {"none": {"label": "None", "sub": "Keeps your pauses", "max_pause": 3.0},   # mistakes still go; pauses over 3 s shrink to 2 s
+       "relaxed": {"label": "Relaxed", "sub": "Long pauses shortened", "max_pause": 0.25},
        "natural": {"label": "Natural", "sub": "Short breaths stay", "max_pause": 0.15},
        "tight": {"label": "Tight", "sub": "Cuts every pause", "max_pause": 0.12}}
 # How often a card (logo, screenshot, scene) may land: at most this many a minute (plan.py thin_cards).
@@ -125,6 +126,12 @@ def captions():
 
 
 def caption(name):
+    if name == "none":   # the style page's None: no captions at all (plan.py and Captions.tsx read present)
+        return {"present": False}
+    return _caption(name)
+
+
+def _caption(name):
     """One caption preset by name ({} when there is none), stamped with its name as "style"."""
     if not name or not re.fullmatch(r"[A-Za-z0-9 _.-]{1,64}", str(name)):
         return {}
@@ -134,6 +141,8 @@ def caption(name):
 
 
 def label(name):
+    if name == "none":
+        return "No captions"
     return str(name).replace("-", " ").replace("_", " ").capitalize()
 
 

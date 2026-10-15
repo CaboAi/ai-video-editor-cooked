@@ -43,7 +43,9 @@ video at a time. A taken job with no report for 15 minutes belonged to a session
 `status` or `wait --job` from another session adopts it and prints `adopted <id>`. Every video gets a Claude of its
 own: when the user presses Make my video, each new video job (one per clip for "Separate videos") opens a new
 Terminal window running Claude Code in the library with the prompt `/ai-editor:start take job <id>`, unless an idle
-listening Claude can take it right now (then that one does, and the rest still get their own). A listening Claude is
+listening Claude can take it right now (then that one does, and the rest still get their own). The same goes for a chat box: a
+`style-change` (a style page), `skill-change` or `skill-new` (Make a new skill) opens a Claude for that job unless
+an idle listening Claude takes it. A listening Claude is
 idle only with no active job: none it holds (a creator, a skill, a video's cut) and no video whose edit it is still on
 (that editor's `wait` listening, or a review command there in the last 15 minutes). Setup and the sample stay with
 the listening Claude; a creator's analysis is queued for it like any job. Where no terminal can
@@ -180,6 +182,11 @@ there if the path is elsewhere). Pass `--script <edit>/script.md` to `transcribe
 `chain=`: the style page's "What runs" when it is not the default. With no `chain=`, run logo-pack as usual (after
 the cut's approve, before the edit, when the video names two or more products). `chain=none`: never run
 logo-pack on this video. `chain=logo-pack,motion` or `chain=motion` (a skill style only): see Skill style below.
+`before:<skill>` and `after:<skill>` in `chain=` are skills the user chained onto the style's What runs, in order.
+Each `before:` skill runs after the cut's approve, before the edit, on `<edit>/cut.mp4`; each `after:` skill runs
+after the final approve, on the finished video, its files into `<edit>/`. Invoke each with the Skill tool (the
+editor shows every skill a video ran), say each on the page (`review.py status "Running /<skill>"`), and treat a
+skill this session doesn't have as the Skill style section does.
 `assets=`: images and links the user added on the page ("Add images or links"; more can come from the editor's
 "Anything to add?", and review.py `wait` then prints an `assets:` line). Images are in `<edit>/assets/`. Hand the
 file to visual-prep and style-edit: each item goes in first, as a card on its `say` words (else the line it is
@@ -276,6 +283,12 @@ and the `my-style` skill). A wish no setting covers is a word rule at the same s
 scope question: the page named the style. Report what was saved, in plain words:
 `status style-change --step "Saved: captions 6% tall" --result '{"changed": ["Captions 6% tall", "About 3 zooms a minute"]}' --done`.
 The page shows `changed` and reloads the style's settings and its "Learned from your feedback" list.
+A wish to run another skill on this style's videos ("make a thumbnail after", "run /my-broll before the edit", "stop
+running /x") changes its What runs, not a setting: `python3 "$H" chain <style> <skill> --at before|after` (`--off` takes
+it out); `<style>` is the job's style (my-style is `mine`). Only a skill this session has.
+A text starting `Combined from <name> (<style.json>); ...` came from New style, Combine styles: the new style
+started as a copy of the first one. Read each named style.json and set every part the user's words take from
+another style (captions, zooms, cut, cards, sound, motion) to that style's values, the same way.
 A style card adds "Learned from N videos" once its rules came from N edits (review notes saved at
 the final approve's "Teach <style>" panel, `review.py learn --done`).
 The same change said in the chat goes through the same `taste.py add`, so both land in one skill.
@@ -322,6 +335,13 @@ shows the command until a command from that session runs on the new version.
 
 The user pressed Stop on that creator's analysing card. Stop that teardown's running commands (TaskStop),
 leave any other analysis running, and say so in one line.
+
+### `JOB cancel <type>` (any other job)
+
+The user pressed the sidebar's Stop on that job. Stop its running commands (TaskStop), take no next
+step, and say so in one line. A Stop also makes every tool call of the session that held the job fail for two
+minutes with "The user pressed Stop in the cooked. window" (toolhook.py): when a tool call fails with that, stop at
+once, say in one line what was left unfinished, and wait for the user to type in the Terminal.
 
 ## Setup from the page
 

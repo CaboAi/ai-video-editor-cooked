@@ -24,12 +24,13 @@ for it, and reports back with `status`:
         JOB style-change @handle style=DIR/creator-teardowns/handle/style.json text=<the user's words>
         JOB skill-change <skill> path=<its SKILL.md> text=<the user's words>   Skills: Improve with feedback (skill-improver)
         JOB skill-new [text=<what it should do>]  Skills: Make a new skill (skill-maker)
-        JOB cancel teardown                       the user pressed Cancel
+        JOB cancel <type>                         the user pressed Cancel or Stop on that job: stop it
         ALREADY ...                               another wait is running: nothing to do
         GONE ...                                  (--job) that job is done, cancelled or another Claude's
     python3 home.py status <job> [--step "..."] [--detail "video 6 of 10"] [--progress 0.6]
                                  [--result '<json>' | --result @file.json] [--done] [--failed "..."]
                                  <job> is teardown, skill, video or setup: its latest job
+    python3 home.py chain <style> <skill> --at before|after   chain a skill onto a style's What runs (--off: take it off)
     python3 home.py demo                         self-check (no network, no keys)
 
 Connect Modal, Test render and Update run here, not through Claude: the server runs `setup.py modal-connect`,
@@ -796,12 +797,15 @@ def chain_steps(sp, sk, motion):
     (the motion skill) and the edit itself (its skill, or captions, zooms and cards). on/off where it can change."""
     _, ss = _taste()
     c = ss.chain(sp)
+    added = lambda at: [{"key": "skill:" + x["skill"], "name": "/" + x["skill"], "added": x["skill"], "at": at,
+                         "what": "Runs on the cut, before the edit." if at == "before" else "Runs on the finished video."}
+                        for x in ss.chain_skills(sp) if x["at"] == at]
     return [{"key": "cut", "name": "Cut", "what": "Takes out the mistakes and long pauses."},
             {"key": "logos", "name": "Real logos", "what": "The real logo of every app or tool you name.", "on": c["logos"]},
             {"key": "motion", "name": "Animations", "what": "Moving graphics made for the lines that need one.",
-             "on": c["motion"] if sk else bool(motion and motion["amount"] > 0)},
-            {"key": "edit", "name": f"/{sk}" if sk else "Captions, zooms and cards",
-             "what": "Your skill makes the captions, visuals and the finished video." if sk else "Then the finished video."}]
+             "on": c["motion"] if sk else bool(motion and motion["amount"] > 0)}] + added("before") + \
+        [{"key": "edit", "name": f"/{sk}" if sk else "Captions, zooms and cards",
+          "what": "Your skill makes the captions, visuals and the finished video." if sk else "Then the finished video."}] + added("after")
 
 
 def chain_arg(sp, sk):
@@ -809,6 +813,7 @@ def chain_arg(sp, sk):
     _, ss = _taste()
     c = ss.chain(sp)
     steps = (["logo-pack"] if c["logos"] else []) + (["motion"] if sk and c["motion"] else [])
+    steps += [f"{x['at']}:{x['skill']}" for x in ss.chain_skills(sp)]   # the skills the user chained on
     return None if steps == ["logo-pack"] else ",".join(steps) or "none"
 
 
@@ -845,6 +850,8 @@ def style_cards(root):
                     "own": sid == "mine" or bool(st.get("own")),
                     "captions_off": sid == "mine" and (_profile().get("captions") or {}).get("on") is False,
                     "sample": bool(st.get("sample")), **naming(sid, sp, base), "kind": "skill" if sk else "settings"})
+        out[-1]["runs"] = [x["name"] for x in chain_steps(sp, sk, {"amount": dig(st, "motion.amount") or 0})
+                           if x.get("on") is not False]   # New video: what making a video with it runs
         if sk:
             f = find_skill(root, sk)
             out[-1].update(skill=sk, found=f["found"], description=f["description"],
@@ -858,7 +865,7 @@ def style_cards(root):
 CONTROLS = {"captions.size_pct": ("captions", float, 2.5, 9), "captions.words_per_caption": ("captions", int, 1, 6),
             "captions.y_pct": ("captions", float, 40, 85), "captions.preset": ("captions", "choice", None, None),
             "zoom.per_min": ("visuals", float, 0, 20), "zoom.preset": ("visuals", "choice", None, None),
-            "cut.max_pause": ("cut", float, 0.05, 0.6), "cards.on": ("visuals", bool, None, None),
+            "cut.max_pause": ("cut", float, 0.05, 3.0), "cards.on": ("visuals", bool, None, None),
             "cards.per_min": ("visuals", float, 1, 20),
             "sfx": ("sound", bool, None, None), "music": ("sound", bool, None, None),
             "motion.amount": ("visuals", float, 0, 1), "motion.look": ("visuals", "choice", None, None),
@@ -871,13 +878,13 @@ SECTIONS = {"captions": ("captions.",), "zoom": ("zoom.",), "cut": ("cut.",), "c
 
 
 def choices(key):
-    return {"captions.preset": [""] + list(presets.captions()), "zoom.preset": list(presets.ZOOM),
+    return {"captions.preset": ["", "none"] + list(presets.captions()), "zoom.preset": list(presets.ZOOM),
             "motion.look": ["default", *motion_mod().PRESETS]}[key]
 
 
 def control_rule(key, v):
     if key == "captions.preset":
-        r = f"Captions: the {presets.label(v)} preset" if v else "Captions: the creator's own"
+        r = "No captions" if v == "none" else f"Captions: the {presets.label(v)} preset" if v else "Captions: the creator's own"
     elif key == "zoom.preset":
         r = f"Zooms: {presets.ZOOM[v]['label']} ({presets.ZOOM[v]['sub'].lower()})"
     elif key == "cards.per_min":
@@ -887,7 +894,7 @@ def control_rule(key, v):
              "captions.words_per_caption": lambda: f"{v} word{'s' if v != 1 else ''} a caption",
              "captions.y_pct": lambda: f"Captions {v:g}% down the frame",
              "zoom.per_min": lambda: "No zooms" if not v else f"About {v:g} zooms a minute",
-             "cut.max_pause": lambda: f"Pauses cut down to {v:g} s", "sfx": lambda: "Sound effects on" if v else "No sound effects",
+             "cut.max_pause": lambda: "Pauses kept, only mistakes cut" if v >= presets.CUT["none"]["max_pause"] else f"Pauses cut down to {v:g} s", "sfx": lambda: "Sound effects on" if v else "No sound effects",
              "cards.on": lambda: "Logos and screenshots on" if v else "No logos or screenshots",
              "music": lambda: "Background music on" if v else "No background music",
              "motion.amount": lambda: "No animations" if not v else f"Animations: {'lots' if v >= 0.75 else 'some'} of the beats",
@@ -997,8 +1004,8 @@ def preset_state(root, sid, st, base, changed):
     ids = [t["id"] for t in tiles]
     cp = dig(changed, "captions.preset")
     answer = (prof.get("captions") or {}).get("style")
-    sel = cp if cp in ids else answer if sid == "mine" and answer in ids and answer != "creator" else "" if "" in ids else "plain"
-    pick = next(t for t in tiles if t["id"] == sel)
+    sel = cp if cp in ids or cp == "none" else answer if sid == "mine" and answer in ids and answer != "creator" else "" if "" in ids else "plain"
+    pick = next((t for t in tiles if t["id"] == sel), tiles[0])
     y = user_y or pick["block"]["y_pct"] or 66
     _, big, big_err = presets.tile({**pick["_full"], "y_pct": y}, ws, real, src) if user_y else (None, pick["img"], pick["err"])
     for t in tiles:
@@ -1014,7 +1021,7 @@ def preset_state(root, sid, st, base, changed):
     clips = newest_edit(("report.json", "words.raw.json"), entries)
     return {"pic": what,
             "captions": {"tiles": tiles, "sel": sel, "tag": tag(("captions.",), sel == ""), "size": pick["block"]["size_pct"] or 4.2,
-                         "y": y, "big": big, "big_err": bool(big_err), "off": caps.get("present") is False},
+                         "y": y, "big": big, "big_err": bool(big_err), "off": caps.get("present") is False or sel == "none"},
             "zoom": {"opts": [{"id": k, "label": v["label"], "sub": v["sub"]} for k, v in presets.ZOOM.items()], "sel": zsel,
                      "tag": tag(("zoom.",), bool(creator.get("zoom")))},
             "cut": {"opts": [{"id": k, "label": v["label"], "sub": v["sub"], "value": v["max_pause"]} for k, v in presets.CUT.items()],
@@ -1038,6 +1045,7 @@ def style_page(root, sid):
               "video": next((c["edit"] for c in reversed(r["corrections"]) if c.get("edit")), None),
               "applied": r.get("applied", 0), "regressions": len(r.get("regressions") or [])}
              for r in (taste.load_rules() if taste.rules_path().exists() else []) if r["scope"] == sc]
+    job = next((j for j in reversed(read()["jobs"]) if j["type"] == "style-change" and j["args"].get("style") == sid), None)
     sk = skill_of(st) if sp else None
     if sk:   # a skill style: its skill does the edit, so the page shows the skill and no controls
         srules, removable = skill_rules(root, sk)   # its learned rules live in the skill's own file
@@ -1049,7 +1057,7 @@ def style_page(root, sid):
                 "own": bool(st.get("own")), "videos": st.get("videos"), "sample": bool(st.get("sample")),
                 "references": references(sp.parent) if not st.get("own") else {"videos": [], "profile": None},
                 "made": next((f.stat().st_mtime for f in (sp.parent / "videos.json", sp) if f.is_file()), None),
-                "job": None, **naming(sid, sp, base)}
+                "job": job, **naming(sid, sp, base)}
     md = ss.skills_dir() / ss.name(sp) / "SKILL.md"
     prof = _profile()
     vals = {k: dig(st, k) for k in CONTROLS}
@@ -1058,9 +1066,9 @@ def style_page(root, sid):
     if vals["sfx"] is None:
         vals["sfx"] = (prof.get("sound") or {}).get("sfx", True) if sp is None else st.get("sfx", True)
     copies = ss.copies(st) if sp else [f"@{base}'s style" if base else "the default style", "your corrections"]
-    job = next((j for j in reversed(read()["jobs"]) if j["type"] == "style-change" and j["args"].get("style") == sid), None)
     motion = motion_state(st, changed)
-    return {"id": sid, "name": shown_name(sp), "use_for": ss.use_for(sp), "base": base, "values": vals, "sample": bool(st.get("sample")),
+    return {"id": sid, "name": shown_name(sp), "use_for": ss.use_for(sp), "base": None if base and "@" + base == sid else base,
+            "combined_from": st.get("combined_from"), "values": vals, "sample": bool(st.get("sample")),
             "changed": [k for k in CONTROLS if dig(changed, k) is not None], "look": look(st), "facts": facts(st),
             "motion": motion, "chain": chain_steps(sp, None, motion),
             "copies": copies, "rules": rules, "style_path": str(sp) if sp else None, "presets": preset_state(root, sid, st, base, changed),
@@ -1173,9 +1181,16 @@ def update_info():
     from ai_editor import skillrules
     plug, cache = PLUGIN_JSON.resolve().parents[1], (skillrules.claude_dir() / "plugins" / "cache").resolve()
     up = [q for q in [plug, *plug.parents] if cache in q.parents] if cache in plug.parents else [plug, *plug.parents]
-    dev = any((q / ".git").exists() for q in up if q != cache)   # a git checkout (a clone or worktree): git updates it
+    dev = any((q / ".git").exists() for q in up if q != cache)   # a git checkout (a clone or worktree): Update pulls it
+    fork = False
+    if dev:   # a fork is the user's own: the update skill merges it with them, the button does not
+        try:
+            o = subprocess.run(["git", "-C", str(plug), "remote", "get-url", "origin"], capture_output=True, text=True, timeout=5).stdout
+            fork = "nextwork-projects/ai-video-editor-cooked" not in o.strip().lower().removesuffix(".git") and bool(o.strip())
+        except (OSError, subprocess.TimeoutExpired):
+            pass
     return {"installed": mine, "latest": _UPD["latest"], "newer": newer, "notes": _UPD["notes"] if newer else [],
-            "checking": _UPD["busy"], "checked": _UPD["at"] or None, "dev": dev}
+            "checking": _UPD["busy"], "checked": _UPD["at"] or None, "dev": dev, "fork": fork}
 
 
 def trash(p):
@@ -1334,7 +1349,7 @@ def save_cover(root, sid, src):
     return True
 
 
-def new_own_style(root, name, skill=None):
+def new_own_style(root, name, skill=None, start=None):
     """A style the user builds themselves ("Build it yourself"): stored like a studied creator's, in
     creator-teardowns/own-<slug>/style.json (the default style, own: true), named, with its skill written.
     Returns its id ("@own-<slug>")."""
@@ -1348,7 +1363,7 @@ def new_own_style(root, name, skill=None):
     d = Path(root) / "creator-teardowns" / h
     d.mkdir(parents=True)
     p = d / "style.json"
-    p.write_text(json.dumps({**DEFAULT_STYLE, "handle": h, "own": True, **({"skill": skill} if skill else {})}, indent=2), encoding="utf-8")
+    p.write_text(json.dumps({**(start or DEFAULT_STYLE), "handle": h, "own": True, **({"skill": skill} if skill else {})}, indent=2), encoding="utf-8")
     try:
         ss.rename(p, name)
     except ValueError:
@@ -1356,6 +1371,28 @@ def new_own_style(root, name, skill=None):
         raise
     ss.write(str(p))
     return "@" + h
+
+
+def combine_styles(root, ids, name=None):
+    """Combine styles: one new own style from 2+ styles (profile.blend; the first picked gives every part, the
+    words the user wrote go to Claude as a style-change). Skill styles run their own skill, so they cannot mix.
+    Returns (new id, [(name, style.json path)] of the sources)."""
+    from ai_editor import profile
+    styles, src = {}, []
+    for sid in dict.fromkeys(str(x) for x in ids or []):
+        sp, st, h = style_of(root, sid)   # KeyError: no such style
+        if skill_of(st):
+            raise ValueError(f"{shown_name(sp) if sp else 'My style'} runs its own skill, so it cannot be combined.")
+        k = h or "mine"
+        styles[k] = {key: v for key, v in st.items() if key not in ("handle", "own", "name", "skill", "source")}
+        src.append((shown_name(sp) if sp else "My style", str(sp) if sp else "my-style"))
+    if len(styles) < 2:
+        raise ValueError("Pick two or more styles to combine.")
+    mixed = profile.blend(styles, [{"handle": k} for k in styles])
+    mixed.pop("blend", None)
+    mixed["combined_from"] = [n for n, _ in src]
+    name = name or re.sub(r"[^A-Za-z0-9 -]+", "", " and ".join(n for n, _ in src).replace("/", "-"))[:40].strip() or "Combined style"
+    return new_own_style(root, name, start=mixed), src
 
 
 def default_style(cards):
@@ -1496,7 +1533,7 @@ def run_home(kind, jid):
         edit(f)
     err = "The update stopped without saying why. Try again." if kind == "update" else "The setup step stopped without saying why. Try again."
     try:
-        cmd = {"modal": [SETUP, "modal-connect"], "modal-test": [SETUP, "modal-test"], "update": [UPDATE, "market"]}[kind]
+        cmd = {"modal": [SETUP, "modal-connect"], "modal-test": [SETUP, "modal-test"], "update": [UPDATE, "window"]}[kind]
         p = subprocess.Popen([sys.executable, *map(str, cmd)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                              text=True, encoding="utf-8", errors="replace")
         for line in p.stdout:
@@ -1670,6 +1707,18 @@ def claude_for(jid):
     r = {"opened": opened, "command": cmd}
     update(lambda d: [j.__setitem__("claude", r) for j in d["jobs"] if j["id"] == jid])
     return r
+
+
+def stop_file(sid):
+    """toolhook.py denies every tool call of this session while the file is fresh: the window's Stop."""
+    return home().parent / "stop" / sid
+
+
+def claude_unless_idle(jid):
+    """A Claude of its own for job jid (claude_for), unless a listening Claude is idle and takes it now."""
+    lis = listener()
+    if lis is None or busy_with(read(), lis):
+        return claude_for(jid)
 
 
 def editing(j):
@@ -2206,7 +2255,9 @@ def make_handler(token):
                 try:
                     sid, step = str(body.get("id") or "mine"), body.get("step")
                     sp, st, _ = style_of(root, sid)
-                    if step == "motion" and not skill_of(st):   # a settings style's animations are its motion setting
+                    if body.get("skill"):   # {id, skill, at: before|after|null}: chain a skill on, move it, or take it off
+                        _taste()[1].set_chain_skill(sp, body["skill"], body.get("at"))
+                    elif step == "motion" and not skill_of(st):   # a settings style's animations are its motion setting
                         set_control(root, sid, "motion.amount", 0.5 if body.get("on") else 0)
                     else:
                         _taste()[1].set_chain(sp, step, body.get("on"))
@@ -2295,6 +2346,21 @@ def make_handler(token):
                     return self.send(200, {"ok": True, "id": new_own_style(read()["root"], body.get("name"), sk)})
                 except ValueError as e:
                     return self.send(400, {"error": str(e)})
+            if path == "/style/combine":   # New style, "Combine styles": {ids: [2+], name?, text?}
+                d = read()
+                try:
+                    nid, src = combine_styles(d["root"], body.get("ids"), " ".join(str(body.get("name") or "").split())[:40] or None)
+                except KeyError:
+                    return self.send(404, {"error": "No such style."})
+                except ValueError as e:
+                    return self.send(400, {"error": str(e)})
+                text = re.sub(r"\s+", " ", str(body.get("text") or "")).strip()[:1000]
+                if text:   # the user's words decide which part comes from which style: Claude, as a style-change
+                    sp, _, _ = style_of(d["root"], nid)
+                    froms = "; ".join(f"{n} ({p})" for n, p in src)
+                    cj = update(lambda dd: queue(dd, "style-change", {"style": nid, "path": str(sp), "text": f"Combined from {froms}. {text}"}))
+                    claude_unless_idle(cj["id"])
+                return self.send(200, {"ok": True, "id": nid})
             if path == "/style/skill":   # {id, skill}: a skill style runs another skill (its skill was deleted)
                 try:
                     sp, st, _ = style_of(read()["root"], str(body.get("id") or ""))
@@ -2376,6 +2442,19 @@ def make_handler(token):
                 import launcher
                 st, cmd = launcher.connect(read()["root"])
                 return self.send(200, {"status": st, "command": cmd})
+            if path == "/stop":   # {id}: the sidebar's Stop. The job ends, and its Claude stops at its next step (toolhook)
+                def st(d):
+                    j = next((j for j in d["jobs"] if j["id"] == body.get("id")), None)
+                    if j and j["state"] in ("queued", "taken"):
+                        j["cancel"], j["state"], j["error"] = True, "cancelled", "Stopped."
+                        return j.get("owner")
+                    return None
+                owner = update(st)
+                if owner and owner != "home":
+                    f = stop_file(owner)
+                    f.parent.mkdir(parents=True, exist_ok=True)
+                    f.write_text(str(time.time()), encoding="utf-8")
+                return self.send(200, {"ok": True, "stopped": bool(owner)})
             if path == "/cancel":
                 def c(d):   # {type, handle?}: the handle picks that creator's analysis when several run
                     h, kind = body.get("handle"), body.get("type") or "teardown"
@@ -2446,15 +2525,15 @@ def make_handler(token):
             elif kind == "video":
                 return self.videos(b, d)
             elif kind == "update":   # Settings, Update: the window runs it itself (run_home), no Claude needed
-                if update_info()["dev"]:
-                    return self.send(409, {"error": "This is a developer copy; update it with git yourself."})
+                if update_info()["fork"]:
+                    return self.send(409, {"error": "Your editor is your own copy (a fork). Ask Claude Code: update my editor."})
                 return self.send(200, {"id": start_modal("update")["id"]})
             elif kind == "setup":   # the first run's Start setup (JOB setup, install-all --report)
                 if any(j["type"] == "setup" and j["state"] in ("queued", "taken") for j in d["jobs"]):
                     return self.send(200, {"id": latest(d, "setup")["id"]})
                 args = {}
             elif kind == "style-change":   # "Tell it what to change": Claude turns the words into rules at that style's scope
-                text = re.sub(r"\s+", " ", str(b.get("text") or "")).strip()[:400]
+                text = re.sub(r"\s+", " ", str(b.get("text") or "")).strip()[:1000]
                 try:
                     sp, _, _ = style_of(d["root"], b.get("style") or "mine")
                 except KeyError:
@@ -2473,10 +2552,12 @@ def make_handler(token):
                     return self.send(400, {"error": "Say what to change."})
                 args = {"skill": n, "path": str(md), "text": text}
             elif kind == "skill-new":   # Skills, "Make a new skill": skill-maker, step by step with the user
-                args = {"text": re.sub(r"\s+", " ", str(b.get("text") or "")).strip()[:400]}
+                args = {"text": re.sub(r"\s+", " ", str(b.get("text") or "")).strip()[:2000]}
             else:
                 return self.send(400, {"error": "unknown job"})
             j = update(lambda d: queue(d, kind, args))
+            if kind in ("style-change", "skill-change", "skill-new"):   # typed in a chat box: a Claude opens for it
+                claude_unless_idle(j["id"])
             return self.send(200, {"id": j["id"], "handle": j["args"].get("handle")})
 
         def sample(self):
@@ -2530,7 +2611,18 @@ def make_handler(token):
             sample = bool(b.get("sample"))
             if not sample:   # the sample stays off the recent takes
                 update(remember)
+            # the same clips in the same style while their video waits for its Claude (Make pressed again because that
+            # Terminal window did not start): that video again, never a second job and a second Claude
+            making = {tuple(j["args"].get("paths") or [j["args"].get("path")]): j for j in d["jobs"]
+                      if j["type"] == "video" and j["state"] == "queued" and j["args"].get("as") == style}
+            again = []
             for g in groups:
+                same = making.get(tuple(p["path"] for p in g))
+                if same:
+                    ids.append(same["id"])
+                    edits.append(same["args"]["edit"])
+                    again.append(same["id"])
+                    continue
                 edit = new_edit(Path(d["root"]), SAMPLE_NAME if sample else g[0]["name"])
                 args = {"path": g[0]["path"], "paths": [p["path"] for p in g], "as": style, "aspect": aspect, "edit": str(edit),
                         **({"skill": skill} if skill else {}), **({"chain": chain} if chain else {})}
@@ -2565,7 +2657,8 @@ def make_handler(token):
             # the sample before setup is done: the Claude installing takes it next, as a second one would install again
             # and the sample always stays with the listening Claude (setup, analysis and the sample are the first Claude's)
             idle = idle or sample and (lis is not None or not getting_started(d)["setup"])
-            for jid in ids[1:] if idle else ids:
+            fresh = [i for i in ids if i not in again]
+            for jid in fresh[1:] if idle else fresh:
                 claude_for(jid)
             return self.send(200, {"id": ids[0], "ids": ids, "edits": edits})
 
@@ -3330,14 +3423,18 @@ def demo():
         assert e.code == 400
     (home() / ".listening").unlink()
     opened.clear()
+    update(lambda d: [j.update(state="done") for j in d["jobs"] if j["id"] in r2["ids"]])   # the same clip again below
     r3 = post("/job", {"type": "video", "paths": [str(vid), str(vid)], "join": False, "aspect": "9:16", "as": "mine"})
     assert [p for _, p in opened] == [f"/ai-editor:start take job {i}" for i in r3["ids"]], opened
     assert not (Path(r3["edits"][0]) / "assets.json").exists() and " assets=" not in job_line(latest(read(), "video"), root)
     # no terminal can open (Linux without x-terminal-emulator): the job keeps the command, the editor shows it to run
     rec = launcher.open_claude
     launcher.open_claude = lambda folder, prompt: (False, "claude '" + prompt + "'")
+    update(lambda d: [j.update(state="done") for j in d["jobs"] if j["id"] in r3["ids"]])
     r4 = post("/job", {"type": "video", "path": str(vid), "aspect": "9:16", "as": "mine"})["id"]
     assert next(j for j in read()["jobs"] if j["id"] == r4)["claude"] == {"opened": False, "command": f"claude '/ai-editor:start take job {r4}'"}
+    n4 = len(read()["jobs"])   # Make my video again on the same clip while it is made: the same job, no second Claude
+    assert post("/job", {"type": "video", "path": str(vid), "aspect": "9:16", "as": "mine"})["id"] == r4 and len(read()["jobs"]) == n4
     launcher.open_claude = rec
     update(lambda d: [j.update(state="done") for j in d["jobs"] if j["id"] in r2["ids"] + r3["ids"] + [r4]])
     globals()["claude_for"] = own.append
@@ -3509,6 +3606,18 @@ def demo():
     assert references(rd)["videos"][0]["title"] == "one"   # kept in references.json once the analysis ended
     # Build it yourself: a second own style, listed as own, can be the default, and goes when deleted
     oid = post("/style/new", {"name": "Clean talking head"})["id"]
+    # Combine styles: a new own style from two, the first giving every part; the words go to Claude as a style-change
+    cid = post("/style/combine", {"ids": [oid, "mine"], "text": "captions from My style, the rest from Clean talking head"})["id"]
+    cj = next(j for j in reversed(read()["jobs"]) if j["type"] == "style-change")
+    assert cj["args"]["style"] == cid and "Combined from Clean talking head" in cj["args"]["text"] and "captions from My style" in cj["args"]["text"]
+    assert json.loads((Path(read()["root"]) / "creator-teardowns" / cid[1:] / "style.json").read_text(encoding="utf-8"))["combined_from"] == ["Clean talking head", "My style"]
+    try:
+        post("/style/combine", {"ids": [oid]})
+        raise AssertionError("one style combined")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    update(lambda d: [j.update(state="done") for j in d["jobs"] if j["type"] == "style-change" and j["args"]["style"] == cid])
+    post("/style/delete", {"id": cid})   # later checks count the styles
     own = next(c for c in get("/library")["styles"] if c["id"] == oid)
     assert oid.startswith("@own-") and own["own"] and own["name"] == "Clean talking head" and not own.get("studying"), own
     assert next(c for c in get("/library")["styles"] if c["id"] == "mine")["own"]
@@ -3586,6 +3695,24 @@ def demo():
     assert " skill=my-edit-style chain=motion root=" in job_line(kj, root), job_line(kj, root)
     update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["id"] != kj["id"]]))
     shutil.rmtree(kj["args"]["edit"])
+    # chain other skills on: one before the edit, one after; they show in What runs and go to Claude with the video
+    post("/style/chain", {"id": "@own-skilled", "skill": "my-broll", "at": "before"})
+    kp = post("/style/chain", {"id": "@own-skilled", "skill": "/my-thumbnail", "at": "after"})
+    assert [x["name"] for x in kp["chain"]] == ["Cut", "Real logos", "Animations", "/my-broll", "/my-edit-style", "/my-thumbnail"], kp["chain"]
+    kj = post("/job", {"type": "video", "path": str(vid), "as": "@own-skilled", "aspect": "9:16"})["id"]
+    kj = next(j for j in read()["jobs"] if j["id"] == kj)
+    assert " chain=motion,before:my-broll,after:my-thumbnail root=" in job_line(kj, root), job_line(kj, root)
+    update(lambda d: d.__setitem__("jobs", [j for j in d["jobs"] if j["id"] != kj["id"]]))
+    shutil.rmtree(kj["args"]["edit"])
+    kp = post("/style/chain", {"id": "@own-skilled", "skill": "my-broll", "at": None})
+    assert [x["name"] for x in kp["chain"]][3:] == ["/my-edit-style", "/my-thumbnail"]
+    for bad in ({"skill": "../x", "at": "after"}, {"skill": "ok", "at": "during"}):
+        try:
+            post("/style/chain", {"id": "@own-skilled", **bad})
+            raise AssertionError(bad)
+        except urllib.error.HTTPError as e:
+            assert e.code == 400, bad
+    post("/style/chain", {"id": "@own-skilled", "skill": "my-thumbnail", "at": None})
     try:
         post("/style/chain", {"id": "@own-skilled", "step": "nope", "on": True})
         raise AssertionError("an unknown chain step")
@@ -3799,6 +3926,12 @@ def demo():
     pg = post("/style/set", {"id": "@sample.creator", "key": "captions.preset", "value": "karaoke"})
     assert pg["presets"]["captions"]["sel"] == "karaoke" and pg["presets"]["captions"]["tag"] == "you changed this"
     assert json.loads((td / "style.overrides.json").read_text(encoding="utf-8"))["captions"]["preset"] == "karaoke"
+    # None on Captions: no captions in the edit (presets.apply), the page shows None picked; Cut None keeps the pauses
+    pg = post("/style/set", {"id": "@sample.creator", "key": "captions.preset", "value": "none"})
+    assert pg["presets"]["captions"]["off"] and pg["presets"]["captions"]["sel"] == "none"
+    assert presets.apply({"captions": {"present": True, "size_pct": 5}}, {"captions": {"preset": "none"}})["captions"]["present"] is False
+    assert post("/style/set", {"id": "@sample.creator", "key": "cut.max_pause", "value": 3.0})["presets"]["cut"]["sel"] == "none"
+    post("/style/set", {"id": "@sample.creator", "key": "captions.preset", "value": "karaoke"})
     pg = post("/style/set", {"id": "@sample.creator", "key": "zoom.preset", "value": "punchy"})
     assert pg["presets"]["zoom"]["sel"] == "punchy" and "Zooms: Punchy (snaps in fast) (set on the style page)" in md.read_text(encoding="utf-8")
     for key, v in (("cards.per_min", 2), ("cards.on", False), ("music", True), ("cut.max_pause", 0.25)):
@@ -3820,13 +3953,27 @@ def demo():
     pm = get("/style?id=mine")["presets"]   # My style started from the creator: the creator's captions on, zooms closest to measured
     assert pm["captions"]["sel"] == "" and pm["zoom"]["sel"] == "none", pm["zoom"]   # taste.json zoom.per_min 0 above
     # Tell it what to change: one JOB line for Claude, at that style's scope
-    post("/job", {"type": "style-change", "style": "@sample.creator", "text": "captions a bit bigger,\n fewer zooms"})
+    sc = post("/job", {"type": "style-change", "style": "@sample.creator", "text": "captions a bit bigger,\n fewer zooms"})
+    assert claude_for.__self__[-1] == sc["id"], "nobody listening: a Claude opens for the style's chat"
     assert out(cmd_wait, 0.01) == f"JOB style-change @sample.creator style={(td / 'style.json').resolve()} text=captions a bit bigger, fewer zooms"
     post("/job", {"type": "style-change", "style": "mine", "text": "no whooshes"})
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-S"
     assert out(cmd_wait, 0.01) == "JOB style-change my-style text=no whooshes"
+    os.environ.pop("CLAUDE_CODE_SESSION_ID")
     out(cmd_status, argparse.Namespace(job="style-change", step="Saved: no sound effects", detail=None, progress=None,
                                        result=json.dumps({"changed": ["No sound effects"]}), done=True, failed=None))
     assert get("/style?id=mine")["job"]["result"]["changed"] == ["No sound effects"]
+    # the sidebar's Stop: the job ends and its session's tool calls are denied (toolhook) until STOP_S passes
+    post("/job", {"type": "style-change", "style": "mine", "text": "fewer cards"})
+    os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-S"
+    out(cmd_wait, 0.01)
+    os.environ.pop("CLAUDE_CODE_SESSION_ID")
+    sj = latest(read(), "style-change")
+    assert post("/stop", {"id": sj["id"]})["stopped"] and latest(read(), "style-change")["state"] == "cancelled"
+    import toolhook
+    assert toolhook.stopped("sess-S") and not toolhook.stopped("sess-T")
+    stop_file("sess-S").unlink()
+    assert out(cmd_wait, 0.01) == "JOB cancel style-change", "a listening Claude hears it too"
     # previews prefer raw takes: a finished render (its own captions) is never used behind a sample caption
     assert is_output(root / "edits" / "x" / "render.mp4") and is_output(tmp / "v-edit2.mp4") and is_output(root / "edits" / "x" / "review" / "a.mp4")
     assert is_output(ed / "anything.mp4", [ed]) and not is_output(root / "videos" / "drop.mp4", [ed])
@@ -3980,7 +4127,7 @@ def demo():
     assert (cts / "sample-card-edit" / "style.json").is_file() and "@sample-card-edit" in [c["id"] for c in get("/library")["styles"]]
     assert get("/style?id=@sample-card-edit")["sample"]
     post("/job", {"type": "video", "path": str(vid), "as": "@sample-card-edit", "aspect": "9:16"})
-    assert " as=@sample-card-edit aspect=9:16 " in out(cmd_wait, 0.01)
+    _w = out(cmd_wait, 0.01); assert " as=@sample-card-edit aspect=9:16 " in _w, _w
     # folders: create, move an edit and a style in, rename, delete (items go back to All, files untouched); bad ids refused
     reels = post("/folder/create", {"kind": "videos", "name": "  Reels  "})["id"]
     assert get("/library")["folders"]["videos"]["folders"] == [{"id": reels, "name": "Reels"}]
@@ -4019,13 +4166,16 @@ def demo():
     u = get("/state")["update"]
     assert u["newer"] and u["latest"] == "99.0.0" and u["installed"] == json.loads(PLUGIN_JSON.read_text(encoding="utf-8"))["version"], u
     assert u["notes"] == ["Dark mode in the window"] and vtuple("2.10.0") > vtuple("2.9.1")
-    # Update runs in the window itself (no Claude): a developer copy is refused; an installed one runs update.py
-    # market, shows its steps, keeps the new version and restarts the server from the new version's folder
+    # Update runs in the window itself (no Claude): a fork is refused (the update skill merges it with the user); any
+    # other install runs update.py window, shows its steps, keeps the new version and restarts from its folder
+    real_info = update_info
+    globals()["update_info"] = lambda: {**real_info(), "fork": True}
     try:
         post("/job", {"type": "update"})
-        raise AssertionError("a git checkout must not update itself")
+        raise AssertionError("a fork must not update from the button")
     except urllib.error.HTTPError as e:
         assert e.code == 409
+    globals()["update_info"] = real_info
     real_update, real_restart, restarted = UPDATE, globals()["restart_on"], []
     fake = tmp / "fake_update.py"
     fake.write_text("print('STEP Getting the list of new versions', flush=True)\nprint('STEP Updating ai-editor', flush=True)\n"
@@ -4121,7 +4271,17 @@ def main():
     s.add_argument("--failed", help="a plain sentence for the page")
     s.add_argument("--if-active", action="store_true", help="only onto a taken job, never taking one (progress.py)")
     s.add_argument("--key", help="with --if-active: the edit folder or handle the job is for")
+    s = sp.add_parser("chain")
+    s.add_argument("style", help="mine, @handle or @own-...")
+    s.add_argument("skill")
+    s.add_argument("--at", choices=("before", "after"))
+    s.add_argument("--off", action="store_true")
     a = ap.parse_args()
+    if a.cmd == "chain":
+        sp_, _, _ = style_of(read()["root"], a.style)
+        xs = _taste()[1].set_chain_skill(sp_, a.skill, None if a.off else a.at or "after")
+        print("What runs: " + (", ".join(f"/{x['skill']} ({x['at']} the edit)" for x in xs) or "no added skills"))
+        return
     if a.cmd == "serve":
         srv, url = serve(a.root, a.port, open_browser=not a.no_open)
         print(url, flush=True)

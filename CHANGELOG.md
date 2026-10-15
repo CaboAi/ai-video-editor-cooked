@@ -4,6 +4,10 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- After an update, every open page moves onto the new version by itself: the window and each video's page restart on
+  it within about 15 seconds, so a video page never keeps showing the old version.
+- The video page's left rail has an Update button when a new version is out. It runs the same update as Settings.
+
 ## ai-editor 2.7.15, creator-teardown 2.7.15 (2026-10-15)
 
 - An Update button in the sidebar when a new version is out. One press installs it and the card shows the steps.

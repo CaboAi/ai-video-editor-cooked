@@ -1867,7 +1867,7 @@ function vStat(v){
 function vCard(v){
   const s=vStat(v),fn=rv==='videos'&&ui.fold.videos?'':(fd('videos').folders.find(f=>f.id===inFold('videos',v.dir))||{}).name,meta=[fn,v.stage==='edit'?'Full edit':'Cut',v.wide?'16:9':v.round?(v.draft||`draft ${v.round}`):'',ago(v.updated)].filter(Boolean).join(' · ');
   return `<div class="vc" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name,v.thumb)}><div class="vi">${picArea(v)}
-    <div class="tx"><div style="min-width:0"><div class="nm" title="${esc(v.name)}">${esc(v.name)}</div><div class="mt">${meta}</div></div><div class="st"><div class="stt ${s.ok?'ok':''}" title="${esc(s.title||'')}">${s.txt}</div>${s.btn}</div></div>
+    <div class="tx"><div style="min-width:0">${vName(v)}<div class="mt">${meta}</div></div><div class="st"><div class="stt ${s.ok?'ok':''}" title="${esc(s.title||'')}">${s.txt}</div>${s.btn}</div></div>
     <div class="bar ${s.ok?'ok':s.frac==null?'indet':''}">${s.ok?'':`<i style="width:${s.frac==null?40:Math.round(s.frac*100)}%"></i>`}</div></div></div>`;
 }
 // the picture area every video card and tile shares: one height; wide fills it, tall shows whole over a blurred copy
@@ -1877,7 +1877,7 @@ const perRow=()=>Math.max(1,Math.floor((cw()+12)/272));
 function cardRows(vs){return `<div class="vcs">${vs.map(vCard).join('')}</div>`}
 // a finished video as a tile: the card's picture area, its name and when
 function tile(v){
-  return `<div class="dt" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name,v.thumb)}>${picArea(v)}<div class="nm" title="${esc(v.name)}">${esc(v.name)}</div><div class="mt">${[ui.fold.videos?'':(fd('videos').folders.find(f=>f.id===inFold('videos',v.dir))||{}).name,ago(v.updated)].filter(Boolean).map(esc).join(' · ')}</div></div>`;
+  return `<div class="dt" ${goAttrs(v)} ${dragAttrs('videos',v.dir,v.name,v.thumb)}>${picArea(v)}${vName(v)}<div class="mt">${[ui.fold.videos?'':(fd('videos').folders.find(f=>f.id===inFold('videos',v.dir))||{}).name,ago(v.updated)].filter(Boolean).map(esc).join(' · ')}</div></div>`;
 }
 function checkCards(){
   const bad=[];for(const c of document.querySelectorAll('.vi,.cs,.pc,.dt')){const r=c.getBoundingClientRect();
@@ -2208,7 +2208,7 @@ function subMenu(kind,item,name){
   const nf=`newFolder(${J(item)},${J(name)},'${kind}')`;
   return `<button class="hasub ${ui.sub?'on':''}" onclick="ui.sub=!ui.sub;render()">${ic('folder',16)}<span class="lb">Move to folder</span>${ic('chev',14,2)}</button>${ui.sub?`<div class="cmenu sub">${kind==='styles'?'<div class="mh">Style folders</div>':''}${F.folders.map(f=>`<button onclick="ui.cmenu=null;moveTo('${kind}',${J(item)},${J(f.id)},${J(name)})">${ic(kind==='styles'?'styles':'folder',16)}<span class="lb">${esc(f.name)}</span>${f.id===cur?ic('check',14,2.4):`<span class="n">${n(f.id)}</span>`}</button>`).join('')}${F.folders.length?'<hr>':''}<button onclick="ui.cmenu=null;${nf}">${ic('plus',16)}<span class="lb">New folder</span></button>${cf?`<button onclick="ui.cmenu=null;moveTo('${kind}',${J(item)},null,${J(name)})">${ic('minus',16)}<span class="lb">Take out of ${esc(cf.name)}</span></button>`:''}</div>`:''}`;
 }
-const vMenu=v=>dotsBtn('v:'+v.dir,'More for this video')+cMenu('v:'+v.dir,[['Remove from this list',`hideEdit(${J(v.dir)})`,'minus'],ui.cmenu==='v:'+v.dir&&subMenu('videos',v.dir,v.name),
+const vMenu=v=>dotsBtn('v:'+v.dir,'More for this video')+cMenu('v:'+v.dir,[['Rename',`renVid(${J(v.dir)},${J(v.name)})`,'pencil'],['Remove from this list',`hideEdit(${J(v.dir)})`,'minus'],ui.cmenu==='v:'+v.dir&&subMenu('videos',v.dir,v.name),
   v.status==='done'&&v.media&&['Download',`location.href=${J(v.media)}`,'down'],'hr',['Move to Trash',`askTrash(${J(v.dir)})`,'trash']]);
 // ---- folders (Your videos in the sidebar, My styles on its page): folders.json through /folder/*
 const fd=k=>(L&&L.folders||{})[k]||{folders:[],items:{}};
@@ -2252,6 +2252,12 @@ function foldRow(k,thumbs){
 // inside a folder: "‹ All videos" (a drop target to take things out) and the folder's name as the heading
 function foldHead(k,label){const f=fd(k).folders.find(x=>x.id===ui.fold[k]);return f?`<button class="hlink dropout" style="font-size:14px;align-self:flex-start" onclick="ui.fold['${k}']=null;render()" ${dropAttrs(k,null)}>‹ ${label}</button><h1 style="margin-top:6px">${esc(f.name)}</h1>`:''}
 const mo=k=>ui.cmenu===k?' mopen':'';
+// Rename on a video's ⋯: the name turns into a field; Enter or leaving it saves, Esc puts it back, empty goes back to the folder's name
+function renVid(dir,val){ui.renvid={dir,val};render();setTimeout(()=>{const e=$('#vid-name');if(e){e.focus();e.select()}},0)}
+async function vidSave(){const e=ui.renvid;if(!e||e.saving)return;e.saving=1;const name=(($('#vid-name')||{}).value??e.val).trim();
+  const r=await post('/edit/rename',{dir:e.dir,name});ui.renvid=null;if(!r.ok)toast(r.msg||'That did not save.');await loadLib();render()}
+const vName=v=>ui.renvid&&ui.renvid.dir===v.dir?`<input id="vid-name" class="input" style="font:inherit;height:auto;padding:2px 6px;width:100%" value="${esc(ui.renvid.val||'')}" maxlength="80" aria-label="Video name" draggable="false" onclick="event.stopPropagation()" ondragstart="event.preventDefault();event.stopPropagation()" oninput="ui.renvid.val=this.value" onblur="vidSave()" onkeydown="event.stopPropagation();if(event.key==='Enter')this.blur();if(event.key==='Escape'){ui.renvid.saving=1;ui.renvid=null;render()}">`
+  :`<div class="nm" title="${esc(v.name)}">${esc(v.name)}</div>`;
 async function hideEdit(dir){const r=await post('/edit/hide',{dir});ui.editmsg=r.ok?null:(r.msg||'That did not work.');await loadLib();render()}
 function askTrash(dir){ui.edittrash=dir;if(rv!=='videos')rgo('videos');else render();setTimeout(()=>{const c=$('.confirm');if(c)c.scrollIntoView({block:'nearest'})},0)}
 document.addEventListener('click',()=>{if(ui.cmenu||ui.clipmenu){ui.cmenu=ui.clipmenu=null;render()}});

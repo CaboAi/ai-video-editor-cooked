@@ -227,7 +227,12 @@ body.preview #pins,body.preview #cmprow{visibility:hidden}
 #time{display:flex;align-items:baseline;gap:4px;padding-left:8px;font-size:14px;line-height:18px;white-space:nowrap}
 #time b{font-weight:600;color:var(--strong)}#time span{color:var(--muted)}
 .grow{flex:1;display:flex;justify-content:center;min-width:0}
-#vtabs:empty{display:none}
+/* the versions of this draft: one dropdown, so long names never squeeze the player bar */
+.vsel{position:relative;display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 30px 0 12px;border:1.5px solid var(--ink);border-radius:8px;background:var(--panel);min-width:0;max-width:100%;cursor:pointer}
+.vsel[hidden]{display:none}.vsel span{font-size:12px;line-height:16px;color:var(--muted);flex-shrink:0}
+.vsel select{appearance:none;-webkit-appearance:none;border:0;background:none;color:var(--strong);font-size:13px;line-height:16px;font-weight:600;min-width:0;max-width:260px;text-overflow:ellipsis;cursor:pointer;outline:none;padding:0}
+.vsel svg{position:absolute;right:10px;color:var(--ink);pointer-events:none}
+.vsel:focus-within{box-shadow:0 0 0 2px var(--line2)}
 #safebtn{display:none}body.vertical #safebtn{display:inline-flex}
 
 /* the scrubber: split at cut points (or chapters), numbered note pins above, the edit's cards and zooms under it */
@@ -523,7 +528,7 @@ body.making #making{display:flex}
   <button id="play" aria-label="play or pause"></button>
   <button class="tbtn" id="back" title="j">-5s</button><button class="tbtn" id="fwd" title="l">+5s</button>
   <span id="time" class="num"><b>0:00.0</b><span>/ 0:00</span></span>
-  <div class="grow"><div class="seg" id="vtabs"></div></div>
+  <div class="grow"><label class="vsel" id="vtabs" hidden><span>Version</span><select id="vsel" aria-label="which version plays"></select><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></label></div>
   <button class="tbtn" id="speed" title="[ and ]">1x</button>
   <button class="tbtn" id="mute" title="m">Sound</button>
   <button class="tbtn" id="safebtn" title="z">Safe zone</button>
@@ -707,7 +712,8 @@ function renderCaps(){
 }
 function renderVer(){
   const r=viewRound(),alts=r.alts||[];
-  $('vtabs').innerHTML=alts.length?['',...alts.map(a=>a.name)].map(x=>`<button class="${x===alt?'on':''}" data-ver="${esc(x)}" aria-pressed="${x===alt}">${esc(lab(x))}</button>`).join(''):'';
+  $('vtabs').hidden=!alts.length;
+  if(alts.length){const h=['',...alts.map(a=>a.name)].map(x=>`<option value="${esc(x)}"${x===alt?' selected':''}>${esc(lab(x))}</option>`).join('');const sel=$('vsel');if(sel._h!==h){sel._h=h;sel.innerHTML=h}sel.value=alt}
   const opts=cmpOptions();
   $('ver2').innerHTML=opts.map((o,i)=>`<option value="${i}"${cmp&&o.k===cmp.k&&o.alt===cmp.alt?' selected':''}>${esc(o.label)}</option>`).join('');
   $('ver2').style.display=cmp&&opts.length>1?'':'none';
@@ -1314,7 +1320,7 @@ $('speed').onclick=()=>setSpeed(SPEEDS[(SPEEDS.indexOf(speed)+1)%SPEEDS.length])
 v.addEventListener('loadedmetadata',()=>{v.playbackRate=speed;renderBar();renderTracks()});
 $('mute').onclick=()=>{v.muted=!v.muted;$('mute').textContent=v.muted?'Muted':'Sound'};
 $('full').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.querySelector('#p1 .player').requestFullscreen();
-$('vtabs').onclick=e=>{const b=e.target.closest('[data-ver]');if(!b)return;alt=b.dataset.ver;inT=outT=null;setVideo();render()};
+$('vsel').onchange=e=>{alt=e.target.value;inT=outT=null;setVideo();render()};
 $('safebtn').onclick=()=>{const on=!document.querySelector('.player').classList.contains('safe');
   document.querySelectorAll('.player').forEach(p=>p.classList.toggle('safe',on));$('safebtn').textContent=on?'Hide safe zone':'Safe zone';placeSafe()};
 // the box sits on the picture, not the element: in full screen the picture is letterboxed inside the screen

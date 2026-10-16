@@ -4,6 +4,8 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- A video's versions are one Version dropdown in the player bar, so long names no longer squeeze it.
+
 ## ai-editor 2.7.19, creator-teardown 2.7.19 (2026-10-15)
 - The video page's left rail has Skills, and the Skills page loads when opened from a link.
 

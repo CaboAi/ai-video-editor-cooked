@@ -87,6 +87,7 @@ import askhook  # noqa: E402
 import assets  # noqa: E402
 import custom  # noqa: E402
 import keys  # noqa: E402
+import post  # noqa: E402
 import library  # noqa: E402
 import links  # noqa: E402
 import live  # noqa: E402
@@ -1980,6 +1981,13 @@ def make_handler(token):
                 return
             if path == "/":
                 return self.send(200, themed(HTML.read_bytes()), "text/html; charset=utf-8", cookie=True)
+            if path == "/post/accounts":   # Settings, Auto-post your videos: asked when the card opens and on return from a sign-in, never per poll
+                try:
+                    return self.send(200, {"accounts": post.accounts()})
+                except post.NoKey:
+                    return self.send(200, {"accounts": [], "nokey": True})
+                except post.Refused as e:
+                    return self.send(200, {"accounts": [], "msg": str(e)})
             if path == "/state":
                 d = read()
                 d["listening"], d["keys"], d["theme"] = listening(), key_rows(d), theme()
@@ -2155,6 +2163,11 @@ def make_handler(token):
                 return self.send(400, {"error": "not json"})
             if askhook.route(self, "POST", path, {}, body):
                 return
+            if path == "/post/connect":   # one more account: Zernio's sign-in opens in a new tab, Settings re-lists on return
+                try:
+                    return self.send(200, {"url": post.connect_url(str(body.get("platform") or ""))})
+                except (post.NoKey, post.Refused) as e:
+                    return self.send(400, {"msg": str(e)})
             if path == "/theme":   # the toggle: one choice for the window and every review page (review.py)
                 try:
                     set_theme(body.get("theme"))
@@ -3038,6 +3051,13 @@ def demo():
     except urllib.error.HTTPError as e:
         assert e.code == 400
     post("/theme", {"theme": "system"})
+    # Settings, Auto-post your videos with no Zernio key: an empty list that says so, no request leaves the computer
+    assert get("/post/accounts") == {"accounts": [], "nokey": True} and "zernio" in get("/state")["keys"]
+    try:
+        post("/post/connect", {"platform": "tiktok"})
+        raise AssertionError("a connect link without a key")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
     # Claude's question (askhook.py): the hook posts it, the showing page polls it and answers, the hook clears it
     assert b'src="/ask.js"' in HTML.read_bytes() and b"askq" in urllib.request.urlopen(base + "/ask.js?t=" + tok).read()
     assert askhook.live() == []   # served, but no page has polled yet

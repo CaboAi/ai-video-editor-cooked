@@ -2011,7 +2011,8 @@ def make_handler(token):
                 root, jobs = read()["root"], read()["jobs"]
                 raw = {str(Path(j["args"]["edit"]).resolve()): j for j in jobs if j["type"] == "video" and j["args"].get("edit")}
                 # no cut yet: the raw clip's frame (as New video shows it), and the job the card follows
-                vids = [dict(e, thumb=f"/thumb?p={quote(e['video'] or raw[e['dir']]['args']['path'])}&u={int(e['updated'])}"
+                names = read().get("edit_names") or {}   # Rename on the card: a name for this window, the folder keeps its own
+                vids = [dict(e, name=names.get(e["dir"]) or e["name"], thumb=f"/thumb?p={quote(e['video'] or raw[e['dir']]['args']['path'])}&u={int(e['updated'])}"
                              if e["video"] or e["dir"] in raw else None,
                              media=e["video"] and "/media?p=" + quote(e["video"]), job=(raw.get(e["dir"]) or {}).get("id"))
                         for e in library.entries() if e["dir"] not in set(read().get("hidden_edits") or [])]   # Remove from this list
@@ -2402,6 +2403,13 @@ def make_handler(token):
                     return self.send(200, {"ok": True, "removed": delete_style(root, sid, body.get("measured") is True)})
                 except ValueError as e:
                     return self.send(400, {"error": str(e)})
+            if path == "/edit/rename":   # {dir, name}: the card's name; empty puts the folder's name back
+                d, name = Path(str(body.get("dir") or "")).resolve(), " ".join(str(body.get("name") or "").split())
+                if d not in library.edit_dirs() or len(name) > 80:
+                    return self.send(400, {"ok": False, "msg": "That is not one of your videos." if len(name) <= 80 else "Keep it under 80 characters."})
+                update(lambda x: x.__setitem__("edit_names", {**{k: v for k, v in (x.get("edit_names") or {}).items() if k != str(d)},
+                                                              **({str(d): name} if name else {})}))
+                return self.send(200, {"ok": True})
             if path in ("/clip/hide", "/clip/trash", "/edit/trash", "/edit/hide"):   # only what the page listed; Trash, never a delete
                 st = read()
                 if path in ("/edit/trash", "/edit/hide"):
@@ -4009,6 +4017,16 @@ def demo():
         hid.mkdir(parents=True)
         shutil.copyfile(vid, hid / "cut.mp4")
         assert str(hid.resolve()) in [v["dir"] for v in get("/library")["videos"]]
+        assert post("/edit/rename", {"dir": str(hid), "name": "  My   first video "})["ok"]
+        assert next(v for v in get("/library")["videos"] if v["dir"] == str(hid.resolve()))["name"] == "My first video"
+        assert post("/edit/rename", {"dir": str(hid), "name": ""})["ok"]
+        assert next(v for v in get("/library")["videos"] if v["dir"] == str(hid.resolve()))["name"] == "hide-me"
+        for bad in ({"dir": str(tmp), "name": "x"}, {"dir": str(hid), "name": "x" * 81}):
+            try:
+                post("/edit/rename", bad)
+                raise AssertionError(bad)
+            except urllib.error.HTTPError as e:
+                assert e.code == 400, bad
         assert post("/edit/hide", {"dir": str(hid)})["ok"] and (hid / "cut.mp4").exists() and str(hid.resolve()) not in [v["dir"] for v in get("/library")["videos"]]
         gone = root / "edits" / "old-edit"
         gone.mkdir(parents=True)

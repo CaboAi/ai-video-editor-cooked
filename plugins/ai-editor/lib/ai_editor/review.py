@@ -39,6 +39,11 @@ product video). Notes save with the edit, never in the plugin:
     python3 review.py <folder> learn --done ["summary"]   save the rules the user ticked (styleskill.learn; a skill
                                      style's rules go into its SKILL.md, skillrules.py) and
                                      show "Saved to <style>. Next video uses it."
+    python3 review.py <folder> trials --propose '<json>'   after a reel's final approve: the Trial reels tab
+                                     {"message", "hooks": [{"text", "from"}], "versions": [{"kinds": "claude" |
+                                     ["hooks"|"same"|"rewind"|"section"|"animations", ...], "line"}], "idea"?, "reply"?}.
+                                     `wait` prints the user's Make (TRIALS), Skip, or question (TRIALS ASK);
+                                     each render goes up with `alt t1 --video t1.mp4 --trial`
     python3 review.py demo                         self-check on a generated 6 s clip
 
 A note that reads as a lasting preference ("always ...", "never ...", "too many zooms") is offered as a rule: the page
@@ -1297,6 +1302,29 @@ def make_handler(folder, token):
                     lr.update(state="chosen" if ids and not body.get("skip") else "skipped", chosen=ids, handled=False)
                     return True
                 return self.send(200, {}) if update(rj, lc) else self.send(409, {"error": "nothing to choose"})
+            if path == "/trials":   # the Trial reels tab: {"action": "make", versions, hooks} | "skip" | "ask" + text
+                act = body.get("action")
+                try:
+                    picks = {"versions": [{"kinds": trial_kinds(v.get("kinds")), "line": str(v.get("line") or "")}
+                                          for v in body.get("versions") or []][:8],
+                             "hooks": sorted({i for i in body.get("hooks") or [] if isinstance(i, int) and i >= 0})}
+                except (ValueError, AttributeError) as e:
+                    return self.send(400, {"error": str(e)})
+                text = str(body.get("text") or "").strip()
+                if act not in ("make", "skip", "ask") or act == "make" and not picks["versions"] or act == "ask" and not text:
+                    return self.send(400, {"error": "make takes versions, ask takes text"})
+
+                def tc(d):
+                    t = d.get("trials") or {}
+                    if t.get("state") != "proposed" or t.get("handled") is False:   # nothing to pick, or Claude has it
+                        return False
+                    if act == "ask":
+                        t["asks"].append({"text": text, "at": now()})
+                    else:
+                        t.update(state="chosen" if act == "make" else "skipped", picks=picks)
+                    t["handled"] = False
+                    return True
+                return self.send(200, {}) if update(rj, tc) else self.send(409, {"error": "Claude is on it"})
             if path == "/assets":   # "Anything to add?": add images or links ({"add": [...]}) or take one out ({"remove": i})
                 if "remove" in body:
                     try:
@@ -2118,7 +2146,8 @@ def cmd_alt(a, folder):
     def f(d):
         d["alts"] = [x for x in d.get("alts") or [] if x["name"] != a.name] + [
             {"name": a.name, "video": keep(folder, a.video, d["stage"], d["round"], a.name),
-             "transcript": str(Path(a.transcript).resolve()) if a.transcript else None}]
+             "transcript": str(Path(a.transcript).resolve()) if a.transcript else None,
+             **({"trial": True} if getattr(a, "trial", False) else {})}]
         log_round(d)
         return d
     d = update(folder / "review.json", f)
@@ -2134,7 +2163,8 @@ def cmd_wait(folder, poll=1.0):
             beat.touch()
             # read only: a write here could drop a note the page saves in the same instant
             d0 = load(rj)
-            if any(not e["handled"] for e in d0["events"]) or (d0.get("learn") or {}).get("handled") is False:
+            if any(not e["handled"] for e in d0["events"]) or (d0.get("learn") or {}).get("handled") is False \
+                    or (d0.get("trials") or {}).get("handled") is False:
                 break
             time.sleep(poll)
     finally:
@@ -2146,10 +2176,15 @@ def cmd_wait(folder, poll=1.0):
         ev = [e for e in d["events"] if not e["handled"]]
         for e in ev:
             e["handled"] = True
+        if not ev and (d.get("trials") or {}).get("handled") is False:   # the Trial reels tab: Make, Skip or a question
+            d["trials"]["handled"] = True
+            return "trials", d
         if not ev:   # the user answered the learn panel
             d["learn"]["handled"] = True
         return ev, d
     ev, d = update(rj, take)
+    if ev == "trials":
+        return trials_chosen(folder, d)
     if not ev:
         return learn_chosen(folder, d)
     e = ev[-1]
@@ -2183,6 +2218,10 @@ def cmd_wait(folder, poll=1.0):
               "visuals.json yet is new.)")
     if e["type"] == "approve" and d.get("learn"):
         print(learn_prompt(folder, d))
+        if d.get("vertical") and not d.get("trials"):   # a finished reel: offer re-cuts for trial reels
+            print(f"TRIALS: a reel. Offer trial reels on the page's Trial reels tab: find spare hooks (a retake of the "
+                  f"opener, a strong later line), plan 2-4 versions that each look like a different video, then\n"
+                  f"  python3 {Path(__file__).resolve()} {folder} trials --propose '<json>'   and `wait` for the pick.")
     elif cs:
         print(learn_hint(folder, [c["id"] for c in cs if c.get("keep")]))
     return e["type"]
@@ -2394,6 +2433,74 @@ def learned_round(d):
     """The round `wait` last handed over: the one `learn` acts on."""
     e = next((e for e in reversed(d["events"]) if e["handled"] and e["type"] != "stop"), None)
     return (e["stage"], e["round"]) if e else (d["stage"], d["round"])
+
+
+TRIAL_KINDS = {"hooks": "New hooks", "same": "Same order", "rewind": "Rewind", "section": "One section",
+               "animations": "New animations"}
+
+
+def trial_kinds(k):
+    """One version's kinds: ["claude"] (Claude decides) or some of TRIAL_KINDS. Same order and rewind both set the order."""
+    if k in ("claude", ["claude"]):
+        return ["claude"]
+    if not isinstance(k, list) or not k or any(x not in TRIAL_KINDS for x in k):
+        raise ValueError(f"kinds is \"claude\" or a list of {', '.join(TRIAL_KINDS)}: {k}")
+    if "same" in k and "rewind" in k:
+        raise ValueError("same and rewind both set the order: pick one")
+    return [x for x in TRIAL_KINDS if x in k]
+
+
+def trials_propose(folder, raw):
+    """Claude's trial reel plan onto the page's Trial reels tab: its message, the spare hooks it found, one row per
+    version (kinds + the one line saying what Claude picked), and an optional reply to the user's last question."""
+    try:
+        f = Path(raw)
+        p = json.loads(f.read_text(encoding="utf-8") if raw.endswith(".json") and f.is_file() else raw)
+        if not isinstance(p, dict) or not isinstance(p.get("versions"), list) or not p["versions"]:
+            raise ValueError("needs \"versions\": [...]")
+        vs = [{"kinds": trial_kinds(v.get("kinds")), "line": str(v.get("line") or "").strip()} for v in p["versions"][:8]]
+        hooks = [{"text": str(h["text"]).strip(), "from": str(h.get("from") or "").strip()} for h in p.get("hooks") or []][:6]
+        idea = p.get("idea")
+        if idea:
+            idea = {"kinds": trial_kinds(idea.get("kinds")), "line": str(idea.get("line") or "").strip()}
+    except (OSError, ValueError, TypeError, KeyError, AttributeError) as e:
+        sys.exit(f"--propose takes a JSON object {{message, hooks: [{{text, from}}], versions: [{{kinds, line}}], idea?, reply?}}: {e}")
+
+    def f(d):
+        t = d.get("trials") or {"asks": []}
+        if p.get("reply"):
+            for q in reversed(t["asks"]):
+                if not q.get("reply"):
+                    q["reply"] = str(p["reply"]).strip()
+                    break
+        t.update(state="proposed", message=str(p.get("message") or "").strip(), hooks=hooks, versions=vs,
+                 idea=idea or None, v=t.get("v", 0) + 1, handled=None)
+        d["trials"] = t
+    update(folder / "review.json", f)
+    print(f"{len(vs)} trial reel{'s' if len(vs) != 1 else ''} on the page; run `wait` for the user's pick")
+
+
+def trials_chosen(folder, d):
+    """What `wait` prints for the Trial reels tab: Make, Skip, or a question for Claude."""
+    t, me = d["trials"], f"python3 {Path(__file__).resolve()} {folder}"
+    if t["state"] == "skipped":
+        print("TRIALS: the user pressed Skip trial reels. Make none; say nothing more about it.")
+    elif t["state"] == "proposed":   # a question from the Ask Claude box
+        print(f"TRIALS ASK: {t['asks'][-1]['text']}\nAnswer on the page: {me} trials --propose '<json>' with the "
+              f"updated plan and \"reply\": one or two lines on what you changed. Then `wait` again.")
+    else:
+        pk = t["picks"]
+        print(f"TRIALS: make {len(pk['versions'])} trial reel{'s' if len(pk['versions']) != 1 else ''}. Each must look like "
+              "a different video: a new length, new animations or new words.")
+        for i, v in enumerate(pk["versions"]):
+            ks = "Claude decides" if v["kinds"] == ["claude"] else " + ".join(TRIAL_KINDS[k] for k in v["kinds"])
+            print(f"  t{i + 1}: {ks}" + (f" ({v['line']})" if v.get("line") else ""))
+        hs = [t["hooks"][i]["text"] for i in pk["hooks"] if i < len(t["hooks"])]
+        if hs:
+            print("  spare hooks to use: " + "; ".join(f'"{h}"' for h in hs))
+        print(f"You pick the lines, sections, hooks and overlays. Put each render on the page as it lands:\n"
+              f"  {me} alt t1 --video <t1.mp4> --trial")
+    return "trials"
 
 
 def cmd_learn(a, folder):
@@ -2941,6 +3048,53 @@ def demo():
         raise AssertionError("a second pick")
     except urllib.error.HTTPError as e:
         assert e.code == 409
+    # the Trial reels tab: Claude's plan -> a question -> Claude's reply -> Make -> `wait` -> a render lands as a trial
+    def trials(j):
+        with contextlib.redirect_stdout(io.StringIO()):
+            trials_propose(folder, json.dumps(j))
+    for bad in ({"versions": []}, {"versions": [{"kinds": ["fast"]}]}, {"versions": [{"kinds": ["same", "rewind"]}]}):
+        try:
+            trials(bad)
+            raise AssertionError(f"trials {bad}")
+        except SystemExit as e:
+            assert e.code, bad
+    plan = {"message": "Make trial reels of this?", "hooks": [{"text": "I'm so hyped", "from": "your first take"}],
+            "versions": [{"kinds": ["hooks"], "line": "Opens on the first take"}, {"kinds": "claude"}],
+            "idea": {"kinds": ["animations"], "line": "New overlays"}}
+    try:
+        post("/trials", {"action": "skip"})
+        raise AssertionError("a pick before any plan")
+    except urllib.error.HTTPError as e:
+        assert e.code == 409
+    trials(plan)
+    t = json.loads(get("/state").read())["trials"]
+    assert t["state"] == "proposed" and t["versions"][1]["kinds"] == ["claude"] and t["idea"]["kinds"] == ["animations"], t
+    for bad in ({"action": "make", "versions": []}, {"action": "ask"}, {"action": "make", "versions": [{"kinds": ["same", "rewind"]}]}):
+        try:
+            post("/trials", bad)
+            raise AssertionError(f"post {bad}")
+        except urllib.error.HTTPError as e:
+            assert e.code == 400, bad
+    post("/trials", {"action": "ask", "text": "make t2 the motion graphics bit"})
+    try:
+        post("/trials", {"action": "skip"})
+        raise AssertionError("a pick while Claude reads the question")
+    except urllib.error.HTTPError as e:
+        assert e.code == 409
+    out = waited()
+    assert out.startswith("TRIALS ASK: make t2 the motion graphics bit") and "trials --propose" in out, out
+    trials({**plan, "versions": [plan["versions"][0], {"kinds": ["section"], "line": "0:06 to 0:15"}], "reply": "Done. t2 is 0:06 to 0:15."})
+    t = load(folder / "review.json")["trials"]
+    assert t["asks"][0]["reply"] == "Done. t2 is 0:06 to 0:15." and t["v"] == 2 and t["handled"] is None, t
+    post("/trials", {"action": "make", "hooks": [0, 0], "versions": [{"kinds": ["rewind", "animations"]}, {"kinds": "claude"}, {"kinds": ["section"], "line": "0:06 to 0:15"}]})
+    out = waited()
+    assert out.startswith("TRIALS: make 3 trial reels.") and "t1: Rewind + New animations" in out and "t2: Claude decides" in out, out
+    assert "t3: One section (0:06 to 0:15)" in out and 'spare hooks to use: "I\'m so hyped"' in out and "--trial" in out, out
+    with contextlib.redirect_stdout(io.StringIO()):
+        cmd_alt(ns(name="t1", video=str(vid), transcript=None, trial=True), folder)
+    d = load(folder / "review.json")
+    assert d["trials"]["state"] == "chosen" and next(a for a in d["alts"] if a["name"] == "t1")["trial"] is True, d["alts"]
+    update(folder / "review.json", lambda d: (d.pop("trials"), d.update(alts=[a for a in d["alts"] if a["name"] != "t1"])))
     # a skill style ("skill" in its style.json): the ticked rules go into that skill's own SKILL.md (skillrules.py)
     sk_md = tmp / "skills" / "alice-edit" / "SKILL.md"
     sk_md.parent.mkdir(parents=True)
@@ -3403,6 +3557,7 @@ def main():
     s.add_argument("name")
     s.add_argument("--video", required=True)
     s.add_argument("--transcript")
+    s.add_argument("--trial", action="store_true", help="a trial reel: listed under Trial reels in the Version menu")
     s = sp.add_parser("resolve")
     s.add_argument("id", type=int)
     s.add_argument("status", choices=["fixed", "wontfix", "open"])
@@ -3415,6 +3570,9 @@ def main():
     s.add_argument("--none", action="store_true", help="no note in this round is a preference")
     s.add_argument("--propose", metavar="JSON", help="after the final approve: candidate rules for the page's learn panel")
     s.add_argument("--done", nargs="?", const="", metavar="SUMMARY", help="save the rules the user ticked into the style")
+    s = sp.add_parser("trials", help="the Trial reels tab: Claude's plan for re-cuts of an approved reel")
+    s.add_argument("--propose", required=True, metavar="JSON",
+                   help='{"message", "hooks": [{"text", "from"}], "versions": [{"kinds", "line"}], "idea"?, "reply"?}')
     a = ap.parse_args()
     folder = Path(a.folder).resolve()
     if getattr(a, "stage", None) == "edit":  # an edit round reads the edit folder's own files
@@ -3463,6 +3621,8 @@ def main():
         cmd_final(folder)
     elif a.cmd == "learn":
         cmd_learn(a, folder)
+    elif a.cmd == "trials":
+        trials_propose(folder, a.propose)
 
 
 if __name__ == "__main__":

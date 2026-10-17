@@ -115,6 +115,8 @@ main{flex:1;min-height:0;display:flex}
 #cmprow{display:none;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}
 body.canCompare #cmprow{display:flex}
 #cmprow .hint{display:flex;align-items:center;gap:12px;color:var(--muted)}
+#cmprow .lead{display:flex;align-items:center;gap:12px;min-width:0}
+body.hasVer #cmprow{display:flex}body:not(.canCompare) #wc,body:not(.canCompare) #cmprow .hint{display:none}
 #ver2{border:1px solid var(--line2);background:var(--panel);border-radius:8px;height:32px;padding:0 8px;font-size:13px}
 .stagewrap{flex:1;min-height:0;display:flex;flex-direction:column;gap:16px}
 #stage{flex:1;min-height:0;display:flex;gap:20px;container-type:size}
@@ -227,7 +229,12 @@ body.preview #pins,body.preview #cmprow{visibility:hidden}
 #time{display:flex;align-items:baseline;gap:4px;padding-left:8px;font-size:14px;line-height:18px;white-space:nowrap}
 #time b{font-weight:600;color:var(--strong)}#time span{color:var(--muted)}
 .grow{flex:1;display:flex;justify-content:center;min-width:0}
-#vtabs:empty{display:none}
+/* the versions of this draft: one dropdown, so long names never squeeze the player bar */
+.vsel{position:relative;display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 30px 0 12px;border:1.5px solid var(--ink);border-radius:8px;background:var(--panel);min-width:0;max-width:100%;cursor:pointer}
+.vsel[hidden]{display:none}.vsel span{font-size:12px;line-height:16px;color:var(--muted);flex-shrink:0}
+.vsel select{appearance:none;-webkit-appearance:none;border:0;background:none;color:var(--strong);font-size:13px;line-height:16px;font-weight:600;min-width:0;max-width:260px;text-overflow:ellipsis;cursor:pointer;outline:none;padding:0}
+.vsel svg{position:absolute;right:10px;color:var(--ink);pointer-events:none}
+.vsel:focus-within{box-shadow:0 0 0 2px var(--line2)}
 #safebtn{display:none}body.vertical #safebtn{display:inline-flex}
 
 /* the scrubber: split at cut points (or chapters), numbered note pins above, the edit's cards and zooms under it */
@@ -409,6 +416,50 @@ body.staged #stagebar{display:flex}
 .rcpt.off{color:var(--muted)}.rcpt button{border:0;background:none;padding:0;font:inherit;font-weight:600;color:var(--strong);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .rcpt button:hover{color:var(--ink)}
 .learn .erow button.go{flex:1}.learn .erow button.go:disabled{opacity:.5}
+/* the Trial reels tab: Claude's plan for re-cuts of the approved reel, one type menu per version */
+body.trtab #box,body.trtab #adds{display:none}body.trtab .pfoot{padding-top:0;border-top:0}   /* Undo approve sits 8px under Skip */
+.tr{display:flex;flex-direction:column;gap:20px}
+.trh{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;line-height:16px;font-weight:600;color:var(--muted)}
+.trh button{height:26px;padding:0 10px;border-radius:8px;border:1px solid var(--line2);background:var(--panel);font-size:12px;font-weight:600;color:var(--strong)}
+.trhooks{display:flex;flex-direction:column;gap:6px}
+.trhook{padding:10px;border-radius:10px;background:var(--chip)}.trhook small{display:block;font-size:12px;line-height:16px;color:var(--muted)}
+.trvs{display:flex;flex-direction:column;gap:12px}
+.trv{position:relative;display:flex;flex-direction:column;gap:6px}
+.trv .row{display:flex;align-items:center;gap:8px}
+.trv .tn{width:20px;flex-shrink:0;font-size:13px;line-height:16px;font-weight:600;color:var(--strong)}
+.trsel{flex:1;min-width:0;height:32px;padding:0 10px;border-radius:8px;border:1.5px solid var(--ink);background:var(--panel);display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;font-weight:600;color:var(--strong)}
+.trsel span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.trsel svg{flex-shrink:0}
+.trsel:disabled{opacity:.6}
+.trv .ln{padding-left:28px;font-size:12px;line-height:16px;color:var(--body)}
+.trmenu{position:absolute;left:28px;right:0;top:38px;z-index:5;display:flex;flex-direction:column;padding:6px;border-radius:12px;background:var(--raise);border:1px solid var(--pillline);box-shadow:var(--pop)}
+.trmenu.up{top:auto;bottom:calc(100% + 6px)}
+.trmenu button{display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border:0;border-radius:8px;background:none;text-align:left;color:var(--strong)}
+.trmenu button:hover:not(:disabled),.trmenu button.on{background:var(--hover)}.trmenu button:disabled{opacity:.45;cursor:default}
+.trmenu i{width:16px;height:16px;margin-top:1px;flex-shrink:0;border-radius:4px;border:1.5px solid var(--quiet);background:center/11px 11px no-repeat}
+.trmenu i.rd{border-radius:8px}.trmenu .on i{background-color:var(--ink);border-color:var(--ink);background-image:var(--tickimg)}
+.trmenu b{display:block;font-size:13px;line-height:16px;font-weight:600}.trmenu small{display:block;margin-top:2px;font-size:12px;line-height:16px;color:var(--body)}
+.trmenu .lab{padding:6px 10px 4px;font-size:12px;line-height:16px;color:var(--muted)}
+.trmenu hr{border:0;height:1px;margin:4px 0;background:var(--line)}.trmenu .rm b{color:var(--flag)}
+.tridea{margin-left:28px;display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:10px;background:var(--chip);font-size:12px;line-height:16px;color:var(--body)}
+.tridea b{color:var(--strong)}
+.trbtns{display:flex;gap:6px}.trbtns button{height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--line2);background:var(--panel);font-size:12px;font-weight:600;color:var(--strong)}
+.trbtns button.go{background:var(--ink);border-color:var(--ink);color:var(--onink)}
+.tradd{align-self:flex-start;margin-left:28px;padding:0;border:0;background:none;font-size:13px;line-height:16px;font-weight:600;color:var(--body)}
+.tradd:hover{color:var(--strong)}
+.trq{align-self:flex-end;max-width:85%;padding:10px 12px;border-radius:12px;background:var(--raise);font-size:14px;line-height:20px;color:var(--strong)}
+.trwait{display:flex;align-items:center;gap:8px;margin:0;font-size:13px;line-height:18px;color:var(--body)}.trwait i{width:7px;height:7px;border-radius:4px;background:var(--ink);animation:pulse 1.2s ease-in-out infinite}
+.trrows{display:flex;flex-direction:column}
+.trr{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px;line-height:18px;color:var(--strong)}
+.trr:last-child{border-bottom:0}.trr>b{width:20px;flex-shrink:0}.trr>div{flex:1;min-width:0}.trr small{display:block;font-size:12px;line-height:16px;color:var(--muted)}
+.trr em{font-style:normal;font-size:12px;font-weight:600;color:var(--muted)}.trr em.ok{color:var(--strong)}
+.trfoot{position:sticky;bottom:-16px;margin:auto -16px -16px;padding:12px 16px 8px;background:var(--panel);border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.trask{display:flex;align-items:flex-end;gap:8px;padding:8px 8px 8px 12px;border:1px solid var(--line2);border-radius:12px}
+.trask textarea{flex:1;min-height:36px;border:0;background:none;resize:none;outline:none;font:inherit;font-size:13px;line-height:18px;color:var(--strong)}
+.trask button{width:28px;height:28px;flex-shrink:0;display:grid;place-items:center;border:0;border-radius:8px;background:var(--ink);color:var(--onink)}
+.trask button:disabled{opacity:.4}
+.trfoot .go{height:40px;border:0;border-radius:10px;background:var(--ink);color:var(--onink);font-size:14px;font-weight:600}
+.trfoot .go:disabled{opacity:.5}
+.trfoot .skip{height:36px;border:1px solid var(--line2);border-radius:10px;background:var(--panel);font-size:13px;font-weight:600;color:var(--strong)}
 /* the edit being made: the player dims and a card at its foot says the step */
 #making{position:absolute;inset:0;z-index:3;display:none;align-items:flex-end;justify-content:center;background:var(--dim);padding:12px}
 body.making #making{display:flex}
@@ -507,7 +558,7 @@ body.making #making{display:flex}
  <div class="stagewrap">
  <div id="stagebar" role="status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="4" cy="4.5" r="2.2"/><circle cx="4" cy="11.5" r="2.2"/><path d="M5.8 5.6L14 11.5M5.8 10.4L14 4.5"/></svg><span id="stagetext"></span></div>
  <div id="intro" role="note"><span>Your first videos teach it your style. Leave notes on anything that is off. Each video comes out closer.</span><button id="introx">Got it</button></div>
- <div id="cmprow"><div class="seg" id="wc"><button data-m="watch">Watch</button><button data-m="compare">Compare</button></div>
+ <div id="cmprow"><div class="lead"><div class="seg" id="wc"><button data-m="watch">Watch</button><button data-m="compare">Compare</button></div><label class="vsel" id="vtabs" hidden><span>Version</span><select id="vsel" aria-label="which version plays"></select><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></label></div>
   <div class="hint"><select id="ver2" aria-label="compare with"></select></div></div>
  <div id="stage">
   <div id="pair">
@@ -523,7 +574,7 @@ body.making #making{display:flex}
   <button id="play" aria-label="play or pause"></button>
   <button class="tbtn" id="back" title="j">-5s</button><button class="tbtn" id="fwd" title="l">+5s</button>
   <span id="time" class="num"><b>0:00.0</b><span>/ 0:00</span></span>
-  <div class="grow"><div class="seg" id="vtabs"></div></div>
+  <div class="grow"></div>
   <button class="tbtn" id="speed" title="[ and ]">1x</button>
   <button class="tbtn" id="mute" title="m">Sound</button>
   <button class="tbtn" id="safebtn" title="z">Safe zone</button>
@@ -539,7 +590,7 @@ body.making #making{display:flex}
 </div>
 <div class="rsz" id="rszside" role="separator" aria-orientation="vertical" aria-label="drag to resize the notes panel" title="drag to resize"></div>
 <aside>
- <div class="phead"><div class="seg" id="ptabs"><button data-tab="notes">Notes <small id="ncount"></small></button><button data-tab="rounds">Drafts</button></div><span id="pmeta"></span></div>
+ <div class="phead"><div class="seg" id="ptabs"><button data-tab="notes">Notes <small id="ncount"></small></button><button data-tab="rounds">Drafts</button><button data-tab="trials" hidden>Trial reels</button></div><span id="pmeta"></span></div>
  <div class="mhead2"><div><b>Notes</b><span id="mcount"></span></div><button id="msend"></button></div>
  <div id="list"></div>
  <div class="pfoot">
@@ -707,7 +758,11 @@ function renderCaps(){
 }
 function renderVer(){
   const r=viewRound(),alts=r.alts||[];
-  $('vtabs').innerHTML=alts.length?['',...alts.map(a=>a.name)].map(x=>`<button class="${x===alt?'on':''}" data-ver="${esc(x)}" aria-pressed="${x===alt}">${esc(lab(x))}</button>`).join(''):'';
+  const tr=alts.filter(a=>a.trial),todo=isCur()?trMaking().filter(n=>!tr.some(a=>a.name===n)):[];
+  $('vtabs').hidden=!alts.length&&!todo.length;document.body.classList.toggle('hasVer',!$('vtabs').hidden);
+  if(!$('vtabs').hidden){const o=x=>`<option value="${esc(x)}"${x===alt?' selected':''}>${esc(trLab(x))}</option>`;
+    const h=['',...alts.filter(a=>!a.trial).map(a=>a.name)].map(o).join('')+(tr.length||todo.length?`<optgroup label="Trial reels">${tr.map(a=>o(a.name)).join('')}${todo.map(n=>`<option disabled>${esc(trLab(n))} (making)</option>`).join('')}</optgroup>`:'');
+    const sel=$('vsel');if(sel._h!==h){sel._h=h;sel.innerHTML=h}sel.value=alt}
   const opts=cmpOptions();
   $('ver2').innerHTML=opts.map((o,i)=>`<option value="${i}"${cmp&&o.k===cmp.k&&o.alt===cmp.alt?' selected':''}>${esc(o.label)}</option>`).join('');
   $('ver2').style.display=cmp&&opts.length>1?'':'none';
@@ -782,6 +837,9 @@ function render(){
   $('msend').textContent=sb.querySelector('span').textContent;$('msend').disabled=sb.disabled;
   $('ncount').textContent=noteCount();
   $('mcount').textContent=mine?mine+(p?'':', not sent'):'';
+  if(S.trials&&S.trials.v!==trOpened){trOpened=S.trials.v;if(S.trials.state==='proposed')tab='trials'}   // a new plan: open the tab on it
+  if(!S.trials&&tab==='trials')tab='notes';
+  $('ptabs').querySelector('[data-tab=trials]').hidden=!S.trials;document.body.classList.toggle('trtab',tab==='trials');
   [...$('ptabs').children].forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
   const nv=(vr.alts||[]).length;
   meta();
@@ -960,6 +1018,13 @@ function workedFor(r){   // the send of the round before this one to the moment 
   return e&&r.at?dur((new Date(r.at)-new Date(e.at))/1000):'';
 }
 function renderList(){
+  if(tab==='trials'&&S.trials){
+    const l=$('list'),h=trialsHtml(),a=document.activeElement,f=a&&a.classList.contains('trta'),pos=f?a.selectionStart:0;
+    if(l._trh!==h){const st=l.scrollTop;l._trh=h;l.innerHTML=h;l.scrollTop=st;trPlace();
+      const ta2=l.querySelector('.trta');if(ta2){ta2.value=trAsk;if(f){ta2.focus();ta2.setSelectionRange(pos,pos)}}}
+    return;
+  }
+  $('list')._trh='';
   if(tab==='rounds'){
     const rs=(S.rounds||[cur()]).filter(r=>r.stage===view.stage).slice().reverse(),p=pending();
     $('list').innerHTML=rs.map(r=>{const n=S.comments.filter(c=>c.stage===r.stage&&c.round===r.round).length,k=key(r);
@@ -1008,6 +1073,82 @@ function renderList(){
 }
 setInterval(()=>{if(document.body.classList.contains('making')&&!landing)renderMaking()},1000);
 setInterval(()=>{document.querySelectorAll('[data-since]').forEach(e=>e.textContent='Working for '+dur((Date.now()-new Date(e.dataset.since))/1000))},1000);
+// ---- the Trial reels tab (review.py trials --propose): after a reel is approved, Claude plans re-cuts that each look
+// like a different video. The user picks one or more types per version (or lets Claude decide), asks Claude for more,
+// and presses Make. Claude picks the lines, sections, hooks and overlays itself.
+const TRK={hooks:['New hooks','A different first line.'],same:['Same order','From the top, a line or two dropped.'],
+  rewind:['Rewind','Opens on a later line, then cuts back to the start.'],section:['One section','One part, with its own hook and ending.'],
+  animations:['New animations','New motion graphics and cards.']};
+const DOWN='<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+let TR=null,trV=-1,trMenu=null,trAsk='',trOpened=-1;
+const kindLab=ks=>ks[0]==='claude'?'Let Claude decide':ks.map(k=>TRK[k][0]).join(' + ');
+function trSync(){const t=S.trials;if(t.v===trV)return;trV=t.v;trMenu=null;
+  TR={versions:t.versions.map(v=>({kinds:[...v.kinds],k0:v.kinds.join(),line:v.line})),hooks:new Set(t.hooks.map((h,i)=>i)),idea:!!t.idea}}
+function trMaking(){const t=S.trials;return t&&t.state==='chosen'?t.picks.versions.map((v,i)=>'t'+(i+1)):[]}
+function trLab(x){const t=S.trials,m=/^t(\d+)$/.exec(x),v=t&&m&&(t.picks||t).versions[m[1]-1];return v?x+' · '+kindLab(v.kinds):lab(x)}
+function trialsHtml(){
+  const t=S.trials;trSync();
+  const say=(x,cls)=>`<div class="claude"><div><b>Claude</b><p>${esc(x)}</p></div></div>`;
+  let h=t.message?say(t.message):'';
+  h+=(t.asks||[]).map(q=>`<div class="trq">${esc(q.text)}</div>`+(q.reply?say(q.reply):'')).join('');
+  if(t.state==='skipped')return h+'<p class="empty2">Skipped. No trial reels for this one.</p>';
+  if(t.state==='chosen'){
+    const have=new Set((S.alts||[]).filter(a=>a.trial).map(a=>a.name)),vs=t.picks.versions;
+    return h+`<div class="tr"><div class="trh">Making ${plural(vs.length,'trial reel')}</div><div class="trrows">${vs.map((v,i)=>{const n='t'+(i+1),ok=have.has(n);
+      return `<div class="trr"><b>${n}</b><div>${esc(kindLab(v.kinds))}${v.line?`<small>${esc(v.line)}</small>`:''}</div><em class="${ok?'ok':''}">${ok?'Ready':'Making'}</em></div>`}).join('')}</div>
+      <p class="empty2">Each one lands in the Version menu above the video as it renders.</p></div>`;
+  }
+  const off=!isCur()||t.handled===false;
+  if(t.handled===false)h+='<p class="trwait"><i></i>Claude is reading your question...</p>';
+  if(t.hooks.length)h+=`<div class="trhooks"><div class="trh">Spare hooks</div>${t.hooks.map((x,i)=>`<label class="lrule trhook"><input type="checkbox" data-trhook="${i}"${TR.hooks.has(i)?' checked':''}${off?' disabled':''}><span>"${esc(x.text)}"${x.from?`<small>${esc(x.from)}</small>`:''}</span></label>`).join('')}</div>`;
+  h+=`<div class="trvs"><div class="trh">Versions<button data-trall${off?' disabled':''}>Let Claude decide all</button></div>`;
+  TR.versions.forEach((v,i)=>{
+    const line=v.line&&v.kinds.join()===v.k0?v.line:v.kinds[0]==='claude'?'Claude picks the mix that looks most different.':'Claude picks the details when it makes it.';
+    h+=`<div class="trv"><div class="row"><span class="tn">t${i+1}</span><button class="trsel" data-trk="${i}"${off?' disabled':''}><span>${esc(kindLab(v.kinds))}</span>${DOWN}</button></div><div class="ln">${esc(line)}</div>${trMenu===i?trMenuHtml(v,i):''}</div>`;
+    if(v.idea&&t.idea)h+=`<div class="tridea"><span>Claude suggests: <b>${esc(kindLab(t.idea.kinds))}.</b> ${esc(t.idea.line)}</span><div class="trbtns"><button class="go" data-truse="${i}">Use this</button><button data-tranother="${i}">Another idea</button></div></div>`;
+  });
+  if(TR.versions.length<8&&!off)h+='<button class="tradd" data-tradd>+ Add a version</button>';
+  h+='</div>';
+  const n=TR.versions.length;
+  h+=`<div class="trfoot"><div class="trask"><textarea class="trta" rows="2" placeholder="Ask Claude for more hooks, another section, a different order..."${off?' disabled':''}></textarea><button data-trsend aria-label="send to Claude"${off?' disabled':''}><svg width="13" height="13" viewBox="0 0 14 14"><path d="M7 12V2M3 6l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+    <button class="go" data-trmake${off||!n?' disabled':''}>Make ${plural(n,'trial reel')}</button><button class="skip" data-trskip${off?' disabled':''}>Skip trial reels</button></div>`;
+  return h;
+}
+function trMenuHtml(v,i){
+  const c=v.kinds[0]==='claude',on=k=>v.kinds.includes(k),dis=k=>k==='same'&&on('rewind')||k==='rewind'&&on('same');
+  return `<div class="trmenu" role="menu"><button class="${c?'on':''}" data-trpick="claude"><i class="rd"></i><span><b>Let Claude decide</b><small>Claude picks the mix that makes this one look most different.</small></span></button><hr><div class="lab">Or pick one or more</div>`
+    +Object.keys(TRK).map(k=>`<button class="${on(k)?'on':''}" data-trpick="${k}"${dis(k)?' disabled title="Same order and Rewind both set the order"':''}><i></i><span><b>${TRK[k][0]}</b><small>${dis(k)?'Off while '+(k==='same'?'Rewind':'Same order')+' is on: both set the order.':TRK[k][1]}</small></span></button>`).join('')
+    +(TR.versions.length>1?`<hr><button class="rm" data-trrm="${i}"><span><b>Remove t${i+1}</b></span></button>`:'')+'</div>';
+}
+function trPlace(){   // the open menu flips up when the panel has no room under it (the last versions)
+  const l=$('list'),m=l.querySelector('.trmenu');if(!m)return;
+  const f=l.querySelector('.trfoot'),floor=f?f.getBoundingClientRect().top:l.getBoundingClientRect().bottom;
+  if(m.getBoundingClientRect().bottom>floor-8&&m.parentElement.getBoundingClientRect().top-l.getBoundingClientRect().top>m.offsetHeight)m.classList.add('up');
+}
+async function trPost(b){const r=await fetch('/trials',{method:'POST',body:JSON.stringify(b)});if(!r.ok)alert((await r.json().catch(()=>({}))).error||'Could not send it');await load(true)}
+function trSend(){const text=trAsk.trim();if(!text)return;trAsk='';trPost({action:'ask',text})}
+$('list').addEventListener('input',e=>{if(e.target.classList.contains('trta'))trAsk=e.target.value});
+$('list').addEventListener('keydown',e=>{if(e.target.classList.contains('trta')&&e.key==='Enter'&&!e.shiftKey){e.preventDefault();trSend()}});
+$('list').addEventListener('change',e=>{const i=e.target.dataset.trhook;if(i==null)return;TR.hooks[e.target.checked?'add':'delete'](+i)});
+$('list').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b||!TR||tab!=='trials'||b.disabled)return;const d=b.dataset;
+  if(d.trk!=null)trMenu=trMenu===+d.trk?null:+d.trk;
+  else if(d.trpick){const v=TR.versions[trMenu],k=d.trpick;
+    if(k==='claude')v.kinds=['claude'];
+    else{const ks=v.kinds.filter(x=>x!=='claude');v.kinds=ks.includes(k)?ks.filter(x=>x!==k):[...ks,k];if(!v.kinds.length)v.kinds=['claude'];
+      v.kinds=Object.keys(TRK).filter(x=>v.kinds.includes(x)).concat(v.kinds.includes('claude')?['claude']:[])}}
+  else if(d.trrm!=null){TR.versions.splice(+d.trrm,1);trMenu=null}
+  else if(d.trall!=null){TR.versions.forEach(v=>v.kinds=['claude']);trMenu=null}
+  else if(d.tradd!=null){TR.versions.push({kinds:['claude'],k0:'',line:'',idea:TR.idea});trMenu=null}
+  else if(d.truse!=null){const v=TR.versions[+d.truse];v.kinds=[...S.trials.idea.kinds];v.k0=v.kinds.join();v.line=S.trials.idea.line;v.idea=false}
+  else if(d.tranother!=null)return trPost({action:'ask',text:`Another idea for t${+d.tranother+1}`});
+  else if(d.trsend!=null)return trSend();
+  else if(d.trmake!=null)return trPost({action:'make',hooks:[...TR.hooks],versions:TR.versions.map(v=>({kinds:v.kinds,line:v.kinds.join()===v.k0?v.line:''}))});
+  else if(d.trskip!=null)return trPost({action:'skip'});
+  else return;
+  renderList();
+});
+document.addEventListener('pointerdown',e=>{if(trMenu!=null&&!e.target.closest('.trmenu,.trsel')){trMenu=null;renderList()}});
 async function post(u,b){const r=await fetch(u,{method:'POST',body:JSON.stringify(b)});return r.ok?r.json():{}}
 
 $('stages').addEventListener('click',e=>{
@@ -1314,7 +1455,7 @@ $('speed').onclick=()=>setSpeed(SPEEDS[(SPEEDS.indexOf(speed)+1)%SPEEDS.length])
 v.addEventListener('loadedmetadata',()=>{v.playbackRate=speed;renderBar();renderTracks()});
 $('mute').onclick=()=>{v.muted=!v.muted;$('mute').textContent=v.muted?'Muted':'Sound'};
 $('full').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.querySelector('#p1 .player').requestFullscreen();
-$('vtabs').onclick=e=>{const b=e.target.closest('[data-ver]');if(!b)return;alt=b.dataset.ver;inT=outT=null;setVideo();render()};
+$('vsel').onchange=e=>{alt=e.target.value;inT=outT=null;setVideo();render()};
 $('safebtn').onclick=()=>{const on=!document.querySelector('.player').classList.contains('safe');
   document.querySelectorAll('.player').forEach(p=>p.classList.toggle('safe',on));$('safebtn').textContent=on?'Hide safe zone':'Safe zone';placeSafe()};
 // the box sits on the picture, not the element: in full screen the picture is letterboxed inside the screen

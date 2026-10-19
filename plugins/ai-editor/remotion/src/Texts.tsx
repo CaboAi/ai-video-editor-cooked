@@ -9,19 +9,37 @@ import { useFamily } from "./Captions";
 //   cta:   the ask near the end: a black pill, a small label over the big quoted word, white type, above the head
 //   list:  a running numbered list; each line lands on its word and stays until the list ends
 //   stamp: a red circled X drawn over the card that is up, when the speaker says it does not apply
+//   label: text the user typed on the review page (texts.json), in TikTok's own three looks: "plain" white, white with
+//          a black "outline", or black on a white "box"; centred on x_pct/y_pct, size_pct of the frame's short side
 export type TextItem =
   | { kind: "title"; text: string; start: number; end: number; y_pct: number; size_pct: number }
   | { kind: "cta"; text: string; label?: string; start: number; end: number; y_pct: number; size_pct: number }
   | { kind: "list"; items: { text: string; at: number }[]; start: number; end: number; x_pct: number; y_pct: number; size_pct: number }
-  | { kind: "stamp"; start: number; end: number; box: [number, number, number, number] };
+  | { kind: "stamp"; start: number; end: number; box: [number, number, number, number] }
+  | { kind: "label"; text: string; style: "plain" | "outline" | "box"; start: number; end: number; x_pct: number; y_pct: number; size_pct: number };
 
 const POP_S = 0.18;
 
 export const Texts: React.FC<{ items: TextItem[]; t: number; width: number; height: number; font?: string }> = ({ items, t, width, height, font }) => {
   const family = useFamily(font ?? "TikTok Sans", 700) ?? "sans-serif";
+  const tiktok = useFamily("TikTok Sans", 700) ?? family;
   return (
     <>
       {items.filter((x) => t >= x.start && t < x.end).map((x, i) => {
+        if (x.kind === "label") {
+          const fs = (x.size_pct / 100) * Math.min(width, height);
+          const box = x.style === "box";
+          return (
+            <div key={i} style={{ position: "absolute", left: `${x.x_pct}%`, top: `${x.y_pct}%`, transform: "translate(-50%, -50%)", width: "84%",
+              textAlign: "center", fontFamily: `${tiktok}, "Apple Color Emoji", "Noto Color Emoji"`, fontWeight: 700, fontSize: fs,
+              lineHeight: box ? 1.32 : 1.15, whiteSpace: "pre-wrap" }}>
+              <span style={{ color: box ? "#000000" : "#FFFFFF", ...(box
+                ? { background: "#FFFFFF", padding: `${fs * 0.06}px ${fs * 0.24}px`, borderRadius: fs * 0.18,
+                    WebkitBoxDecorationBreak: "clone", boxDecorationBreak: "clone" }
+                : x.style === "outline" ? { WebkitTextStroke: `${fs * 0.14}px #000`, paintOrder: "stroke fill" } : {}) } as React.CSSProperties}>{x.text}</span>
+            </div>
+          );
+        }
         if (x.kind === "title" || x.kind === "cta") {
           const fs = (x.size_pct / 100) * height;
           const p = prog(t, x.start, POP_S * 1.6, "power3.out"), out = 1 - prog(t, x.end - 0.18, 0.18, "power1.in");

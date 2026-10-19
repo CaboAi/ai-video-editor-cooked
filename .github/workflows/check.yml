@@ -44,12 +44,17 @@ jobs:
           python-version: "3.12"
       - name: Install tools (the pinned set)
         run: python -m pip install --no-deps --require-hashes -r plugins/ai-editor/requirements/requirements.lock
-      # setup-ffmpeg has no Apple Silicon build; macOS runners are arm64.
-      - if: runner.os != 'macOS'
+      # setup-ffmpeg has no Apple Silicon build (macOS runners are arm64), and its Linux download fails: apt there.
+      - if: runner.os == 'Windows'
         uses: FedericoCarboni/setup-ffmpeg@v3
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
       - if: runner.os == 'macOS'
         run: brew install ffmpeg
       - name: Self-checks
+        env:
+          PYTHONUNBUFFERED: "1"   # a script that dies hard still shows what it printed
+          PYTHONFAULTHANDLER: "1"
         run: tests/demos.sh
       - name: List a TikTok profile
         continue-on-error: true
@@ -81,9 +86,11 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
-      # setup-ffmpeg has no Apple Silicon build; macOS runners are arm64.
-      - if: runner.os != 'macOS'
+      # setup-ffmpeg has no Apple Silicon build (macOS runners are arm64), and its Linux download fails: apt there.
+      - if: runner.os == 'Windows'
         uses: FedericoCarboni/setup-ffmpeg@v3
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
       - if: runner.os == 'macOS'
         run: brew install ffmpeg
       - name: Fresh AI_EDITOR_HOME
@@ -121,7 +128,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
-      - uses: FedericoCarboni/setup-ffmpeg@v3
+      - run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
       - name: Install (setup skill)
         run: |
           S=plugins/ai-editor/skills/setup/scripts/setup.py

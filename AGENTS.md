@@ -27,6 +27,7 @@ Read a skill's `SKILL.md` in full before doing its task.
 | `broll-reel` | `plugins/ai-editor/skills/broll-reel/` | a home page job with `mode=broll-reel`, "copy this reel with my b-roll" |
 | `clips` | `plugins/ai-editor/skills/clips/` | "clip this video", "make shorts from my podcast", drops a long video or YouTube link |
 | `improve` | `plugins/ai-editor/skills/improve/` | maintainers: "improve the editor", "turn feedback into fixes", "process suggestions" |
+| `post` | `plugins/ai-editor/skills/post/` | "post it", "post to TikTok", "schedule the post", "connect my accounts" |
 | `update` | `plugins/ai-editor/skills/update/` | "update the editor", "get the latest version", "sync my fork" |
 | `creator-teardown` | `plugins/creator-teardown/skills/creator-teardown/` | "break down @handle", "tear down @handle" |
 

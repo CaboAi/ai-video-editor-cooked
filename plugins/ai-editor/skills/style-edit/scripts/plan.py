@@ -803,6 +803,16 @@ def title_bottom(x):
     return x["y_pct"] + (n * 1.15 + 0.5) * x["size_pct"]
 
 
+def typed_texts(edit_dir):
+    """The text the user typed on the review page's Text tool (<edit>/texts.json, review.py writes it when the round
+    goes to Claude): plan.json "texts" kind "label" exactly as typed, styled and placed. Never reworded or moved."""
+    f = edit_dir and Path(edit_dir) / "texts.json"
+    if not f or not f.exists():
+        return []
+    keep = ("text", "style", "start", "end", "x_pct", "y_pct", "size_pct")
+    return [{"kind": "label", **{k: x[k] for k in keep}} for x in json.loads(f.read_text(encoding="utf-8")).get("items") or []]
+
+
 def under_titles(cards, texts):
     """A card up with a cta gives way: it ends as the cta lands, or starts when it ends (the pill owns the band above
     the head). A card up with a title that overlaps its box moves below the title (keeping its bottom edge); one that
@@ -2627,6 +2637,9 @@ def build(style, words, meta, images=(), aspect="auto", cuts=(), visuals=(), edi
         zooms = []
         for k in ("pans", "cover", "texts"):
             extra.pop(k, None)
+    typed = typed_texts(edit_dir)   # the user's own typed text goes in on every layout, the board too
+    if typed:
+        extra["texts"] = extra.get("texts", []) + typed
     return {**out, "captions": {"style": cap, "chunks": chunks}, "zooms": zooms, "card_gap_s": gap,
             "cards": cards, **extra}
 
@@ -2951,6 +2964,12 @@ def demo():
     assert music_wanted({"sound": {"music": {"present_pct": 30}}}, {}) is False and music_wanted({}, {"sound": {"music": True}}) is True
     assert music_wanted({**snd, "blend": {"take": ["captions"]}}, {}) is False, "sound not taken from that creator"
     demo_punch()
+    with tempfile.TemporaryDirectory() as td:   # the review page's typed text (texts.json) goes in as typed
+        assert typed_texts(td) == [] and typed_texts(None) == []
+        (Path(td) / "texts.json").write_text(json.dumps({"items": [{"id": "edit1-3", "text": "wait for it", "style": "box", "start": 1.0,
+                                                                      "end": 4.0, "x_pct": 50, "y_pct": 40, "size_pct": 6}]}))
+        assert typed_texts(td) == [{"kind": "label", "text": "wait for it", "style": "box", "start": 1.0, "end": 4.0,
+                                    "x_pct": 50, "y_pct": 40, "size_pct": 6}], typed_texts(td)
     hy = [{"text": t, "start": i * 0.3, "end": i * 0.3 + 0.25} for i, t in enumerate(["one", "-for", "-one", "deal"])]
     got = [c["text"] for c in chunk_captions(hy, 3, "sentence")]
     assert got == ["one-for-one deal"], got

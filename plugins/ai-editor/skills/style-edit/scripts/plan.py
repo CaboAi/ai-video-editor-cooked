@@ -2967,7 +2967,7 @@ def demo():
     with tempfile.TemporaryDirectory() as td:   # the review page's typed text (texts.json) goes in as typed
         assert typed_texts(td) == [] and typed_texts(None) == []
         (Path(td) / "texts.json").write_text(json.dumps({"items": [{"id": "edit1-3", "text": "wait for it", "style": "box", "start": 1.0,
-                                                                      "end": 4.0, "x_pct": 50, "y_pct": 40, "size_pct": 6}]}))
+                                                                      "end": 4.0, "x_pct": 50, "y_pct": 40, "size_pct": 6}]}), encoding="utf-8")
         assert typed_texts(td) == [{"kind": "label", "text": "wait for it", "style": "box", "start": 1.0, "end": 4.0,
                                     "x_pct": 50, "y_pct": 40, "size_pct": 6}], typed_texts(td)
     hy = [{"text": t, "start": i * 0.3, "end": i * 0.3 + 0.25} for i, t in enumerate(["one", "-for", "-one", "deal"])]

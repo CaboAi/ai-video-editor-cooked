@@ -5,6 +5,8 @@ What changed for every user, newest first.
 ## Unreleased
 
 - Settings has an Auto-post your videos card: paste a Zernio key, connect any number of Instagram, TikTok, YouTube and other accounts, and Claude posts an approved video now or at a set time. A video's ⋯ menu has Rename.
+- Add text on the edit: T in the note box, type, drag it on the video, pick Plain (white), Outline (white with a black edge) or Box (black on white). It renders as typed on the next draft, for 3 s or over an i/o range.
+- The video page's left menu always shows. With the window closed, a click opens it.
 - A video's versions are one Version dropdown beside Watch and Compare, so long names no longer squeeze the player bar.
 - A finished reel gets a Trial reels tab: Claude's spare hooks and versions, a type menu per version (pick several, or let Claude decide), Add a version, Ask Claude, and Make. Trial reels list under their own heading in the Version dropdown.
 

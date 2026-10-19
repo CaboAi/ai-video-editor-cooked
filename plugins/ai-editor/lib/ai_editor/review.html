@@ -56,7 +56,6 @@ button.ritem{border:0;background:none;font:inherit;font-size:12px;line-height:14
 .ritem.rjob svg{position:absolute;left:13px;top:5px}
 .rail .themebtn{width:36px;height:36px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink);display:grid;place-items:center;flex-shrink:0}
 .rail .themebtn:hover{border-color:var(--line2)}
-.nohome [data-home]{display:none!important}
 /* expanded: labels beside the icons */
 body.railx .rail{width:232px;align-items:stretch;padding:16px 12px}
 body.railx .rtop{flex-direction:row;gap:10px}body.railx .rname{display:block}body.railx .rtog{margin-left:auto}
@@ -372,6 +371,20 @@ aside{width:var(--sidew,320px);flex-shrink:0;background:var(--panel);border-left
 #picbtn:hover{background:var(--chip)}
 #savebtn{grid-row:2;grid-column:4;display:grid;width:28px;height:28px;border-radius:7px;background:var(--ink);color:var(--onink);place-items:center;flex-shrink:0;opacity:.25;pointer-events:none}
 #savebtn.ready{opacity:1;pointer-events:auto}
+/* the Text tool: words typed into the box go on the video, dragged into place, in TikTok's three looks */
+#tools{grid-row:2;grid-column:3;justify-self:end;display:flex;gap:2px}
+#txtbtn{width:32px;height:28px;border-radius:8px;color:var(--body);display:grid;place-items:center;font:700 14px/1 system-ui,-apple-system,sans-serif}
+#txtbtn:hover{background:var(--chip)}#txtbtn.on{background:var(--ink);color:var(--onink)}#txtbtn[hidden]{display:none}
+#tstyle{grid-row:4;grid-column:1/-1;display:none;align-items:center;gap:6px;padding:2px}body.texting #tstyle{display:flex}
+#tstyle span{flex:1;font-size:12px;line-height:16px;color:var(--muted)}
+#tstyle button{height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--line2);background:var(--panel);font-size:12px;font-weight:600;color:var(--strong)}
+#tstyle button.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+#tlayer{overflow:hidden}
+.tl{position:absolute;transform:translate(-50%,-50%);width:84%;text-align:center;font-family:'TikTok Sans',system-ui,-apple-system,sans-serif;font-weight:700;line-height:1.15;white-space:pre-wrap;overflow-wrap:anywhere}
+#tprev{pointer-events:auto;cursor:move;touch-action:none;outline:1px dashed rgba(255,255,255,.8);outline-offset:4px}
+.ts-plain,.ts-outline{color:#FFFFFF}.ts-outline{-webkit-text-stroke:.14em #000;paint-order:stroke fill}
+.ts-box{color:#000000;background:#FFFFFF;padding:.06em .24em;border-radius:.18em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.tl:has(.ts-box){line-height:1.32}
 #pics{grid-row:3;grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;padding:2px}#pics:empty{display:none}
 #pics span{position:relative}#pics img{height:52px;border-radius:8px;border:1px solid var(--line);display:block}
 #pics button{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--ink);color:var(--onink);font-size:12px;line-height:20px}
@@ -564,7 +577,7 @@ body.making #making{display:flex}
   <div id="pair">
    <figure class="pl" id="p2"><figcaption id="cap2"></figcaption><div class="player"><video id="v2" preload="auto" muted playsinline></video><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
    <figure class="pl" id="p1"><figcaption id="cap1"></figcaption><div class="player"><video id="v" preload="auto" playsinline></video>
-    <div class="hits" id="hits"></div><div id="oldbadge"></div><div id="making" aria-live="polite"></div><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
+    <div class="hits" id="hits"></div><div class="hits" id="tlayer"></div><div id="oldbadge"></div><div id="making" aria-live="polite"></div><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
   </div>
   <div class="rsz" id="rsztx" role="separator" aria-label="drag to resize the video and the transcript" title="drag to resize"></div>
   <div id="tx"><div class="txhead"><b>Transcript</b><span id="txmeta"></span></div><div id="txlines"></div><div class="txtools" id="txtools"></div><div id="txbar" role="toolbar" aria-label="change the selected words"></div></div>
@@ -599,9 +612,10 @@ body.making #making{display:flex}
    <input type="file" id="picin" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
    <input type="file" id="editpic" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
    <div class="crow"><button id="clock" title="the note is saved at the playhead. i and o mark a range; click to clear it."><svg width="13" height="13" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 4v3.2l2 1.3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span id="boxat" class="num">0:00.0</span></button>
-    <button id="picbtn" aria-label="attach an image" title="attach an image (or paste or drop one)"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3l-5.5 5.5a1 1 0 01-1.5-1.5L9.9 4.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+    <span id="tools"><button id="txtbtn" aria-label="add text on screen" title="Add text on screen" hidden>T</button><button id="picbtn" aria-label="attach an image" title="attach an image (or paste or drop one)"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3l-5.5 5.5a1 1 0 01-1.5-1.5L9.9 4.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button></span>
     <select id="scope" aria-label="which videos the note is for"></select>
-    <button id="savebtn" aria-label="save note" title="save note (enter)"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 12V2M3 6l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div>
+    <button id="savebtn" aria-label="save note" title="save note (enter)"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 12V2M3 6l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+   <div id="tstyle"><span>Drag it on the video</span><button data-ts="plain">Plain</button><button data-ts="outline">Outline</button><button data-ts="box">Box</button></div></div>
   <div class="actions"><a id="dl" href="/download" download hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>Download</a><button id="send"><i></i><span></span></button><button id="approve"></button></div>
  </div>
 </aside>
@@ -672,6 +686,11 @@ function renderRail(){
   const n=S.home?S.jobs||0:0;$('railjobs').hidden=!n;$('jobn').textContent=n;$('railjobs').title=n?'Making '+plural(n,'video'):'';
 }
 let updating=false,updWas=false;
+// the window closed: the rail still shows, and a click starts the window's page (POST /home) and goes there
+document.querySelector('.rail').addEventListener('click',async e=>{const a=e.target.closest('[data-home]');if(!a||(S&&S.home))return;e.preventDefault();
+  if(a.dataset.busy)return;a.dataset.busy='1';toast('Opening your videos...');
+  try{const r=await fetch('/home',{method:'POST',body:'{}'}),j=await r.json();if(j.url)location.href=j.url+'#'+a.dataset.view;else alert(j.error||'The editor did not open.')}
+  finally{delete a.dataset.busy}});
 $('railupd').onclick=async()=>{updating=true;renderRail();setTimeout(()=>{updating=false;if(S)renderRail()},15000);try{const r=await fetch('/update',{method:'POST',body:'{}'});if(!r.ok){updating=false;alert('The window is not open, so it cannot update. Open cooked. and press Update in Settings.')}}catch(e){updating=false}renderRail()};
 let railx=false;try{railx=localStorage.getItem('review-railx')==='1'}catch(e){}
 document.body.classList.toggle('railx',railx);
@@ -847,7 +866,7 @@ function render(){
   // the composer: open until approve. While Claude works, a note waits for the next round
   const canNote=noteOk();
   ta.disabled=!canNote;box.classList.toggle('off',!canNote);
-  ta.placeholder=previewOn?'Back to the cut to leave a note':p==='send'?(S.raw?'Note for the cut...':'Note for the next draft...'):!isCur()?'Older draft, read only':p==='approve'?(S.stills?'The preview is approved':S.stage==='cut'&&!S.final?'The cut is approved':'Approved'):view.round>1?'Feedback on '+dn(viewRound())+' at this moment...':'Type feedback for this moment...';
+  ta.placeholder=tx?'Type the text to show on screen...':previewOn?'Back to the cut to leave a note':p==='send'?(S.raw?'Note for the cut...':'Note for the next draft...'):!isCur()?'Older draft, read only':p==='approve'?(S.stills?'The preview is approved':S.stage==='cut'&&!S.final?'The cut is approved':'Approved'):view.round>1?'Feedback on '+dn(viewRound())+' at this moment...':'Type feedback for this moment...';
   const sc=$('scope');sc.style.display=nv&&canNote?'block':'none';
   if(nv)sc.innerHTML=`<option value="">${esc(lab(alt))} only</option><option value="*">${nv===1?'Both':'All'} versions</option>`;
   renderVer();renderTx();renderBar();renderTracks();renderList();renderAdds();boxTime();hitSig='~';renderHits();
@@ -903,7 +922,7 @@ function noteHtml(c){
   const tm=c.t_end!=null&&!old?fmtx(c.t)+'–'+fmtx(c.t_end):fmtx(t);
   const thumb=old?'':`<img class="thumb${S.vertical?'':' wide'}" src="/frames/${encodeURIComponent(c.frame)}" alt="" loading="lazy">`;
   const imgs=(c.images||[]).length?`<div class="att">${c.images.map((x,i)=>`<a href="/frames/${encodeURIComponent(x)}" target="_blank" rel="noopener"><img src="/frames/${encodeURIComponent(x)}" alt="">Image ${i+1}</a>`).join('')}</div>`:'';
-  const card=c.card?`<span class="cardm">Card ${c.card.i+1}${c.card.trigger_word?' on "'+esc(c.card.trigger_word)+'"':''}</span>`:'';
+  const card=c.add_text?`<span class="cardm">Text on screen · ${TSTY[c.add_text.style]}</span>`:c.card?`<span class="cardm">Card ${c.card.i+1}${c.card.trigger_word?' on "'+esc(c.card.trigger_word)+'"':''}</span>`:'';
   const moved=old&&c.new_t!=null&&fmt(c.new_t)!==fmt(c.t)?` (${fmt(c.t)} in ${dn(roundOf(c.stage,c.round))})`:'';
   const body=ed?`<textarea class="edta" aria-label="edit note">${esc(editing.text)}</textarea>
     ${editing.images.length?`<div class="att">${editing.images.map((x,i)=>`<span class="rm"><a><img src="${x.startsWith('data:')?x:'/frames/'+encodeURIComponent(x)}" alt="">Image ${i+1}</a><button data-rmimg="${i}" aria-label="remove image">×</button></span>`).join('')}</div>`:''}
@@ -1470,7 +1489,7 @@ function tick(){const T=D(),t=v.currentTime,p=Math.min(100,t/T*100);
   document.querySelectorAll('.pin').forEach(el=>el.classList.toggle('cur',el.dataset.old==='0'&&Math.abs(+el.dataset.pt-t)<1));
   document.querySelectorAll('#ticks span[data-s]').forEach((el,i,all)=>el.classList.toggle('cur',t>=+el.dataset.s&&(!all[i+1]||t<+all[i+1].dataset.s)));
   document.querySelectorAll('.track .ph').forEach(el=>el.style.left=p+'%');
-  $('time').innerHTML=`<b>${fmtx(t)}</b><span>/ ${fmt(v.duration||0)}</span>`;tickTx();renderHits()}
+  $('time').innerHTML=`<b>${fmtx(t)}</b><span>/ ${fmt(v.duration||0)}</span>`;tickTx();renderHits();renderTexts()}
 v.addEventListener('timeupdate',tick);v.addEventListener('seeked',tick);
 const at=e=>{const r=bar.getBoundingClientRect();return Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))*(v.duration||0)};
 bar.addEventListener('pointerdown',e=>{dragging=true;bar.setPointerCapture(e.pointerId);v.currentTime=at(e);tick()});
@@ -1548,11 +1567,35 @@ $('pics').onclick=e=>{const b=e.target.closest('[data-rm]');if(b){pics.splice(+b
 ta.addEventListener('paste',e=>{const fs=[...(e.clipboardData?.files||[])];if(fs.length){e.preventDefault();addFiles(fs)}});
 box.addEventListener('dragover',e=>{e.preventDefault();if(!ta.disabled)box.classList.add('drag')});box.addEventListener('dragleave',()=>box.classList.remove('drag'));
 box.addEventListener('drop',e=>{e.preventDefault();box.classList.remove('drag');if(!ta.disabled)addFiles(e.dataTransfer.files)});
-async function save(){const text=ta.value.trim();if(ta.disabled||(!text&&!pics.length))return;
+// the Text tool (T in the box): the typed words show on the frame as they will render (Texts.tsx "label"), dragged into
+// place; saved as a note with add_text, from the playhead for 3 s or over an i/o range. review.py `wait` puts it in texts.json.
+const TSTY={plain:'Plain',outline:'Outline',box:'Box'},TEXT_SIZE=6;
+let tx=null,tsig='';
+function setText(on){tx=on?{style:(tx&&tx.style)||'outline',x:50,y:40}:null;document.body.classList.toggle('texting',!!tx);$('txtbtn').classList.toggle('on',!!tx);
+  tsig='';if(S)render();renderTexts();if(tx){v.pause();ta.focus()}}
+$('txtbtn').onclick=()=>{if(!ta.disabled)setText(!tx)};
+$('tstyle').onclick=e=>{const b=e.target.closest('[data-ts]');if(b&&tx){tx.style=b.dataset.ts;tsig='';renderTexts();ta.focus()}};
+function renderTexts(){
+  const L=$('tlayer'),fs=Math.min(L.offsetWidth,L.offsetHeight)*TEXT_SIZE/100,t=v.currentTime,edit=!!(S&&view&&view.stage==='edit');
+  $('txtbtn').hidden=!edit;if(!edit&&tx)setText(false);
+  document.querySelectorAll('#tstyle [data-ts]').forEach(b=>b.classList.toggle('on',!!tx&&b.dataset.ts===tx.style));
+  const one=(a,text,id)=>`<div class="tl"${id?` id="${id}"`:''} style="left:${a.x_pct}%;top:${a.y_pct}%;font-size:${fs}px"><span class="ts-${a.style}">${esc(text)}</span></div>`;
+  const html=(edit&&!cmp?S.comments.filter(c=>c.add_text&&c.stage===view.stage&&c.round===view.round&&c.t<=t&&t<c.t_end&&onAlt(c)):[]).map(c=>one(c.add_text,c.text)).join('')
+    +(tx?one({style:tx.style,x_pct:tx.x,y_pct:tx.y},ta.value.trim()||'Type your text','tprev'):'');
+  if(html!==tsig){tsig=html;L.innerHTML=html}}
+ta.addEventListener('input',()=>{if(tx)renderTexts()});new ResizeObserver(()=>{tsig='';renderTexts()}).observe($('tlayer'));
+$('tlayer').addEventListener('pointerdown',e=>{const el=e.target.closest('#tprev');if(!el||!tx)return;e.preventDefault();el.setPointerCapture(e.pointerId);
+  const vert=v.videoHeight>v.videoWidth,mv=ev=>{const r=$('tlayer').getBoundingClientRect(),cl=(n,a,b)=>Math.round(Math.min(b,Math.max(a,n))*10)/10;
+    tx.x=cl((ev.clientX-r.left)/r.width*100,vert?20:12,vert?73:88);tx.y=cl((ev.clientY-r.top)/r.height*100,vert?16:8,vert?72:92);   // reels: inside the safe zone
+    el.style.left=tx.x+'%';el.style.top=tx.y+'%'};
+  el.onpointermove=mv;el.onpointerup=()=>{el.onpointermove=null;tsig='';ta.focus()}});
+async function save(){const text=ta.value.trim();if(ta.disabled||(!text&&!pics.length)||(tx&&!text))return;
   const[t,te]=noteSpan(),nv=(viewRound().alts||[]).length;
-  await post('/comment',{t,t_end:te,text,images:pics,alt:nv&&$('scope').value==='*'?'*':alt||null,on:noteOn});closeBox();await load()}
+  const r=await post('/comment',{t,t_end:te,text,images:tx?[]:pics,alt:nv&&$('scope').value==='*'?'*':alt||null,on:noteOn,
+    ...(tx?{add_text:{style:tx.style,x_pct:tx.x,y_pct:tx.y}}:{})});
+  if(tx&&r.id)setText(false);closeBox();await load()}
 $('savebtn').onclick=save;
-ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();save()}if(e.key==='Escape'){ta.blur();inT=outT=null;noteOn=null;renderBar();boxTime()}});
+ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();save()}if(e.key==='Escape'){if(tx)setText(false);ta.blur();inT=outT=null;noteOn=null;renderBar();boxTime()}});
 const sendOrStop=async()=>{const e=S.events[S.events.length-1];await post('/event',{type:pending()==='send'||makingEdit()||e&&e.type==='approve'?'stop':'send'});load()};
 $('send').onclick=sendOrStop;$('msend').onclick=sendOrStop;
 const approve=async()=>{if(S.stage==='cut'&&!S.final||S.stills){approving=true;render()}   // instant: the button and the steps turn before the server answers

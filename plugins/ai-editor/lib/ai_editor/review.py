@@ -358,7 +358,8 @@ def screen_items(folder, p):
         lines = len(items) if items else 1 + text.count("\n")
         size = float(x.get("size_pct") or 4) * (2 if items else 1.3) * max(1, lines)
         texts.append({"s": round(x["start"], 2), "e": round(x["end"], 2), "kind": x.get("kind") or "text", "text": text,
-                      "box": [float(x.get("x_pct") or 6), float(x.get("y_pct") or 10), 60, round(size, 1)] if items
+                      "box": [float(x.get("x_pct") or 50) - 30, float(x.get("y_pct") or 50) - size / 2, 60, round(size, 1)]
+                      if x.get("kind") == "label" else [float(x.get("x_pct") or 6), float(x.get("y_pct") or 10), 60, round(size, 1)] if items
                       else [13, float(x.get("y_pct") or 10), 74, round(size, 1)]})
     return {"cards": cards, "texts": texts,
             "captions": [{"s": round(x["start"], 2), "e": round(x["end"], 2), "text": str(x.get("text") or "")}
@@ -587,6 +588,23 @@ def note_tags(plan, transcript, stage, t, te=None, on=None):
     if cap:
         return str(cap).strip(), card
     return (words_at(transcript, t, te if te is not None else t) if not chunks else ""), card
+
+
+TEXT_STYLES = ("plain", "outline", "box")   # TikTok's and Instagram's own: white, white with a black edge, black on white
+TEXT_SIZE, TEXT_HOLD_S = 6.0, 3.0   # % of the frame's short side; seconds on screen when no range is marked
+
+
+def put_texts(folder, notes):
+    """The Text tool's notes into <edit>/texts.json (plan.py typed_texts), one row per note, replaced if sent again.
+    Returns how many rows came from these notes."""
+    rows = [{"id": f"{c['stage']}{c['round']}-{c['id']}", "text": c["text"], **c["add_text"], "start": c["t"], "end": c["t_end"]}
+            for c in notes if c.get("add_text")]
+    if rows:
+        f = Path(folder) / "texts.json"
+        old = load(f).get("items") or [] if f.exists() else []
+        ids = {r["id"] for r in rows}
+        f.write_text(json.dumps({"items": [x for x in old if x.get("id") not in ids] + rows}, indent=1), encoding="utf-8")
+    return len(rows)
 
 
 def on_screen(plan, t):
@@ -1276,6 +1294,18 @@ def make_handler(folder, token):
                 except ValueError:
                     return self.send(400, {"error": "light, dark or system"})
                 return self.send(200, {"theme": theme()})
+            if path == "/home":   # the rail with the editor's window closed: start its page (home.py serve), then go there
+                _HOME["at"] = 0.0
+                if not home_url():
+                    subprocess.Popen([sys.executable, str(Path(__file__).with_name("home.py")), "serve", "--no-open"],
+                                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                     start_new_session=True)
+                    for _ in range(40):
+                        time.sleep(0.5)
+                        _HOME["at"] = 0.0
+                        if home_url():
+                            break
+                return self.send(200, {"url": home_url()}) if home_url() else self.send(503, {"error": "The editor's window did not start."})
             if path == "/intro":   # "Got it" on the first-edit notice: never again
                 set_ui(intro_off=True)
                 return self.send(200, {})
@@ -1440,6 +1470,17 @@ def make_handler(folder, token):
             grab(src["video"], t, folder / "review" / frame)
             images = askhook.save_images(folder / "review", imgs, f"r{d['stage']}{d['round']}-c{cid}")
             on = body.get("on") if isinstance(body.get("on"), dict) else None
+            add = body.get("add_text")
+            if add is not None:   # the Text tool: the note's words go on screen as typed, in one of TikTok's three looks
+                try:
+                    add = {"style": add["style"], **{k: round(min(100.0, max(0.0, float(add[k]))), 1) for k in ("x_pct", "y_pct")},
+                           "size_pct": round(min(20.0, max(2.0, float(add.get("size_pct") or TEXT_SIZE))), 1)}
+                except (KeyError, TypeError, ValueError):
+                    return self.send(400, {"error": "add_text takes style, x_pct and y_pct"})
+                if add["style"] not in TEXT_STYLES or not text or d["stage"] != "edit":
+                    return self.send(400, {"error": "Text goes on the edit, in plain, outline or box."})
+                if te is None:
+                    te = t + TEXT_HOLD_S
             words, card = note_tags(d.get("plan"), src.get("transcript"), d["stage"], t, te, on)
             c = {"id": cid, "round": d["round"] + queued, "stage": d["stage"], "t": round(t, 2), "alt": alt,
                  "t_end": round(te, 2) if te is not None else None, "text": text, "words": words, "card": card,
@@ -1448,6 +1489,8 @@ def make_handler(folder, token):
                 c["keep"] = True
             if queued:
                 c["queued"] = True
+            if add:
+                c["add_text"] = add
             if on:
                 c["on"] = {"k": str(on.get("k") or ""), "text": str(on.get("text") or "")[:300]}
             update(rj, lambda d: d["comments"].append(c))
@@ -2091,7 +2134,7 @@ def drop_spec(folder):
             pid = json.loads(meta.read_text(encoding="utf-8")).get("pid")
         except (OSError, ValueError):
             pid = None
-        if pid and alive(pid):
+        if pid and pid != os.getpid() and alive(pid):   # never itself: taskkill /T on Windows ended the caller (edit.py demo)
             try:
                 if os.name == "nt":
                     subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], capture_output=True)
@@ -2208,9 +2251,15 @@ def cmd_wait(folder, poll=1.0):
         card = f" [card {k['i']} {k['kind']} '{k['trigger_word'] or ''}']" if k else ""
         card += on_screen(r.get("plan") or d.get("plan"), c["t"]) if e["stage"] == "edit" else ""
         keep = f" [keep as a rule for {style_label(folder)}]" if c.get("keep") else ""
+        keep += f" [add text: {c['add_text']['style']}]" if c.get("add_text") else ""
         print(f"#{c['id']} {span} ({c['t']}s){ver}{card}: {c['text']}{keep}\n    said: \"{c['words']}\""
               f"\n    frame: {folder / 'review' / c['frame']}"
               + "".join(f"\n    image: {folder / 'review' / x}" for x in c.get("images") or []))
+    typed = put_texts(folder, cs)
+    if typed:
+        print(f"texts: {folder / 'texts.json'} ({typed} on-screen text{'' if typed == 1 else 's'} the user typed with the Text tool, "
+              "the notes marked [add text]. plan.py puts every one in plan.json as typed: plan again and render. "
+              "Never reword, restyle or move them; a later note about one edits its row in texts.json.)")
     added = assets.load(folder)
     if added:   # New video's "Add images or links" and the editor's "Anything to add?": they go in first
         print(f"assets: {folder / 'assets.json'} ({len(added)} image{'' if len(added) == 1 else 's'} or link{'' if len(added) == 1 else 's'} the user added. "
@@ -2934,6 +2983,8 @@ def demo():
     c3 = post("/comment", {"t": 5.1, "text": "louder here", "alt": "wide"})
     assert c3["alt"] == "wide" and c3["words"] == "later", c3
     c4 = post("/comment", {"t": 1.0, "text": "on all of them", "alt": "*"})
+    c6 = post("/comment", {"t": 2.0, "text": "wait for it", "add_text": {"style": "box", "x_pct": 50, "y_pct": 140}})   # the Text tool
+    assert c6["add_text"] == {"style": "box", "x_pct": 50.0, "y_pct": 100.0, "size_pct": TEXT_SIZE} and c6["t_end"] == 5.0, c6
     # a note that reads as a lasting preference is offered as a rule, ticked; the user can untick it
     assert looks_like_rule("Too many zooms") and looks_like_rule("I prefer bigger captions") and not looks_like_rule("cut the um at 0:12")
     c5 = post("/comment", {"t": 2.0, "text": "always use fewer zooms"})
@@ -2958,9 +3009,12 @@ def demo():
     assert st["text"] == "rendering" and st["pct"] == 75 and not st["done"], st
     post("/event", {"type": "approve"})
     out = waited()
-    assert out.startswith("APPROVE: demo the edit, round 1, 4 notes.") and f"also wide: {folder / 'review' / 'v-edit1-wide.mp4'}" in out, out
+    assert out.startswith("APPROVE: demo the edit, round 1, 5 notes.") and f"also wide: {folder / 'review' / 'v-edit1-wide.mp4'}" in out, out
     assert f"assets: {folder / 'assets.json'} (1 image or link the user added." in out, out
     assert f"#{c4['id']} 0:01.0 (1.0s) [all videos]: on all of them" in out, out
+    assert f": wait for it [add text: box]" in out and f"texts: {folder / 'texts.json'} (1 on-screen text the user typed" in out, out
+    assert load(folder / "texts.json")["items"] == [{"id": f"edit1-{c6['id']}", "text": "wait for it", "style": "box", "x_pct": 50.0,
+                                                       "y_pct": 100.0, "size_pct": TEXT_SIZE, "start": 2.0, "end": 5.0}]
     assert f"#{c3['id']} 0:05.1 (5.1s) [wide] [card 0 image 'later']: louder here" in out, out
     # the final approve: LEARN asks Claude for rules from every note of the session, the page waits for them
     assert "LEARN: the video is approved" in out and "#1 the cut r1: cut the hello, please -> reply: cut it" in out, out

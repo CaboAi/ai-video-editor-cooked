@@ -2134,7 +2134,7 @@ def drop_spec(folder):
             pid = json.loads(meta.read_text(encoding="utf-8")).get("pid")
         except (OSError, ValueError):
             pid = None
-        if pid and alive(pid):
+        if pid and pid != os.getpid() and alive(pid):   # never itself: taskkill /T on Windows ended the caller (edit.py demo)
             try:
                 if os.name == "nt":
                     subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], capture_output=True)

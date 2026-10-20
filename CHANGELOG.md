@@ -4,6 +4,9 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.21, creator-teardown 2.7.21 (2026-10-20)
+- Check now asks GitHub on every press. A press while a check is running waits for that check.
+
 ## ai-editor 2.7.20, creator-teardown 2.7.20 (2026-10-20)
 - The sidebar's Making card has Stop for a video Claude is fixing from its review page, the same Stop as on that page.
 - Settings' Check now asks GitHub on every press (10 s apart), skips GitHub's 5-minute cached copy, waits for the answer and says when it last checked.

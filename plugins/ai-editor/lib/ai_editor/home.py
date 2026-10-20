@@ -1171,9 +1171,6 @@ def my_version():
         return None
 
 
-UPD_GAP_S = 10   # Check now: a press this soon after a check shows that check's time instead of asking again
-
-
 def update_info():
     """Installed vs latest. The GitHub check runs in the background at most once an hour; offline it says nothing."""
     if time.time() - _UPD["at"] > 3600 and not _UPD["busy"]:
@@ -2215,7 +2212,7 @@ def make_handler(token):
                 note_check(name, k, ok, msg)
                 return self.send(200, {"ok": ok, "msg": msg})
             if path == "/update/check":   # Settings: ask GitHub now instead of within the hour
-                if not _UPD["busy"] and time.time() - _UPD["at"] > UPD_GAP_S:   # one GitHub check per press, not per click
+                if not _UPD["busy"]:   # every press asks GitHub; a press while one runs gets that one's answer
                     _UPD["at"] = 0.0
                 update_info()
                 return self.send(200, {})
@@ -3194,18 +3191,19 @@ def demo():
     assert u["latest"] == "99.0.0" and u["newer"] and u["checked"] and u["notes"] == ["Dark mode in the window"], u
     seen = []
     globals()["fetch_latest"] = lambda: seen.append(1) or ("99.0.0", ["Dark mode in the window"])
-    for _ in range(5):   # pressed again and again within UPD_GAP_S: no new GitHub check
-        post("/update/check", {})
-    time.sleep(0.1)
-    assert not seen and get("/state")["update"]["checked"] == u["checked"], seen
     assert get("/state")["update"]["dev"] is any((q / ".git").exists() for q in PLUGIN_JSON.resolve().parents), "a git checkout: update with git"
-    _UPD["at"] -= UPD_GAP_S + 1   # a moment later: one press checks again
+    for n in (1, 2, 3):   # every press asks GitHub again, however soon after the last
+        post("/update/check", {})
+        for _ in range(50):
+            if len(seen) == n and not _UPD["busy"]:
+                break
+            time.sleep(0.02)
+        assert len(seen) == n, (n, seen)
+    _UPD["busy"] = True   # a press while a check runs waits for that check: no second request
     post("/update/check", {})
-    for _ in range(50):
-        if seen:
-            break
-        time.sleep(0.02)
-    assert seen == [1], seen
+    time.sleep(0.1)
+    assert len(seen) == 3, seen
+    _UPD["busy"] = False
     # the paste: a profile link names the platform; a bare name is a handle; a website is not a creator
     r = post("/lookup", {"text": "https://www.tiktok.com/@sample.creator"})
     assert r["kind"] == "creator" and r["handle"] == "sample.creator" and r["platform"] == "tiktok" and calls, r

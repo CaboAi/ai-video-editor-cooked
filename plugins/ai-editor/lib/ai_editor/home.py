@@ -1150,8 +1150,9 @@ def vtuple(v):
 def fetch_latest():
     """The version on GitHub main and the first lines of its CHANGELOG entry. (None, []) offline."""
     try:
-        v = json.loads(urllib.request.urlopen(RAW + "plugins/ai-editor/.claude-plugin/plugin.json", timeout=5).read())["version"]
-        log = urllib.request.urlopen(RAW + "CHANGELOG.md", timeout=5).read().decode("utf-8", "replace")
+        fresh = f"?t={int(time.time())}"   # past the raw CDN's 5-minute copy: a release shows on the next press
+        v = json.loads(urllib.request.urlopen(RAW + "plugins/ai-editor/.claude-plugin/plugin.json" + fresh, timeout=5).read())["version"]
+        log = urllib.request.urlopen(RAW + "CHANGELOG.md" + fresh, timeout=5).read().decode("utf-8", "replace")
     except (OSError, ValueError, KeyError, TypeError):
         return None, []
     secs = re.split(r"(?m)^## ", log)
@@ -1170,6 +1171,9 @@ def my_version():
         return None
 
 
+UPD_GAP_S = 10   # Check now: a press this soon after a check shows that check's time instead of asking again
+
+
 def update_info():
     """Installed vs latest. The GitHub check runs in the background at most once an hour; offline it says nothing."""
     if time.time() - _UPD["at"] > 3600 and not _UPD["busy"]:
@@ -1177,7 +1181,7 @@ def update_info():
 
         def go():
             v, notes = fetch_latest()
-            _UPD.update(at=time.time(), busy=False, **({"latest": v, "notes": notes} if v else {}))
+            _UPD.update(at=time.time(), busy=False, offline=not v, **({"latest": v, "notes": notes} if v else {}))
         threading.Thread(target=go, daemon=True).start()
     mine = my_version()
     newer = bool(mine and _UPD["latest"] and vtuple(_UPD["latest"]) > vtuple(mine))
@@ -1193,7 +1197,7 @@ def update_info():
         except (OSError, subprocess.TimeoutExpired):
             pass
     return {"installed": mine, "latest": _UPD["latest"], "newer": newer, "notes": _UPD["notes"] if newer else [],
-            "checking": _UPD["busy"], "checked": _UPD["at"] or None, "dev": dev, "fork": fork}
+            "checking": _UPD["busy"], "checked": _UPD["at"] or None, "offline": bool(_UPD.get("offline")), "dev": dev, "fork": fork}
 
 
 def trash(p):
@@ -2211,7 +2215,7 @@ def make_handler(token):
                 note_check(name, k, ok, msg)
                 return self.send(200, {"ok": ok, "msg": msg})
             if path == "/update/check":   # Settings: ask GitHub now instead of within the hour
-                if not _UPD["busy"] and time.time() - _UPD["at"] > 60:   # a minute between checks, however often it is pressed
+                if not _UPD["busy"] and time.time() - _UPD["at"] > UPD_GAP_S:   # one GitHub check per press, not per click
                     _UPD["at"] = 0.0
                 update_info()
                 return self.send(200, {})
@@ -2494,6 +2498,13 @@ def make_handler(token):
                 import launcher
                 st, cmd = launcher.connect(read()["root"])
                 return self.send(200, {"status": st, "command": cmd})
+            if path == "/stop" and body.get("edit"):   # {edit}: Stop on a video Claude is fixing from its review page
+                e = Path(str(body["edit"])).resolve()
+                if e not in library.edit_dirs():
+                    return self.send(400, {"ok": False, "msg": "That is not one of your videos."})
+                import review
+                err = review.stop_round(e)   # the same Stop as the review page's: notes open again, Claude stops
+                return self.send(409 if err else 200, {"ok": not err, "stopped": not err, **({"msg": err} if err else {})})
             if path == "/stop":   # {id}: the sidebar's Stop. The job ends, and its Claude stops at its next step (toolhook)
                 def st(d):
                     j = next((j for j in d["jobs"] if j["id"] == body.get("id")), None)
@@ -3183,12 +3194,12 @@ def demo():
     assert u["latest"] == "99.0.0" and u["newer"] and u["checked"] and u["notes"] == ["Dark mode in the window"], u
     seen = []
     globals()["fetch_latest"] = lambda: seen.append(1) or ("99.0.0", ["Dark mode in the window"])
-    for _ in range(5):   # pressed again and again within the minute: no new GitHub check
+    for _ in range(5):   # pressed again and again within UPD_GAP_S: no new GitHub check
         post("/update/check", {})
     time.sleep(0.1)
     assert not seen and get("/state")["update"]["checked"] == u["checked"], seen
     assert get("/state")["update"]["dev"] is any((q / ".git").exists() for q in PLUGIN_JSON.resolve().parents), "a git checkout: update with git"
-    _UPD["at"] -= 61   # a minute later: one press checks again
+    _UPD["at"] -= UPD_GAP_S + 1   # a moment later: one press checks again
     post("/update/check", {})
     for _ in range(50):
         if seen:
@@ -4106,6 +4117,19 @@ def demo():
         assert next(v for v in get("/library")["videos"] if v["dir"] == str(hid.resolve()))["name"] == "My first video"
         assert post("/edit/rename", {"dir": str(hid), "name": ""})["ok"]
         assert next(v for v in get("/library")["videos"] if v["dir"] == str(hid.resolve()))["name"] == "hide-me"
+        # the sidebar's Stop on a video Claude is fixing from its review page: the round comes back, notes open again
+        (hid / "review.json").write_text(json.dumps({"stage": "edit", "round": 1, "sent": True, "comments": [],
+                                                     "events": [{"type": "send", "stage": "edit", "round": 1, "handled": False}]}),
+                                         encoding="utf-8")
+        assert next(v for v in get("/library")["videos"] if v["dir"] == str(hid.resolve()))["status"] == "making"
+        assert post("/stop", {"edit": str(hid)})["stopped"]
+        rv = json.loads((hid / "review.json").read_text(encoding="utf-8"))
+        assert not rv["sent"] and rv["stopped"] and rv["events"][-1]["type"] == "stop", rv
+        try:
+            post("/stop", {"edit": str(tmp)})
+            raise AssertionError("a folder that is not a video")
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
         for bad in ({"dir": str(tmp), "name": "x"}, {"dir": str(hid), "name": "x" * 81}):
             try:
                 post("/edit/rename", bad)

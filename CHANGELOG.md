@@ -4,10 +4,15 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.20, creator-teardown 2.7.20 (2026-10-20)
+- The sidebar's Making card has Stop for a video Claude is fixing from its review page, the same Stop as on that page.
+- Settings' Check now asks GitHub on every press (10 s apart), skips GitHub's 5-minute cached copy, waits for the answer and says when it last checked.
 - New video has a B-roll section (tick your Drive folders, or leave Claude decides on) and an Additional instructions for Claude box. Copy a reel takes a reel link and remakes it with your b-roll, the reel's words on screen and its sound, then opens it in the editor.
 - Settings has an Auto-post your videos card: paste a Zernio key, connect any number of Instagram, TikTok, YouTube and other accounts, and Claude posts an approved video now or at a set time. A video's ⋯ menu has Rename.
 - Questions from a Claude that is not working on a video (another project, research, setup in another folder) stay in its own terminal. They no longer pop up on Home or a video's page.
 - Sending notes or approving with no Claude on that video opens a new Claude in its own Terminal window that carries on with the edit. A video whose Claude stopped mid-round shows "Stopped? Open a new Claude".
+- Copy for Claude on the video page: when the Claude that made a video is closed or stopped answering, one button copies what a new Claude Code session needs to pick the edit up and apply your notes. The page no longer says Claude is working when it has stopped.
+- Dragging a video or a style into a folder moves it: Your videos and Styles show only what is in no folder, and their counts match.
 - Add text on the edit: T in the note box, type, drag it on the video, pick Plain (white), Outline (white with a black edge) or Box (black on white). It renders as typed on the next draft, for 3 s or over an i/o range.
 - The video page's left menu always shows. With the window closed, a click opens it.
 - A video's versions are one Version dropdown beside Watch and Compare, so long names no longer squeeze the player bar.

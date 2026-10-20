@@ -4,6 +4,7 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- New video has a B-roll section (tick your Drive folders, or leave Claude decides on) and an Additional instructions for Claude box. Copy a reel takes a reel link and remakes it with your b-roll, the reel's words on screen and its sound, then opens it in the editor.
 - Settings has an Auto-post your videos card: paste a Zernio key, connect any number of Instagram, TikTok, YouTube and other accounts, and Claude posts an approved video now or at a set time. A video's ⋯ menu has Rename.
 - Questions from a Claude that is not working on a video (another project, research, setup in another folder) stay in its own terminal. They no longer pop up on Home or a video's page.
 - Sending notes or approving with no Claude on that video opens a new Claude in its own Terminal window that carries on with the edit. A video whose Claude stopped mid-round shows "Stopped? Open a new Claude".

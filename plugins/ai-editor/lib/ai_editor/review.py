@@ -1123,6 +1123,16 @@ def stage_name(s, stills=False):
     return "the stills" if stills else {"cut": "the cut", "edit": "the edit"}.get(s, s)
 
 
+def resume_text(folder, d):
+    """The page's Copy for Claude: everything a new Claude Code session needs to pick this edit up when the
+    one that made it is closed (left overnight) or stopped answering."""
+    doc = Path(__file__).resolve().parents[2] / "skills" / "style-edit" / "references" / "review.md"
+    return (f'Pick up my cooked. edit "{d.get("name") or folder.name}" where I left it '
+            f'({stage_name(d.get("stage"), d.get("stills"))}, round {d.get("round")}).\n'
+            f"Read {doc}, then run this in the background and apply the notes it prints:\n"
+            f'python3 "{Path(__file__).resolve()}" "{folder.resolve()}" wait')
+
+
 # ---------------------------------------------------------------- server
 def make_handler(folder, token):
     rj = folder / "review.json"
@@ -1208,6 +1218,7 @@ def make_handler(folder, token):
                 d = load(rj)
                 d["theme"] = theme()
                 d["listening"], d["busy"] = listening(folder), busy(folder)
+                d["resume"] = resume_text(folder, d)
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
                 d["cutcheck"] = (folder / "cut-check.html").exists()
                 d["rawvideo"] = raw_video(folder, d) is not None   # the transcript editor's preview plays the raw take
@@ -2838,7 +2849,8 @@ def demo():
     assert [x["kind"] for x in ad] == ["link", "image"] and json.loads(get("/state").read())["assets"] == ad
     assert get("/" + ad[1]["src"]).headers["Content-Type"] == "image/png"
     assert post("/assets", {"remove": 1})["items"] == ad[:1] and not (folder / ad[1]["src"]).exists()
-    assert not json.loads(get("/state").read())["listening"]
+    st = json.loads(get("/state").read())
+    assert not st["listening"] and f'"{folder.resolve()}" wait' in st["resume"], "Copy for Claude names this edit"
     # the first-edit notice: round 1 of the user's first videos, until dismissed; the theme keeps the count
     assert json.loads(get("/state").read())["intro"], "round 1 of the first video: the notice shows"
     set_theme("dark")

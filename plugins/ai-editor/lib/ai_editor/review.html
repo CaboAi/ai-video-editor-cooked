@@ -92,6 +92,8 @@ header{position:relative;height:56px;flex-shrink:0;display:flex;align-items:cent
 .status span{overflow:hidden;text-overflow:ellipsis}
 #howbtn{width:32px;height:32px;border-radius:8px;border:1px solid var(--line2);display:grid;place-items:center;color:var(--ink);flex-shrink:0}
 #howbtn:hover{border-color:var(--ink)}
+#resumebtn{height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line2);color:var(--ink);font-size:13px;flex-shrink:0}
+#resumebtn:hover{border-color:var(--ink)}
 .mtheme{display:none}
 .mhead{display:none}
 /* Approve sits in the header, top right (the notes panel keeps Submit feedback, Stop and Undo approve) */
@@ -557,7 +559,7 @@ body.making #making{display:flex}
 <header>
  <div class="brand"><button id="homebtn" class="homebtn" title="Back to your videos"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Your videos</button><span class="sl">/</span><span id="name"></span><span id="homemsg" class="homemsg" hidden></span></div>
  <div class="seg" id="stages"><button id="st1" data-go="cut"></button><svg class="chev" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><button id="st2" data-go="edit"></button></div>
- <div class="status" id="statusbox"><i></i><span id="listen"></span><button id="howbtn" aria-label="how this works and shortcuts" title="how this works (?)"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="10" r="8.3"/><path d="M7.7 7.6a2.4 2.4 0 1 1 3.3 2.2c-.6.3-1 .8-1 1.5v.4"/><circle cx="10" cy="14.4" r=".4" fill="currentColor"/></svg></button></div>
+ <div class="status" id="statusbox"><i></i><span id="listen"></span><button id="resumebtn" hidden title="Paste it into a new Claude Code session to pick this edit up">Copy for Claude</button><button id="howbtn" aria-label="how this works and shortcuts" title="how this works (?)"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="10" r="8.3"/><path d="M7.7 7.6a2.4 2.4 0 1 1 3.3 2.2c-.6.3-1 .8-1 1.5v.4"/><circle cx="10" cy="14.4" r=".4" fill="currentColor"/></svg></button></div>
  <div class="mhead"><b id="mstage"></b><span id="msub"></span></div><button class="themebtn mtheme"></button><button id="mapprove"></button>
 </header>
 <section id="how" aria-label="how this works"><ol>
@@ -740,6 +742,7 @@ $('dl').addEventListener('click',async e=>{
       if(i===1)toast('Saving the video. It downloads in a moment.');await new Promise(r=>setTimeout(r,1000))}
     toast('The video did not download. Try again.')}finally{delete a.dataset.busy}
 });
+$('resumebtn').onclick=async()=>{try{await navigator.clipboard.writeText(S.resume);toast('Copied. Paste it into Claude Code.')}catch(e){toast('Could not copy')}};
 function toast(t){const e=$('toast');e.innerHTML=TICK+esc(t);e.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>e.classList.remove('show'),3500)}
 function cmpOptions(){   // what can play beside this round: its other versions, then earlier rounds of this stage
   const r=viewRound(),o=['',...(r.alts||[]).map(a=>a.name)].filter(x=>x!==alt).map(x=>({k:key(view),alt:x,label:lab(x)}));
@@ -807,6 +810,7 @@ function steps(){
 function listenText(S){
   const e=S.events[S.events.length-1],picked=!!(S.sent&&e&&e.handled);
   if(picked&&e.type==='approve')return e.stills?'Claude is making the video':e.stage==='cut'?(S.stage==='cut'&&!S.final?'Claude is making the edit':'The cut is approved'):'Approved';
+  if(picked&&!alive())return 'Claude stopped. Your notes are saved.';
   if(picked)return S.raw?(S.cut_steps&&S.cut_steps.state==='queued'?((S.cut_steps.claude||{}).opened?'Claude is working in its own Terminal window':'Waiting for Claude'):'Claude is making the cut'):e.type==='edits'?'Claude is applying your changes':'Claude is working on the next draft';
   if(S.sent)return e&&e.type==='edits'?'Changes sent':e&&e.type==='approve'?(e.stills?'Preview approved':e.stage==='cut'?'Cut approved':'Approved'):'Notes sent';
   const first=!(S.rounds||[]).some(r=>r.stage===S.stage&&r.round>=1&&r.round<S.round&&!r.stills);   // the first video of the cut or the edit (the stills before it are not one)
@@ -819,10 +823,11 @@ function render(){
   document.body.classList.toggle('vertical',!!S.vertical);renderRail();
   const p=pending(),lastEv=S.events[S.events.length-1],picked=!!(S.sent&&lastEv&&lastEv.handled),vr=viewRound();
   $('name').textContent=S.name;$('name').title=S.name;document.title=S.name+(p==='send'?' · Claude working':' · '+dn(S));steps();
-  const idleEdit=makingEdit()&&makeState().idle,busyNow=!idleEdit&&(picked&&(p==='send'||!!S.raw)||makingEdit()||approving);
+  const idleEdit=makingEdit()&&makeState().idle,busyNow=!idleEdit&&(picked&&alive()&&(p==='send'||!!S.raw)||makingEdit()||approving);
   const nowAct=busyNow&&(S.activity||[]).filter(x=>x.round===S.round&&!x.done).pop();
   const asking=!!document.documentElement.dataset.ask;   // ask.js: Claude's question box is open on this page
   $('listen').innerHTML=asking?'<b>Claude is asking you something</b>':esc(approving?(S.stills?'Preview approved':'Cut approved'):idleEdit?'Claude is not working on the edit':listenText(S))+(!asking&&nowAct&&nowAct.text?` <span class="stp">· ${esc(nowAct.text)}</span>`:'');
+  $('resumebtn').hidden=alive()||asking;   // the Claude that made this is gone: a new session picks it up from this
   $('statusbox').classList.toggle('work',busyNow&&!asking);$('statusbox').querySelector('i').innerHTML=busyNow&&!asking?SPIN:'';
   $('mstage').textContent=STAGE[view.stage];$('msub').textContent=S.name+' · '+rn(view).toLowerCase();
   const mine=S.comments.filter(c=>c.stage===S.stage&&c.round===S.round).length,live=isCur()&&!p;
@@ -963,7 +968,7 @@ function workHtml(){
   if(S.raw&&S.cut_steps)return cutHtml(S.cut_steps);
   if(p!=='send'&&(!live||S.stage==='cut'))return '';   // the cut is ready: what Claude does next is the edit's prep, not this round
   const ed=editsSent()?S.events[S.events.length-1]:null,nch=ed?plural(ed.n,'transcript change'):'';
-  const head=S.raw?'Making the cut. Your clip plays meanwhile. Notes you leave now go on the cut.':ed?(act.length?`Claude is applying your changes (${nch}). The next draft opens here.`:picked?`Claude has your ${nch} and is starting ${nextDn()}.`:S.listening||S.busy?`${nch} saved. Waiting for Claude to pick them up.`:`${nch} saved, but Claude is not listening. Ask Claude in the terminal to apply them.`):p==='send'?(act.length?`Making ${nextDn()}.`:picked?`Claude has your notes and is starting ${nextDn()}.`:'Notes sent. Waiting for Claude to pick them up.'+(S.listening||!S.busy?'':' Claude is finishing something and takes them next.')):'Still coming in this draft:';
+  const head=S.raw?'Making the cut. Your clip plays meanwhile. Notes you leave now go on the cut.':ed?(act.length?`Claude is applying your changes (${nch}). The next draft opens here.`:picked&&alive()?`Claude has your ${nch} and is starting ${nextDn()}.`:S.listening||S.busy?`${nch} saved. Waiting for Claude to pick them up.`:`${nch} saved, but Claude is not listening. Press Copy for Claude at the top and paste it into Claude Code.`):p==='send'?(act.length?`Making ${nextDn()}.`:picked&&alive()?`Claude has your notes and is starting ${nextDn()}.`:!alive()?'Notes sent, but Claude is not listening. Press Copy for Claude at the top and paste it into Claude Code.':'Notes sent. Waiting for Claude to pick them up.'+(S.listening||!S.busy?'':' Claude is finishing something and takes them next.')):'Still coming in this draft:';
   if(p!=='send'&&!ed&&!S.raw&&!act.some(x=>x.step||x.pct!=null))   // the draft is out: a plain line from Claude is a remark, not work still coming
     return `<div class="claude"><div><b>Claude</b>${act.map(x=>`<p>${esc(x.text)}</p>`).join('')}</div></div>`;
   const li=act.map(x=>x.done?`<li><span class="ic">${TICK}</span>${esc(x.text)}</li>`
@@ -1009,6 +1014,8 @@ function learnHtml(){
   return `<div class="learn">${head}${rows}<p class="ok">${TICK}${esc(L.summary||'Saved.')}</p></div>`;
 }
 const EDIT_STEPS={captions:'Writing the captions',visuals:'Finding the visuals',plan:'Planning zooms, cards and sound',render:'Making the video'};
+// Claude is on this edit: listening, a review command in the last 15 min, or a step's render log still moving
+function alive(){const o=(S.activity||[]).filter(x=>x.round===S.round&&!x.done).pop();return !!(S.listening||S.busy||o&&o.log_age!=null&&o.log_age<120)}
 function makeState(){   // the edit's steps from Claude's status reports (review.py EDIT_STEPS); nothing made up
   const steps=(S.making&&S.making.steps)||EDIT_STEPS,keys=Object.keys(steps),act=(S.activity||[]).filter(x=>x.round===S.round);
   const ev=[...S.events].reverse().find(e=>e.type==='approve'&&(e.stage==='cut'||e.stills)),at=ev&&ev.at;
@@ -1017,8 +1024,7 @@ function makeState(){   // the edit's steps from Claude's status reports (review
   const pct=!land&&last&&!last.done&&last.step==='render'&&last.pct!=null?last.pct:null;
   const frac=cur<0?0:Math.min(1,(cur+(closed?1:pct!=null?pct/100:.5))/keys.length);
   const left='';   // no time estimates on a step
-  const alive=S.busy||!!(open&&open.log_age!=null&&open.log_age<120);   // a step is open only while Claude reports or its render log moves
-  const idle=!alive?'No word from Claude for a while. If it stopped, go back to Claude and say go on.':'';
+  const idle=!alive()?'No word from Claude for a while. If it stopped, press Copy for Claude at the top and paste it into Claude Code.':'';
   return {steps,keys,cur,closed,pct,frac,at,left,idle,style:(S.making&&S.making.style)||'',
     now:open?open.text:cur>=0?steps[keys[cur]]:'Starting',extra:open&&!open.step?open.text:''};
 }

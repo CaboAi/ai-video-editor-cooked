@@ -1140,6 +1140,16 @@ def stage_name(s, stills=False):
     return "the stills" if stills else {"cut": "the cut", "edit": "the edit"}.get(s, s)
 
 
+def resume_text(folder, d):
+    """The page's Copy for Claude: everything a new Claude Code session needs to pick this edit up when the
+    one that made it is closed (left overnight) or stopped answering."""
+    doc = Path(__file__).resolve().parents[2] / "skills" / "style-edit" / "references" / "review.md"
+    return (f'Pick up my cooked. edit "{d.get("name") or folder.name}" where I left it '
+            f'({stage_name(d.get("stage"), d.get("stills"))}, round {d.get("round")}).\n'
+            f"Read {doc}, then run this in the background and apply the notes it prints:\n"
+            f'python3 "{Path(__file__).resolve()}" "{folder.resolve()}" wait')
+
+
 # ---------------------------------------------------------------- server
 def make_handler(folder, token):
     rj = folder / "review.json"
@@ -1225,6 +1235,7 @@ def make_handler(folder, token):
                 d = load(rj)
                 d["theme"] = theme()
                 d["listening"], d["busy"] = listening(folder), busy(folder)
+                d["resume"] = resume_text(folder, d)
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
                 d["cutcheck"] = (folder / "cut-check.html").exists()
                 d["rawvideo"] = raw_video(folder, d) is not None   # the transcript editor's preview plays the raw take
@@ -2875,7 +2886,8 @@ def demo():
     assert [x["kind"] for x in ad] == ["link", "image"] and json.loads(get("/state").read())["assets"] == ad
     assert get("/" + ad[1]["src"]).headers["Content-Type"] == "image/png"
     assert post("/assets", {"remove": 1})["items"] == ad[:1] and not (folder / ad[1]["src"]).exists()
-    assert not json.loads(get("/state").read())["listening"]
+    st = json.loads(get("/state").read())
+    assert not st["listening"] and f'"{folder.resolve()}" wait' in st["resume"], "Copy for Claude names this edit"
     # the first-edit notice: round 1 of the user's first videos, until dismissed; the theme keeps the count
     assert json.loads(get("/state").read())["intro"], "round 1 of the first video: the notice shows"
     set_theme("dark")
@@ -3236,18 +3248,21 @@ def demo():
     vid.write_bytes(b"the next render")
     assert len(get("/video?k=cut-1").read()) == size and len(get("/video?k=edit-1&alt=wide").read()) == size
     # the footer after a pick-up: an approve says approved, a send says Claude is working (node runs the page's own function)
-    js = re.search(r"^function listenText\(S\)\{.*?\n\}", HTML.read_text(encoding="utf-8"), re.M | re.S)
-    assert js, "review.html has no listenText()"
+    page = HTML.read_text(encoding="utf-8")
+    js = re.search(r"^function listenText\(S\)\{.*?\n\}", page, re.M | re.S)
+    alive = re.search(r"^function alive\(S\)\{.*?\}$", page, re.M)
+    assert js and alive, "review.html has no listenText() or alive()"
     if shutil.which("node"):
         ev = lambda t, n: {"listening": False, "sent": True, "round": n, "comments": [],
                            "events": [{"type": t, "stage": "edit", "handled": True}]}
         mid = {"listening": False, "busy": True, "sent": False, "round": 1, "stage": "edit", "comments": [], "events": []}
-        nc = re.search(r"^const newClaude=.*$", HTML.read_text(encoding="utf-8"), re.M).group(0)   # notes sent, a new Claude opened
+        nc = re.search(r"^const newClaude=.*$", page, re.M).group(0)   # notes sent, a new Claude opened
         fresh = dict(ev("send", 1), events=[{"type": "send", "stage": "edit", "handled": False}], claude={"opened": True, "at": time.time()})
-        o = subprocess.run(["node", "-e", nc + js.group(0) + "for(const s of " + json.dumps([ev("approve", 0), ev("send", 1), mid, fresh])
+        o = subprocess.run(["node", "-e", nc + alive.group(0) + js.group(0) + "for(const s of " + json.dumps(
+                            [ev("approve", 0), {**ev("send", 1), "busy": True}, mid, fresh, ev("send", 1)])
                             + ")console.log(listenText(s))"], capture_output=True, text=True, check=True).stdout
         assert o.splitlines() == ["Approved", "Claude is working on the next draft", "Claude is working.",
-                                 "A new Claude is starting in its own Terminal window"], o
+                                  "A new Claude is starting in its own Terminal window", "Claude stopped. Your notes are saved."], o
     # approve on the cut: the style-edit's scripts fill the page's "Making the edit" steps, in place, never twice
     sf = tmp / "edits" / "steps"
     sf.mkdir(parents=True)

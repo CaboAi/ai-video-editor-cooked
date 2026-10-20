@@ -5,6 +5,8 @@ What changed for every user, newest first.
 ## Unreleased
 
 - New video has a B-roll section (tick your Drive folders, or leave Claude decides on) and an Additional instructions for Claude box. Copy a reel takes a reel link and remakes it with your b-roll, the reel's words on screen and its sound, then opens it in the editor.
+- Questions from a Claude that is not working on a video (another project, research, setup in another folder) stay in its own terminal. They no longer pop up on Home or a video's page.
+- Sending notes or approving with no Claude on that video opens a new Claude in its own Terminal window that carries on with the edit. A video whose Claude stopped mid-round shows "Stopped? Open a new Claude".
 - Add text on the edit: T in the note box, type, drag it on the video, pick Plain (white), Outline (white with a black edge) or Box (black on white). It renders as typed on the next draft, for 3 s or over an i/o range.
 - The video page's left menu always shows. With the window closed, a click opens it.
 - A video's versions are one Version dropdown beside Watch and Compare, so long names no longer squeeze the player bar.

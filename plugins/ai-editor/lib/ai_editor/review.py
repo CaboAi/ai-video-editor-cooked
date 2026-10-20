@@ -3210,15 +3210,19 @@ def demo():
     vid.write_bytes(b"the next render")
     assert len(get("/video?k=cut-1").read()) == size and len(get("/video?k=edit-1&alt=wide").read()) == size
     # the footer after a pick-up: an approve says approved, a send says Claude is working (node runs the page's own function)
-    js = re.search(r"^function listenText\(S\)\{.*?\n\}", HTML.read_text(encoding="utf-8"), re.M | re.S)
-    assert js, "review.html has no listenText()"
+    page = HTML.read_text(encoding="utf-8")
+    js = re.search(r"^function listenText\(S\)\{.*?\n\}", page, re.M | re.S)
+    alive = re.search(r"^function alive\(S\)\{.*?\}$", page, re.M)
+    assert js and alive, "review.html has no listenText() or alive()"
     if shutil.which("node"):
         ev = lambda t, n: {"listening": False, "sent": True, "round": n, "comments": [],
                            "events": [{"type": t, "stage": "edit", "handled": True}]}
         mid = {"listening": False, "busy": True, "sent": False, "round": 1, "stage": "edit", "comments": [], "events": []}
-        o = subprocess.run(["node", "-e", js.group(0) + "for(const s of " + json.dumps([ev("approve", 0), ev("send", 1), mid])
+        o = subprocess.run(["node", "-e", alive.group(0) + js.group(0) + "for(const s of " + json.dumps(
+                            [ev("approve", 0), {**ev("send", 1), "busy": True}, mid, ev("send", 1)])
                             + ")console.log(listenText(s))"], capture_output=True, text=True, check=True).stdout
-        assert o.splitlines() == ["Approved", "Claude is working on the next draft", "Claude is working. Notes you send now are next."], o
+        assert o.splitlines() == ["Approved", "Claude is working on the next draft", "Claude is working. Notes you send now are next.",
+                                  "Claude stopped. Your notes are saved."], o
     # approve on the cut: the style-edit's scripts fill the page's "Making the edit" steps, in place, never twice
     sf = tmp / "edits" / "steps"
     sf.mkdir(parents=True)

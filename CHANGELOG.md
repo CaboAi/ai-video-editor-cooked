@@ -4,6 +4,9 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.22, creator-teardown 2.7.22 (2026-10-20)
+- Check now sees a new release the moment it is out. It read GitHub's 5-minute cached copy before, so a fresh release could still show as the old one.
+
 ## ai-editor 2.7.21, creator-teardown 2.7.21 (2026-10-20)
 - Check now asks GitHub on every press. A press while a check is running waits for that check.
 

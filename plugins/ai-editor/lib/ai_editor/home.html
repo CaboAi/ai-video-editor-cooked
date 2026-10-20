@@ -1544,7 +1544,7 @@ const inTab=(c,t)=>t==='all'||(t==='own'?c.own&&!c.sample:t==='cr'?!c.own&&!c.sa
 function vMyStyle(){
   if(ui.fold.styles&&!fd('styles').folders.some(f=>f.id===ui.fold.styles))ui.fold.styles=null;
   const st=L?L.styles:[],all=[...st,...(L&&L.archived_styles||[])],idx=c=>all.indexOf(c),per=perRow(),f=ui.fold.styles&&fd('styles').folders.find(x=>x.id===ui.fold.styles);
-  const inF=c=>!f||inFold('styles',c.id)===f.id,base=st.filter(inF),arch=(L.archived_styles||[]).filter(inF);
+  const inF=c=>(inFold('styles',c.id)||null)===(f?f.id:null),base=st.filter(inF),arch=(L.archived_styles||[]).filter(inF);
   if(ui.stab==='arch'&&!arch.length)ui.stab='all';
   const tab=ui.stab||'all',cnt=t=>t==='arch'?arch.length:base.filter(c=>inTab(c,t)).length;
   const shown=(tab==='arch'?arch:base.filter(c=>inTab(c,tab))).sort((a,b)=>(!!b.studying-!!a.studying)||(isDefault(b)-isDefault(a))||((b.id==='mine')-(a.id==='mine'))||((b.made||0)-(a.made||0)));
@@ -2174,16 +2174,16 @@ function vHome(){
 // ---- Your videos: Now (cards) and Done (tiles); a folder opens from the sidebar
 function vVideos(){
   if(ui.fold.videos&&!fd('videos').folders.some(f=>f.id===ui.fold.videos))ui.fold.videos=null;
-  const fid=ui.fold.videos,all=L.videos,vids=fid?all.filter(v=>inFold('videos',v.dir)===fid):all,W=cw(),pl=n=>n===1?'':'s';   // Your videos is everything; a folder filters
+  const fid=ui.fold.videos,all=L.videos,vids=all.filter(v=>(inFold('videos',v.dir)||null)===(fid||null)),W=cw(),pl=n=>n===1?'':'s';   // a video lives in one place: Your videos shows those in no folder
   if(fid){const f=fd('videos').folders.find(x=>x.id===fid);
     return `<div class="pgc"><div class="ph"><button class="back" onclick="ui.fold.videos=null;render()" ${dropAttrs('videos',null)}>${ic('back',14,2)}Your videos</button><h1>${esc(f.name)}</h1><p>${vids.length} video${pl(vids.length)}. Drag a video onto a folder to move it.</p></div>${editTrashRow()}
       ${vids.length?cardRows(vids):'<div class="none">Nothing in this folder yet. Drag a video onto it in the sidebar. Or open a video\'s ⋯ menu and pick Move to folder.</div><button class="b2 s" style="align-self:flex-start" onclick="ui.fold.videos=null;render()">See all your videos</button>'}</div>`}
-  const now=vids.filter(v=>vPh(v)!=='done'),done=vids.filter(v=>vPh(v)==='done'),lede=vSum(all);
+  const now=vids.filter(v=>vPh(v)!=='done'),done=vids.filter(v=>vPh(v)==='done'),filed=all.length-vids.length,lede=vSum(vids)+(filed?` ${filed} in folders.`:'');
   const fit=perRow();
   return `<div class="pgc"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px"><div class="ph"><h1>Your videos</h1>${all.length?`<p>${lede}</p>`:''}</div><div class="row hact">${newFoldBtn('videos')}</div></div>${editTrashRow()}
     ${now.length?`<div class="sec2"><div class="sh"><b>Now</b></div>${cardRows(now)}</div>`:''}
     ${done.length?`<div class="sec2"><div class="sh"><b>Done</b>${seeAll('done',done.length,fit)}</div><div class="dts">${(ui.exp.done?done:done.slice(0,fit)).map(tile).join('')}</div></div>`:''}
-    ${all.length?'':`<div class="none">No videos yet. Pick a clip to make your first one.</div><button class="b1" style="align-self:flex-start" onclick="rgo('new')">New video</button>`}</div>`;
+    ${all.length?(vids.length?'':'<div class="none">Every video is in a folder. Open one in the sidebar.</div>'):`<div class="none">No videos yet. Pick a clip to make your first one.</div><button class="b1" style="align-self:flex-start" onclick="rgo('new')">New video</button>`}</div>`;
 }
 function editTrashRow(){
   const v=ui.edittrash&&L.videos.find(x=>x.dir===ui.edittrash);if(!v)return ui.editmsg?`<div class="msg bad">${CROSS}<span>${esc(ui.editmsg)}</span></div>`:'';
@@ -2291,8 +2291,8 @@ function sideHTML(){
   return `<div class="sb-brand"><button class="brand" data-home onclick="goHome()" title="Home"><span class="mark" aria-hidden="true">${PAN(18)}</span><b>cooked.</b></button>${tog}</div>
     <button class="sb-new" ${GS().setup?'':'disabled title="New video opens once setup is done"'} onclick="rgo('new')">${ic('plus',16,2.2)}New video</button>
     <nav class="sb-nav"><button class="sb-row ${cur==='home'?'on':''}" onclick="goHome()">${ic('home')}<span class="lb">Home</span></button>
-      <button class="sb-row ${cur==='videos'&&!ui.fold.videos?'on':''}" onclick="${vgo}" ${dropAttrs('videos',null)}>${ic('videos')}<span class="lb">Your videos</span><span class="n">${vids.length}</span></button>
-      <button class="sb-row ${onS?'on':''}" onclick="rgo('mystyle')">${ic('styles')}<span class="lb">Styles</span><span class="n">${st.length}</span></button>
+      <button class="sb-row ${cur==='videos'&&!ui.fold.videos?'on':''}" onclick="${vgo}" ${dropAttrs('videos',null)}>${ic('videos')}<span class="lb">Your videos</span><span class="n">${vids.filter(v=>!inFold('videos',v.dir)).length}</span></button>
+      <button class="sb-row ${onS?'on':''}" onclick="rgo('mystyle')">${ic('styles')}<span class="lb">Styles</span><span class="n">${st.filter(c=>!inFold('styles',c.id)).length}</span></button>
       <button class="sb-row ${cur==='skills'?'on':''}" onclick="rgo('skills')">${ic('skill')}<span class="lb">Skills</span></button></nav>
     <div class="sb-fold"><div class="sb-fh">Folders<button class="sb-add" title="New folder" aria-label="New folder" onclick="newFolder(null,null,rv==='mystyle'||rv==='stylepage'?'styles':'videos')">${ic('plus',12,2.4)}</button></div>
       <div class="sb-flist">${fd('videos').folders.map(f=>frow('videos',f)).join('')}${fd('styles').folders.map(f=>frow('styles',f)).join('')}${nf}</div></div>

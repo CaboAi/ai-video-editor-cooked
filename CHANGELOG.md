@@ -9,6 +9,7 @@ What changed for every user, newest first.
 - Questions from a Claude that is not working on a video (another project, research, setup in another folder) stay in its own terminal. They no longer pop up on Home or a video's page.
 - Sending notes or approving with no Claude on that video opens a new Claude in its own Terminal window that carries on with the edit. A video whose Claude stopped mid-round shows "Stopped? Open a new Claude".
 - Copy for Claude on the video page: when the Claude that made a video is closed or stopped answering, one button copies what a new Claude Code session needs to pick the edit up and apply your notes. The page no longer says Claude is working when it has stopped.
+- Dragging a video or a style into a folder moves it: Your videos and Styles show only what is in no folder, and their counts match.
 - Add text on the edit: T in the note box, type, drag it on the video, pick Plain (white), Outline (white with a black edge) or Box (black on white). It renders as typed on the next draft, for 3 s or over an i/o range.
 - The video page's left menu always shows. With the window closed, a click opens it.
 - A video's versions are one Version dropdown beside Watch and Compare, so long names no longer squeeze the player bar.

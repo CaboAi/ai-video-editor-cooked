@@ -1955,7 +1955,7 @@ function connectHTML(lead,old){
   if(t!=null)return `<span class="cnx">Claude didn't connect. Check the Terminal window it opened.<button class="btn sm" onclick="${stop}connectClaude()">Try again</button></span>`;
   return `<span class="cnx">${l}<button class="btn dark sm" onclick="${stop}connectClaude()">Connect Claude</button></span>`;
 }
-async function stopJob(id){const r=await post('/stop',{id});toast(r.stopped?'Stopped. Claude stops at its next step.':'Stopped.');await load()}
+async function stopJob(id,edit){const r=await post('/stop',edit?{edit}:{id});if(edit&&!r.stopped){toast(r.msg||'That did not stop.');return load()}toast(r.stopped?'Stopped. Claude stops at its next step.':'Stopped.');await load()}
 async function connectClaude(){if(ui.connecting)return;ui.connecting=1;try{const r=await post('/connect',{});ui.connect=r.status==='manual'?r:null}finally{ui.connecting=0}await load()}
 
 // ---- home (welcome back), your videos, my style, settings
@@ -2241,7 +2241,7 @@ const JOBNAME={video:'Making',teardown:'Analysing',skill:'Building a skill',setu
 function jobInfo(){
   const act=S.jobs.filter(j=>j.state==='queued'||j.state==='taken'),j=busyJob(),mk=(L?L.videos:[]).filter(v=>v.status==='making'||v.status==='cutting');
   const nv2=Math.max(mk.length,act.filter(x=>x.type==='video').length);
-  if(!j){if(!mk.length)return null;return {label:`Making ${mk.length}`,short:'Making',n:mk.length,text:`${{notes:'Claude is fixing your notes in',stills:'Claude is making the preview for',rendering:'Claude is finishing'}[vPh(mk[0])]||'Claude is making'} ${mk[0].name}`,frac:null,since:null,go:"ui.fold.videos=null;rgo('videos')"}}
+  if(!j){if(!mk.length)return null;return {edit:mk[0].status==='making'?mk[0].dir:null,label:`Making ${mk.length}`,short:'Making',n:mk.length,text:`${{notes:'Claude is fixing your notes in',stills:'Claude is making the preview for',rendering:'Claude is finishing'}[vPh(mk[0])]||'Claude is making'} ${mk[0].name}`,frac:null,since:null,go:"ui.fold.videos=null;rgo('videos')"}}
   const n=j.type==='video'?nv2:act.filter(x=>x.type===j.type).length,s=farStep(j);
   const last=Math.max(j.u||0,s?s.t||0:0,S.claude_seen||0)||jobStart(j),age=Math.max(0,Math.round(Date.now()/1000-last));
   const vn=j.type==='video'&&j.args.edit&&(((L?L.videos:[]).find(v=>v.dir===j.args.edit)||{}).name||j.args.edit.split(/[\\/]/).pop());
@@ -2297,7 +2297,7 @@ function sideHTML(){
     <div class="sb-fold"><div class="sb-fh">Folders<button class="sb-add" title="New folder" aria-label="New folder" onclick="newFolder(null,null,rv==='mystyle'||rv==='stylepage'?'styles':'videos')">${ic('plus',12,2.4)}</button></div>
       <div class="sb-flist">${fd('videos').folders.map(f=>frow('videos',f)).join('')}${fd('styles').folders.map(f=>frow('styles',f)).join('')}${nf}</div></div>
     <div class="sb-sp"></div>
-    ${ji?`<button class="sb-job" onclick="${askAbout()?'askOpen()':ji.go}"><div class="tp"><b>${SPIN}${esc(ji.label)}</b><span class="row" style="gap:8px;flex-shrink:0">${ji.since?`<span data-since="${ji.since}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-ji.since)))}</span>`:''}${ji.id?`<span class="sb-stop" role="button" tabindex="0" title="Stop Claude on this" onclick="event.stopPropagation();stopJob(${J(ji.id)})" onkeydown="if(event.key==='Enter'){event.stopPropagation();stopJob(${J(ji.id)})}">Stop</span>`:''}</span></div><div class="tx">${askAbout()?`Claude is asking about ${esc(askAbout())}: <u>Open</u>`:esc(ji.text)}</div><div class="trk ${ji.frac==null?'indet':''}"><i style="width:${Math.round((ji.frac||0)*100)}%"></i></div></button>`:''}
+    ${ji?`<button class="sb-job" onclick="${askAbout()?'askOpen()':ji.go}"><div class="tp"><b>${SPIN}${esc(ji.label)}</b><span class="row" style="gap:8px;flex-shrink:0">${ji.since?`<span data-since="${ji.since}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-ji.since)))}</span>`:''}${ji.id||ji.edit?`<span class="sb-stop" role="button" tabindex="0" title="Stop Claude on this" onclick="event.stopPropagation();stopJob(${J(ji.id||null)},${J(ji.edit||null)})" onkeydown="if(event.key==='Enter'){event.stopPropagation();stopJob(${J(ji.id||null)},${J(ji.edit||null)})}">Stop</span>`:''}</span></div><div class="tx">${askAbout()?`Claude is asking about ${esc(askAbout())}: <u>Open</u>`:esc(ji.text)}</div><div class="trk ${ji.frac==null?'indet':''}"><i style="width:${Math.round((ji.frac||0)*100)}%"></i></div></button>`:''}
     ${rail?'':updCard()}
     ${gsBlock()}
     <div class="sb-bot"><button class="sb-row ${cur==='settings'?'on':''}" onclick="rgo('settings')" ${upd?'title="A new version is out"':''}>${ic('gear')}<span class="lb">Settings</span>${upd?'<span class="sdot"></span>':''}</button>${thm}</div>`;
@@ -2446,7 +2446,8 @@ function stUpdate(){
   const old=u.claude&&u.installed&&u.claude!==u.installed,recent=j&&j.state==='done'&&Date.now()/1000-(j.finished||0)<86400;
   const rl=old||recent&&!u.claude?`<div style="display:flex;flex-direction:column;gap:8px"><div class="t2" style="white-space:normal">Claude sessions that are open still run ${old?esc(u.claude):'the old version'}. Type this in each one:</div><span class="codebox"><span>/reload-plugins</span><button class="hlink" onclick="copyText('/reload-plugins',this)">Copy</button></span></div>`
     :recent&&u.claude===u.installed?`<div class="t2">Claude is on ${esc(u.installed)} too.</div>`:'';
-  const line=u.checking?'Checking...':u.newer?'A new version is out':u.latest?'Up to date':u.checked?'Could not reach GitHub':'';
+  const ago=u.checked?Math.max(0,Math.round(Date.now()/1000-u.checked)):null,when=ago==null?'':ago<60?'checked just now':ago<3600?`checked ${Math.round(ago/60)} min ago`:'';
+  const line=u.checking?'Checking...':u.newer?'A new version is out':u.offline?'Could not reach GitHub':u.latest?'Up to date'+(when?' · '+when:''):'';
   return `<div class="scd"><div class="hd"><b>Updates</b><span class="ss">${ok?OKTICK:''}${line}</span></div>
     <div class="kvs"><div><span>Installed</span><b>${esc(u.installed||'?')}</b></div><div><span>Latest</span><b>${esc(u.latest||'?')}</b></div></div>
     ${u.dev?'':'<div class="t2" style="white-space:normal">Turn on auto-updates: type <b>/plugin</b>, open Marketplaces, pick nextwork, choose Enable auto-update.</div>'}
@@ -2464,7 +2465,8 @@ function updCard(){
   return `<div class="sb-upd"><div><b>New version ${esc(u.latest)}</b><span>${esc((u.notes||[])[0]||'A new version of cooked. is out.')}</span></div><button class="sb-updb" onclick="stDoUpdate()">Update now</button></div>`;
 }
 async function stDoUpdate(){const r=await post('/job',{type:'update'});if(!r._ok)toast(r.error||'That did not start.');await load()}
-async function stCheckUpd(){await post('/update/check',{});await load();render();setTimeout(async()=>{await load();render()},2500)}
+// Check now: the check runs on the server; the card follows it until it is done (GitHub can take a few seconds)
+async function stCheckUpd(){await post('/update/check',{});for(let i=0;i<20;i++){await load();render();if(!(S.update||{}).checking)break;await new Promise(r=>setTimeout(r,500))}}
 function stFolder(){
   const d=ui.disk,c=ui.clean,mb=b=>b==null?'...':b>=1e9?(b/1e9).toFixed(1)+' GB':Math.round(b/1e6)+' MB';
   return `<div class="scd"><div class="hd"><b>Videos folder</b></div><div class="pathbox" title="${esc(L.path)}">${ic('folder',16)}<span>${esc(L.place||L.path)}</span></div>

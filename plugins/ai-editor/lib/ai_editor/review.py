@@ -1418,32 +1418,9 @@ def make_handler(folder, token):
                     return self.send(400, {})
                 if body["type"] == "approve" and load(rj).get("raw"):   # nothing to approve before the first cut
                     return self.send(409, {"error": "The cut is not ready yet."})
-                if body["type"] == "stop" and load(rj).get("raw"):   # the first cut cannot be stopped from here
-                    return self.send(409, {"error": "The first cut is on its way."})
                 if body["type"] == "stop":   # the round's notes open again; `status` tells Claude to stop
-                    def st(d):
-                        last = d["events"][-1]["type"] if d["events"] else None
-                        # an approve (even the final one) can be taken back too: the draft opens for notes again
-                        if last == "approve" or d.get("sent") and (last in ("send", "edits") or making_edit(d)):
-                            e = d["events"][-1]
-                            for ev in d["events"]:   # a send or approve `wait` has not taken yet is taken back
-                                ev["handled"] = True
-                            # stop undoes the edits, but only over the files /edits wrote: never over Claude's later change
-                            if e["type"] == "edits" and e.get("sha") == files_sha(folder) and (folder / "spans.prev.json").exists():
-                                save(folder / "spans.json", load(folder / "spans.prev.json"))
-                                if (folder / "keep.prev.json").exists():
-                                    save(folder / "keep.json", load(folder / "keep.prev.json"))
-                            d["events"].append({"type": "stop", "stage": d["stage"], "round": d["round"],
-                                                "at": now(), "handled": True})
-                            d["sent"], d["stopped"] = False, now()
-                            for c in d["comments"]:   # notes queued meanwhile join the reopened round
-                                if c.pop("queued", None):
-                                    c["round"] = d["round"]
-                            for x in d.get("activity", []):
-                                x["done"] = True
-                    update(rj, st)
-                    drop_spec(folder)
-                    return self.send(200, {})
+                    err = stop_round(folder)
+                    return self.send(409, {"error": err}) if err else self.send(200, {})
                 style = style_label(folder) if body["type"] == "approve" else None
 
                 def ev(d):
@@ -2143,6 +2120,39 @@ def noted(folder):
             print(t["line"])
     except Exception:   # a nicety: a round never fails over it
         pass
+
+
+def stop_round(folder):
+    """Stop: the round Claude has goes back to the user, its notes open again, and `status` tells Claude to stop.
+    The review page's Stop and the home window's sidebar Stop (home.py /stop with an edit). Returns an error or None."""
+    folder = Path(folder)
+    rj = folder / "review.json"
+    if load(rj).get("raw"):   # the first cut cannot be stopped from here
+        return "The first cut is on its way."
+
+    def st(d):
+        last = d["events"][-1]["type"] if d["events"] else None
+        # an approve (even the final one) can be taken back too: the draft opens for notes again
+        if last == "approve" or d.get("sent") and (last in ("send", "edits") or making_edit(d)):
+            e = d["events"][-1]
+            for ev in d["events"]:   # a send or approve `wait` has not taken yet is taken back
+                ev["handled"] = True
+            # stop undoes the edits, but only over the files /edits wrote: never over Claude's later change
+            if e["type"] == "edits" and e.get("sha") == files_sha(folder) and (folder / "spans.prev.json").exists():
+                save(folder / "spans.json", load(folder / "spans.prev.json"))
+                if (folder / "keep.prev.json").exists():
+                    save(folder / "keep.json", load(folder / "keep.prev.json"))
+            d["events"].append({"type": "stop", "stage": d["stage"], "round": d["round"],
+                                "at": now(), "handled": True})
+            d["sent"], d["stopped"] = False, now()
+            for c in d["comments"]:   # notes queued meanwhile join the reopened round
+                if c.pop("queued", None):
+                    c["round"] = d["round"]
+            for x in d.get("activity", []):
+                x["done"] = True
+    update(rj, st)
+    drop_spec(folder)
+    return None
 
 
 def drop_spec(folder):

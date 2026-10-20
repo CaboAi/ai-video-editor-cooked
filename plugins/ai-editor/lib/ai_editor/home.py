@@ -118,6 +118,7 @@ REVIEW = Path(__file__).with_name("review.py")
 HANDLE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 PLUGIN_JSON = Path(__file__).resolve().parents[2] / ".claude-plugin" / "plugin.json"
 RAW = "https://raw.githubusercontent.com/nextwork-projects/ai-video-editor-cooked/main/"
+REPO_GIT = "https://github.com/nextwork-projects/ai-video-editor-cooked.git"
 COVER_MAX = 50 << 20   # a style's chosen image, or a short clip to take a frame from
 SCRIPT_MAX = 200_000   # a script's text, in bytes; the file it came from may be up to 1 MB (a .docx with a logo)
 SCRIPT_EXT = (".txt", ".md", ".docx", ".pdf")
@@ -1147,12 +1148,24 @@ def vtuple(v):
     return tuple(int(x) for x in re.findall(r"\d+", str(v or ""))[:3])
 
 
+def main_commit_raw():
+    """RAW at main's current commit. raw.githubusercontent serves a branch URL from a 5-minute cache and ignores any
+    query string, so Check now read the old version for minutes after a release; a commit URL is never stale.
+    git ls-remote has no rate limit. Without git or a network: the branch URL."""
+    try:
+        sha = subprocess.run(["git", "ls-remote", REPO_GIT, "refs/heads/main"], capture_output=True, text=True,
+                             timeout=8).stdout.split()[0]
+    except (OSError, subprocess.TimeoutExpired, IndexError):
+        return RAW
+    return RAW.replace("/main/", f"/{sha}/") if re.fullmatch(r"[0-9a-f]{40}", sha) else RAW
+
+
 def fetch_latest():
     """The version on GitHub main and the first lines of its CHANGELOG entry. (None, []) offline."""
+    base = main_commit_raw()
     try:
-        fresh = f"?t={int(time.time())}"   # past the raw CDN's 5-minute copy: a release shows on the next press
-        v = json.loads(urllib.request.urlopen(RAW + "plugins/ai-editor/.claude-plugin/plugin.json" + fresh, timeout=5).read())["version"]
-        log = urllib.request.urlopen(RAW + "CHANGELOG.md" + fresh, timeout=5).read().decode("utf-8", "replace")
+        v = json.loads(urllib.request.urlopen(base + "plugins/ai-editor/.claude-plugin/plugin.json", timeout=5).read())["version"]
+        log = urllib.request.urlopen(base + "CHANGELOG.md", timeout=5).read().decode("utf-8", "replace")
     except (OSError, ValueError, KeyError, TypeError):
         return None, []
     secs = re.split(r"(?m)^## ", log)
@@ -3182,6 +3195,11 @@ def demo():
         assert e.code == 409
     finally:
         os.environ.pop("GEMINI_API_KEY")
+    u0 = main_commit_raw()   # a commit URL (never the CDN's stale branch copy), or the branch URL offline
+    assert u0 == RAW or re.fullmatch(re.escape(RAW.replace("/main/", "/")) + r"[0-9a-f]{40}/", u0), u0
+    keep_git, globals()["REPO_GIT"] = REPO_GIT, str(Path(tempfile.gettempdir()) / "no-such-repo")
+    assert main_commit_raw() == RAW, "no repo answers: the branch URL"
+    globals()["REPO_GIT"] = keep_git
     post("/update/check", {})
     for _ in range(50):
         if get("/state")["update"]["latest"]:

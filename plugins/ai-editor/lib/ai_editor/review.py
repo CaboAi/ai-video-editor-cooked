@@ -327,6 +327,42 @@ def card_key(c):
     return c.get("override") or f"{c.get('trigger_word', '')}@{c['start']:.3f}"
 
 
+CAP_GROUPS = {"1": 1, "3": 3, "5": 5, "sentence": 12}   # the Captions panel's words at a time (12: breaks at the sentence's own commas and stops)
+
+
+def captions_info(folder):
+    """The Captions panel: the looks (presets.py, built in then the user's) and this video's words at a time and look,
+    from taste (this video's settings win, as plan.py reads them)."""
+    from ai_editor import presets, taste
+    looks = {k: {f: v.get(f) for f in ("size_pct", "weight", "case", "color", "stroke", "stroke_color", "box", "box_color",
+                                     "shadow", "highlight_color", "words_per_caption") if v.get(f) is not None}
+             for k, v in presets.captions().items()}
+    cap = (taste.load_json(folder, count=False) or {}).get("captions") or {}
+    n = cap.get("words_per_caption")
+    return {"looks": looks, "look": cap.get("preset"),
+            "words": next((k for k, v in CAP_GROUPS.items() if v == n), str(n) if n else None)}
+
+
+def set_captions(folder, words=None, look=None):
+    """Save the Captions panel's choice for this video only (taste scope video:<name>), the way the taste skill does."""
+    from ai_editor import presets, taste
+    said = []
+    if words is not None:
+        if str(words) not in CAP_GROUPS:
+            raise ValueError("words: 1, 3, 5 or sentence")
+        n = CAP_GROUPS[str(words)]
+        taste.add("Captions", "Captions a sentence at a time" if n == 12 else f"Captions {n} word{'' if n == 1 else 's'} at a time",
+                  "captions.words_per_caption", n, scope=f"video:{folder.name}", edit=str(folder), source="review")
+        said.append("a sentence at a time" if n == 12 else f"{n} word{'' if n == 1 else 's'} at a time")
+    if look is not None:
+        if look not in presets.captions():
+            raise ValueError("look: one of the caption presets")
+        taste.add("Captions", f"Captions look: {look}", "captions.preset", look, scope=f"video:{folder.name}", edit=str(folder),
+                  source="review")
+        said.append(f"the {look} look")
+    return said
+
+
 def card_override(folder, key, change):
     """The video page's move, resize or delete of a card into <edit>/overrides.json (preview.py apply_overrides,
     which plan.py runs after planning, so a re-plan keeps it). change: {"box": [x, y, w, h]} or {"deleted": True}."""
@@ -1269,6 +1305,7 @@ def make_handler(folder, token):
                 d["theme"] = theme()
                 d["listening"], d["busy"] = listening(folder), busy(folder)
                 d["resume"] = resume_text(folder, d)
+                d["captions_ui"] = captions_info(folder) if d.get("stage") == "edit" else None   # the Captions panel
                 d["texts"] = (load(folder / "texts.json").get("items") or []) if (folder / "texts.json").exists() else []   # the Text tab
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
                 d["cutcheck"] = (folder / "cut-check.html").exists()
@@ -1448,6 +1485,32 @@ def make_handler(folder, token):
                             c["alt"] = body.get("alt") or None
                 update(rj, sc)
                 return self.send(200, {})
+            if path == "/captions":   # the Captions panel: words at a time and the look, for this video, with a note
+                d = load(rj)
+                last = d["events"][-1]["type"] if d["events"] else None
+                if d.get("stage") != "edit" or d.get("sent") and last not in ("send", "edits"):
+                    return self.send(409, {"error": "Captions change on the edit, before it is approved."})
+                try:
+                    said = set_captions(folder, body.get("words"), body.get("look"))
+                except ValueError as e:
+                    return self.send(400, {"error": str(e)})
+                if not said:
+                    return self.send(400, {"error": "captions takes words and/or look"})
+                cur = captions_info(folder)   # one Captions note per round, saying where the choice is now
+                now_said = [w for w in (("a sentence at a time" if cur["words"] == "sentence" else f"{cur['words']} word"
+                                         f"{'' if cur['words'] == '1' else 's'} at a time") if cur["words"] else None,
+                                        f"the {cur['look']} look" if cur["look"] else None) if w]
+                text = f"Captions: {' and '.join(now_said or said)}, for this video (saved to its taste). Plan again so it shows."
+                old = next((c for c in d["comments"] if (c.get("on") or {}).get("k") == "captions" and c["stage"] == d["stage"]
+                            and c["round"] >= d["round"] and editable(d, c)), None)
+                if old:
+                    def put(x):
+                        for c in x["comments"]:
+                            if c["id"] == old["id"]:
+                                c.update(text=text, edited=now())
+                    update(rj, put)
+                    return self.send(200, {**old, "text": text})
+                return self.comment({"t": 0.0, "text": text, "on": {"k": "captions", "text": "all captions"}})
             if path == "/card/edit":   # the video page: a card moved, resized or deleted; overrides.json and a note for Claude
                 d = load(rj)
                 last = d["events"][-1]["type"] if d["events"] else None
@@ -3151,6 +3214,28 @@ def demo():
     row = load(folder / "texts.json")["items"][0]
     assert (row["text"], row["style"], row["x_pct"], row["y_pct"], row["start"], row["end"]) == ("hello there", "box", 30.0, 40.0, 2.0, 5.0), row
     assert ch["text"].startswith('Change the on-screen text "hi there" (words, look, place, time)') and ch["t"] == 2.0, ch
+    # the Captions panel: words at a time and the look, saved for this video only, with a note each
+    from ai_editor import taste as _taste
+    cc1 = post("/captions", {"words": "sentence"})
+    cc2 = post("/captions", {"look": "bold"})
+    cap = (_taste.load_json(folder, count=False) or {}).get("captions") or {}
+    assert cap.get("words_per_caption") == 12 and cap.get("preset") == "bold", cap
+    cui = json.loads(get("/state").read())["captions_ui"]
+    assert cui["words"] == "sentence" and cui["look"] == "bold" and "plain" in cui["looks"], cui
+    assert cc1["text"].startswith("Captions: a sentence at a time, for this video"), cc1
+    assert cc2["id"] == cc1["id"] and cc2["text"].startswith("Captions: a sentence at a time and the bold look"), cc2   # one note, kept current
+    assert all(r["scope"] == f"video:{folder.name}" for r in _taste.load_rules() if r.get("setting", "").startswith("captions.")), "this video only"
+    for bad in ({"words": "7"}, {"look": "nope"}, {}):
+        try:
+            post("/captions", bad)
+            raise AssertionError(bad)
+        except urllib.error.HTTPError as e:
+            assert e.code == 400, bad
+    for x in (cc1, cc2):
+        post("/delete", {"id": x["id"]})
+    for r in [r for r in _taste.load_rules() if r.get("setting", "").startswith("captions.")]:
+        with contextlib.redirect_stdout(io.StringIO()):
+            _taste.forget(r["id"])   # the learn checks below count the session's own rules
     # a card on the video: moved or resized, then deleted, into overrides.json with a note each; its picture is served
     trk_items = json.loads(get("/data?k=edit-1").read())["items"]["cards"]
     assert trk_items[0]["key"].startswith("later@"), trk_items

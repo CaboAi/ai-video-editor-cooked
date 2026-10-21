@@ -395,6 +395,12 @@ body.tside #tside{display:flex}
 .splay{width:32px;height:32px;border-radius:16px;flex-shrink:0;display:grid;place-items:center;background:var(--ink);color:var(--onink)}.splay:disabled{opacity:.3}
 .sopts{display:flex;flex-wrap:wrap;gap:6px}.sopts button{height:28px;max-width:100%;padding:0 10px;border-radius:8px;border:1px solid var(--line2);font-size:12px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sopts button:hover{border-color:var(--ink)}.sopts button.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}.sopts .sadd{border-style:dashed;color:var(--body)}
+.snow{margin-top:4px}.snow strong{color:var(--strong);font-weight:600}
+.slist{display:flex;flex-direction:column;gap:2px;max-height:280px;overflow:auto;margin:0 -4px;padding:4px;border-top:1px solid var(--line)}
+.slist h4{margin:8px 0 2px;font-size:11px;line-height:14px;font-weight:600;letter-spacing:.02em;color:var(--muted)}
+.sitem{display:flex;align-items:center;gap:8px;padding:3px 4px;border-radius:8px}.sitem:hover{background:var(--hover)}.sitem.on{background:var(--chip)}
+.sitem .spick{flex:1;min-width:0;text-align:left;font-size:13px;line-height:18px;color:var(--strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 0}
+.sitem span{font-size:11px;color:var(--muted);flex-shrink:0}.splay.sm{width:26px;height:26px;border-radius:13px}
 #cbody{flex:1;min-height:0;overflow:auto;padding:4px 16px 16px;display:flex;flex-direction:column;gap:14px}
 .cgroup{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.cgroup button{height:36px;border-radius:8px;border:1px solid var(--line2);font-size:13px;font-weight:600;color:var(--ink)}
 .cgroup button:hover{border-color:var(--ink)}.cgroup button.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
@@ -1766,18 +1772,24 @@ $('cbody').addEventListener('click',async e=>{const w=e.target.closest('[data-cw
 const PLAY='<svg width="14" height="14" viewBox="0 0 14 14"><path d="M4 2.5v9l7.5-4.5z" fill="currentColor"/></svg>';
 let sndAudio=null,sndFor=null;
 function sndPlay(cue,c){if(sndAudio)sndAudio.pause();if(c==='none')return;sndAudio=new Audio(`/sound-preview?cue=${encodeURIComponent(cue)}&c=${encodeURIComponent(c)}`);sndAudio.play().catch(()=>toast('Could not play that sound'))}
-function renderSndPanel(){const b=$('sbody'),u=(S&&S.sounds_ui)||{cues:[],own:[]},sig=JSON.stringify(u);if(b._s===sig)return;b._s=sig;
-  const nm=f=>f.replace(/\.[a-z0-9]+$/i,'');
-  b.innerHTML=`<p class="tsub">Pick the sound for each moment. Your picks are for every video. Play hears it.</p>`+u.cues.map(x=>`<div class="srow"><div class="sh"><div><b>${esc(x.label)}</b><small>When ${esc(x.when)}</small></div>
-    <button class="splay" data-sp="${esc(x.cue)}" title="Play what is picked"${x.choice==='none'?' disabled':''}>${PLAY}</button></div>
-    <div class="sopts">${[['default','Default'],['none','Off'],...u.own.map(f=>[f,nm(f)])].map(([v,n])=>`<button data-sc="${esc(x.cue)}" data-sv="${esc(v)}"${x.choice===v?' class="on"':''} title="${esc(v==='default'?'The built-in sound':v==='none'?'No sound here':v)}">${esc(n)}</button>`).join('')}
-    <button class="sadd" data-sa="${esc(x.cue)}" title="Add a sound file for this moment">+ Your own</button></div></div>`).join('')}
-$('sbody').addEventListener('click',async e=>{const pl=e.target.closest('[data-sp]'),pk=e.target.closest('[data-sv]'),ad=e.target.closest('[data-sa]');
+let sndOpen=null;   // the moment whose list of sounds is open
+const sndName=f=>f==='default'?'Built-in':f==='none'?'Off':f.replace(/\.[a-z0-9]+$/i,'');
+function renderSndPanel(){const b=$('sbody'),u=(S&&S.sounds_ui)||{cues:[],own:[]},sig=JSON.stringify(u)+sndOpen;if(b._s===sig)return;b._s=sig;
+  const groups={};u.own.forEach(f=>{const m=f.match(/^([a-z0-9]+) /i),g=m?m[1]:'Yours';(groups[g]=groups[g]||[]).push(f)});
+  const item=(cue,f,on)=>`<div class="sitem${on?' on':''}"><button class="splay sm" data-pp="${esc(cue)}" data-pv="${esc(f)}" title="Play"${f==='none'?' disabled':''}>${PLAY}</button><button class="spick" data-sc="${esc(cue)}" data-sv="${esc(f)}">${esc(sndName(f).replace(/^[a-z0-9]+ /i,m=>groups[m.trim()]?'':m))}</button>${on?'<span>Picked</span>':''}</div>`;
+  b.innerHTML=`<p class="tsub">Pick the sound for each moment. Your picks are for every video. ${u.own.length} of your own sounds are in the library.</p>`+u.cues.map(x=>{const open=sndOpen===x.cue;
+    return `<div class="srow"><div class="sh"><div><b>${esc(x.label)}</b><small>When ${esc(x.when)}</small><small class="snow">Now: <strong>${esc(sndName(x.choice))}</strong></small></div>
+      <button class="splay" data-sp="${esc(x.cue)}" title="Play what is picked"${x.choice==='none'?' disabled':''}>${PLAY}</button></div>
+      <div class="sopts"><button data-so="${esc(x.cue)}">${open?'Close':'Change'}</button><button class="sadd" data-sa="${esc(x.cue)}" title="Add a sound file for this moment">+ Your own</button></div>
+      ${open?`<div class="slist"><h4>Built in</h4>${['default','none'].map(f=>item(x.cue,f,x.choice===f)).join('')}${Object.entries(groups).map(([g,fs])=>`<h4>${esc(g[0].toUpperCase()+g.slice(1))}</h4>${fs.map(f=>item(x.cue,f,x.choice===f)).join('')}`).join('')}</div>`:''}</div>`}).join('')}
+$('sbody').addEventListener('click',async e=>{const pl=e.target.closest('[data-sp]'),pp=e.target.closest('[data-pp]'),pk=e.target.closest('[data-sv]'),ad=e.target.closest('[data-sa]'),op=e.target.closest('[data-so]');
   if(pl){const x=((S.sounds_ui||{}).cues||[]).find(c=>c.cue===pl.dataset.sp);if(x)sndPlay(x.cue,x.choice);return}
+  if(pp)return sndPlay(pp.dataset.pp,pp.dataset.pv);
+  if(op){sndOpen=sndOpen===op.dataset.so?null:op.dataset.so;$('sbody')._s=null;renderSndPanel();return}
   if(ad){sndFor=ad.dataset.sa;$('sndfile').click();return}
   if(!pk)return;const cue=pk.dataset.sc,v=pk.dataset.sv;sndPlay(cue,v);
   const r=await post('/sound',{cue,choice:v});if(!r.ok&&!r.id)return toast(r.error||'That did not save.');
-  toast(`${(((S.sounds_ui||{}).cues||[]).find(c=>c.cue===cue)||{}).label||'Sound'}: ${v==='default'?'the built-in sound':v==='none'?'off':v.replace(/\.[a-z0-9]+$/i,'')}. Submit feedback so this video gets it.`);
+  toast(`${(((S.sounds_ui||{}).cues||[]).find(c=>c.cue===cue)||{}).label||'Sound'}: ${v==='default'?'the built-in sound':v==='none'?'off':sndName(v)}. Submit feedback so this video gets it.`);
   $('sbody')._s=null;await load()});
 $('sndfile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f||!sndFor)return;
   if(f.size>10*1024*1024)return toast('Sounds under 10 MB only.');

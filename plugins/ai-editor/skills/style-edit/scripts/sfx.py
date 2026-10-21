@@ -71,6 +71,76 @@ KIT = {
 }
 
 
+# The sound library (the video page's Sounds panel): what each cue is for, in the user's words.
+LABELS = {"whoosh-in": ("Card slides in", "a picture or page slides onto the screen"),
+          "pop": ("Logo pops in", "a logo, a sticker or a part of a scene lands"),
+          "zoom": ("Zoom", "the camera punches in"),
+          "hit": ("Big moment", "a scene's tag or a big number lands"),
+          "impact": ("Impact", "a hard cut, when the creator you copy uses booms"),
+          "whoosh-out": ("Card leaves", "a card goes off mid-sentence")}
+SOUND_EXT = (".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus")
+MAX_OWN_S = 2.0   # the user's own sound is cut to this, with a short fade, so a long file never drowns a sentence
+
+
+def library_dir():
+    """<library>/custom/sounds: the user's own sound files and choices.json. Kept through every update (custom.py)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
+    from ai_editor import custom
+    return custom.path(False) / "sounds"
+
+
+def choices():
+    """{cue: "default" | "none" | "<file name in the library>"}, every cue present."""
+    try:
+        got = json.loads((library_dir() / "choices.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        got = {}
+    own = set(own_sounds())
+    return {k: (got.get(k) if got.get(k) in ("none", *own) else "default") for k in KIT}
+
+
+def own_sounds():
+    d = library_dir()
+    return sorted(f.name for f in d.glob("*") if f.is_file() and f.suffix.lower() in SOUND_EXT) if d.is_dir() else []
+
+
+def choose(cue, choice):
+    """Save one pick (the Sounds panel). ValueError when the cue or the file is not one there is."""
+    if cue not in KIT or choice not in ("default", "none", *own_sounds()):
+        raise ValueError("a cue of the kit, and default, none or one of your sound files")
+    cur = choices()
+    cur[cue] = choice
+    d = library_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "choices.json").write_text(json.dumps(cur, indent=1), encoding="utf-8")
+    return cur
+
+
+def choice_sig():
+    """What the kit was built from: the picks and each picked file's size and time. A change rebuilds the kit."""
+    c, d = choices(), library_dir()
+    return {k: v if v in ("default", "none") else f"{v}:{(d / v).stat().st_size}:{int((d / v).stat().st_mtime)}" for k, v in c.items()}
+
+
+def samples(name, choice):
+    """The cue's samples for that pick: the built-in sound, or the user's file cut to MAX_OWN_S with a fade."""
+    if choice == "default":
+        return pcm(graph=KIT[name][0])
+    x = pcm(src=library_dir() / choice)[:int(MAX_OWN_S * SR)]
+    n = min(len(x), int(0.08 * SR))
+    for i in range(n):   # a fade out on the cut, so a trimmed file never ends on a click
+        x[len(x) - n + i] *= 1 - i / n
+    return x
+
+
+def preview(name, choice, out):
+    """A short wav of one pick at a fixed level (its loudest 50 ms at -16 dBFS), for the panel's play button."""
+    x = samples(name, choice)
+    x.extend([0.0] * max(0, int(MIN_S * SR) - len(x)))
+    write(Path(out), x, min(10 ** ((-16 - loudest50(x)) / 20), 10 ** (-1.1 / 20) / max(max(abs(v) for v in x), 1e-9)), 1)
+    return Path(out)
+
+
 def channels(src):
     out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
                           "stream=channels", "-of", "csv=p=0", str(src)], capture_output=True, text=True).stdout
@@ -144,9 +214,12 @@ def build(edit_dir, speech=None):
     nch = min(2, channels(cut)) if cut.exists() else 2
     out = edit_dir / ".sfx"
     out.mkdir(exist_ok=True)
-    cues = {}
+    cues, picked = {}, choices()
     for name, (graph, offset) in KIT.items():
-        x = pcm(graph=graph)
+        if picked[name] == "none":   # the user turned this sound off (the Sounds panel): plan.py leaves the moment silent
+            (out / f"{name}.wav").unlink(missing_ok=True)
+            continue
+        x = samples(name, picked[name])
         x.extend([0.0] * max(0, int(MIN_S * SR) - len(x)))
         target = speech + offset
         # a loud take: the cue stops just under -1 dBFS instead of clipping (it lands a little under its offset)
@@ -154,7 +227,8 @@ def build(edit_dir, speech=None):
         target = min(target, loudest50(x) + db(gain))
         write(out / f"{name}.wav", x, gain, nch)
         cues[name] = {"attack_s": attack(x), "db": round(target, 1)}
-    kit = {"speech_db": round(speech, 1), "cut_mtime": cut.stat().st_mtime if cut.exists() else 0, "cues": cues}
+    kit = {"speech_db": round(speech, 1), "cut_mtime": cut.stat().st_mtime if cut.exists() else 0, "cues": cues,
+           "choices": choice_sig()}
     (out / "kit.json").write_text(json.dumps(kit, indent=1), encoding="utf-8")
     print(summary())
     return kit
@@ -165,8 +239,8 @@ def kit(edit_dir):
     p, cut = Path(edit_dir) / ".sfx" / "kit.json", Path(edit_dir) / "cut.mp4"
     if p.exists():
         k = json.loads(p.read_text(encoding="utf-8"))
-        if (not cut.exists() or k.get("cut_mtime", 0) >= cut.stat().st_mtime) and set(k.get("cues", {})) >= set(KIT):
-            return k   # a kit from before a cue was added is built again
+        if (not cut.exists() or k.get("cut_mtime", 0) >= cut.stat().st_mtime) and k.get("choices") == choice_sig():
+            return k   # a kit from before a cue was added, or from other sound picks, is built again
     return build(edit_dir)
 
 
@@ -196,6 +270,36 @@ def demo():
         s = speech_db(tone)
         want = db(0.125 / math.sqrt(2)) - 10   # ffmpeg's sine is 1/8 full scale
         assert abs(s - want) < 0.5, (s, want)
+        # the sound library: a cue turned off leaves the kit, the user's own file takes a cue, picks rebuild the kit
+        import os
+        keep = os.environ.get("AI_EDITOR_LIBRARY")
+        os.environ["AI_EDITOR_LIBRARY"] = str(Path(d) / "lib")
+        try:
+            lib = library_dir()
+            lib.mkdir(parents=True, exist_ok=True)
+            subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=880:d=4:sample_rate=44100", str(lib / "ding.mp3")], check=True)
+            assert choices()["pop"] == "default" and own_sounds() == ["ding.mp3"]
+            for bad in (("pop", "nope.wav"), ("nope", "default")):
+                try:
+                    choose(*bad)
+                    raise AssertionError(bad)
+                except ValueError:
+                    pass
+            choose("pop", "none")
+            choose("zoom", "ding.mp3")
+            old = json.loads((Path(d) / ".sfx" / "kit.json").read_text(encoding="utf-8"))
+            assert old.get("choices") != choice_sig(), "other picks than the kit was built from: kit() builds it again"
+            k2 = build(d, speech=-21.0)
+            assert "pop" not in k2["cues"] and not (Path(d) / ".sfx" / "pop.wav").exists() and "zoom" in k2["cues"], k2
+            assert len(pcm(Path(d) / ".sfx" / "zoom.wav")) <= MAX_OWN_S * SR + 1, "your own sound is cut to 2 s"
+            assert kit(d) == k2, "the same picks: the kit is kept"
+            pv = preview("zoom", "ding.mp3", Path(d) / "pv.wav")
+            assert abs(loudest50(pcm(pv)) - -16) < 1.0
+        finally:
+            if keep is None:
+                os.environ.pop("AI_EDITOR_LIBRARY", None)
+            else:
+                os.environ["AI_EDITOR_LIBRARY"] = keep
     print("demo ok")
 
 

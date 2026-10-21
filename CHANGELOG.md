@@ -4,6 +4,7 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- A Sounds tool beside Text and Captions: the sound library. Each moment that gets a sound (a card slides in, a logo pops, a zoom, a big moment, an impact, a card leaves) has Play, Default, Off and your own sound files (+ Your own). Picks are for every video.
 - Click a card (a picture, a page, a logo) on the edit to move it, resize it from a corner, or delete it. Reels keep it inside the safe zone.
 - A Captions tool beside Text: how many words show at a time (1, 3, 5 or a sentence) and the caption look, for this video.
 - Text has its own panel on the left, like Tella: the Text tool in the menu opens it, Notes stay on the right. Pick a look (Plain, Outline, Box), type, drag it on the video. Click any text, in the list or on the video, to change its words, look, place or time (Start here, End here), or Delete it. Sent texts change too.

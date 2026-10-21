@@ -15,6 +15,8 @@ Layout. Only what the code reads:
                            It wins over the creator's measured captions; taste.json's own caption keys win over it.
   templates/<type>.json    default props for one motion template (flow, social_post, arrow_callout, ...).
                            A beat's own props win.
+  sounds/                  the sound library (the video page's Sounds panel, style-edit sfx.py): your own sound
+                           files, and choices.json, which sound plays for each moment (default, none, or a file).
   prompts/judge-rubric.md  replaces the cut critic's rubric (copy the plugin's skills/cut/references/judge-rubric.md
                            first and keep its output format).
 
@@ -27,7 +29,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import library  # noqa: E402
 
-KINDS = ("rules", "captions", "templates", "prompts")
+KINDS = ("rules", "captions", "templates", "prompts", "sounds")
 README = """# Your changes to cooked.
 
 Everything in this folder is yours. Updating the editor replaces the editor's own files, never this
@@ -38,6 +40,7 @@ folder, so what you put here keeps working after every update. The editor reads 
   It shows up as a tile on the style page, rendered on your own video. Pick it there, or run
   `taste.py set captions.preset <name>`.
 - `templates/<type>.json`: default settings for one animation template, like `flow.json`.
+- `sounds/`: your own sound effects, and which sound plays where (pick them in a video's Sounds panel).
 - `prompts/judge-rubric.md`: your own version of the cut critic's rubric. Copy the editor's first.
 
 Easiest is to tell Claude what you want changed. It writes the file here for you.

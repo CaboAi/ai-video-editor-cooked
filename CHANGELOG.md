@@ -5,6 +5,10 @@ What changed for every user, newest first.
 ## Unreleased
 
 - The left menu has Check for updates, always, on the video page and the home window. It turns into Update to <version> when one is out, and says when you are up to date.
+## ai-editor 2.7.23, creator-teardown 2.7.23 (2026-10-21)
+- Sending notes with no Claude listening goes to the Claude that worked on the video first: still open in Terminal, the notes are typed into it; closed, its conversation opens again. A new Claude only when there is neither.
+- The Claude card on the video page has Copy session: the command that opens that Claude's conversation in a terminal.
+
 ## ai-editor 2.7.22, creator-teardown 2.7.22 (2026-10-20)
 - Check now sees a new release the moment it is out. It read GitHub's 5-minute cached copy before, so a fresh release could still show as the old one.
 

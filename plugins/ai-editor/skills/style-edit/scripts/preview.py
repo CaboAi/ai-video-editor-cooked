@@ -86,6 +86,9 @@ def apply_overrides(plan, edit_dir, plan_name=None):
         return plan
     cues = plan.get("sfx") or []
     for key, db in (ov.get("sfx") or {}).items():
+        if isinstance(db, dict) and db.get("deleted"):   # the video page's x on a sound in the timeline
+            cues[:] = [c for c in cues if not (c.get("override") == key or abs(c.get("event", c["t"]) - float(key)) < 0.05)]
+            continue
         for c in cues:
             if c.get("override") == key or (not c.get("override") and abs(c.get("event", c["t"]) - float(key)) < 0.05):
                 c.update(override=key, gain_db=db, src=gained(edit_dir, c["src"], db))

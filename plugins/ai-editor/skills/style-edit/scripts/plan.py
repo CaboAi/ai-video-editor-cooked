@@ -803,6 +803,27 @@ def title_bottom(x):
     return x["y_pct"] + (n * 1.15 + 0.5) * x["size_pct"]
 
 
+def placed_sounds(plan, edit_dir):
+    """The sounds the user put on the timeline on the review page (<edit>/sounds.json, review.py /sfx/add): each one
+    from the sound library, at its moment, levelled like the kit (sfx.py own_cue). A missing file is skipped."""
+    f = edit_dir and Path(edit_dir) / "sounds.json"
+    if not f or not f.exists():
+        return plan
+    import sfx
+    fps = plan.get("fps") or 30
+    for x in json.loads(f.read_text(encoding="utf-8")).get("items") or []:
+        try:
+            src, att = sfx.own_cue(edit_dir, x["sound"])
+        except (ValueError, KeyError, OSError) as e:
+            print(f"warning: a placed sound was skipped: {e}", file=sys.stderr)
+            continue
+        t = float(x["t"])
+        plan.setdefault("sfx", []).append({"t": round(round(max(0.0, t - att) * fps) / fps, 4), "src": src, "event": round(t, 3),
+                                           "placed": x.get("id")})
+    plan["sfx"] = sorted(plan.get("sfx") or [], key=lambda c: c["t"])
+    return plan
+
+
 def typed_texts(edit_dir):
     """The text the user typed on the review page's Text tool (<edit>/texts.json, review.py writes it when the round
     goes to Claude): plan.json "texts" kind "label" exactly as typed, styled and placed. Never reworded or moved."""
@@ -2970,6 +2991,25 @@ def demo():
                                                                       "end": 4.0, "x_pct": 50, "y_pct": 40, "size_pct": 6}]}), encoding="utf-8")
         assert typed_texts(td) == [{"kind": "label", "text": "wait for it", "style": "box", "start": 1.0, "end": 4.0,
                                     "x_pct": 50, "y_pct": 40, "size_pct": 6}], typed_texts(td)
+    with tempfile.TemporaryDirectory() as td:   # the timeline's placed sounds (sounds.json) join the plan's sfx, in time order
+        import sfx
+        keep = sfx.own_cue
+        sfx.own_cue = lambda e, n: (f".sfx/own-{Path(n).stem}.wav", 0.1) if n != "gone.wav" else (_ for _ in ()).throw(ValueError("gone"))
+        try:
+            (Path(td) / "sounds.json").write_text(json.dumps({"items": [{"id": "a1", "t": 2.0, "sound": "ding.mp3"},
+                                                                        {"id": "a2", "t": 1.0, "sound": "gone.wav"}]}), encoding="utf-8")
+            pl = placed_sounds({"fps": 30, "sfx": [{"t": 3.0, "src": ".sfx/pop.wav", "event": 3.0}]}, td)
+            assert [(c["src"], c["event"], c.get("placed")) for c in pl["sfx"]] == [(".sfx/own-ding.wav", 2.0, "a1"),
+                                                                                    (".sfx/pop.wav", 3.0, None)], pl
+            assert pl["sfx"][0]["t"] == 1.9
+        finally:
+            sfx.own_cue = keep
+    from preview import apply_overrides
+    with tempfile.TemporaryDirectory() as td:   # the timeline's x on a sound the plan put there (overrides.json sfx deleted)
+        (Path(td) / "overrides.json").write_text(json.dumps({"sfx": {"3.000": {"deleted": True}}}), encoding="utf-8")
+        got = apply_overrides({"cards": [], "captions": {"chunks": []}, "sfx": [{"t": 2.9, "src": ".sfx/pop.wav", "event": 3.0},
+                                                                                {"t": 5.0, "src": ".sfx/zoom.wav", "event": 5.0}]}, td)
+        assert [c["src"] for c in got["sfx"]] == [".sfx/zoom.wav"], got["sfx"]
     hy = [{"text": t, "start": i * 0.3, "end": i * 0.3 + 0.25} for i, t in enumerate(["one", "-for", "-one", "deal"])]
     got = [c["text"] for c in chunk_captions(hy, 3, "sentence")]
     assert got == ["one-for-one deal"], got
@@ -3862,6 +3902,7 @@ def main():
               "is not her look: delete it and plan again unless the user asked for music", file=sys.stderr)
     from preview import apply_overrides   # edits/<name>/overrides.json, written by the preview page
     plan = apply_overrides(plan, edit_dir, out.name)
+    plan = placed_sounds(plan, edit_dir)   # the sounds the user put on the timeline (sounds.json)
     allow = (style.get("look") or {}).get("allow") or []
     if allow:   # the AI tells this style asks for by name (ai_tells.for_brand): the 50/50's paper ground
         plan["allow_tells"] = list(allow)

@@ -141,6 +141,25 @@ def preview(name, choice, out):
     return Path(out)
 
 
+def own_cue(edit_dir, name):
+    """A sound from the library placed on the timeline by the user (the video page's + Sound here): written once into
+    .sfx/own-<name>.wav at the kit's level under this cut's speech. Returns (src, attack_s), src relative to the edit."""
+    edit_dir = Path(edit_dir)
+    f = library_dir() / name
+    if not f.is_file() or f.suffix.lower() not in SOUND_EXT:
+        raise ValueError(f"{name} is not in the sound library")
+    k = kit(edit_dir)
+    out = edit_dir / ".sfx" / f"own-{''.join(ch if ch.isalnum() or ch in '-_' else '-' for ch in f.stem)}.wav"
+    x = samples("", name)
+    x.extend([0.0] * max(0, int(MIN_S * SR) - len(x)))
+    if not out.exists() or out.stat().st_mtime < f.stat().st_mtime:
+        target = k["speech_db"] - 4
+        gain = min(10 ** ((target - loudest50(x)) / 20), 10 ** (-1.1 / 20) / max(max(abs(v) for v in x), 1e-9))
+        nch = min(2, channels(edit_dir / "cut.mp4")) if (edit_dir / "cut.mp4").exists() else 2
+        write(out, x, gain, nch)
+    return out.relative_to(edit_dir).as_posix(), attack(x)
+
+
 def channels(src):
     out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
                           "stream=channels", "-of", "csv=p=0", str(src)], capture_output=True, text=True).stdout
@@ -293,6 +312,13 @@ def demo():
             assert "pop" not in k2["cues"] and not (Path(d) / ".sfx" / "pop.wav").exists() and "zoom" in k2["cues"], k2
             assert len(pcm(Path(d) / ".sfx" / "zoom.wav")) <= MAX_OWN_S * SR + 1, "your own sound is cut to 2 s"
             assert kit(d) == k2, "the same picks: the kit is kept"
+            src, att = own_cue(d, "ding.mp3")   # a library sound put on the timeline: levelled like the kit
+            assert src == ".sfx/own-ding.wav" and abs(loudest50(pcm(Path(d) / src)) - (k2["speech_db"] - 4)) < 1.0 and 0 <= att <= MAX_OWN_S, (src, att)
+            try:
+                own_cue(d, "nope.wav")
+                raise AssertionError("a sound not in the library")
+            except ValueError:
+                pass
             pv = preview("zoom", "ding.mp3", Path(d) / "pv.wav")
             assert abs(loudest50(pcm(pv)) - -16) < 1.0
         finally:

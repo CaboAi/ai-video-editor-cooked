@@ -264,6 +264,36 @@ body.preview #pins,body.preview #cmprow{visibility:hidden}
 .timeline.tracked .mini{display:block;height:8px;margin-top:10px;border-radius:2px;background:var(--rail)}
 .mini i{position:absolute;top:0;height:8px;border-radius:2px;background:var(--quiet);cursor:pointer}.mini i.z{background:var(--ink)}
 .mini i:hover{outline:2px solid var(--ink);outline-offset:1px}
+/* the edit's Text and Sounds rows under the timeline, like CapCut's: clips as long as they last (a sound shows its
+   waveform), a ruler and a playhead; - and + zoom in and the rows scroll. Click to change or hear, x takes it out. */
+#edtracks{margin-top:12px}#edtracks:empty{display:none}
+.edwrap{display:flex;gap:8px}
+.edleft{width:84px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;padding-top:4px}
+.edleft .ezoom{position:static;height:20px;justify-content:space-between}
+.edleft button{height:30px;border-radius:7px;border:1px dashed var(--line2);font-size:12px;font-weight:600;color:var(--body);text-align:left;padding:0 8px;white-space:nowrap}
+.edleft button:hover{border-color:var(--ink);color:var(--ink)}
+.edright{flex:1;min-width:0;position:relative}
+.ezoom{position:absolute;right:0;top:-2px;z-index:4;display:flex;align-items:center;gap:2px;font-size:11px;color:var(--muted)}
+.ezoom button{width:22px;height:20px;border-radius:5px;font-size:14px;line-height:1;color:var(--ink)}.ezoom button:hover{background:var(--hover)}.ezoom button:disabled{opacity:.3}
+.escroll{overflow-x:auto;overflow-y:visible;padding-top:8px;scrollbar-width:thin}
+.einner{position:relative;min-width:100%}
+.eruler{position:relative;height:16px;font-size:10px;line-height:12px;color:var(--quiet)}.eruler span{position:absolute;top:0;padding-left:3px;border-left:1px solid var(--line2);white-space:nowrap}
+.etrack{position:relative;height:30px;margin-top:6px;border-radius:6px;background:var(--rail);cursor:pointer}
+.eitem{position:absolute;top:3px;height:24px;border-radius:5px;border:1px solid var(--line2);display:flex;align-items:center;font-size:11px;line-height:14px;font-weight:600;cursor:pointer;min-width:10px}
+.eitem.txt{background:#4B3E91;border-color:#6E5FD0;color:#FFFFFF;padding:0 6px}.eitem.txt span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.eitem.cap{background:#7A5B12;border-color:#B88A1F;color:#FFFFFF;padding:0 6px}.eitem.cap span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;font-weight:500}
+.eitem.snd{background:#1F5C4A;border-color:#2F8C6F;color:#FFFFFF;overflow:hidden}
+.eitem.snd svg.wv{position:absolute;inset:2px 0;width:100%;height:calc(100% - 4px)}
+.eitem.snd.narrow span{display:none}.eitem.snd.narrow:hover span{display:block;position:absolute;bottom:28px;left:0;background:var(--ink);color:var(--onink);border-radius:5px;padding:2px 6px}
+.eitem.snd span{position:relative;padding:0 5px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.eitem:hover{border-color:#FFFFFF;z-index:2;overflow:visible}.eitem.pend{border-style:dashed}.eitem.gone{opacity:.3;pointer-events:none}
+.eitem .ex{display:none;position:absolute;top:-8px;right:-8px;width:16px;height:16px;border-radius:8px;place-items:center;font-size:12px;line-height:1;color:var(--onink);background:var(--ink);box-shadow:0 0 0 2px var(--page);z-index:3}
+.eitem:hover .ex{display:grid}   /* x sits on the corner, never under the click that opens it */
+.eph{position:absolute;top:8px;bottom:0;width:2px;margin-left:-1px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(0,0,0,.4);pointer-events:none;z-index:3}
+.timeline{position:relative}
+#sndpick{position:absolute;z-index:20;width:260px;max-height:320px;overflow:auto;padding:8px;border-radius:12px;background:var(--raise);border:1px solid var(--line);box-shadow:var(--pop)}
+#sndpick h4{margin:8px 4px 2px;font-size:11px;line-height:14px;font-weight:600;color:var(--muted)}
+.timeline{position:relative}
 
 /* the panel: notes and Claude's work, the composer and the two buttons at its foot */
 aside{width:var(--sidew,320px);flex-shrink:0;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
@@ -402,6 +432,12 @@ body.tside #tside{display:flex}
 .sitem .spick{flex:1;min-width:0;text-align:left;font-size:13px;line-height:18px;color:var(--strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 0}
 .sitem span{font-size:11px;color:var(--muted);flex-shrink:0}.splay.sm{width:26px;height:26px;border-radius:13px}
 #cbody{flex:1;min-height:0;overflow:auto;padding:4px 16px 16px;display:flex;flex-direction:column;gap:14px}
+.clines{display:flex;flex-direction:column;gap:2px}
+.cline{display:flex;align-items:center;gap:6px;padding:2px 4px;border-radius:8px}.cline:focus-within{background:var(--chip)}
+.cline .clt{width:44px;flex-shrink:0;font-size:11px;color:var(--muted);text-align:left;font-variant-numeric:tabular-nums}.cline .clt:hover{color:var(--ink)}
+.cline input{flex:1;min-width:0;height:30px;border:1px solid transparent;border-radius:7px;background:none;padding:0 8px;font:inherit;font-size:13px;color:var(--strong);outline:none}
+.cline input:hover{border-color:var(--line)}.cline input:focus{border-color:var(--ink);background:var(--panel)}.cline.ed input{color:#E0B341}
+.cline .cx{width:22px;height:22px;border-radius:6px;flex-shrink:0;color:var(--quiet);font-size:15px;opacity:0}.cline:hover .cx,.cline:focus-within .cx{opacity:1}.cline .cx:hover{color:var(--ink);background:var(--hover)}
 .cgroup{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.cgroup button{height:36px;border-radius:8px;border:1px solid var(--line2);font-size:13px;font-weight:600;color:var(--ink)}
 .cgroup button:hover{border-color:var(--ink)}.cgroup button.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
 .clooks{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -663,6 +699,7 @@ body.making #making{display:flex}
   <div class="trow"><span class="tl"></span><div id="ticks" class="num"></div></div>
   <div class="trow"><div class="mini" id="mini"></div></div>
   <div id="tracks"></div>
+  <div id="edtracks"></div><div id="sndpick" hidden></div>
  </div>
 </div>
 <div class="rsz" id="rszside" role="separator" aria-orientation="vertical" aria-label="drag to resize the notes panel" title="drag to resize"></div>
@@ -952,7 +989,7 @@ function render(){
   ta.placeholder=previewOn?'Back to the cut to leave a note':p==='send'?(S.raw?'Note for the cut...':'Note for the next draft...'):!isCur()?'Older draft, read only':p==='approve'?(S.stills?'The preview is approved':S.stage==='cut'&&!S.final?'The cut is approved':'Approved'):view.round>1?'Feedback on '+dn(viewRound())+' at this moment...':'Type feedback for this moment...';
   const sc=$('scope');sc.style.display=nv&&canNote?'block':'none';
   if(nv)sc.innerHTML=`<option value="">${esc(lab(alt))} only</option><option value="*">${nv===1?'Both':'All'} versions</option>`;
-  renderVer();renderTx();renderBar();renderTracks();renderList();renderAdds();boxTime();hitSig='~';renderHits();
+  renderVer();renderTx();renderBar();renderTracks();renderEdTracks();renderList();renderAdds();boxTime();hitSig='~';renderHits();
 }
 const noteOk=()=>!!S&&isCur()&&pending()!=='approve'&&!previewOn;   // the composer is open (while Claude works a note waits)
 function meta(){   // "Round 1 · 31s ago", ticked every few seconds so the age stays true
@@ -987,6 +1024,62 @@ function renderBar(){
     return `<button class="pin${old?(c.status==='fixed'?' fixed':' todo'):''}" data-pt="${here(c)}" data-old="${old?1:0}" style="left:${Math.min(98.5,Math.max(1.5,here(c)/T*100))}%" title="${esc(fmt(here(c))+'  '+c.text)}">${i+1}</button>`}).join('');
   tick();
 }
+// the edit's Text and Sounds rows: every text (made or changing) and every sound in the draft or put there by the user.
+const NOTE_ICON='<svg width="10" height="10" viewBox="0 0 12 12"><path d="M5 1.5v6.2A1.8 1.8 0 1 0 6.3 9.4V4l3.2-1V1z" fill="currentColor"/></svg>';
+let tzUser=0,tz=1;try{tzUser=Math.max(0,Math.min(32,+localStorage.getItem('review-tz')||0))}catch(e){}   // the rows' zoom: yours, else about 15 s a screen, as CapCut opens
+const autoZ=T=>{let z=1;while(z*2<=Math.min(32,T/15))z*=2;return z};
+function waveSvg(peaks){const n=(peaks||[]).length;if(!n)return '';
+  return `<svg class="wv" viewBox="0 0 ${n} 20" preserveAspectRatio="none" aria-hidden="true">${peaks.map((v,i)=>`<rect x="${i+.15}" y="${(10-Math.max(.6,v*9)).toFixed(2)}" width=".7" height="${(Math.max(.6,v*9)*2).toFixed(2)}" fill="rgba(255,255,255,.55)"/>`).join('')}</svg>`}
+// a caption line as it will read: its words with the retyped ones (overrides.json words) in place
+function capText(c){const cw=(S&&S.cap_words)||{};if(!(c.w||[]).some(k=>k in cw))return {text:c.text,edited:false};
+  const orig=c.text.split(/\s+/);return {text:c.w.map((k,i)=>k in cw?cw[k]:orig[i]||'').filter(Boolean).join(' '),edited:true}}
+function renderEdTracks(){const E=$('edtracks'),T=D();
+  if(!(S&&view&&view.stage==='edit'&&noteOk()&&!cmp)||!T){E.innerHTML='';E._h='';return}
+  tz=tzUser||autoZ(T);
+  const pc=t=>Math.max(0,Math.min(100,t/T*100)),it=data().items||{};
+  const gone=new Set((S.sfx_removed||[]).map(t=>t.toFixed(2))),inDraft=new Set((it.sfx||[]).map(x=>x.placed).filter(Boolean));
+  const sname=src=>String(src).split('/').pop().replace(/\.[a-z0-9]+$/i,'').replace(/^own-(house|skit|simple|swoop|windy|digital)-/,'').replace(/^own-/,'');
+  const vis=T/tz,step=[.5,1,2,5,10,15,30,60,120,300].find(x=>vis/x<=10)||600,ticks=[];for(let t=0;t<T;t+=step)ticks.push(t);
+  const texts=textItems().map(x=>`<div class="eitem txt${x.fresh?' pend':''}" data-et="${esc(String(x.id))}" data-ef="${x.fresh?1:''}" style="left:${pc(x.start)}%;width:${pc(x.end)-pc(x.start)}%" title="${esc(x.text)} · ${fmtx(x.start)}–${fmtx(x.end)}${x.locked?' · Claude has it':' · click to change'}"><span>${esc(x.text)}</span>${x.locked?'':`<b class="ex" data-ex="1" title="Remove">×</b>`}</div>`).join('');
+  const clip=(t0,d,cls,attrs,name,peaks,at)=>`<div class="eitem snd${cls}" ${attrs} style="left:${pc(t0)}%;width:${(d||.3)/T*100}%" title="${esc(name)} · ${fmtx(at)} · ${(d||0).toFixed(1)} s · click to hear it">${waveSvg(peaks)}<span>${esc(name)}</span><b class="ex" data-ex="1" title="Remove">×</b></div>`;
+  const snds=(it.sfx||[]).map(x=>clip(x.start??x.t,x.d,gone.has(x.t.toFixed(2))?' gone':'',`data-st="${x.t}" data-ssrc="${esc(x.src)}"${x.placed?` data-sp2="${esc(x.placed)}"`:''}`,sname(x.src),x.peaks,x.t)).join('')
+    +(S.placed_sounds||[]).filter(x=>!inDraft.has(x.id)).map(x=>clip(x.t,x.d,' pend',`data-st="${x.t}" data-ssrc="${esc(x.sound)}" data-sp2="${esc(x.id)}"`,x.sound.replace(/\.[a-z0-9]+$/i,''),x.peaks,x.t)).join('');
+  const caps=(it.captions||[]).map((c,i)=>{const ct=capText(c);return `<div class="eitem cap${ct.edited?' pend':''}${!ct.text?' gone':''}" data-ec="${i}" style="left:${pc(c.s)}%;width:${pc(c.e)-pc(c.s)}%" title="${esc(ct.text||c.text)} · ${fmtx(c.s)} · click to edit"><span>${esc(ct.text||c.text)}</span><b class="ex" data-ex="1" title="Delete this caption">×</b></div>`}).join('');
+  const h=`<div class="edwrap"><div class="edleft"><div class="ezoom"><button data-z="-" title="Zoom out"${tz<=1?' disabled':''}>−</button><span>${tz}x</span><button data-z="+" title="Zoom in"${tz>=32?' disabled':''}>+</button></div><button id="addtx" title="Add a text at the playhead">+ Text</button><button id="capedit" title="Edit the captions">Captions</button><button id="addsnd" title="Add one of your sounds at the playhead">+ Sound</button></div>
+    <div class="edright">
+    <div class="escroll" id="escroll"><div class="einner" style="width:${tz*100}%"><div class="eruler">${ticks.map(t=>`<span style="left:${pc(t)}%">${fmt(t)}</span>`).join('')}</div>
+    <div class="etrack" data-row="text">${texts}</div><div class="etrack" data-row="cap">${caps}</div><div class="etrack" data-row="snd">${snds}</div><b class="eph" id="eph"></b></div></div></div></div>`;
+  if(E._h!==h){const sl=($('escroll')||{}).scrollLeft||0;E._h=h;E.innerHTML=h;$('escroll').scrollLeft=sl;
+    E.querySelectorAll('.eitem.snd').forEach(c=>c.classList.toggle('narrow',c.offsetWidth<48))}edPh()}
+function edPh(){const ph=$('eph'),T=D();if(!ph||!T)return;ph.style.left=v.currentTime/T*100+'%';
+  const sc=$('escroll');if(tz>1&&!v.paused&&sc){const x=v.currentTime/T*sc.scrollWidth;if(x<sc.scrollLeft+20||x>sc.scrollLeft+sc.clientWidth-40)sc.scrollLeft=x-sc.clientWidth*.25}}
+$('edtracks').addEventListener('click',async e=>{
+  const zb=e.target.closest('[data-z]');if(zb){const sc=$('escroll'),mid=sc?(sc.scrollLeft+sc.clientWidth/2)/sc.scrollWidth:0;
+    tzUser=zb.dataset.z==='+'?Math.min(32,tz*2):Math.max(1,tz/2);try{localStorage.setItem('review-tz',tzUser)}catch(x){}renderEdTracks();
+    const s2=$('escroll');if(s2)s2.scrollLeft=mid*s2.scrollWidth-s2.clientWidth/2;return}
+  const tk=e.target.closest('.etrack');if(tk&&!e.target.closest('.eitem')){const r=tk.getBoundingClientRect();v.currentTime=Math.max(0,(e.clientX-r.left)/r.width*D());return}   /* click empty track: go there */
+  if(e.target.id==='addtx'){if(tool!=='text')openTool('text');setText('outline');return}
+  if(e.target.id==='addsnd'){return openSndPick(e.target)}
+  if(e.target.id==='capedit'){return openCapLine(null)}
+  const ci=e.target.closest('[data-ec]');if(ci){const c=(data().items.captions||[])[+ci.dataset.ec];
+    if(e.target.closest('[data-ex]')){e.stopPropagation();return saveCapLine(c,'')}
+    return openCapLine(c)}
+  const ti=e.target.closest('[data-et]'),si=e.target.closest('[data-st]'),ex=e.target.closest('[data-ex]');
+  if(ti&&ex){e.stopPropagation();return delText(ti.dataset.et,!!ti.dataset.ef)}
+  if(ti){if(tool!=='text')openTool('text');return editText(ti.dataset.et,ti.dataset.ef)}
+  if(si&&ex){e.stopPropagation();const r=await post('/sfx/remove',{t:+si.dataset.st,src:si.dataset.ssrc,...(si.dataset.sp2?{placed:si.dataset.sp2}:{})});
+    if(!r.id)return toast(r.error||'That did not save.');toast('Sound removed. Submit feedback and the next draft drops it.');$('edtracks')._h=null;return load()}
+  if(si){v.currentTime=Math.max(0,+si.dataset.st-.6);v.play();setTimeout(()=>v.pause(),1600)}});   /* hear it in place */
+function openSndPick(btn){const P=$('sndpick'),own=((S.sounds_ui||{}).own)||[],groups={};
+  own.forEach(f=>{const m=f.match(/^([a-z0-9]+) /i),g=m?m[1]:'Yours';(groups[g]=groups[g]||[]).push(f)});
+  P.innerHTML=`<div class="tcap" style="margin:2px 4px 4px"><span>Add a sound at ${fmtx(v.currentTime)}</span></div>`+(own.length?Object.entries(groups).map(([g,fs])=>`<h4>${esc(g[0].toUpperCase()+g.slice(1))}</h4>${fs.map(f=>`<div class="sitem"><button class="splay sm" data-pp2="${esc(f)}" title="Play">${PLAY}</button><button class="spick" data-add="${esc(f)}">${esc(f.replace(/\.[a-z0-9]+$/i,'').replace(/^[a-z0-9]+ /i,''))}</button></div>`).join('')}`).join('')
+    :'<p class="tsub" style="padding:4px">No sounds of your own yet. Add one in the Sounds panel (+ Your own).</p>');
+  const r=btn.getBoundingClientRect(),tr=$('timeline').getBoundingClientRect();P.style.left=(r.left-tr.left)+'px';P.style.bottom=(tr.bottom-r.top+6)+'px';P.hidden=false;P.dataset.t=v.currentTime}
+$('sndpick').addEventListener('click',async e=>{const pp=e.target.closest('[data-pp2]'),ad=e.target.closest('[data-add]');
+  if(pp)return sndPlay('zoom',pp.dataset.pp2);
+  if(!ad)return;const r=await post('/sfx/add',{t:+$('sndpick').dataset.t,sound:ad.dataset.add});$('sndpick').hidden=true;
+  if(!r.id)return toast(r.error||'That did not save.');toast(`${ad.innerText} added at ${fmtx(+$('sndpick').dataset.t)}. Submit feedback so the next draft has it.`);$('edtracks')._h=null;load()});
+document.addEventListener('pointerdown',e=>{const P=$('sndpick');if(!P.hidden&&!P.contains(e.target)&&e.target.id!=='addsnd')P.hidden=true});
 function renderTracks(){
   const tr=view.stage==='edit'&&data().tracks,T=D();
   $('timeline').classList.toggle('tracked',!!tr);
@@ -1555,7 +1648,7 @@ v.addEventListener('play',icon);v.addEventListener('pause',icon);icon();
 $('back').onclick=()=>v.currentTime-=5;$('fwd').onclick=()=>v.currentTime+=5;
 function setSpeed(x){speed=x;v.playbackRate=x;try{localStorage.setItem('review-speed',x)}catch(e){}$('speed').textContent=x+'x'}
 $('speed').onclick=()=>setSpeed(SPEEDS[(SPEEDS.indexOf(speed)+1)%SPEEDS.length]);setSpeed(speed);
-v.addEventListener('loadedmetadata',()=>{v.playbackRate=speed;renderBar();renderTracks()});
+v.addEventListener('loadedmetadata',()=>{v.playbackRate=speed;renderBar();renderTracks();renderEdTracks()});
 $('mute').onclick=()=>{v.muted=!v.muted;$('mute').textContent=v.muted?'Muted':'Sound'};
 $('full').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.querySelector('#p1 .player').requestFullscreen();
 $('vsel').onchange=e=>{alt=e.target.value;inT=outT=null;setVideo();render()};
@@ -1573,7 +1666,7 @@ function tick(){const T=D(),t=v.currentTime,p=Math.min(100,t/T*100);
   document.querySelectorAll('.pin').forEach(el=>el.classList.toggle('cur',el.dataset.old==='0'&&Math.abs(+el.dataset.pt-t)<1));
   document.querySelectorAll('#ticks span[data-s]').forEach((el,i,all)=>el.classList.toggle('cur',t>=+el.dataset.s&&(!all[i+1]||t<+all[i+1].dataset.s)));
   document.querySelectorAll('.track .ph').forEach(el=>el.style.left=p+'%');
-  $('time').innerHTML=`<b>${fmtx(t)}</b><span>/ ${fmt(v.duration||0)}</span>`;tickTx();renderHits();renderTexts()}
+  $('time').innerHTML=`<b>${fmtx(t)}</b><span>/ ${fmt(v.duration||0)}</span>`;tickTx();renderHits();renderTexts();edPh()}
 v.addEventListener('timeupdate',tick);v.addEventListener('seeked',tick);
 const at=e=>{const r=bar.getBoundingClientRect();return Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))*(v.duration||0)};
 bar.addEventListener('pointerdown',e=>{dragging=true;bar.setPointerCapture(e.pointerId);v.currentTime=at(e);tick()});
@@ -1603,7 +1696,8 @@ function startNote(text,a,b,on){
 }
 $('hits').addEventListener('click',e=>{const b=e.target.closest('[data-hit]');if(!b)return;e.stopPropagation();const u=HITS[+b.dataset.hit];
   if(u&&u.k==='texts'&&u.x.kind==='label'){const m=(S.texts||[]).find(x=>Math.abs(x.start-u.x.s)<.05&&x.text===u.x.text);if(m)return editText(m.id,false)}   /* your own text: click to change it */
- if(u&&u.k==='cards'&&u.x.key)return selectCard(u.x);   /* a card: select it to move, resize or delete it */
+ if(u&&u.k==='cards'&&u.x.key)return selectCard(u.x);
+ if(u&&u.k==='captions'&&(u.x.w||[]).length)return openCapLine(u.x);   /* a caption: edit its words in the Captions panel */   /* a card: select it to move, resize or delete it */
  if(u)startNote(lead(u.k,u.x),u.x.s,u.x.e,{k:u.k,text:u.x.text||u.x.label||''})});
 // a card on the video: click it to select it. Drag it to move it, a corner to resize it (a picture keeps its shape), then
 // Save; or Delete it, or leave a Note about it. Save and Delete go into overrides.json (POST /card/edit), which plan.py
@@ -1758,11 +1852,31 @@ function capTile(name,l){const fs=Math.max(11,Math.min(16,(l.size_pct||4.2)*2.8)
     +(l.stroke?`-webkit-text-stroke:${Math.max(1,fs*.12)}px ${l.stroke_color||'#000'};paint-order:stroke fill;`:'')
     +(l.box?`background:${l.box_color||'#000'};padding:2px 6px;border-radius:5px;`:'')+(l.shadow?'text-shadow:0 2px 6px rgba(0,0,0,.6);':'');
   return `<span><b style="${esc(st)}">${esc(t)}</b></span>`}
-function renderCapPanel(){const b=$('cbody'),c=(S&&S.captions_ui)||{looks:{}},sig=JSON.stringify(c);if(b._s===sig)return;b._s=sig;
+let capFocus=null;   // the caption line to put the cursor in (its start)
+function openCapLine(c){if(tool!=='captions')openTool('captions');capFocus=c?c.s:null;if(c){v.currentTime=c.s+.02;v.pause()}$('cbody')._s=null;renderCapPanel()}
+async function saveCapLine(c,text){if(!c)return;const old=capText(c).text;if(text.trim()===old.trim())return;
+  const r=await post('/captions/text',{s:c.s,w:c.w,text,old:c.text});if(!r.id)return toast(r.error||'That did not save.');
+  toast(text.trim()?'Caption changed. Submit feedback and the next draft has it.':'Caption taken out. Submit feedback and the next draft drops it.');
+  const row=$('cbody').querySelector(`.cline[data-cs="${c.s}"]`);if(row){row.classList.add('ed');if(!text.trim())row.querySelector('input').value=''}
+  $('cbody')._s=null;$('edtracks')._h=null;await load()}
+function capLinesHtml(){const cs=(data().items||{}).captions||[];if(!cs.length)return '';
+  return `<div><div class="tcap" style="margin-bottom:8px"><span>Lines</span><span>Enter saves</span></div><div class="clines">${cs.map((c,i)=>{const ct=capText(c);
+    return `<div class="cline${ct.edited?' ed':''}" data-cs="${c.s}"><button class="clt" data-cseek="${i}">${fmtx(c.s)}</button><input data-ci="${i}" value="${esc(ct.text)}" placeholder="(taken out)" aria-label="caption at ${fmtx(c.s)}"><button class="cx" data-cdel="${i}" title="Take this caption out">×</button></div>`}).join('')}</div></div>`}
+function renderCapPanel(){const b=$('cbody'),c=(S&&S.captions_ui)||{looks:{}},sig=JSON.stringify(c)+JSON.stringify(S&&S.cap_words)+((data().items||{}).captions||[]).length;
+  if(b._s===sig&&capFocus===null)return;if(b.contains(document.activeElement)&&document.activeElement.tagName==='INPUT'&&capFocus===null)return;b._s=sig;
   b.innerHTML=`<div><div class="tcap" style="margin-bottom:8px"><span>Words at a time</span></div><div class="cgroup">${CGROUPS.map(([k,n])=>`<button data-cw="${k}"${c.words===k?' class="on"':''}>${n}</button>`).join('')}</div></div>
     <div><div class="tcap" style="margin-bottom:8px"><span>Look</span></div><div class="clooks">${Object.entries(c.looks||{}).map(([k,l])=>`<button class="clook${c.look===k?' on':''}" data-cl="${esc(k)}">${capTile(k,l)}${esc(k[0].toUpperCase()+k.slice(1))}</button>`).join('')}</div></div>
-    <p class="tsub">Saved for this video only. Submit feedback and the next draft shows it.</p>`}
-$('cbody').addEventListener('click',async e=>{const w=e.target.closest('[data-cw]'),l=e.target.closest('[data-cl]');if(!w&&!l)return;
+    <p class="tsub">Saved for this video only. Submit feedback and the next draft shows it.</p>${capLinesHtml()}`;
+  if(capFocus!==null){const row=b.querySelector(`.cline[data-cs="${capFocus}"] input`);capFocus=null;if(row){row.scrollIntoView({block:'center'});row.focus();row.select()}}}
+$('cbody').addEventListener('keydown',e=>{const i=e.target.dataset&&e.target.dataset.ci;if(i===undefined)return;e.stopPropagation();
+  if(e.key==='Enter'){e.preventDefault();saveCapLine(((data().items||{}).captions||[])[+i],e.target.value);const nx=e.target.closest('.cline').nextElementSibling;if(nx)nx.querySelector('input').focus()}
+  if(e.key==='Escape'){e.target.value=capText(((data().items||{}).captions||[])[+i]).text;e.target.blur()}});
+$('cbody').addEventListener('focusin',e=>{const i=e.target.dataset&&e.target.dataset.ci;if(i===undefined)return;const c=((data().items||{}).captions||[])[+i];if(c){v.currentTime=c.s+.02;v.pause()}});
+$('cbody').addEventListener('click',async e=>{const w=e.target.closest('[data-cw]'),l=e.target.closest('[data-cl]');
+  const sk=e.target.closest('[data-cseek]'),dl=e.target.closest('[data-cdel]'),cs=(data().items||{}).captions||[];
+  if(sk){v.currentTime=cs[+sk.dataset.cseek].s+.02;v.pause();return}
+  if(dl){return saveCapLine(cs[+dl.dataset.cdel],'')}
+  if(!w&&!l)return;
   const r=await post('/captions',w?{words:w.dataset.cw}:{look:l.dataset.cl});if(!r.id)return toast(r.error||'That did not save.');
   toast(w?`Captions: ${w.dataset.cw==='sentence'?'a sentence':w.dataset.cw+' word'+(w.dataset.cw==='1'?'':'s')} at a time. Submit feedback to send it.`:`Captions: the ${l.dataset.cl} look. Submit feedback to send it.`);
   $('cbody')._s=null;await load()});

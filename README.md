@@ -4,6 +4,8 @@
 
 cooked. edits your talking-head video for you. You give it two things:
 
+Full setup guide [here](https://nextwork.ai/projects/5610da9c-bb29-42b6-a4a4-e30420ec671d?utm_source=github&utm_medium=nextwork-projects&utm_campaign=profile&utm_content=ai-video-editor-cooked)! 
+
 1. **Your video.** It cuts out the retakes, false starts and pauses.
 2. **3 to 6 videos edited the same way.** They can come from one creator or from several. It measures
    how they are edited: cut speed, zooms, captions, cards, graphics, sound. That set of numbers is a

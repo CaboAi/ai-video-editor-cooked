@@ -2196,6 +2196,7 @@ async function trashEdit(dir){const r=await post('/edit/trash',{dir});ui.edittra
 const IC={file:'<path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z"/><path d="M14 3v4h4"/>',home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
  videos:'<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M10 9.2v5.6l4.6-2.8z"/>',styles:'<path d="M12 3 3 8l9 5 9-5z"/><path d="M3 13l9 5 9-5"/>',
  folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+ upload:'<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',
  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
  panel:'<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/>',plus:'<path d="M12 5v14M5 12h14"/>',minus:'<path d="M5 12h14"/>',
  trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',chev:'<path d="M9 5l7 7-7 7"/>',back:'<path d="M15 5l-7 7 7 7"/>',
@@ -2278,7 +2279,7 @@ function sideHTML(){
       ${it('home','Home',cur==='home','goHome()')}${it('videos','Videos',cur==='videos',vgo,dropAttrs('videos',null))}${it('styles','Styles',onS,"rgo('mystyle')")}${it('skill','Skills',cur==='skills',"rgo('skills')")}
       <div class="sb-sp"></div>
       ${ji?`<button class="rl-it rl-job" onclick="${ji.go}" title="${esc(ji.label+': '+ji.text)}"><span class="ic">${ringSvg(ji.frac)}${ji.n}</span>${ji.short}</button>`:''}
-      ${it('gear','Settings',cur==='settings',"rgo('settings')")}${thm}`;
+      ${it('upload',updLabel(true),false,"sbUpd()",updBusy()?'disabled':'')}${it('gear','Settings',cur==='settings',"rgo('settings')")}${thm}`;
   }
   const cnt=(k,id)=>Object.entries(fd(k).items).filter(([d,f])=>f===id&&(k==='videos'?vids.some(v=>v.dir===d):st.some(c=>c.id===d))).length;
   const inp=(e,ph)=>`<input id="fold-name" value="${esc(e.val||'')}" placeholder="${ph}" maxlength="40" aria-label="Folder name" onclick="event.stopPropagation()" oninput="(ui.newfold||ui.renfold).val=this.value" onkeydown="event.stopPropagation();if(event.key==='Enter')foldSave();if(event.key==='Escape'){ui.newfold=ui.renfold=null;render()}">`;
@@ -2300,6 +2301,7 @@ function sideHTML(){
     ${ji?`<button class="sb-job" onclick="${askAbout()?'askOpen()':ji.go}"><div class="tp"><b>${SPIN}${esc(ji.label)}</b><span class="row" style="gap:8px;flex-shrink:0">${ji.since?`<span data-since="${ji.since}" data-f="t">${fmtT(Math.max(0,Math.round(Date.now()/1000-ji.since)))}</span>`:''}${ji.id||ji.edit?`<span class="sb-stop" role="button" tabindex="0" title="Stop Claude on this" onclick="event.stopPropagation();stopJob(${J(ji.id||null)},${J(ji.edit||null)})" onkeydown="if(event.key==='Enter'){event.stopPropagation();stopJob(${J(ji.id||null)},${J(ji.edit||null)})}">Stop</span>`:''}</span></div><div class="tx">${askAbout()?`Claude is asking about ${esc(askAbout())}: <u>Open</u>`:esc(ji.text)}</div><div class="trk ${ji.frac==null?'indet':''}"><i style="width:${Math.round((ji.frac||0)*100)}%"></i></div></button>`:''}
     ${rail?'':updCard()}
     ${gsBlock()}
+    ${updRow()}
     <div class="sb-bot"><button class="sb-row ${cur==='settings'?'on':''}" onclick="rgo('settings')" ${upd?'title="A new version is out"':''}>${ic('gear')}<span class="lb">Settings</span>${upd?'<span class="sdot"></span>':''}</button>${thm}</div>`;
 }
 // a question for a video whose editor tab has it (askhook "elsewhere"): one row on Home and in the sidebar job card
@@ -2457,6 +2459,15 @@ function stUpdate(){
     ${st?`<div class="msg ${j.state==='failed'?'bad':''}">${esc(st)}</div>`:''}${rl}</div>`;
 }
 // the sidebar's Update: a new version is out (or one is installing, or just installed), one press, no Settings trip
+// Updates in the sidebar, always: Check for updates (asks GitHub), or Update to <version> when one is out
+let sbChecking=false;
+const updBusy=()=>{const j=latest('update');return !!(j&&j.state==='taken')||sbChecking||!!(S.update||{}).checking};
+function updLabel(short){const u=S.update||{},j=latest('update');
+  return j&&j.state==='taken'?'Updating':u.newer&&!u.fork?(short?'Update':'Update to '+u.latest):sbChecking||u.checking?'Checking...':short?'Updates':'Check for updates'}
+function updRow(){return `<button class="sb-row" onclick="sbUpd()" ${updBusy()?'disabled':''} title="${esc((S.update||{}).installed?'You have '+S.update.installed:'')}">${ic('upload')}<span class="lb">${esc(updLabel())}</span></button>`}
+async function sbUpd(){const u=S.update||{};if(u.newer&&!u.fork)return stDoUpdate();
+  sbChecking=true;render();try{await stCheckUpd()}finally{sbChecking=false;render()}
+  const v=S.update||{};toast(v.newer?'Version '+v.latest+' is out.':v.offline?'Could not reach GitHub.':'Up to date. You have '+(v.installed||v.latest)+'.')}
 function updCard(){
   const u=S.update||{},j=latest('update'),busy=j&&j.state==='taken',done=j&&j.state==='done'&&Date.now()/1000-(j.finished||0)<300;
   if(busy)return `<div class="sb-upd"><div><b>${SPIN}Updating cooked.</b><span>${esc(((j.steps||[]).at(-1)||{}).text||'Starting')}</span></div></div>`;

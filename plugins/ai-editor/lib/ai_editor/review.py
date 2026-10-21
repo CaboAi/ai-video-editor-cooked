@@ -818,7 +818,7 @@ def themed(html):
 def home_url():
     """The home page's address (home.py keeps one fixed address in $AI_EDITOR_HOME/home/.server) when it
     answers, else None. Checked at most every 10 s."""
-    if time.time() - _HOME["at"] < 10:
+    if time.time() - _HOME["at"] < (1 if (_HOME.get("update") or {}).get("checking") else 10):   # a check running: follow it
         return _HOME["url"]
     f = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home" / ".server"
     upd = None
@@ -831,11 +831,27 @@ def home_url():
         busy = bool(j and j.get("state") == "taken")
         # the rail's Update: a newer version the window can install (never a fork), or one installing now
         err = j.get("error") if j and j.get("state") == "failed" and time.time() - float(j.get("finished") or 0) < 300 else None
-        upd = {"latest": u.get("latest"), "busy": busy, "error": err} if busy or err or u.get("newer") and not u.get("fork") else None
+        # always there, so the rail's Updates item can say Check for updates, Checking... or Update to <version>
+        upd = {"latest": u.get("latest"), "installed": u.get("installed"), "busy": busy, "error": err,
+               "newer": bool(u.get("newer") and not u.get("fork")), "checking": bool(u.get("checking"))}
     except (OSError, ValueError, AttributeError):
         url = None
     _HOME.update(at=time.time(), url=url, update=upd)
     return url
+
+
+def ensure_home():
+    """The home page's address, starting it (home.py serve) when it is not running. None when it does not start."""
+    _HOME["at"] = 0.0
+    if not home_url():
+        subprocess.Popen([sys.executable, str(Path(__file__).with_name("home.py")), "serve", "--no-open"],
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        for _ in range(40):
+            time.sleep(0.5)
+            _HOME["at"] = 0.0
+            if home_url():
+                break
+    return home_url()
 
 
 def start_update():
@@ -1502,17 +1518,19 @@ def make_handler(folder, token):
                     return self.send(400, {"error": "light, dark or system"})
                 return self.send(200, {"theme": theme()})
             if path == "/home":   # the rail with the editor's window closed: start its page (home.py serve), then go there
-                _HOME["at"] = 0.0
-                if not home_url():
-                    subprocess.Popen([sys.executable, str(Path(__file__).with_name("home.py")), "serve", "--no-open"],
-                                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                     start_new_session=True)
-                    for _ in range(40):
-                        time.sleep(0.5)
-                        _HOME["at"] = 0.0
-                        if home_url():
-                            break
-                return self.send(200, {"url": home_url()}) if home_url() else self.send(503, {"error": "The editor's window did not start."})
+                return self.send(200, {"url": ensure_home()}) if ensure_home() else self.send(503, {"error": "The editor's window did not start."})
+            if path == "/update/check":   # the rail's Check for updates: the window asks GitHub (home.py /update/check)
+                url = ensure_home()
+                if not url:
+                    return self.send(503, {"error": "The editor's window did not start."})
+                base, tok = url.split("/?t=", 1)
+                try:
+                    urllib.request.urlopen(urllib.request.Request(f"{base}/update/check?t={tok}", b"{}", method="POST",
+                                                                  headers={"Content-Type": "application/json"}), timeout=5).read()
+                except (OSError, ValueError):
+                    return self.send(503, {"error": "The editor's window did not answer."})
+                _HOME["at"] = 0.0   # the next /state reads the check
+                return self.send(200, {})
             if path == "/intro":   # "Got it" on the first-edit notice: never again
                 set_ui(intro_off=True)
                 return self.send(200, {})

@@ -112,7 +112,7 @@ def not_everywhere(plugins):
     return out
 
 
-def plan(os_name=None, plugin=PLUGIN, claude=None, prompt=PROMPT, plugins=None):
+def plan(os_name=None, plugin=PLUGIN, claude=None, prompt=PROMPT, plugins=None, session=None, resume=False):
     """The Claude Code command. A plugin installed through /plugin for the user lives under ~/.claude/plugins and
     loads by itself; one installed for a project only, and a checkout of this repo, load for this session with
     --plugin-dir (a checkout's plugins/ folder, so creator-teardown comes too)."""
@@ -124,6 +124,8 @@ def plan(os_name=None, plugin=PLUGIN, claude=None, prompt=PROMPT, plugins=None):
     else:
         for d in not_everywhere(installed() if plugins is None else plugins):
             cmd += ["--plugin-dir", d]
+    if session:   # resume: that conversation again; else a new one under this id, so the page can name it later
+        cmd += ["--resume" if resume else "--session-id", session]
     return cmd + ["--settings", json.dumps({"permissions": {"allow": allow_rules(plugin)}}), prompt]
 
 
@@ -167,11 +169,12 @@ def start(argv, folder, os_name):
         return False
 
 
-def open_claude(folder, prompt, os_name=None, run=start):
+def open_claude(folder, prompt, os_name=None, run=start, session=None, resume=False):
     """(opened, the command as the user would type it, for the page to show when nothing opened).
+    session: resume=True carries that conversation on; else the new Claude takes that id.
     run(argv, folder, os_name) -> bool; the demos pass a recorder so no real window opens."""
     os_name = os_name or platform.system()
-    cmd = plan(os_name, prompt=prompt)
+    cmd = plan(os_name, prompt=prompt, session=session, resume=resume)
     # the window's own folders: a Terminal opened by osascript does not inherit them, so the new Claude would
     # listen on another home. Windows and x-terminal-emulator start as children and inherit them.
     pairs = [f"{k}={os.environ[k]}" for k in ("AI_EDITOR_HOME", "AI_EDITOR_LIBRARY") if os.environ.get(k)]
@@ -181,6 +184,22 @@ def open_claude(folder, prompt, os_name=None, run=start):
         + show(cmd, os_name)
     argv = terminal(folder, cmd, os_name)
     return (bool(argv) and run(argv, folder, os_name)), text
+
+
+def type_into(tty, text, os_name=None, run=None):
+    """Type text and Enter into the Terminal tab on that tty (a Claude Code already open there takes it as a
+    message). True when a Terminal tab had that tty. Terminal.app only: other apps cannot be typed into from here."""
+    if (os_name or platform.system()) != "Darwin" or not tty:
+        return False
+    q = lambda x: str(x).replace("\\", "\\\\").replace('"', '\\"')
+    script = (f'tell application "Terminal"\nrepeat with w in windows\nrepeat with t in tabs of w\n'
+              f'if tty of t is "{q(tty)}" then\ndo script "{q(text)}" in t\nreturn "typed"\nend if\n'
+              f'end repeat\nend repeat\nend tell\nreturn ""')
+    try:
+        out = (run or (lambda a: subprocess.run(a, capture_output=True, text=True, timeout=20).stdout))(["osascript", "-e", script])
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return "typed" in (out or "")
 
 
 def connect(folder, now=None):

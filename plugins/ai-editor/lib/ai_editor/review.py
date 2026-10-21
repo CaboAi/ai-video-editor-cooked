@@ -425,6 +425,18 @@ def sound_name(src):
     return re.sub(r"^own-(house|skit|simple|swoop|windy|digital)-", "", n).removeprefix("own-")
 
 
+def caption_words(starts, text):
+    """A caption line's new text onto its words (overrides.json "words": {start: text}, preview.apply_overrides): one
+    word each while they last, the rest on the last word; a line with fewer words blanks the extra ones ("" deletes)."""
+    new = str(text).split()
+    if not starts:
+        raise ValueError("a caption line with no words")
+    out = {k: (new[i] if i < len(new) else "") for i, k in enumerate(starts)}
+    if len(new) > len(starts):
+        out[starts[-1]] = " ".join(new[len(starts) - 1:])
+    return out
+
+
 def card_override(folder, key, change):
     """The video page's move, resize or delete of a card into <edit>/overrides.json (preview.py apply_overrides,
     which plan.py runs after planning, so a re-plan keeps it). change: {"box": [x, y, w, h]} or {"deleted": True}."""
@@ -481,7 +493,9 @@ def screen_items(folder, p):
                       if x.get("kind") == "label" else [float(x.get("x_pct") or 6), float(x.get("y_pct") or 10), 60, round(size, 1)] if items
                       else [13, float(x.get("y_pct") or 10), 74, round(size, 1)]})
     return {"cards": cards, "texts": texts,
-            "captions": [{"s": round(x["start"], 2), "e": round(x["end"], 2), "text": str(x.get("text") or "")}
+            # each caption line with its words' starts (overrides.json "words" keys), so the page can edit the line
+            "captions": [{"s": round(x["start"], 2), "e": round(x["end"], 2), "text": str(x.get("text") or ""),
+                          "w": [f"{w['start']:.3f}" for w in x.get("words") or [] if "start" in w]}
                          for x in (p.get("captions") or {}).get("chunks") or [] if "start" in x and "end" in x],
             "cap": None if cap.get("present") is False else {"y": float(cap.get("y_pct") or 70), "h": round(size * 2.2, 1),
                                                                "w": float(cap.get("width_pct") or 86)},
@@ -1457,6 +1471,7 @@ def make_handler(folder, token):
                 ovf = folder / "overrides.json"   # sounds taken out of the plan, waiting for the next draft
                 d["sfx_removed"] = [float(k) for k, v in ((load(ovf).get("sfx") or {}) if ovf.exists() else {}).items()
                                     if isinstance(v, dict) and v.get("deleted")]
+                d["cap_words"] = ((load(ovf).get("words") or {}) if ovf.exists() else {})   # caption words retyped, for the next draft
                 d["placed_sounds"] = placed_sounds(folder)   # the timeline's Sounds row: the ones the user put there
                 d["sounds_ui"] = sounds_info() if d.get("stage") == "edit" else None   # the Sounds panel
                 d["captions_ui"] = captions_info(folder) if d.get("stage") == "edit" else None   # the Captions panel
@@ -1754,6 +1769,24 @@ def make_handler(folder, token):
                     return self.send(400, {"error": "sfx/add takes t and a library sound; sfx/remove takes t and placed or src"})
                 return self.timeline_note("sounds-timeline", "Sounds on the timeline", line,
                                           "Plan again so they are in (sounds.json and overrides.json sfx).")
+            if path == "/captions/text":   # the Captions panel's lines or the timeline: one caption line retyped, or deleted ("")
+                d = load(rj)
+                last = d["events"][-1]["type"] if d["events"] else None
+                if d.get("stage") != "edit" or d.get("sent") and last not in ("send", "edits"):
+                    return self.send(409, {"error": "Captions change on the edit, before it is approved."})
+                try:
+                    starts = [f"{float(k):.3f}" for k in body["w"]]
+                    words = caption_words(starts, str(body.get("text") or "")[:300])
+                    old, t = str(body.get("old") or "")[:300], float(body["s"])
+                except (KeyError, TypeError, ValueError):
+                    return self.send(400, {"error": "captions/text takes s, w (its word starts) and text"})
+                ovf = folder / "overrides.json"
+                ov = load(ovf) if ovf.exists() else {}
+                ov.setdefault("words", {}).update(words)
+                ovf.write_text(json.dumps(ov, indent=1), encoding="utf-8")
+                new = " ".join(w for w in words.values() if w)
+                line = f'"{old}" at {fmt(t)} now "{new}"' if new else f'"{old}" at {fmt(t)} taken out'
+                return self.timeline_note("caption-text", "Captions retyped", line, "Plan again so they show (overrides.json words).")
             if path == "/card/edit":   # the video page: a card moved, resized or deleted; overrides.json and a note for Claude
                 d = load(rj)
                 last = d["events"][-1]["type"] if d["events"] else None
@@ -3567,6 +3600,21 @@ def demo():
             os.environ.pop("AI_EDITOR_LIBRARY", None)
         else:
             os.environ["AI_EDITOR_LIBRARY"] = keep_lib
+    # caption lines retyped: words one each, extra on the last word, missing ones blanked; one running note
+    assert caption_words(["1.000", "1.300", "1.600"], "hello there") == {"1.000": "hello", "1.300": "there", "1.600": ""}
+    assert caption_words(["1.000", "1.300"], "a b c") == {"1.000": "a", "1.300": "b c"}
+    assert caption_words(["1.000"], "") == {"1.000": ""}
+    k1 = post("/captions/text", {"s": 1.0, "w": [1.0, 1.3], "text": "hello world!", "old": "hello world"})
+    k2 = post("/captions/text", {"s": 2.0, "w": [2.0], "text": "", "old": "later"})
+    assert k2["id"] == k1["id"] and k2["text"].startswith('Captions retyped: "hello world" at 0:01.0 now "hello world!"; "later" at 0:02.0 taken out.'), k2
+    assert json.loads(get("/state").read())["cap_words"] == {"1.000": "hello", "1.300": "world!", "2.000": ""}
+    try:
+        post("/captions/text", {"s": 1.0, "w": [], "text": "x"})
+        raise AssertionError("a line with no words")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    (folder / "overrides.json").unlink()
+    post("/delete", {"id": k1["id"]})
     # a card on the video: moved or resized, then deleted, into overrides.json with a note each; its picture is served
     trk_items = json.loads(get("/data?k=edit-1").read())["items"]["cards"]
     assert trk_items[0]["key"].startswith("later@"), trk_items

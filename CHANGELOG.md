@@ -5,7 +5,7 @@ What changed for every user, newest first.
 ## Unreleased
 
 ## ai-editor 2.7.25, creator-teardown 2.7.25 (2026-10-21)
-- Text and Sounds rows under the timeline on the edit, like CapCut's: each clip is as long as it lasts, a sound shows its waveform, with a ruler, a playhead and - / + zoom (it opens at about 15 s a screen). + Text and + Sound add one at the playhead (+ Sound picks from your sound library, each with Play). Click a text to change it, click a sound to hear it in place, and x on any of them takes it out.
+- Text and Sounds rows under the timeline on the edit, like CapCut's: each clip is as long as it lasts, a sound shows its waveform, with a ruler, a playhead and - / + zoom (it opens at about 15 s a screen). A Captions row shows every caption line; click one on the timeline or on the video to retype it in the Captions panel's Lines (Enter saves and goes to the next line), x takes a line out. + Text and + Sound add one at the playhead (+ Sound picks from your sound library, each with Play). Click a text to change it, click a sound to hear it in place, and x on any of them takes it out.
 
 ## ai-editor 2.7.24, creator-teardown 2.7.24 (2026-10-21)
 - A Sounds tool beside Text and Captions: the sound library. Each moment that gets a sound (a card slides in, a logo pops, a zoom, a big moment, an impact, a card leaves) has Play, Default, Off and your own sound files (+ Your own). Picks are for every video.

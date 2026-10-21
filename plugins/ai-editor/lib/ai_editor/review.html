@@ -579,7 +579,7 @@ body.making #making{display:flex}
  <button class="ritem rtool" id="railtext" type="button" hidden title="Text on the video"><i><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></i>Text</button>
  <div class="rflex"></div>
  <a class="ritem rjob" id="railjobs" data-home data-view="videos" href="#" hidden><i><span id="jobn">0</span><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="var(--line)" stroke-width="2.5"/><path d="M12 2a10 10 0 0 1 9.5 13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></i>Making</a>
- <button class="ritem rupd" id="railupd" type="button" hidden><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></i><span id="railupdt">Update</span></button>
+ <button class="ritem" id="railupd" type="button"><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></i><span id="railupdt">Update</span></button>
  <a class="ritem" data-home data-view="settings" href="#"><i><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg></i>Settings</a>
  <button class="themebtn"></button>
 </nav>
@@ -710,18 +710,27 @@ document.getElementById('homebtn').onclick=()=>{
 function renderRail(){
   document.body.classList.toggle('nohome',!S.home);
   document.querySelectorAll('.rail [data-view]').forEach(a=>{a.href=S.home?S.home+'#'+a.dataset.view:'#'});
-  const u=S.update,ub=$('railupd');ub.hidden=!u;
-  if(u&&u.busy)updWas=true;if(u&&updWas&&!u.busy)updating=updWas=false;   // the update ended (done: this page restarts on it)
-  if(u){ub.disabled=!!u.busy||updating;$('railupdt').textContent=u.busy||updating?'Updating':u.error?'Try again':'Update';ub.title=u.busy||updating?'Installing the new version. This page restarts on it.':u.error||'Install cooked. '+(u.latest||'')}
+  // Updates: always in the rail. Update to <version> when one is out (the window installs it), else Check for updates
+  const u=S.update||{},ub=$('railupd'),inst=u.newer||u.busy||u.error||updating;
+  if(u.busy)updWas=true;if(updWas&&!u.busy)updating=updWas=false;   // the update ended (done: this page restarts on it)
+  ub.classList.toggle('rupd',!!inst);ub.disabled=!!u.busy||updating||checking||!!u.checking;
+  $('railupdt').textContent=u.busy||updating?'Updating':u.error?'Try again':u.newer?'Update to '+(u.latest||'new'):checking||u.checking?'Checking...':'Check for updates';
+  ub.title=u.busy||updating?'Installing the new version. This page restarts on it.':u.error||(u.newer?'Install cooked. '+(u.latest||''):'Ask GitHub for a new version'+(u.installed?'. You have '+u.installed:''));
   const n=S.home?S.jobs||0:0;$('railjobs').hidden=!n;$('jobn').textContent=n;$('railjobs').title=n?'Making '+plural(n,'video'):'';
 }
-let updating=false,updWas=false;
+let updating=false,updWas=false,checking=false;
 // the window closed: the rail still shows, and a click starts the window's page (POST /home) and goes there
 document.querySelector('.rail').addEventListener('click',async e=>{const a=e.target.closest('[data-home]');if(!a||(S&&S.home))return;e.preventDefault();
   if(a.dataset.busy)return;a.dataset.busy='1';toast('Opening your videos...');
   try{const r=await fetch('/home',{method:'POST',body:'{}'}),j=await r.json();if(j.url)location.href=j.url+'#'+a.dataset.view;else alert(j.error||'The editor did not open.')}
   finally{delete a.dataset.busy}});
-$('railupd').onclick=async()=>{updating=true;renderRail();setTimeout(()=>{updating=false;if(S)renderRail()},15000);try{const r=await fetch('/update',{method:'POST',body:'{}'});if(!r.ok){updating=false;alert('The window is not open, so it cannot update. Open cooked. and press Update in Settings.')}}catch(e){updating=false}renderRail()};
+$('railupd').onclick=async()=>{const u=(S&&S.update)||{};
+  if(!(u.newer||u.error)){   // Check for updates: the window asks GitHub; the item turns into Update to <version>, or says you are up to date
+    checking=true;renderRail();try{const r=await fetch('/update/check',{method:'POST',body:'{}'});if(!r.ok)toast((await r.json().catch(()=>({}))).error||'Could not check')
+      else for(let i=0;i<24;i++){await new Promise(r=>setTimeout(r,500));await load(true);if(!(S.update||{}).checking&&i>1)break}}
+    finally{checking=false;renderRail()}
+    const v=S.update||{};if(!v.newer&&v.latest)toast('Up to date. You have '+(v.installed||v.latest)+'.');return}
+  updating=true;renderRail();setTimeout(()=>{updating=false;if(S)renderRail()},15000);try{const r=await fetch('/update',{method:'POST',body:'{}'});if(!r.ok){updating=false;alert('The window is not open, so it cannot update. Open cooked. and press Update in Settings.')}}catch(e){updating=false}renderRail()};
 let railx=false;try{railx=localStorage.getItem('review-railx')==='1'}catch(e){}
 document.body.classList.toggle('railx',railx);
 $('newclaude').onclick=async()=>{$('newclaude').disabled=true;await post('/claude',{});await load(true);$('newclaude').disabled=false};

@@ -4,6 +4,7 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- The left menu has Check for updates, always, on the video page and the home window. It turns into Update to <version> when one is out, and says when you are up to date.
 ## ai-editor 2.7.22, creator-teardown 2.7.22 (2026-10-20)
 - Check now sees a new release the moment it is out. It read GitHub's 5-minute cached copy before, so a fresh release could still show as the old one.
 

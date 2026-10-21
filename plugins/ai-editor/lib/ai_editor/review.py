@@ -100,6 +100,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 import urllib.error
 import urllib.request
 import webbrowser
@@ -871,16 +872,83 @@ def busy(folder):
 REOPEN_S = 900   # one new Claude per edit this often at most (a trust prompt can hold it in its Terminal)
 
 
+def who_claude():
+    """The Claude Code running this command: {session, pid, tty, cwd, app} from the process tree (the nearest
+    `claude` above this process, and the app above that), or {} outside one (Windows has no ps: {})."""
+    pid, out = os.getpid(), {}
+    for _ in range(15):
+        try:
+            row = subprocess.run(["ps", "-o", "ppid=,tty=,comm=", "-p", str(pid)], capture_output=True, text=True,
+                                 timeout=3).stdout.split(None, 2)
+        except (OSError, subprocess.TimeoutExpired):
+            return {}
+        if len(row) < 3:
+            break
+        ppid, tty, comm = row[0], row[1], row[2].strip()
+        if not out and Path(comm).name == "claude":
+            out = {"pid": pid, "tty": "/dev/" + tty if tty not in ("?", "??") else ""}
+        elif out and ".app/" in comm:
+            out["app"] = comm.split(".app/")[0].rsplit("/", 1)[-1]
+            break
+        pid = int(ppid)
+    if not out:
+        return {}
+    try:   # the folder it runs in: `claude --resume` finds a conversation only from there
+        cwd = subprocess.run(["lsof", "-a", "-p", str(out["pid"]), "-d", "cwd", "-Fn"], capture_output=True, text=True,
+                             timeout=3).stdout
+        out["cwd"] = next((x[1:] for x in cwd.splitlines() if x.startswith("n")), "")
+    except (OSError, subprocess.TimeoutExpired):
+        out["cwd"] = ""
+    return {**out, "session": askhook.session()}
+
+
+def last_claude(folder):
+    """The Claude that last ran a command on this edit (who_claude, kept in review/.claude), or {}."""
+    try:
+        return json.loads((folder / "review" / ".claude").read_text(encoding="utf-8") or "{}")
+    except (OSError, ValueError):
+        return {}
+
+
+def claude_alive(w):
+    """That Claude Code is still running (its pid is a `claude`)."""
+    try:
+        comm = subprocess.run(["ps", "-o", "comm=", "-p", str(int(w.get("pid") or 0))], capture_output=True, text=True,
+                              timeout=3).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return False
+    return Path(comm).name == "claude"
+
+
+def resume_cmd(w):
+    """What to paste into a terminal to open that Claude's conversation again."""
+    return f"cd {shlex.quote(w['cwd'])} && claude --resume {w['session']}" if w.get("session") and w.get("cwd") else ""
+
+
 def reopen(folder, rj, force=False):
-    """Notes sent or approved with no Claude on this edit: a new Terminal with a Claude that carries on with it
-    (`/ai-editor:start carry on edits/<name>`, in the library). Never while a `wait` listens; force (the page's
-    "Open a new Claude") also when a Claude worked here lately, since it may have stopped. Kept on review.json as
-    "claude": {opened, command, at} so the page says where it is, or shows the command where no terminal opened."""
+    """Notes sent or approved with no Claude on this edit. The Claude that worked here first: still open in a
+    Terminal tab, the carry-on prompt is typed into it; closed, its conversation opens again (`claude --resume`).
+    Only with neither, a new Claude (`/ai-editor:start carry on edits/<name>`, in the library). Never while a `wait`
+    listens; force (the page's "Open a new Claude") also when a Claude worked here lately, since it may have stopped.
+    Kept on review.json as "claude": {opened, how, command, session, at} so the page says where it went."""
     if listening(folder) or not force and (busy(folder) or time.time() - ((load(rj).get("claude") or {}).get("at") or 0) < REOPEN_S):
         return None
     import launcher
-    opened, cmd = launcher.open_claude(folder.parent.parent, f"/ai-editor:start carry on edits/{folder.name}")
-    r = {"opened": opened, "command": cmd, "at": time.time()}
+    prompt, w = f"/ai-editor:start carry on edits/{folder.name}", last_claude(folder)
+    alive = claude_alive(w)
+    if alive and w.get("app") == "Terminal" and launcher.type_into(w.get("tty"), prompt):
+        r = {"opened": True, "how": "typed", "command": resume_cmd(w), "session": w.get("session")}
+    elif not alive and w.get("session") and w.get("cwd"):
+        opened, cmd = launcher.open_claude(Path(w["cwd"]), prompt, session=w["session"], resume=True)
+        r = {"opened": opened, "how": "resumed", "command": cmd, "session": w["session"]}
+    else:   # none known, or one still open where it cannot be typed into: a second copy of it would clash
+        sid = str(uuid.uuid4())
+        opened, cmd = launcher.open_claude(folder.parent.parent, prompt, session=sid)
+        r = {"opened": opened, "how": "new", "command": cmd, "session": sid}
+        if opened:
+            r["resume"] = f"cd {shlex.quote(str(folder.parent.parent))} && claude --resume {sid}"
+    r.setdefault("resume", resume_cmd(w) if r["how"] != "new" else "")
+    r["at"] = time.time()
     update(rj, lambda d: d.update(claude=r))
     return r
 
@@ -1236,6 +1304,7 @@ def make_handler(folder, token):
                 d["theme"] = theme()
                 d["listening"], d["busy"] = listening(folder), busy(folder)
                 d["resume"] = resume_text(folder, d)
+                d["session_cmd"] = resume_cmd(last_claude(folder)) or (d.get("claude") or {}).get("resume") or ""   # Copy session
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
                 d["cutcheck"] = (folder / "cut-check.html").exists()
                 d["rawvideo"] = raw_video(folder, d) is not None   # the transcript editor's preview plays the raw take
@@ -2727,11 +2796,16 @@ def demo():
     # notes sent with no Claude on the edit: a new one opens in the library to carry on; never twice, never over a listener
     import launcher
     opened = []
-    launcher.open_claude = lambda folder, prompt: (opened.append((folder, prompt)) or True, "claude '" + prompt + "'")
+    launcher.open_claude = lambda folder, prompt, session=None, resume=False: (
+        opened.append((folder, prompt, resume)) or True, "claude '" + prompt + "'")
+    typed, keep_type = [], launcher.type_into
+    launcher.type_into = lambda tty, text: typed.append((tty, text)) or tty == "/dev/ttys-open"
     rf = tmp / "lib" / "edits" / "solo"
     (rf / "review").mkdir(parents=True)
     save(rf / "review.json", {})
-    assert reopen(rf, rf / "review.json")["opened"] and opened == [(tmp / "lib", "/ai-editor:start carry on edits/solo")]
+    r0 = reopen(rf, rf / "review.json")
+    assert r0["opened"] and r0["how"] == "new" and opened == [(tmp / "lib", "/ai-editor:start carry on edits/solo", False)]
+    assert re.fullmatch(r"cd \S+ && claude --resume [0-9a-f-]{36}", r0["resume"]) and r0["session"] in r0["resume"], r0
     assert reopen(rf, rf / "review.json") is None and len(opened) == 1, "one per 15 min"
     (rf / "review" / ".listening").touch()
     assert reopen(rf, rf / "review.json", force=True) is None, "a listening Claude takes the notes"
@@ -2739,6 +2813,22 @@ def demo():
     (rf / "review" / ".claude").touch()
     update(rf / "review.json", lambda d: d.pop("claude"))
     assert reopen(rf, rf / "review.json") is None and reopen(rf, rf / "review.json", force=True) and len(opened) == 2, "busy: only the button"
+    # the Claude that worked here goes first: open in a Terminal tab, the prompt is typed there; closed, it resumes
+    me = {"pid": os.getpid(), "tty": "/dev/ttys-open", "app": "Terminal", "cwd": str(tmp), "session": "s-1"}
+    keep_alive = globals()["claude_alive"]
+    globals()["claude_alive"] = lambda w: w.get("pid") == os.getpid()
+    (rf / "review" / ".claude").write_text(json.dumps(me), encoding="utf-8")
+    r1 = reopen(rf, rf / "review.json", force=True)
+    assert r1["how"] == "typed" and typed[-1] == ("/dev/ttys-open", "/ai-editor:start carry on edits/solo") and len(opened) == 2, r1
+    assert r1["resume"] == f"cd {shlex.quote(str(tmp))} && claude --resume s-1", r1
+    (rf / "review" / ".claude").write_text(json.dumps({**me, "pid": 999999999}), encoding="utf-8")
+    r2 = reopen(rf, rf / "review.json", force=True)
+    assert r2["how"] == "resumed" and opened[-1] == (tmp, "/ai-editor:start carry on edits/solo", True), (r2, opened[-1])
+    (rf / "review" / ".claude").write_text(json.dumps({**me, "app": "Cursor"}), encoding="utf-8")
+    assert reopen(rf, rf / "review.json", force=True)["how"] == "new", "open in an app that cannot be typed into: a new one"
+    globals()["claude_alive"], launcher.type_into = keep_alive, keep_type
+    w = who_claude()   # this demo's own process tree: a `claude` above it only when Claude Code runs it
+    assert not w or (w["pid"] and "session" in w), w
     # a page no session owns takes only questions with no session: another project's Claude never asks there
     assert asker(rf, "")("sess-other") is None and asker(rf, "")("") == "solo"
     # the skills on a video: ran (the last one now while it is made), then the style's and chained ones still to run
@@ -3703,7 +3793,11 @@ def main():
         sys.exit(f"no review in {folder}: run `start` first")
     if a.cmd != "serve":   # every Claude-side command marks Claude as working on this edit
         (folder / "review").mkdir(parents=True, exist_ok=True)
-        (folder / "review" / ".claude").touch()
+        w = who_claude()   # which Claude, and where: Send types into it, or resumes it, before opening a new one
+        if w or not (folder / "review" / ".claude").exists():
+            (folder / "review" / ".claude").write_text(json.dumps(w), encoding="utf-8")
+        else:
+            (folder / "review" / ".claude").touch()
         if askhook.session():   # this session's questions now go to this edit's page
             (folder / "review" / ".session").write_text(askhook.session(), encoding="utf-8")
     if a.cmd == "start":

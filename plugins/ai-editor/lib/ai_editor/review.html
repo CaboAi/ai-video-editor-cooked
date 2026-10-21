@@ -274,6 +274,7 @@ aside{width:var(--sidew,320px);flex-shrink:0;background:var(--panel);border-left
 #list{flex:1;min-height:0;overflow:auto;padding:4px 16px 16px;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin}
 .claude{display:flex;flex-direction:column;gap:12px;padding:14px;border:1px solid var(--line);border-radius:12px;flex-shrink:0}
 .claude>div{display:flex;flex-direction:column;gap:2px}
+.sesscp{align-self:flex-start;border:0;background:none;padding:0;font-size:12px;line-height:16px;color:var(--muted);text-decoration:underline;text-underline-offset:2px;cursor:pointer}.sesscp:hover{color:var(--ink)}
 .claude b{font-size:13px;line-height:16px;font-weight:600;color:var(--strong)}
 .claude p{margin:0;font-size:14px;line-height:20px;color:var(--ink)}
 .claude a{color:var(--ink);text-underline-offset:3px;text-decoration-color:var(--line2)}
@@ -745,6 +746,9 @@ $('dl').addEventListener('click',async e=>{
     toast('The video did not download. Try again.')}finally{delete a.dataset.busy}
 });
 $('resumebtn').onclick=async()=>{try{await navigator.clipboard.writeText(S.resume);toast('Copied. Paste it into Claude Code.')}catch(e){toast('Could not copy')}};
+// Copy session: `cd <folder> && claude --resume <id>` for the Claude on this video, to open it yourself
+const sessBtn=()=>S&&S.session_cmd?'<button class="sesscp" data-sess title="Paste it into a terminal to open this Claude">Copy session</button>':'';
+document.addEventListener('click',async e=>{if(!e.target.closest('[data-sess]'))return;try{await navigator.clipboard.writeText(S.session_cmd);toast('Copied. Paste it into a terminal.')}catch(x){toast('Could not copy')}});
 function toast(t){const e=$('toast');e.innerHTML=TICK+esc(t);e.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>e.classList.remove('show'),3500)}
 function cmpOptions(){   // what can play beside this round: its other versions, then earlier rounds of this stage
   const r=viewRound(),o=['',...(r.alts||[]).map(a=>a.name)].filter(x=>x!==alt).map(x=>({k:key(view),alt:x,label:lab(x)}));
@@ -810,7 +814,7 @@ function steps(){
   });
 }
 // the new Claude review.py opened for this edit in the last 15 min (Submit with no Claude on it, or Open a new Claude)
-const newClaude=S=>!S.listening&&S.claude&&Date.now()/1000-S.claude.at<900?(S.claude.opened?'A new Claude is starting in its own Terminal window':'Run this in a terminal to start Claude: '+S.claude.command):'';
+const newClaude=S=>!S.listening&&S.claude&&Date.now()/1000-S.claude.at<900?(S.claude.opened?{typed:'Your notes went to the Claude already open in Terminal',resumed:'The Claude that worked on this opens again in Terminal'}[S.claude.how]||'A new Claude is starting in its own Terminal window':'Run this in a terminal to start Claude: '+S.claude.command):'';
 function listenText(S){
   const e=S.events[S.events.length-1],picked=!!(S.sent&&e&&e.handled);
   if(picked&&e.type==='approve')return e.stills?'Claude is making the video':e.stage==='cut'?(S.stage==='cut'&&!S.final?'Claude is making the edit':'The cut is approved'):'Approved';
@@ -969,7 +973,7 @@ function workHtml(){
       :`<li class="todo"><span class="ic"><i></i></span>${esc(m.steps[k])}</li>`).join('')
       +(m.extra?`<li class="now"><span class="ic">${SPIN}</span>${esc(m.extra)}</li>`:'');
     const ok=S.stills?'The preview is approved. ':'The cut is approved. ';
-    return `<div class="claude"><div><b>Claude</b><p>${esc(m.idle?ok+m.idle:ok+(S.stills?'Claude is making the video':'Claude is making the edit')+(m.style?' in '+m.style:'')+'.')}</p></div><ol class="steps">${li}</ol>${m.at&&!m.idle?`<span class="since" data-since="${esc(m.at)}">Working for ${dur((Date.now()-new Date(m.at))/1000)}</span>`:''}</div>`}
+    return `<div class="claude"><div><b>Claude</b><p>${esc(m.idle?ok+m.idle:ok+(S.stills?'Claude is making the video':'Claude is making the edit')+(m.style?' in '+m.style:'')+'.')}</p></div><ol class="steps">${li}</ol>${m.at&&!m.idle?`<span class="since" data-since="${esc(m.at)}">Working for ${dur((Date.now()-new Date(m.at))/1000)}</span>`:''}${sessBtn()}</div>`}
   if(p==='approve')return `<div class="claude"><div><b>Claude</b><p>${S.stage==='cut'?'The cut is approved. It is the finished video.':'Approved. The edit is finished.'}</p></div></div>`+learnHtml();
   if(S.raw&&S.cut_steps)return cutHtml(S.cut_steps);
   if(p!=='send'&&(!live||S.stage==='cut'))return '';   // the cut is ready: what Claude does next is the edit's prep, not this round
@@ -980,7 +984,7 @@ function workHtml(){
   const li=act.map(x=>x.done?`<li><span class="ic">${TICK}</span>${esc(x.text)}</li>`
     :`<li class="now"><span class="ic">${SPIN}</span>${esc(x.text)}</li>`+(x.pct!=null?`<li class="pb"><em><i style="width:${x.pct}%"></i></em>${x.pct}%</li>`:'')).join('');
   const sent=e&&e.type==='send'?e.at:null;
-  return `<div class="claude"><div><b>Claude</b><p>${esc(head)}</p></div>${li?`<ol class="steps">${li}</ol>`:''}${sent&&p==='send'?`<span class="since" data-since="${esc(sent)}">Working for ${dur((Date.now()-new Date(sent))/1000)}</span>`:''}</div>`;
+  return `<div class="claude"><div><b>Claude</b><p>${esc(head)}</p></div>${li?`<ol class="steps">${li}</ol>`:''}${sent&&p==='send'?`<span class="since" data-since="${esc(sent)}">Working for ${dur((Date.now()-new Date(sent))/1000)}</span>`:''}${sessBtn()}</div>`;
 }
 // round 0: every step the cut takes (review.py cut_steps, from the scripts' own reports), ticked as they finish
 function cutHtml(c){

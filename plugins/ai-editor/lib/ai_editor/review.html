@@ -376,14 +376,23 @@ aside{width:var(--sidew,320px);flex-shrink:0;background:var(--panel);border-left
 #savebtn.ready{opacity:1;pointer-events:auto}
 /* the Text tool: words typed into the box go on the video, dragged into place, in TikTok's three looks */
 #tools{grid-row:2;grid-column:3;justify-self:end;display:flex;gap:2px}
-#txtbtn{width:32px;height:28px;border-radius:8px;color:var(--body);display:grid;place-items:center;font:700 14px/1 system-ui,-apple-system,sans-serif}
-#txtbtn:hover{background:var(--chip)}#txtbtn.on{background:var(--ink);color:var(--onink)}#txtbtn[hidden]{display:none}
-#tstyle{grid-row:4;grid-column:1/-1;display:none;align-items:center;gap:6px;padding:2px}body.texting #tstyle{display:flex}
-#tstyle span{flex:1;font-size:12px;line-height:16px;color:var(--muted)}
-#tstyle button{height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--line2);background:var(--panel);font-size:12px;font-weight:600;color:var(--strong)}
-#tstyle button.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
 #tlayer{overflow:hidden}
+body.txtab #box,body.txtab #adds{display:none}body.txtab .pfoot{padding-top:0;border-top:0}
+.tsub{margin:0;color:var(--muted);font-size:13px;line-height:18px}
+.tstyles{display:flex;gap:6px}.tstyles button{flex:1;height:32px;border-radius:8px;border:1px solid var(--line2);background:var(--panel);font-size:13px;font-weight:600;color:var(--ink)}
+.tstyles button:hover{border-color:var(--ink)}.tstyles button.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.tnew{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px}
+.tnew b{font-size:13px;line-height:16px;color:var(--strong)}
+.tnew input{height:36px;border:1px solid var(--line2);border-radius:8px;background:var(--panel);padding:0 10px;font:inherit;font-size:14px;color:var(--strong);outline:none}.tnew input:focus{border-color:var(--ink)}
+.tnew .row{display:flex;gap:8px;align-items:center}.tnew .row span{flex:1;font-size:12px;line-height:16px;color:var(--muted)}
+.tnew button{height:32px;padding:0 12px;border-radius:8px;font-size:13px;font-weight:600}.tnew #tadd{background:var(--ink);color:var(--onink)}.tnew #tadd:disabled{opacity:.4}.tnew #tcancel{color:var(--body)}
+.tlist{display:flex;flex-direction:column;gap:6px}.tlist h4{margin:8px 0 2px;font-size:12px;line-height:16px;font-weight:600;color:var(--muted)}
+.titem{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}.titem:hover{border-color:var(--line2)}.titem.on{border-color:var(--ink)}
+.titem>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.titem b{font-size:14px;line-height:18px;color:var(--strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.titem span{font-size:12px;line-height:16px;color:var(--muted)}
+.titem button{height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--line2);font-size:12px;font-weight:600;color:var(--ink);flex-shrink:0}.titem button:hover{border-color:var(--ink)}
 .tl{position:absolute;transform:translate(-50%,-50%);width:84%;text-align:center;font-family:'TikTok Sans',system-ui,-apple-system,sans-serif;font-weight:700;line-height:1.15;white-space:pre-wrap;overflow-wrap:anywhere}
+.tl[data-tclick]{pointer-events:auto;cursor:pointer}.tl[data-tclick]:hover{outline:1px dashed rgba(255,255,255,.8);outline-offset:4px}
 #tprev{pointer-events:auto;cursor:move;touch-action:none;outline:1px dashed rgba(255,255,255,.8);outline-offset:4px}
 .ts-plain,.ts-outline{color:#FFFFFF}.ts-outline{-webkit-text-stroke:.14em #000;paint-order:stroke fill}
 .ts-box{color:#000000;background:#FFFFFF;padding:.06em .24em;border-radius:.18em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
@@ -606,7 +615,7 @@ body.making #making{display:flex}
 </div>
 <div class="rsz" id="rszside" role="separator" aria-orientation="vertical" aria-label="drag to resize the notes panel" title="drag to resize"></div>
 <aside>
- <div class="phead"><div class="seg" id="ptabs"><button data-tab="notes">Notes <small id="ncount"></small></button><button data-tab="rounds">Drafts</button><button data-tab="trials" hidden>Trial reels</button></div><span id="pmeta"></span></div>
+ <div class="phead"><div class="seg" id="ptabs"><button data-tab="notes">Notes <small id="ncount"></small></button><button data-tab="text" hidden>Text</button><button data-tab="rounds">Drafts</button><button data-tab="trials" hidden>Trial reels</button></div><span id="pmeta"></span></div>
  <div class="mhead2"><div><b>Notes</b><span id="mcount"></span></div><button id="msend"></button></div>
  <div id="list"></div>
  <div class="pfoot">
@@ -615,10 +624,9 @@ body.making #making{display:flex}
    <input type="file" id="picin" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
    <input type="file" id="editpic" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
    <div class="crow"><button id="clock" title="the note is saved at the playhead. i and o mark a range; click to clear it."><svg width="13" height="13" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 4v3.2l2 1.3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span id="boxat" class="num">0:00.0</span></button>
-    <span id="tools"><button id="txtbtn" aria-label="add text on screen" title="Add text on screen" hidden>T</button><button id="picbtn" aria-label="attach an image" title="attach an image (or paste or drop one)"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3l-5.5 5.5a1 1 0 01-1.5-1.5L9.9 4.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button></span>
+    <span id="tools"><button id="picbtn" aria-label="attach an image" title="attach an image (or paste or drop one)"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3l-5.5 5.5a1 1 0 01-1.5-1.5L9.9 4.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button></span>
     <select id="scope" aria-label="which videos the note is for"></select>
-    <button id="savebtn" aria-label="save note" title="save note (enter)"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 12V2M3 6l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
-   <div id="tstyle"><span>Drag it on the video</span><button data-ts="plain">Plain</button><button data-ts="outline">Outline</button><button data-ts="box">Box</button></div></div>
+    <button id="savebtn" aria-label="save note" title="save note (enter)"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 12V2M3 6l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div>
   <div class="actions"><a id="dl" href="/download" download hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>Download</a><button id="send"><i></i><span></span></button><button id="approve"></button></div>
  </div>
 </aside>
@@ -869,7 +877,7 @@ function render(){
   $('mcount').textContent=mine?mine+(p?'':', not sent'):'';
   if(S.trials&&S.trials.v!==trOpened){trOpened=S.trials.v;if(S.trials.state==='proposed')tab='trials'}   // a new plan: open the tab on it
   if(!S.trials&&tab==='trials')tab='notes';
-  $('ptabs').querySelector('[data-tab=trials]').hidden=!S.trials;document.body.classList.toggle('trtab',tab==='trials');
+  $('ptabs').querySelector('[data-tab=trials]').hidden=!S.trials;document.body.classList.toggle('trtab',tab==='trials');document.body.classList.toggle('txtab',tab==='text');
   [...$('ptabs').children].forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
   const nv=(vr.alts||[]).length;
   meta();
@@ -877,7 +885,7 @@ function render(){
   // the composer: open until approve. While Claude works, a note waits for the next round
   const canNote=noteOk();
   ta.disabled=!canNote;box.classList.toggle('off',!canNote);
-  ta.placeholder=tx?'Type the text to show on screen...':previewOn?'Back to the cut to leave a note':p==='send'?(S.raw?'Note for the cut...':'Note for the next draft...'):!isCur()?'Older draft, read only':p==='approve'?(S.stills?'The preview is approved':S.stage==='cut'&&!S.final?'The cut is approved':'Approved'):view.round>1?'Feedback on '+dn(viewRound())+' at this moment...':'Type feedback for this moment...';
+  ta.placeholder=previewOn?'Back to the cut to leave a note':p==='send'?(S.raw?'Note for the cut...':'Note for the next draft...'):!isCur()?'Older draft, read only':p==='approve'?(S.stills?'The preview is approved':S.stage==='cut'&&!S.final?'The cut is approved':'Approved'):view.round>1?'Feedback on '+dn(viewRound())+' at this moment...':'Type feedback for this moment...';
   const sc=$('scope');sc.style.display=nv&&canNote?'block':'none';
   if(nv)sc.innerHTML=`<option value="">${esc(lab(alt))} only</option><option value="*">${nv===1?'Both':'All'} versions</option>`;
   renderVer();renderTx();renderBar();renderTracks();renderList();renderAdds();boxTime();hitSig='~';renderHits();
@@ -1055,7 +1063,8 @@ function renderList(){
       const ta2=l.querySelector('.trta');if(ta2){ta2.value=trAsk;if(f){ta2.focus();ta2.setSelectionRange(pos,pos)}}}
     return;
   }
-  $('list')._trh='';
+  if(tab==='text')return renderTextPanel();
+  $('list')._trh='';$('list')._tx=0;
   if(tab==='rounds'){
     const rs=(S.rounds||[cur()]).filter(r=>r.stage===view.stage).slice().reverse(),p=pending();
     $('list').innerHTML=rs.map(r=>{const n=S.comments.filter(c=>c.stage===r.stage&&c.round===r.round).length,k=key(r);
@@ -1529,7 +1538,9 @@ function startNote(text,a,b,on){
   if(!noteOk())return;noteOn=on||null;v.pause();if(a!=null){inT=a;outT=b??null;if(Math.abs(v.currentTime-a)>.05&&(v.currentTime<a||b==null||v.currentTime>b))v.currentTime=a}
   ta.value=text;grow();renderBar();boxTime();ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);
 }
-$('hits').addEventListener('click',e=>{const b=e.target.closest('[data-hit]');if(!b)return;e.stopPropagation();const u=HITS[+b.dataset.hit];if(u)startNote(lead(u.k,u.x),u.x.s,u.x.e,{k:u.k,text:u.x.text||u.x.label||''})});
+$('hits').addEventListener('click',e=>{const b=e.target.closest('[data-hit]');if(!b)return;e.stopPropagation();const u=HITS[+b.dataset.hit];
+  if(u&&u.k==='texts'&&u.x.kind==='label'){const m=(S.texts||[]).find(x=>Math.abs(x.start-u.x.s)<.05&&x.text===u.x.text);if(m)return editText(m.id,false)}   /* your own text: click to change it */
+ if(u)startNote(lead(u.k,u.x),u.x.s,u.x.e,{k:u.k,text:u.x.text||u.x.label||''})});
 $('mini').addEventListener('click',e=>{const m=e.target.closest('[data-mk]');if(!m)return;const x=((data().items||{})[m.dataset.mk]||[])[+m.dataset.i];
   if(x&&noteOk())startNote(lead(m.dataset.mk,x),x.s,x.e,{k:m.dataset.mk,text:x.text||x.label||''});else v.currentTime=+m.dataset.s});
 // notes: the clock is always the playhead (scrub, a transcript word, a pin, a skip, a key, play), typing or not.
@@ -1579,35 +1590,82 @@ $('pics').onclick=e=>{const b=e.target.closest('[data-rm]');if(b){pics.splice(+b
 ta.addEventListener('paste',e=>{const fs=[...(e.clipboardData?.files||[])];if(fs.length){e.preventDefault();addFiles(fs)}});
 box.addEventListener('dragover',e=>{e.preventDefault();if(!ta.disabled)box.classList.add('drag')});box.addEventListener('dragleave',()=>box.classList.remove('drag'));
 box.addEventListener('drop',e=>{e.preventDefault();box.classList.remove('drag');if(!ta.disabled)addFiles(e.dataTransfer.files)});
-// the Text tool (T in the box): the typed words show on the frame as they will render (Texts.tsx "label"), dragged into
-// place; saved as a note with add_text, from the playhead for 3 s or over an i/o range. review.py `wait` puts it in texts.json.
+// the Text tab (beside Notes): pick a look, type, drag it on the video, Add text. It starts at the playhead for 3 s, or
+// over an i/o range, and is saved as a note with add_text (review.py `wait` puts it in texts.json). Every text of the edit
+// is listed; click one (in the list, or on the video) to change its words, look, place or time (i/o) and Save.
+// A sent one is changed in texts.json with a note (/text/edit) or taken out (/text/delete), so the next draft follows.
 const TSTY={plain:'Plain',outline:'Outline',box:'Box'},TEXT_SIZE=6;
-let tx=null,tsig='';
-function setText(on){tx=on?{style:(tx&&tx.style)||'outline',x:50,y:40}:null;document.body.classList.toggle('texting',!!tx);$('txtbtn').classList.toggle('on',!!tx);
-  tsig='';if(S)render();renderTexts();if(tx){v.pause();ta.focus()}}
-$('txtbtn').onclick=()=>{if(!ta.disabled)setText(!tx)};
-$('tstyle').onclick=e=>{const b=e.target.closest('[data-ts]');if(b&&tx){tx.style=b.dataset.ts;tsig='';renderTexts();ta.focus()}};
+let tx=null,tsig='';   // tx: the text being made or changed {style,x,y,word,edit:{id,fresh,start,end}}
+const tword=()=>{const w=$('tword');return w?w.value.trim():tx?tx.word||'':''};
+function setText(style,edit){tx=style?{style,x:edit?edit.x_pct:(tx&&tx.x)||50,y:edit?edit.y_pct:(tx&&tx.y)||40,word:edit?edit.text:tword(),edit:edit||(tx&&tx.edit)||null}:null;
+  if(edit&&edit.start!=null&&Math.abs(v.currentTime-edit.start)>.05&&!(v.currentTime>=edit.start&&v.currentTime<edit.end))v.currentTime=edit.start+.05;
+  document.body.classList.toggle('texting',!!tx);if(tab!=='text'&&tx){tab='text'}
+  tsig='';$('list')._tf=null;if(S)render();renderTexts();if(tx){v.pause();setTimeout(()=>{const w=$('tword');if(w){w.focus();w.select()}},0)}}
+function textItems(){   // sent ones (texts.json) and this edit's text notes not in it yet
+  const sent=S.texts||[],ids=new Set(sent.map(x=>x.id));
+  const fresh=S.comments.filter(c=>c.add_text&&c.stage==='edit'&&!ids.has('edit'+c.round+'-'+c.id))   // with Claude, not in texts.json yet: shown, locked
+    .map(c=>({id:c.id,text:c.text,style:c.add_text.style,x_pct:c.add_text.x_pct,y_pct:c.add_text.y_pct,start:c.t,end:c.t_end??c.t+3,fresh:editable(c),locked:!editable(c)}));
+  return [...fresh,...sent.map(x=>({...x,fresh:false}))].sort((a,b)=>a.start-b.start)}
+const editable=c=>!(S.sent&&!c.queued)&&c.round>=S.round;
+function renderTextPanel(){
+  const l=$('list');
+  if(!l._tx){l._tx=1;l._trh='';l.innerHTML=`<p class="tsub">Text on the video. Pick a look, type, and drag it into place. It starts at the playhead and stays 3 s, or over the range you mark with i and o. Click a text to change it.</p>
+    <div class="tstyles" id="tstyles">${Object.entries(TSTY).map(([k,n])=>`<button data-ts="${k}">${n}</button>`).join('')}</div><div id="tform"></div><div class="tlist" id="trows"></div>`}
+  document.querySelectorAll('#tstyles [data-ts]').forEach(b=>b.classList.toggle('on',!!tx&&b.dataset.ts===tx.style));
+  const f=$('tform'),sig=tx?(tx.edit?'e'+tx.edit.id:'n'):'';
+  if(l._tf!==sig){l._tf=sig;f.innerHTML=tx?`<div class="tnew">${tx.edit?`<b>Change this text</b>`:''}<input id="tword" placeholder="Type your text" maxlength="120" aria-label="the text" value="${esc(tx.word||'')}">
+    <div class="row"><span>${tx.edit?'Drag it on the video. Mark i and o to change its time.':'Drag it on the video'}</span><button id="tcancel">Cancel</button><button id="tadd" ${tword()?'':'disabled'}>${tx.edit?'Save':'Add text'}</button></div></div>`:''}
+  const all=textItems(),on=x=>tx&&tx.edit&&String(tx.edit.id)===String(x.id);
+  const row=x=>x.locked?`<div class="titem" data-tseek="${x.start}"><div><b>${esc(x.text)}</b><span>${TSTY[x.style]||x.style} · ${fmtx(x.start)}–${fmtx(x.end)} · Claude has it</span></div></div>`
+    :`<div class="titem${on(x)?' on':''}" data-tedit="${esc(String(x.id))}" data-fresh="${x.fresh?1:''}" title="Click to change it"><div><b>${esc(x.text)}</b><span>${TSTY[x.style]||x.style} · ${fmtx(x.start)}–${fmtx(x.end)}</span></div><button data-tdel="${esc(String(x.id))}" data-fresh="${x.fresh?1:''}">Delete</button></div>`;
+  const nw=all.filter(x=>x.fresh),old=all.filter(x=>!x.fresh);
+  const h=(nw.length?`<h4>Not sent yet</h4>${nw.map(row).join('')}`:'')+(old.length?`<h4>Sent to Claude</h4>${old.map(row).join('')}`:'')
+    +(all.length?'':'<p class="tsub">No text yet. Pick a look above to add one.</p>');
+  if($('trows')._h!==h){$('trows')._h=h;$('trows').innerHTML=h}}
+function editText(id,fresh){const x=textItems().find(x=>String(x.id)===String(id)&&!!x.fresh===!!fresh);if(!x)return;
+  inT=outT=null;renderBar();setText(x.style,{id:x.id,fresh:x.fresh,text:x.text,x_pct:x.x_pct??50,y_pct:x.y_pct??40,start:x.start,end:x.end})}
+$('list').addEventListener('click',async e=>{
+  const st=e.target.closest('#tstyles [data-ts]');if(st){if(tx){tx.style=st.dataset.ts;tsig='';renderTextPanel();renderTexts()}else setText(st.dataset.ts);return}
+  if(e.target.id==='tcancel'){setText(null);return}
+  if(e.target.id==='tadd'){saveText();return}
+  const d=e.target.closest('[data-tdel]');
+  if(d){e.stopPropagation();d.disabled=true;const r=d.dataset.fresh?await post('/delete',{id:+d.dataset.tdel}):await post('/text/delete',{id:d.dataset.tdel});
+    if(tx&&tx.edit&&String(tx.edit.id)===d.dataset.tdel)setText(null);
+    toast(d.dataset.fresh?'Text deleted':r.error||'Text deleted. The next draft drops it.');await load();return}
+  const ed=e.target.closest('[data-tedit]');if(ed)return editText(ed.dataset.tedit,ed.dataset.fresh);
+  const sk=e.target.closest('[data-tseek]');if(sk){v.currentTime=+sk.dataset.tseek;v.pause()}});
+$('list').addEventListener('input',e=>{if(e.target.id==='tword'){tx.word=e.target.value;$('tadd').disabled=!tword();renderTexts()}});
+$('list').addEventListener('keydown',e=>{if(e.target.id!=='tword')return;e.stopPropagation();if(e.key==='Enter'){e.preventDefault();saveText()}if(e.key==='Escape')setText(null)});
+async function saveText(){const text=tword();if(!tx||!text)return;
+  const look={style:tx.style,x_pct:tx.x,y_pct:tx.y},ed=tx.edit,span=inT!==null?noteSpan():null;   // i/o marked: the new time
+  let r;
+  if(!ed)r=await post('/comment',{t:noteSpan()[0],t_end:noteSpan()[1],text,images:[],alt:alt||null,add_text:look});
+  else if(ed.fresh)r=await post('/edit',{id:ed.id,text,add_text:look,...(span?{t:span[0],t_end:span[1]??span[0]+3}:{})});
+  else r=await post('/text/edit',{id:ed.id,text,...look,...(span?{start:span[0],end:span[1]??span[0]+3}:{})});
+  if(!r||!(r.id||r.ok))return toast((r&&r.error)||'That did not save.');
+  inT=outT=null;renderBar();setText(null);toast(!ed?'Text added':ed.fresh?'Text changed':'Text changed. The next draft shows it.');await load()}
 function renderTexts(){
   const L=$('tlayer'),fs=Math.min(L.offsetWidth,L.offsetHeight)*TEXT_SIZE/100,t=v.currentTime,edit=!!(S&&view&&view.stage==='edit');
-  $('txtbtn').hidden=!edit;if(!edit&&tx)setText(false);
-  document.querySelectorAll('#tstyle [data-ts]').forEach(b=>b.classList.toggle('on',!!tx&&b.dataset.ts===tx.style));
-  const one=(a,text,id)=>`<div class="tl"${id?` id="${id}"`:''} style="left:${a.x_pct}%;top:${a.y_pct}%;font-size:${fs}px"><span class="ts-${a.style}">${esc(text)}</span></div>`;
-  const html=(edit&&!cmp?S.comments.filter(c=>c.add_text&&c.stage===view.stage&&c.round===view.round&&c.t<=t&&t<c.t_end&&onAlt(c)):[]).map(c=>one(c.add_text,c.text)).join('')
-    +(tx?one({style:tx.style,x_pct:tx.x,y_pct:tx.y},ta.value.trim()||'Type your text','tprev'):'');
+  const tb=$('ptabs').querySelector('[data-tab=text]');if(tb)tb.hidden=!edit;if(!edit&&tx)setText(null);if(!edit&&tab==='text'){tab='notes';if(S)render()}
+  const one=(a,text,id,k)=>`<div class="tl"${id?` id="${id}"`:''}${k?` data-tclick="${esc(k)}"`:''} style="left:${a.x_pct}%;top:${a.y_pct}%;font-size:${fs}px"><span class="ts-${a.style}">${esc(text)}</span></div>`;
+  const editing=tx&&tx.edit&&tx.edit.fresh?tx.edit.id:null;
+  const html=(edit&&!cmp?S.comments.filter(c=>c.add_text&&c.id!==editing&&c.stage===view.stage&&c.round===view.round&&c.t<=t&&t<c.t_end&&onAlt(c)):[]).map(c=>one(c.add_text,c.text,'','f'+c.id)).join('')
+    +(tx?one({style:tx.style,x_pct:tx.x,y_pct:tx.y},tword()||'Type your text','tprev'):'');
   if(html!==tsig){tsig=html;L.innerHTML=html}}
-ta.addEventListener('input',()=>{if(tx)renderTexts()});new ResizeObserver(()=>{tsig='';renderTexts()}).observe($('tlayer'));
-$('tlayer').addEventListener('pointerdown',e=>{const el=e.target.closest('#tprev');if(!el||!tx)return;e.preventDefault();el.setPointerCapture(e.pointerId);
+new ResizeObserver(()=>{tsig='';renderTexts()}).observe($('tlayer'));
+$('tlayer').addEventListener('pointerdown',e=>{
+  const k=e.target.closest('[data-tclick]');if(k&&!tx){e.preventDefault();editText(k.dataset.tclick.slice(1),true);return}   // a text not sent yet: click it to change it
+  const el=e.target.closest('#tprev');if(!el||!tx)return;e.preventDefault();el.setPointerCapture(e.pointerId);
   const vert=v.videoHeight>v.videoWidth,mv=ev=>{const r=$('tlayer').getBoundingClientRect(),cl=(n,a,b)=>Math.round(Math.min(b,Math.max(a,n))*10)/10;
     tx.x=cl((ev.clientX-r.left)/r.width*100,vert?20:12,vert?73:88);tx.y=cl((ev.clientY-r.top)/r.height*100,vert?16:8,vert?72:92);   // reels: inside the safe zone
     el.style.left=tx.x+'%';el.style.top=tx.y+'%'};
-  el.onpointermove=mv;el.onpointerup=()=>{el.onpointermove=null;tsig='';ta.focus()}});
-async function save(){const text=ta.value.trim();if(ta.disabled||(!text&&!pics.length)||(tx&&!text))return;
+  el.onpointermove=mv;el.onpointerup=()=>{el.onpointermove=null;tsig='';const w=$('tword');if(w)w.focus()}});
+async function save(){const text=ta.value.trim();if(ta.disabled||(!text&&!pics.length))return;
   const[t,te]=noteSpan(),nv=(viewRound().alts||[]).length;
-  const r=await post('/comment',{t,t_end:te,text,images:tx?[]:pics,alt:nv&&$('scope').value==='*'?'*':alt||null,on:noteOn,
-    ...(tx?{add_text:{style:tx.style,x_pct:tx.x,y_pct:tx.y}}:{})});
-  if(tx&&r.id)setText(false);closeBox();await load()}
+  await post('/comment',{t,t_end:te,text,images:pics,alt:nv&&$('scope').value==='*'?'*':alt||null,on:noteOn});
+  closeBox();await load()}
 $('savebtn').onclick=save;
-ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();save()}if(e.key==='Escape'){if(tx)setText(false);ta.blur();inT=outT=null;noteOn=null;renderBar();boxTime()}});
+ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();save()}if(e.key==='Escape'){ta.blur();inT=outT=null;noteOn=null;renderBar();boxTime()}});
 const sendOrStop=async()=>{const e=S.events[S.events.length-1];await post('/event',{type:pending()==='send'||makingEdit()||e&&e.type==='approve'?'stop':'send'});load()};
 $('send').onclick=sendOrStop;$('msend').onclick=sendOrStop;
 const approve=async()=>{if(S.stage==='cut'&&!S.final||S.stills){approving=true;render()}   // instant: the button and the steps turn before the server answers

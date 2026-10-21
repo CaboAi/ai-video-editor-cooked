@@ -594,6 +594,18 @@ TEXT_STYLES = ("plain", "outline", "box")   # TikTok's and Instagram's own: whit
 TEXT_SIZE, TEXT_HOLD_S = 6.0, 3.0   # % of the frame's short side; seconds on screen when no range is marked
 
 
+def text_look(add):
+    """The Text tool's look on a note or a texts.json row: {style, x_pct, y_pct, size_pct}. ValueError when it is not one."""
+    try:
+        out = {"style": add["style"], **{k: round(min(100.0, max(0.0, float(add[k]))), 1) for k in ("x_pct", "y_pct")},
+               "size_pct": round(min(20.0, max(2.0, float(add.get("size_pct") or TEXT_SIZE))), 1)}
+    except (KeyError, TypeError, ValueError) as e:
+        raise ValueError("add_text takes style, x_pct and y_pct") from e
+    if out["style"] not in TEXT_STYLES:
+        raise ValueError("Text goes on the edit, in plain, outline or box.")
+    return out
+
+
 def put_texts(folder, notes):
     """The Text tool's notes into <edit>/texts.json (plan.py typed_texts), one row per note, replaced if sent again.
     Returns how many rows came from these notes."""
@@ -1236,6 +1248,7 @@ def make_handler(folder, token):
                 d["theme"] = theme()
                 d["listening"], d["busy"] = listening(folder), busy(folder)
                 d["resume"] = resume_text(folder, d)
+                d["texts"] = (load(folder / "texts.json").get("items") or []) if (folder / "texts.json").exists() else []   # the Text tab
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
                 d["cutcheck"] = (folder / "cut-check.html").exists()
                 d["rawvideo"] = raw_video(folder, d) is not None   # the transcript editor's preview plays the raw take
@@ -1409,6 +1422,31 @@ def make_handler(folder, token):
                             c["alt"] = body.get("alt") or None
                 update(rj, sc)
                 return self.send(200, {})
+            if path in ("/text/delete", "/text/edit"):   # the Text tab on a sent text: texts.json changes, and a note tells Claude
+                d, f = load(rj), folder / "texts.json"
+                last = d["events"][-1]["type"] if d["events"] else None
+                if d.get("sent") and last not in ("send", "edits"):
+                    return self.send(409, {"error": "This draft is approved."})
+                items = (load(f).get("items") or []) if f.exists() else []
+                x = next((i for i in items if i.get("id") == body.get("id")), None)
+                if not x:
+                    return self.send(404, {"error": "That text is gone already."})
+                if path == "/text/delete":
+                    f.write_text(json.dumps({"items": [i for i in items if i is not x]}, indent=1), encoding="utf-8")
+                    return self.comment({"t": x["start"], "t_end": x["end"], "text": f'Remove the on-screen text "{x["text"]}".'})
+                text = str(body.get("text") or x["text"]).strip()[:120]
+                try:
+                    new = {**x, "text": text, **text_look({**x, **{k: body[k] for k in ("style", "x_pct", "y_pct") if k in body}})}
+                    if body.get("start") is not None:
+                        new["start"] = round(max(0.0, float(body["start"])), 2)
+                        new["end"] = round(max(new["start"] + 0.1, float(body.get("end") or new["start"] + TEXT_HOLD_S)), 2)
+                except (ValueError, TypeError) as e:
+                    return self.send(400, {"error": str(e) or "no time"})
+                f.write_text(json.dumps({"items": [new if i is x else i for i in items]}, indent=1), encoding="utf-8")
+                what = [w for w, k in (("words", "text"), ("look", "style"), ("place", "x_pct"), ("place", "y_pct"), ("time", "start")) if new[k] != x[k]]
+                return self.comment({"t": new["start"], "t_end": new["end"],
+                                  "text": f'Change the on-screen text "{x["text"]}" ({", ".join(dict.fromkeys(what)) or "no change"}): '
+                                          f'texts.json has it now as "{text}". Plan again so it shows.'})
             if path == "/delete":
                 def rm(d):
                     d["comments"] = [c for c in d["comments"] if not (c["id"] == body.get("id") and editable(d, c))]
@@ -1482,11 +1520,10 @@ def make_handler(folder, token):
             add = body.get("add_text")
             if add is not None:   # the Text tool: the note's words go on screen as typed, in one of TikTok's three looks
                 try:
-                    add = {"style": add["style"], **{k: round(min(100.0, max(0.0, float(add[k]))), 1) for k in ("x_pct", "y_pct")},
-                           "size_pct": round(min(20.0, max(2.0, float(add.get("size_pct") or TEXT_SIZE))), 1)}
-                except (KeyError, TypeError, ValueError):
-                    return self.send(400, {"error": "add_text takes style, x_pct and y_pct"})
-                if add["style"] not in TEXT_STYLES or not text or d["stage"] != "edit":
+                    add = text_look(add)
+                except ValueError as e:
+                    return self.send(400, {"error": str(e)})
+                if not text or d["stage"] != "edit":
                     return self.send(400, {"error": "Text goes on the edit, in plain, outline or box."})
                 if te is None:
                     te = t + TEXT_HOLD_S
@@ -1555,6 +1592,11 @@ def make_handler(folder, token):
                         new["keep"] = True
             if "alt" in body:
                 new["alt"] = body["alt"] or None
+            if body.get("add_text") is not None and c.get("add_text"):   # the Text tab's Save: a new look or place
+                try:
+                    new["add_text"] = text_look(body["add_text"])
+                except ValueError as e:
+                    return self.send(400, {"error": str(e)})
             if "images" in body:
                 new["images"] = askhook.save_images(folder / "review", body["images"] or [], f"r{c['stage']}{c['round']}-c{c['id']}",
                                             keep=c.get("images") or [])
@@ -1566,7 +1608,12 @@ def make_handler(folder, token):
                     t = round(float(body["t"]), 2)
                 except (TypeError, ValueError):
                     return self.send(400, {"error": "no time"})
-                if c["t_end"] is not None:
+                if body.get("t_end") is not None:   # a new span (the Text tab's i/o)
+                    try:
+                        new["t_end"] = round(max(t + 0.1, float(body["t_end"])), 2)
+                    except (TypeError, ValueError):
+                        return self.send(400, {"error": "no time"})
+                elif c["t_end"] is not None:
                     new["t_end"] = round(t + c["t_end"] - c["t"], 2)
                 new["t"], new["frame"] = t, f"r{c['stage']}{c['round']}-c{c['id']}-{int(time.time() * 1000) % 10 ** 8}.jpg"
                 grab(src["video"], t, folder / "review" / new["frame"])
@@ -3045,6 +3092,21 @@ def demo():
     c4 = post("/comment", {"t": 1.0, "text": "on all of them", "alt": "*"})
     c6 = post("/comment", {"t": 2.0, "text": "wait for it", "add_text": {"style": "box", "x_pct": 50, "y_pct": 140}})   # the Text tool
     assert c6["add_text"] == {"style": "box", "x_pct": 50.0, "y_pct": 100.0, "size_pct": TEXT_SIZE} and c6["t_end"] == 5.0, c6
+    # the Text tab: a text not sent yet changes in place (words, look, place, time)
+    c6 = post("/edit", {"id": c6["id"], "text": "wait for it!", "add_text": {"style": "outline", "x_pct": 40, "y_pct": 30}, "t": 2.5, "t_end": 6})
+    assert (c6["text"], c6["add_text"]["style"], c6["add_text"]["x_pct"], c6["t"], c6["t_end"]) == ("wait for it!", "outline", 40.0, 2.5, 6.0), c6
+    # a sent one (texts.json): Edit changes its row and leaves a note, Delete takes it out and leaves a note
+    (folder / "texts.json").write_text(json.dumps({"items": [{"id": "edit1-99", "text": "hi there", "style": "plain", "start": 1.0,
+                                                              "end": 4.0, "x_pct": 50, "y_pct": 40, "size_pct": 6}]}), encoding="utf-8")
+    assert [x["id"] for x in json.loads(get("/state").read())["texts"]] == ["edit1-99"]
+    ch = post("/text/edit", {"id": "edit1-99", "text": "hello there", "style": "box", "x_pct": 30, "start": 2, "end": 5})
+    row = load(folder / "texts.json")["items"][0]
+    assert (row["text"], row["style"], row["x_pct"], row["y_pct"], row["start"], row["end"]) == ("hello there", "box", 30.0, 40.0, 2.0, 5.0), row
+    assert ch["text"].startswith('Change the on-screen text "hi there" (words, look, place, time)') and ch["t"] == 2.0, ch
+    gone = post("/text/delete", {"id": "edit1-99"})
+    assert not load(folder / "texts.json")["items"] and gone["text"] == 'Remove the on-screen text "hello there".', gone
+    for x in (ch, gone):
+        post("/delete", {"id": x["id"]})
     # a note that reads as a lasting preference is offered as a rule, ticked; the user can untick it
     assert looks_like_rule("Too many zooms") and looks_like_rule("I prefer bigger captions") and not looks_like_rule("cut the um at 0:12")
     c5 = post("/comment", {"t": 2.0, "text": "always use fewer zooms"})
@@ -3072,9 +3134,9 @@ def demo():
     assert out.startswith("APPROVE: demo the edit, round 1, 5 notes.") and f"also wide: {folder / 'review' / 'v-edit1-wide.mp4'}" in out, out
     assert f"assets: {folder / 'assets.json'} (1 image or link the user added." in out, out
     assert f"#{c4['id']} 0:01.0 (1.0s) [all videos]: on all of them" in out, out
-    assert f": wait for it [add text: box]" in out and f"texts: {folder / 'texts.json'} (1 on-screen text the user typed" in out, out
-    assert load(folder / "texts.json")["items"] == [{"id": f"edit1-{c6['id']}", "text": "wait for it", "style": "box", "x_pct": 50.0,
-                                                       "y_pct": 100.0, "size_pct": TEXT_SIZE, "start": 2.0, "end": 5.0}]
+    assert f": wait for it! [add text: outline]" in out and f"texts: {folder / 'texts.json'} (1 on-screen text the user typed" in out, out
+    assert load(folder / "texts.json")["items"] == [{"id": f"edit1-{c6['id']}", "text": "wait for it!", "style": "outline", "x_pct": 40.0,
+                                                       "y_pct": 30.0, "size_pct": TEXT_SIZE, "start": 2.5, "end": 6.0}]
     assert f"#{c3['id']} 0:05.1 (5.1s) [wide] [card 0 image 'later']: louder here" in out, out
     # the final approve: LEARN asks Claude for rules from every note of the session, the page waits for them
     assert "LEARN: the video is approved" in out and "#1 the cut r1: cut the hello, please -> reply: cut it" in out, out

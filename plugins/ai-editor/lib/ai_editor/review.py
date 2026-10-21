@@ -364,6 +364,24 @@ def set_captions(folder, words=None, look=None):
     return said
 
 
+def sfx_mod():
+    """style-edit's sfx.py (the sound kit and the sound library)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "skills" / "style-edit" / "scripts"))
+    import sfx
+    return sfx
+
+
+def sounds_info():
+    """The Sounds panel: each moment that can have a sound, what plays there now, and the user's own files."""
+    sfx = sfx_mod()
+    c = sfx.choices()
+    return {"cues": [{"cue": k, "label": sfx.LABELS[k][0], "when": sfx.LABELS[k][1], "choice": c[k]} for k in sfx.LABELS],
+            "own": sfx.own_sounds()}
+
+
+SOUND_MAX_MB = 10
+
+
 def card_override(folder, key, change):
     """The video page's move, resize or delete of a card into <edit>/overrides.json (preview.py apply_overrides,
     which plan.py runs after planning, so a re-plan keeps it). change: {"box": [x, y, w, h]} or {"deleted": True}."""
@@ -1389,6 +1407,7 @@ def make_handler(folder, token):
                 d["theme"] = theme()
                 d["listening"], d["busy"] = listening(folder), busy(folder)
                 d["resume"] = resume_text(folder, d)
+                d["sounds_ui"] = sounds_info() if d.get("stage") == "edit" else None   # the Sounds panel
                 d["captions_ui"] = captions_info(folder) if d.get("stage") == "edit" else None   # the Captions panel
                 d["texts"] = (load(folder / "texts.json").get("items") or []) if (folder / "texts.json").exists() else []   # the Text tab
                 d["session_cmd"] = resume_cmd(last_claude(folder)) or (d.get("claude") or {}).get("resume") or ""   # Copy session
@@ -1447,6 +1466,21 @@ def make_handler(folder, token):
                 if p and p.is_file() and (r["stage"], r["round"]) == (d["stage"], d["round"]) == ("cut", d["round"]):
                     upgrade_transcript(folder, p)
                 return self.send(200, p.read_bytes() if p and p.is_file() else {})
+            if path == "/sound-preview":   # the Sounds panel's play button: one pick of one moment, at a fixed level
+                sfx = sfx_mod()
+                cue, pick = q.get("cue", ""), q.get("c", "default")
+                if cue not in sfx.KIT or pick not in ("default", *sfx.own_sounds()):
+                    return self.send(404, {})
+                cache = Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "cache" / "sound-previews"
+                cache.mkdir(parents=True, exist_ok=True)
+                sig = hashlib.sha1(f"{cue}|{pick}|{sfx.choice_sig()}".encode()).hexdigest()[:12]
+                f = cache / f"{cue}-{sig}.wav"
+                if not f.is_file():
+                    try:
+                        sfx.preview(cue, pick, f)
+                    except (OSError, subprocess.CalledProcessError, ValueError):
+                        return self.send(404, {})
+                return self.file(f, "audio/wav")
             if path.startswith("/card-img/"):   # a card's own picture, under this edit only: the move and resize preview
                 p = (folder / unquote(path[len("/card-img/"):])).resolve()
                 if folder.resolve() not in p.parents or p.suffix.lower() not in CARD_IMG or not p.is_file():
@@ -1598,6 +1632,46 @@ def make_handler(folder, token):
                     update(rj, put)
                     return self.send(200, {**old, "text": text})
                 return self.comment({"t": 0.0, "text": text, "on": {"k": "captions", "text": "all captions"}})
+            if path in ("/sound", "/sound/add"):   # the Sounds panel: a pick for one moment, or your own file, for every video
+                sfx = sfx_mod()
+                cue = str(body.get("cue") or "")
+                if path == "/sound/add":
+                    name = re.sub(r"[^A-Za-z0-9._ -]", "", Path(str(body.get("name") or "")).name).strip()[:80]
+                    data = str(body.get("data") or "")
+                    if cue not in sfx.KIT or not name or Path(name).suffix.lower() not in sfx.SOUND_EXT or not data.startswith("data:"):
+                        return self.send(400, {"error": "Add a sound file: wav, mp3, m4a, aac, flac, ogg or opus."})
+                    try:
+                        raw = base64.b64decode(data.split(",", 1)[1], validate=True)
+                    except (ValueError, IndexError):
+                        return self.send(400, {"error": "That file did not come through."})
+                    if len(raw) > SOUND_MAX_MB * 1024 * 1024:
+                        return self.send(400, {"error": f"Sounds under {SOUND_MAX_MB} MB only."})
+                    lib = sfx.library_dir()
+                    lib.mkdir(parents=True, exist_ok=True)
+                    (lib / name).write_bytes(raw)
+                    body = {"cue": cue, "choice": name}
+                try:
+                    sfx.choose(cue, str(body.get("choice") or ""))
+                except ValueError as e:
+                    return self.send(400, {"error": str(e)})
+                d = load(rj)
+                last = d["events"][-1]["type"] if d["events"] else None
+                if d.get("stage") != "edit" or d.get("sent") and last not in ("send", "edits"):
+                    return self.send(200, {"ok": True, "sounds": sounds_info()})   # saved for the next videos; this one is done
+                info = sounds_info()   # one Sounds note per round, saying what plays where now
+                picked = [f"{x['label']} {'off' if x['choice'] == 'none' else 'is ' + x['choice']}" for x in info["cues"] if x["choice"] != "default"]
+                text = (f"Sounds for every video: {'; '.join(picked)}." if picked else "Sounds for every video: all back to the built-in ones.") \
+                    + " Plan again so they are in (custom/sounds/choices.json; sfx.py builds the kit from it)."
+                old = next((c for c in d["comments"] if (c.get("on") or {}).get("k") == "sounds" and c["stage"] == d["stage"]
+                            and c["round"] >= d["round"] and editable(d, c)), None)
+                if old:
+                    def put(x):
+                        for c in x["comments"]:
+                            if c["id"] == old["id"]:
+                                c.update(text=text, edited=now())
+                    update(rj, put)
+                    return self.send(200, {**old, "text": text, "ok": True, "sounds": info})
+                return self.comment({"t": 0.0, "text": text, "on": {"k": "sounds", "text": "all sounds"}})
             if path == "/card/edit":   # the video page: a card moved, resized or deleted; overrides.json and a note for Claude
                 d = load(rj)
                 last = d["events"][-1]["type"] if d["events"] else None
@@ -3344,6 +3418,37 @@ def demo():
     for r in [r for r in _taste.load_rules() if r.get("setting", "").startswith("captions.")]:
         with contextlib.redirect_stdout(io.StringIO()):
             _taste.forget(r["id"])   # the learn checks below count the session's own rules
+    # the Sounds panel: picks for every video into the library (a temp one here), one note kept current, previews play
+    keep_lib = os.environ.get("AI_EDITOR_LIBRARY")
+    os.environ["AI_EDITOR_LIBRARY"] = str(tmp / "soundlib")
+    try:
+        su = json.loads(get("/state").read())["sounds_ui"]
+        assert [x["cue"] for x in su["cues"]][:3] == ["whoosh-in", "pop", "zoom"] and su["own"] == [], su
+        s1 = post("/sound", {"cue": "pop", "choice": "none"})
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=660:d=0.5", str(tmp / "ding.wav")], check=True)
+        s2 = post("/sound/add", {"cue": "zoom", "name": "my ding!.wav", "data": "data:audio/wav;base64," +
+                                 base64.b64encode((tmp / "ding.wav").read_bytes()).decode()})
+        assert s2["id"] == s1["id"] and s2["text"].startswith("Sounds for every video: Logo pops in off; Zoom is my ding.wav."), s2
+        su = json.loads(get("/state").read())["sounds_ui"]
+        assert su["own"] == ["my ding.wav"] and {x["cue"]: x["choice"] for x in su["cues"]}["zoom"] == "my ding.wav", su
+        assert get("/sound-preview?cue=zoom&c=my%20ding.wav").headers["Content-Type"] == "audio/wav"
+        for bad in ({"cue": "pop", "choice": "nope.wav"}, {"cue": "nope", "choice": "default"}):
+            try:
+                post("/sound", bad)
+                raise AssertionError(bad)
+            except urllib.error.HTTPError as e:
+                assert e.code == 400, bad
+        try:
+            get("/sound-preview?cue=zoom&c=..%2Freview.json")
+            raise AssertionError("a preview of a file not in the library")
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
+        post("/delete", {"id": s1["id"]})
+    finally:
+        if keep_lib is None:
+            os.environ.pop("AI_EDITOR_LIBRARY", None)
+        else:
+            os.environ["AI_EDITOR_LIBRARY"] = keep_lib
     # a card on the video: moved or resized, then deleted, into overrides.json with a note each; its picture is served
     trk_items = json.loads(get("/data?k=edit-1").read())["items"]["cards"]
     assert trk_items[0]["key"].startswith("later@"), trk_items

@@ -382,6 +382,17 @@ def sounds_info():
 SOUND_MAX_MB = 10
 
 
+def placed_sounds(folder):
+    f = Path(folder) / "sounds.json"
+    return (load(f).get("items") or []) if f.exists() else []
+
+
+def sound_name(src):
+    """What the timeline calls a sound: "glide-short-wind" for .sfx/own-house-glide-short-wind.wav, "whoosh-in" for .sfx/whoosh-in.wav."""
+    n = Path(str(src)).stem
+    return re.sub(r"^own-(house|skit|simple|swoop|windy|digital)-", "", n).removeprefix("own-")
+
+
 def card_override(folder, key, change):
     """The video page's move, resize or delete of a card into <edit>/overrides.json (preview.py apply_overrides,
     which plan.py runs after planning, so a re-plan keeps it). change: {"box": [x, y, w, h]} or {"deleted": True}."""
@@ -442,7 +453,10 @@ def screen_items(folder, p):
                          for x in (p.get("captions") or {}).get("chunks") or [] if "start" in x and "end" in x],
             "cap": None if cap.get("present") is False else {"y": float(cap.get("y_pct") or 70), "h": round(size * 2.2, 1),
                                                                "w": float(cap.get("width_pct") or 86)},
-            "zooms": [{"s": round(z["start"], 2), "e": round(z["end"], 2)} for z in p.get("zooms") or [] if "start" in z and "end" in z]}
+            "zooms": [{"s": round(z["start"], 2), "e": round(z["end"], 2)} for z in p.get("zooms") or [] if "start" in z and "end" in z],
+            # the sounds in the draft, for the timeline's Sounds row: when each is heard, and which it is
+            "sfx": [{"t": round(float(x.get("event", x["t"])), 3), "src": str(x.get("src") or ""), "placed": x.get("placed")}
+                    for x in p.get("sfx") or [] if isinstance(x, dict) and "t" in x]}
 
 
 SNAP_MAX = 2 << 20   # a snapshot keeps the edit's small files; a bigger one is media, never a setting
@@ -1407,6 +1421,10 @@ def make_handler(folder, token):
                 d["theme"] = theme()
                 d["listening"], d["busy"] = listening(folder), busy(folder)
                 d["resume"] = resume_text(folder, d)
+                ovf = folder / "overrides.json"   # sounds taken out of the plan, waiting for the next draft
+                d["sfx_removed"] = [float(k) for k, v in ((load(ovf).get("sfx") or {}) if ovf.exists() else {}).items()
+                                    if isinstance(v, dict) and v.get("deleted")]
+                d["placed_sounds"] = placed_sounds(folder)   # the timeline's Sounds row: the ones the user put there
                 d["sounds_ui"] = sounds_info() if d.get("stage") == "edit" else None   # the Sounds panel
                 d["captions_ui"] = captions_info(folder) if d.get("stage") == "edit" else None   # the Captions panel
                 d["texts"] = (load(folder / "texts.json").get("items") or []) if (folder / "texts.json").exists() else []   # the Text tab
@@ -1672,6 +1690,37 @@ def make_handler(folder, token):
                     update(rj, put)
                     return self.send(200, {**old, "text": text, "ok": True, "sounds": info})
                 return self.comment({"t": 0.0, "text": text, "on": {"k": "sounds", "text": "all sounds"}})
+            if path in ("/sfx/add", "/sfx/remove"):   # the timeline's Sounds row: put a library sound at a moment, or take one out
+                d = load(rj)
+                last = d["events"][-1]["type"] if d["events"] else None
+                if d.get("stage") != "edit" or d.get("sent") and last not in ("send", "edits"):
+                    return self.send(409, {"error": "Sounds change on the edit, before it is approved."})
+                sfx, f = sfx_mod(), folder / "sounds.json"
+                items = placed_sounds(folder)
+                try:
+                    t = round(float(body["t"]), 2)
+                    if path == "/sfx/add":
+                        name = str(body.get("sound") or "")
+                        if name not in sfx.own_sounds():
+                            raise ValueError
+                        x = {"id": secrets.token_hex(4), "t": t, "sound": name}
+                        f.write_text(json.dumps({"items": items + [x]}, indent=1), encoding="utf-8")
+                        line = f"add {Path(name).stem} at {fmt(t)}"
+                    elif body.get("placed"):
+                        if not any(i["id"] == body["placed"] for i in items):
+                            raise ValueError
+                        f.write_text(json.dumps({"items": [i for i in items if i["id"] != body["placed"]]}, indent=1), encoding="utf-8")
+                        line = f"remove {sound_name(body.get('src') or '')} at {fmt(t)}"
+                    else:   # one the plan put there: overrides.json takes it out, so a re-plan keeps it out
+                        ov_f = folder / "overrides.json"
+                        ov = load(ov_f) if ov_f.exists() else {}
+                        ov.setdefault("sfx", {})[f"{t:.3f}"] = {"deleted": True}
+                        ov_f.write_text(json.dumps(ov, indent=1), encoding="utf-8")
+                        line = f"remove {sound_name(body.get('src') or '')} at {fmt(t)}"
+                except (KeyError, TypeError, ValueError):
+                    return self.send(400, {"error": "sfx/add takes t and a library sound; sfx/remove takes t and placed or src"})
+                return self.timeline_note("sounds-timeline", "Sounds on the timeline", line,
+                                          "Plan again so they are in (sounds.json and overrides.json sfx).")
             if path == "/card/edit":   # the video page: a card moved, resized or deleted; overrides.json and a note for Claude
                 d = load(rj)
                 last = d["events"][-1]["type"] if d["events"] else None
@@ -1766,6 +1815,24 @@ def make_handler(folder, token):
             if path == "/claude":   # "Open a new Claude": the one working here stopped
                 return self.send(200, reopen(folder, rj, force=True) or {})
             self.send(404, {})
+
+        def timeline_note(self, k, title, line, tail):
+            """One note per round for the timeline's changes of a kind, a line added for each change."""
+            d = load(rj)
+            old = next((c for c in d["comments"] if (c.get("on") or {}).get("k") == k and c["stage"] == d["stage"]
+                        and c["round"] >= d["round"] and editable(d, c)), None)
+            lines = ((old or {}).get("lines") or []) + [line]
+            text = f"{title}: {'; '.join(lines)}. {tail}"
+            if old:
+                def put(x):
+                    for c in x["comments"]:
+                        if c["id"] == old["id"]:
+                            c.update(text=text, lines=lines, edited=now())
+                update(rj, put)
+                return self.send(200, {**old, "text": text, "lines": lines})
+            self.comment({"t": 0.0, "text": text, "on": {"k": k, "text": title.lower()}})
+            update(rj, lambda x: [c.update(lines=lines) for c in x["comments"] if (c.get("on") or {}).get("k") == k
+                                  and c["text"] == text])
 
         def comment(self, body):
             text = str(body.get("text", "")).strip()
@@ -3443,6 +3510,24 @@ def demo():
             raise AssertionError("a preview of a file not in the library")
         except urllib.error.HTTPError as e:
             assert e.code == 404
+        # the timeline's Sounds row: put a library sound at a moment, take it out, take out one the plan put there
+        sa = post("/sfx/add", {"t": 2.0, "sound": "my ding.wav"})
+        placed = json.loads(get("/state").read())["placed_sounds"]
+        assert [x["sound"] for x in placed] == ["my ding.wav"] and placed[0]["t"] == 2.0, placed
+        sr = post("/sfx/remove", {"t": 2.0, "placed": placed[0]["id"], "src": "my ding.wav"})
+        sx = post("/sfx/remove", {"t": 3.5, "src": ".sfx/pop.wav"})
+        assert sr["id"] == sa["id"] == sx["id"] and sx["lines"] == ["add my ding at 0:02.0", "remove my ding at 0:02.0",
+                                                                      "remove pop at 0:03.5"], sx
+        assert not json.loads(get("/state").read())["placed_sounds"] and json.loads(get("/state").read())["sfx_removed"] == [3.5]
+        assert load(folder / "overrides.json")["sfx"]["3.500"] == {"deleted": True}
+        for bad in ({"t": 1, "sound": "nope.wav"}, {"sound": "my ding.wav"}):
+            try:
+                post("/sfx/add", bad)
+                raise AssertionError(bad)
+            except urllib.error.HTTPError as e:
+                assert e.code == 400, bad
+        (folder / "overrides.json").unlink()
+        post("/delete", {"id": sa["id"]})
         post("/delete", {"id": s1["id"]})
     finally:
         if keep_lib is None:

@@ -4,6 +4,9 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.25, creator-teardown 2.7.25 (2026-10-21)
+- Text and Sounds rows under the timeline on the edit. + Text and + Sound add one at the playhead (+ Sound picks from your sound library, each with Play). Click a text to change it, click a sound to hear it in place, and x on any of them takes it out.
+
 ## ai-editor 2.7.24, creator-teardown 2.7.24 (2026-10-21)
 - A Sounds tool beside Text and Captions: the sound library. Each moment that gets a sound (a card slides in, a logo pops, a zoom, a big moment, an impact, a card leaves) has Play, Default, Off and your own sound files (+ Your own). Picks are for every video.
 - Click a card (a picture, a page, a logo) on the edit to move it, resize it from a corner, or delete it. Reels keep it inside the safe zone.

@@ -264,6 +264,24 @@ body.preview #pins,body.preview #cmprow{visibility:hidden}
 .timeline.tracked .mini{display:block;height:8px;margin-top:10px;border-radius:2px;background:var(--rail)}
 .mini i{position:absolute;top:0;height:8px;border-radius:2px;background:var(--quiet);cursor:pointer}.mini i.z{background:var(--ink)}
 .mini i:hover{outline:2px solid var(--ink);outline-offset:1px}
+/* the edit's Text and Sounds rows under the timeline: click one to change or hear it, x takes it out, + adds one at the playhead */
+#edtracks{display:flex;flex-direction:column;gap:6px;margin-top:10px}#edtracks:empty{display:none}
+.erow2{display:flex;align-items:center;gap:8px}.erow2>button.eadd{width:84px;flex-shrink:0;height:26px;border-radius:7px;border:1px dashed var(--line2);font-size:12px;font-weight:600;color:var(--body);text-align:left;padding:0 8px;white-space:nowrap}
+.erow2>button.eadd:hover{border-color:var(--ink);color:var(--ink)}
+.etrack{flex:1;min-width:0;position:relative;height:26px;border-radius:6px;background:var(--rail)}
+.eitem{position:absolute;top:2px;height:22px;border-radius:5px;background:var(--chip);border:1px solid var(--line2);display:flex;align-items:center;padding:0 6px;font-size:11px;line-height:14px;font-weight:600;color:var(--strong);cursor:pointer;min-width:22px}
+.eitem span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eitem:hover{border-color:var(--ink)}.eitem.pend{border-style:dashed}.eitem.gone{opacity:.35;text-decoration:line-through;pointer-events:none}
+.eitem.snd{width:22px;margin-left:-11px;padding:0;justify-content:center;border-radius:11px}
+.eitem.snd svg{flex-shrink:0}
+.eitem .ex{display:none;position:absolute;top:-8px;right:-8px;width:16px;height:16px;border-radius:8px;place-items:center;font-size:12px;line-height:1;color:var(--onink);background:var(--ink);box-shadow:0 0 0 2px var(--page);z-index:3}
+.eitem:hover{z-index:2}.eitem:hover .ex{display:grid}   /* x sits on the corner, never under the click that opens it */
+.eitem.snd span{display:none;position:absolute;bottom:26px;left:50%;transform:translateX(-50%);padding:2px 6px;border-radius:5px;background:var(--ink);color:var(--onink);white-space:nowrap;pointer-events:none}
+.eitem.snd:hover span{display:block}
+.etrack{overflow:visible}#edtracks{padding-top:8px}
+#sndpick{position:absolute;z-index:20;width:260px;max-height:320px;overflow:auto;padding:8px;border-radius:12px;background:var(--raise);border:1px solid var(--line);box-shadow:var(--pop)}
+#sndpick h4{margin:8px 4px 2px;font-size:11px;line-height:14px;font-weight:600;color:var(--muted)}
+.timeline{position:relative}
 
 /* the panel: notes and Claude's work, the composer and the two buttons at its foot */
 aside{width:var(--sidew,320px);flex-shrink:0;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
@@ -663,6 +681,7 @@ body.making #making{display:flex}
   <div class="trow"><span class="tl"></span><div id="ticks" class="num"></div></div>
   <div class="trow"><div class="mini" id="mini"></div></div>
   <div id="tracks"></div>
+  <div id="edtracks"></div><div id="sndpick" hidden></div>
  </div>
 </div>
 <div class="rsz" id="rszside" role="separator" aria-orientation="vertical" aria-label="drag to resize the notes panel" title="drag to resize"></div>
@@ -952,7 +971,7 @@ function render(){
   ta.placeholder=previewOn?'Back to the cut to leave a note':p==='send'?(S.raw?'Note for the cut...':'Note for the next draft...'):!isCur()?'Older draft, read only':p==='approve'?(S.stills?'The preview is approved':S.stage==='cut'&&!S.final?'The cut is approved':'Approved'):view.round>1?'Feedback on '+dn(viewRound())+' at this moment...':'Type feedback for this moment...';
   const sc=$('scope');sc.style.display=nv&&canNote?'block':'none';
   if(nv)sc.innerHTML=`<option value="">${esc(lab(alt))} only</option><option value="*">${nv===1?'Both':'All'} versions</option>`;
-  renderVer();renderTx();renderBar();renderTracks();renderList();renderAdds();boxTime();hitSig='~';renderHits();
+  renderVer();renderTx();renderBar();renderTracks();renderEdTracks();renderList();renderAdds();boxTime();hitSig='~';renderHits();
 }
 const noteOk=()=>!!S&&isCur()&&pending()!=='approve'&&!previewOn;   // the composer is open (while Claude works a note waits)
 function meta(){   // "Round 1 · 31s ago", ticked every few seconds so the age stays true
@@ -987,6 +1006,38 @@ function renderBar(){
     return `<button class="pin${old?(c.status==='fixed'?' fixed':' todo'):''}" data-pt="${here(c)}" data-old="${old?1:0}" style="left:${Math.min(98.5,Math.max(1.5,here(c)/T*100))}%" title="${esc(fmt(here(c))+'  '+c.text)}">${i+1}</button>`}).join('');
   tick();
 }
+// the edit's Text and Sounds rows: every text (made or changing) and every sound in the draft or put there by the user.
+const NOTE_ICON='<svg width="10" height="10" viewBox="0 0 12 12"><path d="M5 1.5v6.2A1.8 1.8 0 1 0 6.3 9.4V4l3.2-1V1z" fill="currentColor"/></svg>';
+function renderEdTracks(){const E=$('edtracks'),T=D();
+  if(!(S&&view&&view.stage==='edit'&&noteOk()&&!cmp)||!T){E.innerHTML='';return}
+  const pc=t=>Math.max(0,Math.min(100,t/T*100));
+  const texts=textItems().map(x=>`<div class="eitem${x.fresh?' pend':''}" data-et="${esc(String(x.id))}" data-ef="${x.fresh?1:''}" style="left:${pc(x.start)}%;width:max(22px,calc(${pc(x.end)-pc(x.start)}% - 2px))" title="${esc(x.text)} · ${fmtx(x.start)}–${fmtx(x.end)}${x.locked?' · Claude has it':' · click to change'}"><span>${esc(x.text)}</span>${x.locked?'':`<b class="ex" data-ex="1" title="Remove">×</b>`}</div>`).join('');
+  const it=data().items||{},gone=new Set((S.sfx_removed||[]).map(t=>t.toFixed(2))),inDraft=new Set((it.sfx||[]).map(x=>x.placed).filter(Boolean));
+  const sname=src=>String(src).split('/').pop().replace(/\.[a-z0-9]+$/i,'').replace(/^own-(house|skit|simple|swoop|windy|digital)-/,'').replace(/^own-/,'');
+  const snds=(it.sfx||[]).map(x=>`<div class="eitem snd${gone.has(x.t.toFixed(2))?' gone':''}" data-st="${x.t}" data-ssrc="${esc(x.src)}"${x.placed?` data-sp2="${esc(x.placed)}"`:''} style="left:${pc(x.t)}%" title="${esc(sname(x.src))} at ${fmtx(x.t)} · click to hear it">${NOTE_ICON}<span>${esc(sname(x.src))}</span><b class="ex" data-ex="1" title="Remove">×</b></div>`).join('')
+    +(S.placed_sounds||[]).filter(x=>!inDraft.has(x.id)).map(x=>`<div class="eitem snd pend" data-st="${x.t}" data-ssrc="${esc(x.sound)}" data-sp2="${esc(x.id)}" style="left:${pc(x.t)}%" title="${esc(x.sound.replace(/\.[a-z0-9]+$/i,''))} at ${fmtx(x.t)} · next draft">${NOTE_ICON}<span>${esc(x.sound.replace(/\.[a-z0-9]+$/i,''))}</span><b class="ex" data-ex="1" title="Remove">×</b></div>`).join('');
+  const h=`<div class="erow2"><button class="eadd" id="addtx" title="Add a text at the playhead">+ Text</button><div class="etrack">${texts}</div></div>
+    <div class="erow2"><button class="eadd" id="addsnd" title="Add one of your sounds at the playhead">+ Sound</button><div class="etrack">${snds}</div></div>`;
+  if(E._h!==h){E._h=h;E.innerHTML=h}}
+$('edtracks').addEventListener('click',async e=>{
+  if(e.target.id==='addtx'){if(tool!=='text')openTool('text');setText('outline');return}
+  if(e.target.id==='addsnd'){return openSndPick(e.target)}
+  const ti=e.target.closest('[data-et]'),si=e.target.closest('[data-st]'),ex=e.target.closest('[data-ex]');
+  if(ti&&ex){e.stopPropagation();return delText(ti.dataset.et,!!ti.dataset.ef)}
+  if(ti){if(tool!=='text')openTool('text');return editText(ti.dataset.et,ti.dataset.ef)}
+  if(si&&ex){e.stopPropagation();const r=await post('/sfx/remove',{t:+si.dataset.st,src:si.dataset.ssrc,...(si.dataset.sp2?{placed:si.dataset.sp2}:{})});
+    if(!r.id)return toast(r.error||'That did not save.');toast('Sound removed. Submit feedback and the next draft drops it.');$('edtracks')._h=null;return load()}
+  if(si){v.currentTime=Math.max(0,+si.dataset.st-.6);v.play();setTimeout(()=>v.pause(),1600)}});   /* hear it in place */
+function openSndPick(btn){const P=$('sndpick'),own=((S.sounds_ui||{}).own)||[],groups={};
+  own.forEach(f=>{const m=f.match(/^([a-z0-9]+) /i),g=m?m[1]:'Yours';(groups[g]=groups[g]||[]).push(f)});
+  P.innerHTML=`<div class="tcap" style="margin:2px 4px 4px"><span>Add a sound at ${fmtx(v.currentTime)}</span></div>`+(own.length?Object.entries(groups).map(([g,fs])=>`<h4>${esc(g[0].toUpperCase()+g.slice(1))}</h4>${fs.map(f=>`<div class="sitem"><button class="splay sm" data-pp2="${esc(f)}" title="Play">${PLAY}</button><button class="spick" data-add="${esc(f)}">${esc(f.replace(/\.[a-z0-9]+$/i,'').replace(/^[a-z0-9]+ /i,''))}</button></div>`).join('')}`).join('')
+    :'<p class="tsub" style="padding:4px">No sounds of your own yet. Add one in the Sounds panel (+ Your own).</p>');
+  const r=btn.getBoundingClientRect(),tr=$('timeline').getBoundingClientRect();P.style.left=(r.left-tr.left)+'px';P.style.bottom=(tr.bottom-r.top+6)+'px';P.hidden=false;P.dataset.t=v.currentTime}
+$('sndpick').addEventListener('click',async e=>{const pp=e.target.closest('[data-pp2]'),ad=e.target.closest('[data-add]');
+  if(pp)return sndPlay('zoom',pp.dataset.pp2);
+  if(!ad)return;const r=await post('/sfx/add',{t:+$('sndpick').dataset.t,sound:ad.dataset.add});$('sndpick').hidden=true;
+  if(!r.id)return toast(r.error||'That did not save.');toast(`${ad.innerText} added at ${fmtx(+$('sndpick').dataset.t)}. Submit feedback so the next draft has it.`);$('edtracks')._h=null;load()});
+document.addEventListener('pointerdown',e=>{const P=$('sndpick');if(!P.hidden&&!P.contains(e.target)&&e.target.id!=='addsnd')P.hidden=true});
 function renderTracks(){
   const tr=view.stage==='edit'&&data().tracks,T=D();
   $('timeline').classList.toggle('tracked',!!tr);
@@ -1555,7 +1606,7 @@ v.addEventListener('play',icon);v.addEventListener('pause',icon);icon();
 $('back').onclick=()=>v.currentTime-=5;$('fwd').onclick=()=>v.currentTime+=5;
 function setSpeed(x){speed=x;v.playbackRate=x;try{localStorage.setItem('review-speed',x)}catch(e){}$('speed').textContent=x+'x'}
 $('speed').onclick=()=>setSpeed(SPEEDS[(SPEEDS.indexOf(speed)+1)%SPEEDS.length]);setSpeed(speed);
-v.addEventListener('loadedmetadata',()=>{v.playbackRate=speed;renderBar();renderTracks()});
+v.addEventListener('loadedmetadata',()=>{v.playbackRate=speed;renderBar();renderTracks();renderEdTracks()});
 $('mute').onclick=()=>{v.muted=!v.muted;$('mute').textContent=v.muted?'Muted':'Sound'};
 $('full').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.querySelector('#p1 .player').requestFullscreen();
 $('vsel').onchange=e=>{alt=e.target.value;inT=outT=null;setVideo();render()};

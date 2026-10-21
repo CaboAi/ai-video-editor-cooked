@@ -264,21 +264,32 @@ body.preview #pins,body.preview #cmprow{visibility:hidden}
 .timeline.tracked .mini{display:block;height:8px;margin-top:10px;border-radius:2px;background:var(--rail)}
 .mini i{position:absolute;top:0;height:8px;border-radius:2px;background:var(--quiet);cursor:pointer}.mini i.z{background:var(--ink)}
 .mini i:hover{outline:2px solid var(--ink);outline-offset:1px}
-/* the edit's Text and Sounds rows under the timeline: click one to change or hear it, x takes it out, + adds one at the playhead */
-#edtracks{display:flex;flex-direction:column;gap:6px;margin-top:10px}#edtracks:empty{display:none}
-.erow2{display:flex;align-items:center;gap:8px}.erow2>button.eadd{width:84px;flex-shrink:0;height:26px;border-radius:7px;border:1px dashed var(--line2);font-size:12px;font-weight:600;color:var(--body);text-align:left;padding:0 8px;white-space:nowrap}
-.erow2>button.eadd:hover{border-color:var(--ink);color:var(--ink)}
-.etrack{flex:1;min-width:0;position:relative;height:26px;border-radius:6px;background:var(--rail)}
-.eitem{position:absolute;top:2px;height:22px;border-radius:5px;background:var(--chip);border:1px solid var(--line2);display:flex;align-items:center;padding:0 6px;font-size:11px;line-height:14px;font-weight:600;color:var(--strong);cursor:pointer;min-width:22px}
-.eitem span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.eitem:hover{border-color:var(--ink)}.eitem.pend{border-style:dashed}.eitem.gone{opacity:.35;text-decoration:line-through;pointer-events:none}
-.eitem.snd{width:22px;margin-left:-11px;padding:0;justify-content:center;border-radius:11px}
-.eitem.snd svg{flex-shrink:0}
+/* the edit's Text and Sounds rows under the timeline, like CapCut's: clips as long as they last (a sound shows its
+   waveform), a ruler and a playhead; - and + zoom in and the rows scroll. Click to change or hear, x takes it out. */
+#edtracks{margin-top:12px}#edtracks:empty{display:none}
+.edwrap{display:flex;gap:8px}
+.edleft{width:84px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;padding-top:4px}
+.edleft .ezoom{position:static;height:20px;justify-content:space-between}
+.edleft button{height:30px;border-radius:7px;border:1px dashed var(--line2);font-size:12px;font-weight:600;color:var(--body);text-align:left;padding:0 8px;white-space:nowrap}
+.edleft button:hover{border-color:var(--ink);color:var(--ink)}
+.edright{flex:1;min-width:0;position:relative}
+.ezoom{position:absolute;right:0;top:-2px;z-index:4;display:flex;align-items:center;gap:2px;font-size:11px;color:var(--muted)}
+.ezoom button{width:22px;height:20px;border-radius:5px;font-size:14px;line-height:1;color:var(--ink)}.ezoom button:hover{background:var(--hover)}.ezoom button:disabled{opacity:.3}
+.escroll{overflow-x:auto;overflow-y:visible;padding-top:8px;scrollbar-width:thin}
+.einner{position:relative;min-width:100%}
+.eruler{position:relative;height:16px;font-size:10px;line-height:12px;color:var(--quiet)}.eruler span{position:absolute;top:0;padding-left:3px;border-left:1px solid var(--line2);white-space:nowrap}
+.etrack{position:relative;height:30px;margin-top:6px;border-radius:6px;background:var(--rail);cursor:pointer}
+.eitem{position:absolute;top:3px;height:24px;border-radius:5px;border:1px solid var(--line2);display:flex;align-items:center;font-size:11px;line-height:14px;font-weight:600;cursor:pointer;min-width:10px}
+.eitem.txt{background:#4B3E91;border-color:#6E5FD0;color:#FFFFFF;padding:0 6px}.eitem.txt span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.eitem.snd{background:#1F5C4A;border-color:#2F8C6F;color:#FFFFFF;overflow:hidden}
+.eitem.snd svg.wv{position:absolute;inset:2px 0;width:100%;height:calc(100% - 4px)}
+.eitem.snd.narrow span{display:none}.eitem.snd.narrow:hover span{display:block;position:absolute;bottom:28px;left:0;background:var(--ink);color:var(--onink);border-radius:5px;padding:2px 6px}
+.eitem.snd span{position:relative;padding:0 5px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.eitem:hover{border-color:#FFFFFF;z-index:2;overflow:visible}.eitem.pend{border-style:dashed}.eitem.gone{opacity:.3;pointer-events:none}
 .eitem .ex{display:none;position:absolute;top:-8px;right:-8px;width:16px;height:16px;border-radius:8px;place-items:center;font-size:12px;line-height:1;color:var(--onink);background:var(--ink);box-shadow:0 0 0 2px var(--page);z-index:3}
-.eitem:hover{z-index:2}.eitem:hover .ex{display:grid}   /* x sits on the corner, never under the click that opens it */
-.eitem.snd span{display:none;position:absolute;bottom:26px;left:50%;transform:translateX(-50%);padding:2px 6px;border-radius:5px;background:var(--ink);color:var(--onink);white-space:nowrap;pointer-events:none}
-.eitem.snd:hover span{display:block}
-.etrack{overflow:visible}#edtracks{padding-top:8px}
+.eitem:hover .ex{display:grid}   /* x sits on the corner, never under the click that opens it */
+.eph{position:absolute;top:8px;bottom:0;width:2px;margin-left:-1px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(0,0,0,.4);pointer-events:none;z-index:3}
+.timeline{position:relative}
 #sndpick{position:absolute;z-index:20;width:260px;max-height:320px;overflow:auto;padding:8px;border-radius:12px;background:var(--raise);border:1px solid var(--line);box-shadow:var(--pop)}
 #sndpick h4{margin:8px 4px 2px;font-size:11px;line-height:14px;font-weight:600;color:var(--muted)}
 .timeline{position:relative}
@@ -1008,18 +1019,34 @@ function renderBar(){
 }
 // the edit's Text and Sounds rows: every text (made or changing) and every sound in the draft or put there by the user.
 const NOTE_ICON='<svg width="10" height="10" viewBox="0 0 12 12"><path d="M5 1.5v6.2A1.8 1.8 0 1 0 6.3 9.4V4l3.2-1V1z" fill="currentColor"/></svg>';
+let tzUser=0,tz=1;try{tzUser=Math.max(0,Math.min(32,+localStorage.getItem('review-tz')||0))}catch(e){}   // the rows' zoom: yours, else about 15 s a screen, as CapCut opens
+const autoZ=T=>{let z=1;while(z*2<=Math.min(32,T/15))z*=2;return z};
+function waveSvg(peaks){const n=(peaks||[]).length;if(!n)return '';
+  return `<svg class="wv" viewBox="0 0 ${n} 20" preserveAspectRatio="none" aria-hidden="true">${peaks.map((v,i)=>`<rect x="${i+.15}" y="${(10-Math.max(.6,v*9)).toFixed(2)}" width=".7" height="${(Math.max(.6,v*9)*2).toFixed(2)}" fill="rgba(255,255,255,.55)"/>`).join('')}</svg>`}
 function renderEdTracks(){const E=$('edtracks'),T=D();
-  if(!(S&&view&&view.stage==='edit'&&noteOk()&&!cmp)||!T){E.innerHTML='';return}
-  const pc=t=>Math.max(0,Math.min(100,t/T*100));
-  const texts=textItems().map(x=>`<div class="eitem${x.fresh?' pend':''}" data-et="${esc(String(x.id))}" data-ef="${x.fresh?1:''}" style="left:${pc(x.start)}%;width:max(22px,calc(${pc(x.end)-pc(x.start)}% - 2px))" title="${esc(x.text)} · ${fmtx(x.start)}–${fmtx(x.end)}${x.locked?' · Claude has it':' · click to change'}"><span>${esc(x.text)}</span>${x.locked?'':`<b class="ex" data-ex="1" title="Remove">×</b>`}</div>`).join('');
-  const it=data().items||{},gone=new Set((S.sfx_removed||[]).map(t=>t.toFixed(2))),inDraft=new Set((it.sfx||[]).map(x=>x.placed).filter(Boolean));
+  if(!(S&&view&&view.stage==='edit'&&noteOk()&&!cmp)||!T){E.innerHTML='';E._h='';return}
+  tz=tzUser||autoZ(T);
+  const pc=t=>Math.max(0,Math.min(100,t/T*100)),it=data().items||{};
+  const gone=new Set((S.sfx_removed||[]).map(t=>t.toFixed(2))),inDraft=new Set((it.sfx||[]).map(x=>x.placed).filter(Boolean));
   const sname=src=>String(src).split('/').pop().replace(/\.[a-z0-9]+$/i,'').replace(/^own-(house|skit|simple|swoop|windy|digital)-/,'').replace(/^own-/,'');
-  const snds=(it.sfx||[]).map(x=>`<div class="eitem snd${gone.has(x.t.toFixed(2))?' gone':''}" data-st="${x.t}" data-ssrc="${esc(x.src)}"${x.placed?` data-sp2="${esc(x.placed)}"`:''} style="left:${pc(x.t)}%" title="${esc(sname(x.src))} at ${fmtx(x.t)} · click to hear it">${NOTE_ICON}<span>${esc(sname(x.src))}</span><b class="ex" data-ex="1" title="Remove">×</b></div>`).join('')
-    +(S.placed_sounds||[]).filter(x=>!inDraft.has(x.id)).map(x=>`<div class="eitem snd pend" data-st="${x.t}" data-ssrc="${esc(x.sound)}" data-sp2="${esc(x.id)}" style="left:${pc(x.t)}%" title="${esc(x.sound.replace(/\.[a-z0-9]+$/i,''))} at ${fmtx(x.t)} · next draft">${NOTE_ICON}<span>${esc(x.sound.replace(/\.[a-z0-9]+$/i,''))}</span><b class="ex" data-ex="1" title="Remove">×</b></div>`).join('');
-  const h=`<div class="erow2"><button class="eadd" id="addtx" title="Add a text at the playhead">+ Text</button><div class="etrack">${texts}</div></div>
-    <div class="erow2"><button class="eadd" id="addsnd" title="Add one of your sounds at the playhead">+ Sound</button><div class="etrack">${snds}</div></div>`;
-  if(E._h!==h){E._h=h;E.innerHTML=h}}
+  const vis=T/tz,step=[.5,1,2,5,10,15,30,60,120,300].find(x=>vis/x<=10)||600,ticks=[];for(let t=0;t<T;t+=step)ticks.push(t);
+  const texts=textItems().map(x=>`<div class="eitem txt${x.fresh?' pend':''}" data-et="${esc(String(x.id))}" data-ef="${x.fresh?1:''}" style="left:${pc(x.start)}%;width:${pc(x.end)-pc(x.start)}%" title="${esc(x.text)} · ${fmtx(x.start)}–${fmtx(x.end)}${x.locked?' · Claude has it':' · click to change'}"><span>${esc(x.text)}</span>${x.locked?'':`<b class="ex" data-ex="1" title="Remove">×</b>`}</div>`).join('');
+  const clip=(t0,d,cls,attrs,name,peaks,at)=>`<div class="eitem snd${cls}" ${attrs} style="left:${pc(t0)}%;width:${(d||.3)/T*100}%" title="${esc(name)} · ${fmtx(at)} · ${(d||0).toFixed(1)} s · click to hear it">${waveSvg(peaks)}<span>${esc(name)}</span><b class="ex" data-ex="1" title="Remove">×</b></div>`;
+  const snds=(it.sfx||[]).map(x=>clip(x.start??x.t,x.d,gone.has(x.t.toFixed(2))?' gone':'',`data-st="${x.t}" data-ssrc="${esc(x.src)}"${x.placed?` data-sp2="${esc(x.placed)}"`:''}`,sname(x.src),x.peaks,x.t)).join('')
+    +(S.placed_sounds||[]).filter(x=>!inDraft.has(x.id)).map(x=>clip(x.t,x.d,' pend',`data-st="${x.t}" data-ssrc="${esc(x.sound)}" data-sp2="${esc(x.id)}"`,x.sound.replace(/\.[a-z0-9]+$/i,''),x.peaks,x.t)).join('');
+  const h=`<div class="edwrap"><div class="edleft"><div class="ezoom"><button data-z="-" title="Zoom out"${tz<=1?' disabled':''}>−</button><span>${tz}x</span><button data-z="+" title="Zoom in"${tz>=32?' disabled':''}>+</button></div><button id="addtx" title="Add a text at the playhead">+ Text</button><button id="addsnd" title="Add one of your sounds at the playhead">+ Sound</button></div>
+    <div class="edright">
+    <div class="escroll" id="escroll"><div class="einner" style="width:${tz*100}%"><div class="eruler">${ticks.map(t=>`<span style="left:${pc(t)}%">${fmt(t)}</span>`).join('')}</div>
+    <div class="etrack" data-row="text">${texts}</div><div class="etrack" data-row="snd">${snds}</div><b class="eph" id="eph"></b></div></div></div></div>`;
+  if(E._h!==h){const sl=($('escroll')||{}).scrollLeft||0;E._h=h;E.innerHTML=h;$('escroll').scrollLeft=sl;
+    E.querySelectorAll('.eitem.snd').forEach(c=>c.classList.toggle('narrow',c.offsetWidth<48))}edPh()}
+function edPh(){const ph=$('eph'),T=D();if(!ph||!T)return;ph.style.left=v.currentTime/T*100+'%';
+  const sc=$('escroll');if(tz>1&&!v.paused&&sc){const x=v.currentTime/T*sc.scrollWidth;if(x<sc.scrollLeft+20||x>sc.scrollLeft+sc.clientWidth-40)sc.scrollLeft=x-sc.clientWidth*.25}}
 $('edtracks').addEventListener('click',async e=>{
+  const zb=e.target.closest('[data-z]');if(zb){const sc=$('escroll'),mid=sc?(sc.scrollLeft+sc.clientWidth/2)/sc.scrollWidth:0;
+    tzUser=zb.dataset.z==='+'?Math.min(32,tz*2):Math.max(1,tz/2);try{localStorage.setItem('review-tz',tzUser)}catch(x){}renderEdTracks();
+    const s2=$('escroll');if(s2)s2.scrollLeft=mid*s2.scrollWidth-s2.clientWidth/2;return}
+  const tk=e.target.closest('.etrack');if(tk&&!e.target.closest('.eitem')){const r=tk.getBoundingClientRect();v.currentTime=Math.max(0,(e.clientX-r.left)/r.width*D());return}   /* click empty track: go there */
   if(e.target.id==='addtx'){if(tool!=='text')openTool('text');setText('outline');return}
   if(e.target.id==='addsnd'){return openSndPick(e.target)}
   const ti=e.target.closest('[data-et]'),si=e.target.closest('[data-st]'),ex=e.target.closest('[data-ex]');
@@ -1624,7 +1651,7 @@ function tick(){const T=D(),t=v.currentTime,p=Math.min(100,t/T*100);
   document.querySelectorAll('.pin').forEach(el=>el.classList.toggle('cur',el.dataset.old==='0'&&Math.abs(+el.dataset.pt-t)<1));
   document.querySelectorAll('#ticks span[data-s]').forEach((el,i,all)=>el.classList.toggle('cur',t>=+el.dataset.s&&(!all[i+1]||t<+all[i+1].dataset.s)));
   document.querySelectorAll('.track .ph').forEach(el=>el.style.left=p+'%');
-  $('time').innerHTML=`<b>${fmtx(t)}</b><span>/ ${fmt(v.duration||0)}</span>`;tickTx();renderHits();renderTexts()}
+  $('time').innerHTML=`<b>${fmtx(t)}</b><span>/ ${fmt(v.duration||0)}</span>`;tickTx();renderHits();renderTexts();edPh()}
 v.addEventListener('timeupdate',tick);v.addEventListener('seeked',tick);
 const at=e=>{const r=bar.getBoundingClientRect();return Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))*(v.duration||0)};
 bar.addEventListener('pointerdown',e=>{dragging=true;bar.setPointerCapture(e.pointerId);v.currentTime=at(e);tick()});

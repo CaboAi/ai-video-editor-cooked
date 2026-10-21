@@ -382,9 +382,41 @@ def sounds_info():
 SOUND_MAX_MB = 10
 
 
-def placed_sounds(folder):
+def placed_raw(folder):
+    """<edit>/sounds.json's items as saved: {id, t, sound}."""
     f = Path(folder) / "sounds.json"
     return (load(f).get("items") or []) if f.exists() else []
+
+
+def placed_sounds(folder):
+    """placed_raw with each sound's length and waveform, for the page."""
+    items = placed_raw(folder)
+    lib = sfx_mod().library_dir()
+    return [{**x, **sound_shape(lib / x["sound"], cap=sfx_mod().MAX_OWN_S)} for x in items if isinstance(x, dict) and "sound" in x]
+
+
+_SHAPE = {}
+
+
+def sound_shape(f, cap=None, n=48):
+    """{"d": seconds, "peaks": n values 0-1}: how long a sound is and its waveform, for the timeline's sound clips
+    (a CapCut-style clip). Cached by file and time; {} when the file cannot be read."""
+    try:
+        k = (str(f), Path(f).stat().st_mtime, cap)
+    except OSError:
+        return {}
+    if k not in _SHAPE:
+        try:
+            x = sfx_mod().pcm(src=f)
+        except Exception:
+            return {}
+        if cap:
+            x = x[:int(cap * sfx_mod().SR)]
+        step = max(1, len(x) // n)
+        peaks = [max((abs(v) for v in x[i:i + step]), default=0.0) for i in range(0, step * n, step)]
+        top = max(peaks) or 1.0
+        _SHAPE[k] = {"d": round(len(x) / sfx_mod().SR, 3), "peaks": [round(v / top, 2) for v in peaks]}
+    return _SHAPE[k]
 
 
 def sound_name(src):
@@ -455,7 +487,8 @@ def screen_items(folder, p):
                                                                "w": float(cap.get("width_pct") or 86)},
             "zooms": [{"s": round(z["start"], 2), "e": round(z["end"], 2)} for z in p.get("zooms") or [] if "start" in z and "end" in z],
             # the sounds in the draft, for the timeline's Sounds row: when each is heard, and which it is
-            "sfx": [{"t": round(float(x.get("event", x["t"])), 3), "src": str(x.get("src") or ""), "placed": x.get("placed")}
+            "sfx": [{"t": round(float(x.get("event", x["t"])), 3), "start": round(float(x["t"]), 3), "src": str(x.get("src") or ""),
+                     "placed": x.get("placed"), **sound_shape(folder / str(x.get("src") or ""))}
                     for x in p.get("sfx") or [] if isinstance(x, dict) and "t" in x]}
 
 
@@ -1696,7 +1729,7 @@ def make_handler(folder, token):
                 if d.get("stage") != "edit" or d.get("sent") and last not in ("send", "edits"):
                     return self.send(409, {"error": "Sounds change on the edit, before it is approved."})
                 sfx, f = sfx_mod(), folder / "sounds.json"
-                items = placed_sounds(folder)
+                items = placed_raw(folder)
                 try:
                     t = round(float(body["t"]), 2)
                     if path == "/sfx/add":

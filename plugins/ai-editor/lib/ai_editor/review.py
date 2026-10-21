@@ -319,6 +319,25 @@ def _host(url):
     return re.sub(r"^www\.", "", urlsplit(str(url)).netloc) or str(url)
 
 
+CARD_IMG = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg")
+
+
+def card_key(c):
+    """A card's key in overrides.json (style-edit preview.py card_key): plan.py finds it again after a re-plan."""
+    return c.get("override") or f"{c.get('trigger_word', '')}@{c['start']:.3f}"
+
+
+def card_override(folder, key, change):
+    """The video page's move, resize or delete of a card into <edit>/overrides.json (preview.py apply_overrides,
+    which plan.py runs after planning, so a re-plan keeps it). change: {"box": [x, y, w, h]} or {"deleted": True}."""
+    f = Path(folder) / "overrides.json"
+    ov = load(f) if f.exists() else {}
+    cards = ov.setdefault("cards", {})
+    cards[key] = {**(cards.get(key) or {}), **change}
+    f.write_text(json.dumps(ov, indent=1), encoding="utf-8")
+    return cards[key]
+
+
 def screen_items(folder, p):
     """What the page can click on the frame, from plan.json: each card's box and what it shows ("the github.com page"),
     the caption chunks and where captions sit, the zooms and the title texts. Boxes are % of the frame."""
@@ -345,8 +364,10 @@ def screen_items(folder, p):
         what = (names.get(c.get("src")) or ("the motion clip" if an.get("type") == "video_card" else f"the {an['type']} animation" if an.get("type") else None)
                 or names.get(w.lower()) or (f"the {c['format']}" if c.get("format") in ("logo", "browser", "post") else "the picture"))
         box = c.get("box") if isinstance(c.get("box"), list) and len(c["box"]) == 4 else [0, 0, 100, 50] if c.get("layout") == "split" else [0, 0, 100, 100]
+        src = c.get("src") if isinstance(c.get("src"), str) and Path(c["src"]).suffix.lower() in CARD_IMG else None
         cards.append({"i": i, "s": round(c["start"], 2), "e": round(c["end"], 2), "box": [round(float(v), 1) for v in box],
-                      "label": what + (f' on "{w}"' if w else "")})
+                      "label": what + (f' on "{w}"' if w else ""), "key": card_key(c),   # the page moves, resizes or deletes it
+                      **({"src": src} if src and (folder / src).is_file() else {})})
     cap = (p.get("captions") or {}).get("style") or {}
     size = float(cap.get("size_pct") or 6) * max(p.get("width") or 1, p.get("height") or 1) / (p.get("height") or 1)
     texts = []
@@ -1304,6 +1325,11 @@ def make_handler(folder, token):
                 if p and p.is_file() and (r["stage"], r["round"]) == (d["stage"], d["round"]) == ("cut", d["round"]):
                     upgrade_transcript(folder, p)
                 return self.send(200, p.read_bytes() if p and p.is_file() else {})
+            if path.startswith("/card-img/"):   # a card's own picture, under this edit only: the move and resize preview
+                p = (folder / unquote(path[len("/card-img/"):])).resolve()
+                if folder.resolve() not in p.parents or p.suffix.lower() not in CARD_IMG or not p.is_file():
+                    return self.send(404, {})
+                return self.file(p, mimetypes.guess_type(p.name)[0] or "image/png")
             if path.startswith("/assets/"):   # an image the user added (assets.py)
                 p = folder / "assets" / Path(unquote(path)).name
                 ct = {".png": "image/png", ".gif": "image/gif", ".webp": "image/webp"}.get(p.suffix, "image/jpeg")
@@ -1422,6 +1448,28 @@ def make_handler(folder, token):
                             c["alt"] = body.get("alt") or None
                 update(rj, sc)
                 return self.send(200, {})
+            if path == "/card/edit":   # the video page: a card moved, resized or deleted; overrides.json and a note for Claude
+                d = load(rj)
+                last = d["events"][-1]["type"] if d["events"] else None
+                if d.get("stage") != "edit" or d.get("sent") and last not in ("send", "edits"):
+                    return self.send(409, {"error": "Cards change on the edit, before it is approved."})
+                key, label = str(body.get("key") or ""), str(body.get("label") or "the card")[:120]
+                try:
+                    if not re.fullmatch(r".*@\d+(\.\d+)?", key):
+                        raise ValueError
+                    if body.get("deleted"):
+                        change, what = {"deleted": True}, "Remove"
+                    else:
+                        box = [round(float(v), 1) for v in body["box"]]
+                        if len(box) != 4 or box[2] < 3 or box[3] < 3 or not all(-50 <= v <= 150 for v in box):
+                            raise ValueError
+                        change, what = {"box": box}, "Move or resize"
+                    t, te = float(body["t"]), float(body["t_end"])
+                except (KeyError, TypeError, ValueError):
+                    return self.send(400, {"error": "card/edit takes key, t, t_end and box [x, y, w, h] or deleted"})
+                card_override(folder, key, change)
+                return self.comment({"t": t, "t_end": te, "text": f"{what} {label} as shown on the page: overrides.json has it "
+                                     f"(card {key}). Plan again so it shows."})
             if path in ("/text/delete", "/text/edit"):   # the Text tab on a sent text: texts.json changes, and a note tells Claude
                 d, f = load(rj), folder / "texts.json"
                 last = d["events"][-1]["type"] if d["events"] else None
@@ -3103,6 +3151,29 @@ def demo():
     row = load(folder / "texts.json")["items"][0]
     assert (row["text"], row["style"], row["x_pct"], row["y_pct"], row["start"], row["end"]) == ("hello there", "box", 30.0, 40.0, 2.0, 5.0), row
     assert ch["text"].startswith('Change the on-screen text "hi there" (words, look, place, time)') and ch["t"] == 2.0, ch
+    # a card on the video: moved or resized, then deleted, into overrides.json with a note each; its picture is served
+    trk_items = json.loads(get("/data?k=edit-1").read())["items"]["cards"]
+    assert trk_items[0]["key"].startswith("later@"), trk_items
+    cm = post("/card/edit", {"key": trk_items[0]["key"], "label": "the picture", "t": 3.5, "t_end": 5.5, "box": [10, 12.34, 50, 30]})
+    assert load(folder / "overrides.json")["cards"][trk_items[0]["key"]] == {"box": [10.0, 12.3, 50.0, 30.0]}
+    assert cm["text"].startswith("Move or resize the picture as shown on the page: overrides.json has it"), cm
+    cd = post("/card/edit", {"key": trk_items[0]["key"], "label": "the picture", "t": 3.5, "t_end": 5.5, "deleted": True})
+    assert load(folder / "overrides.json")["cards"][trk_items[0]["key"]] == {"box": [10.0, 12.3, 50.0, 30.0], "deleted": True}
+    for bad in ({"key": "x", "t": 1, "t_end": 2, "box": [0, 0, 10, 10]}, {"key": "a@1.0", "t": 1, "t_end": 2, "box": [0, 0, 1, 10]}):
+        try:
+            post("/card/edit", bad)
+            raise AssertionError(bad)
+        except urllib.error.HTTPError as e:
+            assert e.code == 400, bad
+    (folder / "overrides.json").unlink()
+    for x in (cm, cd):
+        post("/delete", {"id": x["id"]})
+    for bad in ("/card-img/../review.json", "/card-img/review.json"):
+        try:
+            get(bad)
+            raise AssertionError(bad)
+        except urllib.error.HTTPError as e:
+            assert e.code == 404, bad
     gone = post("/text/delete", {"id": "edit1-99"})
     assert not load(folder / "texts.json")["items"] and gone["text"] == 'Remove the on-screen text "hello there".', gone
     for x in (ch, gone):

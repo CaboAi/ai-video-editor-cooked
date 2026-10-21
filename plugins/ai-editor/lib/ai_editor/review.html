@@ -407,6 +407,16 @@ body.tside #tside{display:flex}
 .titem span{font-size:12px;line-height:16px;color:var(--muted)}
 .titem button{height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--line2);font-size:12px;font-weight:600;color:var(--ink);flex-shrink:0}.titem button:hover{border-color:var(--ink)}
 .tl{position:absolute;transform:translate(-50%,-50%);width:84%;text-align:center;font-family:'TikTok Sans',system-ui,-apple-system,sans-serif;font-weight:700;line-height:1.15;white-space:pre-wrap;overflow-wrap:anywhere}
+.csel{position:absolute;pointer-events:auto;cursor:move;touch-action:none;outline:2px solid #FFFFFF;box-shadow:0 0 0 1px rgba(0,0,0,.55),inset 0 0 0 1px rgba(0,0,0,.35)}
+.csel img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
+.csel i{position:absolute;width:12px;height:12px;margin:-6px;border-radius:3px;background:#FFFFFF;border:1px solid #0C0A09}
+.csel [data-h=nw]{left:0;top:0;cursor:nwse-resize}.csel [data-h=ne]{right:0;top:0;cursor:nesw-resize}.csel [data-h=sw]{left:0;bottom:0;cursor:nesw-resize}.csel [data-h=se]{right:0;bottom:0;cursor:nwse-resize}
+.cwas{position:absolute;pointer-events:none;outline:1px dashed rgba(255,255,255,.75);background:rgba(12,10,9,.55);display:grid;place-items:center}
+.cwas span{font-size:11px;line-height:14px;color:#FFFFFF;background:rgba(12,10,9,.7);padding:2px 6px;border-radius:5px}
+.cbar{position:absolute;pointer-events:auto;display:flex;gap:4px;margin-top:8px;padding:4px;border-radius:10px;background:var(--pill);box-shadow:var(--pop);white-space:nowrap}
+.cbar.up{transform:translateY(calc(-100% - 16px))}
+.cbar button{height:28px;padding:0 10px;border-radius:7px;font-size:12px;font-weight:600;color:var(--pilltx)}.cbar button:hover{background:rgba(255,255,255,.12)}
+.cbar button.go{background:#FFFFFF;color:#0C0A09}.cbar button:disabled{opacity:.4}
 .tl[data-tclick]{pointer-events:auto;cursor:pointer}.tl[data-tclick]:hover{outline:1px dashed rgba(255,255,255,.8);outline-offset:4px}
 #tprev{pointer-events:auto;cursor:move;touch-action:none;outline:1px dashed rgba(255,255,255,.8);outline-offset:4px}
 .ts-plain,.ts-outline{color:#FFFFFF}.ts-outline{-webkit-text-stroke:.14em #000;paint-order:stroke fill}
@@ -607,7 +617,7 @@ body.making #making{display:flex}
   <div id="pair">
    <figure class="pl" id="p2"><figcaption id="cap2"></figcaption><div class="player"><video id="v2" preload="auto" muted playsinline></video><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
    <figure class="pl" id="p1"><figcaption id="cap1"></figcaption><div class="player"><video id="v" preload="auto" playsinline></video>
-    <div class="hits" id="hits"></div><div class="hits" id="tlayer"></div><div id="oldbadge"></div><div id="making" aria-live="polite"></div><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
+    <div class="hits" id="hits"></div><div class="hits" id="tlayer"></div><div class="hits" id="clayer"></div><div id="oldbadge"></div><div id="making" aria-live="polite"></div><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
   </div>
   <div class="rsz" id="rsztx" role="separator" aria-label="drag to resize the video and the transcript" title="drag to resize"></div>
   <div id="tx"><div class="txhead"><b>Transcript</b><span id="txmeta"></span></div><div id="txlines"></div><div class="txtools" id="txtools"></div><div id="txbar" role="toolbar" aria-label="change the selected words"></div></div>
@@ -1548,7 +1558,7 @@ function renderHits(){
     ...(it.zooms||[]).filter(on).map(x=>({k:'zooms',x}))];
   const sig=up.map(u=>u.k+u.x.s).join();if(sig===hitSig)return;hitSig=sig;HITS=up;
   $('hits').innerHTML=up.map((u,i)=>u.k==='zooms'?`<button class="hit ztag" data-hit="${i}" title="${esc(lead(u.k,u.x))}click to leave a note">Zoom</button>`
-    :`<button class="hit" data-hit="${i}" aria-label="${esc(lead(u.k,u.x))}leave a note" style="left:${u.box[0]}%;top:${u.box[1]}%;width:${u.box[2]}%;height:${u.box[3]}%"><span>${u.k==='texts'?TK[u.x.kind]||'Text':HL[u.k]} · click to note</span></button>`).join('');
+    :`<button class="hit" data-hit="${i}" aria-label="${esc(lead(u.k,u.x))}leave a note" style="left:${u.box[0]}%;top:${u.box[1]}%;width:${u.box[2]}%;height:${u.box[3]}%"><span>${u.k==='texts'?TK[u.x.kind]||'Text':HL[u.k]} · click to ${u.k==='cards'?'move, resize or delete':'note'}</span></button>`).join('');
 }
 let noteOn=null;   // what the user clicked to start this note: the note is tagged with it, not with whatever else is on screen
 function startNote(text,a,b,on){
@@ -1557,7 +1567,39 @@ function startNote(text,a,b,on){
 }
 $('hits').addEventListener('click',e=>{const b=e.target.closest('[data-hit]');if(!b)return;e.stopPropagation();const u=HITS[+b.dataset.hit];
   if(u&&u.k==='texts'&&u.x.kind==='label'){const m=(S.texts||[]).find(x=>Math.abs(x.start-u.x.s)<.05&&x.text===u.x.text);if(m)return editText(m.id,false)}   /* your own text: click to change it */
+ if(u&&u.k==='cards'&&u.x.key)return selectCard(u.x);   /* a card: select it to move, resize or delete it */
  if(u)startNote(lead(u.k,u.x),u.x.s,u.x.e,{k:u.k,text:u.x.text||u.x.label||''})});
+// a card on the video: click it to select it. Drag it to move it, a corner to resize it (a picture keeps its shape), then
+// Save; or Delete it, or leave a Note about it. Save and Delete go into overrides.json (POST /card/edit), which plan.py
+// applies, with a note so Claude plans again. The picture shows at its new place until the next draft is made.
+let csel=null;   // {x: the card (review.py screen_items), box, orig} in % of the frame
+function selectCard(x){if(!noteOk())return;v.pause();csel={x,box:x.box.slice(),orig:x.box.slice()};drawCard()}
+const cmoved=()=>!!csel&&csel.box.some((q,i)=>Math.abs(q-csel.orig[i])>.2);
+function drawCard(){const L=$('clayer');if(!csel){L.innerHTML='';return}
+  const[x,y,w,h]=csel.box,[ox,oy,ow,oh]=csel.orig,mv=cmoved(),low=y+h>82;
+  L.innerHTML=(mv?`<div class="cwas" style="left:${ox}%;top:${oy}%;width:${ow}%;height:${oh}%"><span>Was here</span></div>`:'')
+    +`<div class="csel" id="csel" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${csel.x.src&&mv?`<img src="/card-img/${csel.x.src.split('/').map(encodeURIComponent).join('/')}" alt="">`:''}${['nw','ne','sw','se'].map(k=>`<i data-h="${k}"></i>`).join('')}</div>
+    <div class="cbar${low?' up':''}" style="left:${x}%;top:${low?y:y+h}%"><button data-c="del">Delete</button><button data-c="note">Note</button><button data-c="cancel">Cancel</button><button data-c="save" class="go"${mv?'':' disabled'}>Save</button></div>`}
+async function cardSave(del){const c=csel;if(!c)return;
+  const r=await post('/card/edit',{key:c.x.key,label:c.x.label,t:c.x.s,t_end:c.x.e,...(del?{deleted:true}:{box:c.box})});
+  if(!r.id)return toast(r.error||'That did not save.');csel=null;drawCard();toast(del?'Card deleted. Submit feedback and the next draft drops it.':'Card moved. Submit feedback and the next draft shows it.');await load()}
+$('clayer').addEventListener('click',e=>{const b=e.target.closest('[data-c]');if(!b||!csel)return;e.stopPropagation();const k=b.dataset.c;
+  if(k==='cancel'){csel=null;drawCard()}else if(k==='del')cardSave(true);else if(k==='save')cardSave(false);
+  else if(k==='note'){const x=csel.x;csel=null;drawCard();startNote(lead('cards',x),x.s,x.e,{k:'cards',text:x.label})}});
+$('clayer').addEventListener('pointerdown',e=>{const el=e.target.closest('#csel');if(!el||!csel)return;e.preventDefault();el.setPointerCapture(e.pointerId);
+  const h=e.target.dataset.h,r=$('clayer').getBoundingClientRect(),b0=csel.box.slice(),x0=e.clientX,y0=e.clientY,keep=!!csel.x.src,ar=b0[3]/b0[2];
+  const cl=(n,a,b)=>Math.round(Math.min(b,Math.max(a,n))*10)/10;
+  el.onpointermove=ev=>{const dx=(ev.clientX-x0)/r.width*100,dy=(ev.clientY-y0)/r.height*100;let[x,y,w,ht]=b0;
+    if(!h){x=cl(x+dx,-w/2,100-w/2);y=cl(y+dy,-ht/2,100-ht/2)}
+    else{const l=h.includes('w'),t=h.includes('n');w=Math.max(4,b0[2]+(l?-dx:dx));ht=keep?w*ar:Math.max(4,b0[3]+(t?-dy:dy));
+      if(l)x=b0[0]+b0[2]-w;if(t)y=b0[1]+b0[3]-ht;[x,y,w,ht]=[x,y,w,ht].map(q=>Math.round(q*10)/10)}
+    if(v.videoHeight>v.videoWidth){   // reels: inside the safe zone (x 60-940, y 250-1440 of 1080x1920)
+      const X0=5.6,X1=87,Y0=13,Y1=75;if(w>X1-X0){w=X1-X0;if(keep)ht=w*ar}if(ht>Y1-Y0){ht=Y1-Y0;if(keep)w=ht/ar}
+      x=Math.round(Math.min(X1-w,Math.max(X0,x))*10)/10;y=Math.round(Math.min(Y1-ht,Math.max(Y0,y))*10)/10}
+    csel.box=[x,y,w,ht];const s2=$('csel');Object.assign(s2.style,{left:x+'%',top:y+'%',width:w+'%',height:ht+'%'})};
+  el.onpointerup=()=>{el.onpointermove=null;drawCard()}});
+document.addEventListener('keydown',e=>{if(!csel||/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement||{}).tagName||''))return;
+  if(e.key==='Escape'){csel=null;drawCard()}if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();cardSave(true)}if(e.key==='Enter'&&cmoved()){e.preventDefault();cardSave(false)}});
 $('mini').addEventListener('click',e=>{const m=e.target.closest('[data-mk]');if(!m)return;const x=((data().items||{})[m.dataset.mk]||[])[+m.dataset.i];
   if(x&&noteOk())startNote(lead(m.dataset.mk,x),x.s,x.e,{k:m.dataset.mk,text:x.text||x.label||''});else v.currentTime=+m.dataset.s});
 // notes: the clock is always the playhead (scrub, a transcript word, a pin, a skip, a key, play), typing or not.

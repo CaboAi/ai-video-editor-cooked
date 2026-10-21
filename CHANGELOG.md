@@ -4,7 +4,7 @@ What changed for every user, newest first.
 
 ## Unreleased
 
-- Text has its own tab beside Notes on the right (the T button leaves the note box). Every text on the edit is listed; click one in the list or on the video to change its words, look, place or time, then Save. Sent texts change too, with Delete on each.
+- Text has its own panel on the left, like Tella: the Text tool in the menu opens it, Notes stay on the right. Pick a look (Plain, Outline, Box), type, drag it on the video. Click any text, in the list or on the video, to change its words, look, place or time (Start here, End here), or Delete it. Sent texts change too.
 ## ai-editor 2.7.22, creator-teardown 2.7.22 (2026-10-20)
 - Check now sees a new release the moment it is out. It read GitHub's 5-minute cached copy before, so a fresh release could still show as the old one.
 

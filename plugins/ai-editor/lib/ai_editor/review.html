@@ -386,7 +386,15 @@ body.tside #tside{display:flex}
 @media (max-width:1440px){body.tside .transport{gap:6px}body.tside .left{padding-left:16px;padding-right:16px}body.tside .transport .tbtn{padding:0 8px}}
 @media (max-width:1279px){body.tside .transport{flex-wrap:wrap;height:auto;row-gap:6px}}
 .tsh{display:flex;align-items:center;gap:6px;padding:16px 16px 8px}.tsh b{flex:1;font-size:15px;line-height:20px;font-weight:600;color:var(--strong)}
-.tsh button{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:18px;line-height:1;color:var(--body)}.tsh button:hover{background:var(--hover);color:var(--ink)}
+.tsh button{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:18px;line-height:1;color:var(--body)}.tsh button[hidden]{display:none}.tsh button:hover{background:var(--hover);color:var(--ink)}
+#tbody[hidden],#cbody[hidden]{display:none!important}
+#cbody{flex:1;min-height:0;overflow:auto;padding:4px 16px 16px;display:flex;flex-direction:column;gap:14px}
+.cgroup{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.cgroup button{height:36px;border-radius:8px;border:1px solid var(--line2);font-size:13px;font-weight:600;color:var(--ink)}
+.cgroup button:hover{border-color:var(--ink)}.cgroup button.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.clooks{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.clook{display:flex;flex-direction:column;gap:6px;align-items:stretch;text-align:left;font-size:12px;line-height:16px;color:var(--body);font-weight:500}
+.clook>span{height:64px;border-radius:10px;background:#3A3D44 linear-gradient(160deg,#5B6270,#2B2E35);display:grid;place-items:center;font-family:'TikTok Sans',system-ui,-apple-system,sans-serif;outline:1.5px solid transparent;outline-offset:2px;overflow:hidden;padding:0 6px}
+.clook:hover>span{outline-color:var(--line2)}.clook.on>span{outline-color:var(--ink)}.clook.on{color:var(--strong);font-weight:600}
 #tbody{flex:1;min-height:0;overflow:auto;padding:4px 16px 16px;display:flex;flex-direction:column;gap:14px}
 .ttiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .ttile{height:64px;border-radius:10px;background:#3A3D44 linear-gradient(160deg,#5B6270,#2B2E35);display:grid;place-items:center;font-family:'TikTok Sans',system-ui,-apple-system,sans-serif;font-weight:700;font-size:15px;outline:1.5px solid transparent;outline-offset:2px}
@@ -408,6 +416,16 @@ body.tside #tside{display:flex}
 .titem span{font-size:12px;line-height:16px;color:var(--muted)}
 .titem button{height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--line2);font-size:12px;font-weight:600;color:var(--ink);flex-shrink:0}.titem button:hover{border-color:var(--ink)}
 .tl{position:absolute;transform:translate(-50%,-50%);width:84%;text-align:center;font-family:'TikTok Sans',system-ui,-apple-system,sans-serif;font-weight:700;line-height:1.15;white-space:pre-wrap;overflow-wrap:anywhere}
+.csel{position:absolute;pointer-events:auto;cursor:move;touch-action:none;outline:2px solid #FFFFFF;box-shadow:0 0 0 1px rgba(0,0,0,.55),inset 0 0 0 1px rgba(0,0,0,.35)}
+.csel img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
+.csel i{position:absolute;width:12px;height:12px;margin:-6px;border-radius:3px;background:#FFFFFF;border:1px solid #0C0A09}
+.csel [data-h=nw]{left:0;top:0;cursor:nwse-resize}.csel [data-h=ne]{right:0;top:0;cursor:nesw-resize}.csel [data-h=sw]{left:0;bottom:0;cursor:nesw-resize}.csel [data-h=se]{right:0;bottom:0;cursor:nwse-resize}
+.cwas{position:absolute;pointer-events:none;outline:1px dashed rgba(255,255,255,.75);background:rgba(12,10,9,.55);display:grid;place-items:center}
+.cwas span{font-size:11px;line-height:14px;color:#FFFFFF;background:rgba(12,10,9,.7);padding:2px 6px;border-radius:5px}
+.cbar{position:absolute;pointer-events:auto;display:flex;gap:4px;margin-top:8px;padding:4px;border-radius:10px;background:var(--pill);box-shadow:var(--pop);white-space:nowrap}
+.cbar.up{transform:translateY(calc(-100% - 16px))}
+.cbar button{height:28px;padding:0 10px;border-radius:7px;font-size:12px;font-weight:600;color:var(--pilltx)}.cbar button:hover{background:rgba(255,255,255,.12)}
+.cbar button.go{background:#FFFFFF;color:#0C0A09}.cbar button:disabled{opacity:.4}
 .tl[data-tclick]{pointer-events:auto;cursor:pointer}.tl[data-tclick]:hover{outline:1px dashed rgba(255,255,255,.8);outline-offset:4px}
 #tprev{pointer-events:auto;cursor:move;touch-action:none;outline:1px dashed rgba(255,255,255,.8);outline-offset:4px}
 .ts-plain,.ts-outline{color:#FFFFFF}.ts-outline{-webkit-text-stroke:.14em #000;paint-order:stroke fill}
@@ -577,6 +595,7 @@ body.making #making{display:flex}
  <a class="ritem" data-home data-view="skills" href="#"><i><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M13 3 5 13.5h6l-1 7.5 8-10.5h-6z"/></svg></i>Skills</a>
  <div class="rdiv" id="railtools" hidden></div>
  <button class="ritem rtool" id="railtext" type="button" hidden title="Text on the video"><i><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></i>Text</button>
+ <button class="ritem rtool" id="railcap" type="button" hidden title="Captions: words at a time and the look"><i><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 15h4M13 15h4M7 11h10"/></svg></i>Captions</button>
  <div class="rflex"></div>
  <a class="ritem rjob" id="railjobs" data-home data-view="videos" href="#" hidden><i><span id="jobn">0</span><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="var(--line)" stroke-width="2.5"/><path d="M12 2a10 10 0 0 1 9.5 13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></i>Making</a>
  <button class="ritem" id="railupd" type="button"><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></i><span id="railupdt">Update</span></button>
@@ -597,7 +616,7 @@ body.making #making{display:flex}
 </ol><div id="keys"></div></section>
 
 <main>
-<section id="tside" aria-label="Text"><div class="tsh"><b>Text</b><button id="tplus" title="Add text (the default look)" aria-label="add text">+</button><button id="tclose" title="Close" aria-label="close the text panel">×</button></div><div id="tbody"></div></section>
+<section id="tside" aria-label="Text"><div class="tsh"><b id="tsht">Text</b><button id="tplus" title="Add text (the default look)" aria-label="add text">+</button><button id="tclose" title="Close" aria-label="close the text panel">×</button></div><div id="tbody"></div><div id="cbody" hidden></div></section>
 <div class="left">
  <div class="stagewrap">
  <div id="stagebar" role="status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="4" cy="4.5" r="2.2"/><circle cx="4" cy="11.5" r="2.2"/><path d="M5.8 5.6L14 11.5M5.8 10.4L14 4.5"/></svg><span id="stagetext"></span></div>
@@ -608,7 +627,7 @@ body.making #making{display:flex}
   <div id="pair">
    <figure class="pl" id="p2"><figcaption id="cap2"></figcaption><div class="player"><video id="v2" preload="auto" muted playsinline></video><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
    <figure class="pl" id="p1"><figcaption id="cap1"></figcaption><div class="player"><video id="v" preload="auto" playsinline></video>
-    <div class="hits" id="hits"></div><div class="hits" id="tlayer"></div><div id="oldbadge"></div><div id="making" aria-live="polite"></div><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
+    <div class="hits" id="hits"></div><div class="hits" id="tlayer"></div><div class="hits" id="clayer"></div><div id="oldbadge"></div><div id="making" aria-live="polite"></div><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
   </div>
   <div class="rsz" id="rsztx" role="separator" aria-label="drag to resize the video and the transcript" title="drag to resize"></div>
   <div id="tx"><div class="txhead"><b>Transcript</b><span id="txmeta"></span></div><div id="txlines"></div><div class="txtools" id="txtools"></div><div id="txbar" role="toolbar" aria-label="change the selected words"></div></div>
@@ -1561,7 +1580,7 @@ function renderHits(){
     ...(it.zooms||[]).filter(on).map(x=>({k:'zooms',x}))];
   const sig=up.map(u=>u.k+u.x.s).join();if(sig===hitSig)return;hitSig=sig;HITS=up;
   $('hits').innerHTML=up.map((u,i)=>u.k==='zooms'?`<button class="hit ztag" data-hit="${i}" title="${esc(lead(u.k,u.x))}click to leave a note">Zoom</button>`
-    :`<button class="hit" data-hit="${i}" aria-label="${esc(lead(u.k,u.x))}leave a note" style="left:${u.box[0]}%;top:${u.box[1]}%;width:${u.box[2]}%;height:${u.box[3]}%"><span>${u.k==='texts'?TK[u.x.kind]||'Text':HL[u.k]} · click to note</span></button>`).join('');
+    :`<button class="hit" data-hit="${i}" aria-label="${esc(lead(u.k,u.x))}leave a note" style="left:${u.box[0]}%;top:${u.box[1]}%;width:${u.box[2]}%;height:${u.box[3]}%"><span>${u.k==='texts'?TK[u.x.kind]||'Text':HL[u.k]} · click to ${u.k==='cards'?'move, resize or delete':'note'}</span></button>`).join('');
 }
 let noteOn=null;   // what the user clicked to start this note: the note is tagged with it, not with whatever else is on screen
 function startNote(text,a,b,on){
@@ -1570,7 +1589,39 @@ function startNote(text,a,b,on){
 }
 $('hits').addEventListener('click',e=>{const b=e.target.closest('[data-hit]');if(!b)return;e.stopPropagation();const u=HITS[+b.dataset.hit];
   if(u&&u.k==='texts'&&u.x.kind==='label'){const m=(S.texts||[]).find(x=>Math.abs(x.start-u.x.s)<.05&&x.text===u.x.text);if(m)return editText(m.id,false)}   /* your own text: click to change it */
+ if(u&&u.k==='cards'&&u.x.key)return selectCard(u.x);   /* a card: select it to move, resize or delete it */
  if(u)startNote(lead(u.k,u.x),u.x.s,u.x.e,{k:u.k,text:u.x.text||u.x.label||''})});
+// a card on the video: click it to select it. Drag it to move it, a corner to resize it (a picture keeps its shape), then
+// Save; or Delete it, or leave a Note about it. Save and Delete go into overrides.json (POST /card/edit), which plan.py
+// applies, with a note so Claude plans again. The picture shows at its new place until the next draft is made.
+let csel=null;   // {x: the card (review.py screen_items), box, orig} in % of the frame
+function selectCard(x){if(!noteOk())return;v.pause();csel={x,box:x.box.slice(),orig:x.box.slice()};drawCard()}
+const cmoved=()=>!!csel&&csel.box.some((q,i)=>Math.abs(q-csel.orig[i])>.2);
+function drawCard(){const L=$('clayer');if(!csel){L.innerHTML='';return}
+  const[x,y,w,h]=csel.box,[ox,oy,ow,oh]=csel.orig,mv=cmoved(),low=y+h>82;
+  L.innerHTML=(mv?`<div class="cwas" style="left:${ox}%;top:${oy}%;width:${ow}%;height:${oh}%"><span>Was here</span></div>`:'')
+    +`<div class="csel" id="csel" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${csel.x.src&&mv?`<img src="/card-img/${csel.x.src.split('/').map(encodeURIComponent).join('/')}" alt="">`:''}${['nw','ne','sw','se'].map(k=>`<i data-h="${k}"></i>`).join('')}</div>
+    <div class="cbar${low?' up':''}" style="left:${x}%;top:${low?y:y+h}%"><button data-c="del">Delete</button><button data-c="note">Note</button><button data-c="cancel">Cancel</button><button data-c="save" class="go"${mv?'':' disabled'}>Save</button></div>`}
+async function cardSave(del){const c=csel;if(!c)return;
+  const r=await post('/card/edit',{key:c.x.key,label:c.x.label,t:c.x.s,t_end:c.x.e,...(del?{deleted:true}:{box:c.box})});
+  if(!r.id)return toast(r.error||'That did not save.');csel=null;drawCard();toast(del?'Card deleted. Submit feedback and the next draft drops it.':'Card moved. Submit feedback and the next draft shows it.');await load()}
+$('clayer').addEventListener('click',e=>{const b=e.target.closest('[data-c]');if(!b||!csel)return;e.stopPropagation();const k=b.dataset.c;
+  if(k==='cancel'){csel=null;drawCard()}else if(k==='del')cardSave(true);else if(k==='save')cardSave(false);
+  else if(k==='note'){const x=csel.x;csel=null;drawCard();startNote(lead('cards',x),x.s,x.e,{k:'cards',text:x.label})}});
+$('clayer').addEventListener('pointerdown',e=>{const el=e.target.closest('#csel');if(!el||!csel)return;e.preventDefault();el.setPointerCapture(e.pointerId);
+  const h=e.target.dataset.h,r=$('clayer').getBoundingClientRect(),b0=csel.box.slice(),x0=e.clientX,y0=e.clientY,keep=!!csel.x.src,ar=b0[3]/b0[2];
+  const cl=(n,a,b)=>Math.round(Math.min(b,Math.max(a,n))*10)/10;
+  el.onpointermove=ev=>{const dx=(ev.clientX-x0)/r.width*100,dy=(ev.clientY-y0)/r.height*100;let[x,y,w,ht]=b0;
+    if(!h){x=cl(x+dx,-w/2,100-w/2);y=cl(y+dy,-ht/2,100-ht/2)}
+    else{const l=h.includes('w'),t=h.includes('n');w=Math.max(4,b0[2]+(l?-dx:dx));ht=keep?w*ar:Math.max(4,b0[3]+(t?-dy:dy));
+      if(l)x=b0[0]+b0[2]-w;if(t)y=b0[1]+b0[3]-ht;[x,y,w,ht]=[x,y,w,ht].map(q=>Math.round(q*10)/10)}
+    if(v.videoHeight>v.videoWidth){   // reels: inside the safe zone (x 60-940, y 250-1440 of 1080x1920)
+      const X0=5.6,X1=87,Y0=13,Y1=75;if(w>X1-X0){w=X1-X0;if(keep)ht=w*ar}if(ht>Y1-Y0){ht=Y1-Y0;if(keep)w=ht/ar}
+      x=Math.round(Math.min(X1-w,Math.max(X0,x))*10)/10;y=Math.round(Math.min(Y1-ht,Math.max(Y0,y))*10)/10}
+    csel.box=[x,y,w,ht];const s2=$('csel');Object.assign(s2.style,{left:x+'%',top:y+'%',width:w+'%',height:ht+'%'})};
+  el.onpointerup=()=>{el.onpointermove=null;drawCard()}});
+document.addEventListener('keydown',e=>{if(!csel||/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement||{}).tagName||''))return;
+  if(e.key==='Escape'){csel=null;drawCard()}if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();cardSave(true)}if(e.key==='Enter'&&cmoved()){e.preventDefault();cardSave(false)}});
 $('mini').addEventListener('click',e=>{const m=e.target.closest('[data-mk]');if(!m)return;const x=((data().items||{})[m.dataset.mk]||[])[+m.dataset.i];
   if(x&&noteOk())startNote(lead(m.dataset.mk,x),x.s,x.e,{k:m.dataset.mk,text:x.text||x.label||''});else v.currentTime=+m.dataset.s});
 // notes: the clock is always the playhead (scrub, a transcript word, a pin, a skip, a key, play), typing or not.
@@ -1628,7 +1679,11 @@ const TSTY={plain:'Plain',outline:'Outline',box:'Box'},TEXT_SIZE=6;
 let tx=null,tsig='',tpanel=false;   // tx: the text being made or changed {style,x,y,word,start,end,edit:{id,fresh}}
 const tword=()=>{const w=$('tword');return w?w.value.trim():tx?tx.word||'':''};
 const editable=c=>!(S.sent&&!c.queued)&&c.round>=S.round;
-function openPanel(on){tpanel=on;document.body.classList.toggle('tside',on);$('railtext').classList.toggle('on',on);if(!on&&tx)setText(null);else renderTextPanel()}
+let tool=null;   // the left panel's tool: 'text', 'captions' or none
+function openTool(n){if(n!=='text'&&tx)setText(null);tool=n;tpanel=n==='text';document.body.classList.toggle('tside',!!n);
+  $('railtext').classList.toggle('on',n==='text');$('railcap').classList.toggle('on',n==='captions');$('tsht').textContent=n==='captions'?'Captions':'Text';
+  $('tplus').hidden=n!=='text';$('tbody').hidden=n!=='text';$('cbody').hidden=n!=='captions';if(n==='text')renderTextPanel();if(n==='captions')renderCapPanel()}
+function openPanel(on){openTool(on?'text':null)}
 function setText(style,edit){
   if(!style){tx=null}
   else{const[a,b]=noteSpan(),t0=edit?edit.start:a;
@@ -1664,7 +1719,7 @@ function editText(id,fresh){const x=textItems().find(x=>String(x.id)===String(id
   inT=outT=null;renderBar();setText(x.style,{id:x.id,fresh:x.fresh,text:x.text,x_pct:x.x_pct??50,y_pct:x.y_pct??40,start:x.start,end:x.end})}
 async function delText(id,fresh){const r=fresh?await post('/delete',{id:+id}):await post('/text/delete',{id});
   if(tx&&tx.edit&&String(tx.edit.id)===String(id))setText(null);toast(fresh?'Text deleted':r.error||'Text deleted. The next draft drops it.');await load()}
-$('railtext').onclick=()=>openPanel(!tpanel);$('tclose').onclick=()=>openPanel(false);$('tplus').onclick=()=>setText('outline');
+$('railtext').onclick=()=>openTool(tool==='text'?null:'text');$('railcap').onclick=()=>openTool(tool==='captions'?null:'captions');$('tclose').onclick=()=>openTool(null);$('tplus').onclick=()=>setText('outline');
 $('tbody').addEventListener('click',async e=>{
   const st=e.target.closest('#ttiles [data-ts]');if(st){if(tx){tx.style=st.dataset.ts;tsig=null;renderTextPanel();renderTexts()}else setText(st.dataset.ts);return}
   if(e.target.id==='tcancel'){setText(null);return}
@@ -1678,6 +1733,23 @@ $('tbody').addEventListener('click',async e=>{
   const sk=e.target.closest('[data-tseek]');if(sk){v.currentTime=+sk.dataset.tseek;v.pause()}});
 $('tbody').addEventListener('input',e=>{if(e.target.id==='tword'){tx.word=e.target.value;$('tadd').disabled=!tword();renderTexts()}});
 $('tbody').addEventListener('keydown',e=>{if(e.target.id!=='tword')return;e.stopPropagation();if(e.key==='Enter'){e.preventDefault();saveText()}if(e.key==='Escape')setText(null)});
+// the Captions panel: how many words show at a time (1, 3, 5 or a sentence) and the look (the caption presets, drawn in
+// their own look). A choice is saved for this video (POST /captions, taste "this video only", which plan.py reads) with a
+// note; the next draft shows it.
+const CGROUPS=[['1','1'],['3','3'],['5','5'],['sentence','Sentence']];
+function capTile(name,l){const fs=Math.max(11,Math.min(16,(l.size_pct||4.2)*2.8)),txt='your words here';
+  const t=l.case==='upper'?txt.toUpperCase():txt,st=`font-size:${fs}px;font-weight:${l.weight||600};color:${l.color||'#FFFFFF'};`
+    +(l.stroke?`-webkit-text-stroke:${Math.max(1,fs*.12)}px ${l.stroke_color||'#000'};paint-order:stroke fill;`:'')
+    +(l.box?`background:${l.box_color||'#000'};padding:2px 6px;border-radius:5px;`:'')+(l.shadow?'text-shadow:0 2px 6px rgba(0,0,0,.6);':'');
+  return `<span><b style="${esc(st)}">${esc(t)}</b></span>`}
+function renderCapPanel(){const b=$('cbody'),c=(S&&S.captions_ui)||{looks:{}},sig=JSON.stringify(c);if(b._s===sig)return;b._s=sig;
+  b.innerHTML=`<div><div class="tcap" style="margin-bottom:8px"><span>Words at a time</span></div><div class="cgroup">${CGROUPS.map(([k,n])=>`<button data-cw="${k}"${c.words===k?' class="on"':''}>${n}</button>`).join('')}</div></div>
+    <div><div class="tcap" style="margin-bottom:8px"><span>Look</span></div><div class="clooks">${Object.entries(c.looks||{}).map(([k,l])=>`<button class="clook${c.look===k?' on':''}" data-cl="${esc(k)}">${capTile(k,l)}${esc(k[0].toUpperCase()+k.slice(1))}</button>`).join('')}</div></div>
+    <p class="tsub">Saved for this video only. Submit feedback and the next draft shows it.</p>`}
+$('cbody').addEventListener('click',async e=>{const w=e.target.closest('[data-cw]'),l=e.target.closest('[data-cl]');if(!w&&!l)return;
+  const r=await post('/captions',w?{words:w.dataset.cw}:{look:l.dataset.cl});if(!r.id)return toast(r.error||'That did not save.');
+  toast(w?`Captions: ${w.dataset.cw==='sentence'?'a sentence':w.dataset.cw+' word'+(w.dataset.cw==='1'?'':'s')} at a time. Submit feedback to send it.`:`Captions: the ${l.dataset.cl} look. Submit feedback to send it.`);
+  $('cbody')._s=null;await load()});
 async function saveText(){const text=tword();if(!tx||!text)return;
   const look={style:tx.style,x_pct:tx.x,y_pct:tx.y},ed=tx.edit,t={start:Math.round(tx.start*100)/100,end:Math.round(tx.end*100)/100};
   let r;
@@ -1688,8 +1760,8 @@ async function saveText(){const text=tword();if(!tx||!text)return;
   inT=outT=null;renderBar();setText(null);toast(!ed?'Text added. Submit feedback to send it to Claude.':ed.fresh?'Text changed. Submit feedback to send it.':'Text changed. Submit feedback and the next draft shows it.');await load()}
 function renderTexts(){
   const L=$('tlayer'),fs=Math.min(L.offsetWidth,L.offsetHeight)*TEXT_SIZE/100,t=v.currentTime,edit=!!(S&&view&&view.stage==='edit');
-  $('railtext').hidden=$('railtools').hidden=!edit;if(!edit&&tpanel)openPanel(false);
-  if(tpanel)renderTextPanel();
+  $('railtext').hidden=$('railcap').hidden=$('railtools').hidden=!edit;if(!edit&&tool)openTool(null);
+  if(tpanel)renderTextPanel();if(tool==='captions')renderCapPanel();
   const one=(a,text,id,k)=>`<div class="tl"${id?` id="${id}"`:''}${k?` data-tclick="${esc(k)}"`:''} style="left:${a.x_pct}%;top:${a.y_pct}%;font-size:${fs}px"><span class="ts-${a.style}">${esc(text)}</span></div>`;
   const editing=tx&&tx.edit&&tx.edit.fresh?tx.edit.id:null;
   const html=(edit&&!cmp?S.comments.filter(c=>c.add_text&&c.id!==editing&&c.stage===view.stage&&c.round===view.round&&c.t<=t&&t<c.t_end&&onAlt(c)):[]).map(c=>one(c.add_text,c.text,'','f'+c.id)).join('')

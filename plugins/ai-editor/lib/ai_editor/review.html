@@ -387,7 +387,14 @@ body.tside #tside{display:flex}
 @media (max-width:1279px){body.tside .transport{flex-wrap:wrap;height:auto;row-gap:6px}}
 .tsh{display:flex;align-items:center;gap:6px;padding:16px 16px 8px}.tsh b{flex:1;font-size:15px;line-height:20px;font-weight:600;color:var(--strong)}
 .tsh button{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:18px;line-height:1;color:var(--body)}.tsh button[hidden]{display:none}.tsh button:hover{background:var(--hover);color:var(--ink)}
-#tbody[hidden],#cbody[hidden]{display:none!important}
+#tbody[hidden],#cbody[hidden],#sbody[hidden]{display:none!important}
+#sbody{flex:1;min-height:0;overflow:auto;padding:4px 16px 16px;display:flex;flex-direction:column;gap:10px}
+.srow{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px}
+.srow .sh{display:flex;align-items:flex-start;gap:10px}.srow .sh div{flex:1;min-width:0}.srow b{display:block;font-size:14px;line-height:18px;color:var(--strong)}
+.srow small{display:block;font-size:12px;line-height:16px;color:var(--muted)}
+.splay{width:32px;height:32px;border-radius:16px;flex-shrink:0;display:grid;place-items:center;background:var(--ink);color:var(--onink)}.splay:disabled{opacity:.3}
+.sopts{display:flex;flex-wrap:wrap;gap:6px}.sopts button{height:28px;max-width:100%;padding:0 10px;border-radius:8px;border:1px solid var(--line2);font-size:12px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sopts button:hover{border-color:var(--ink)}.sopts button.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}.sopts .sadd{border-style:dashed;color:var(--body)}
 #cbody{flex:1;min-height:0;overflow:auto;padding:4px 16px 16px;display:flex;flex-direction:column;gap:14px}
 .cgroup{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.cgroup button{height:36px;border-radius:8px;border:1px solid var(--line2);font-size:13px;font-weight:600;color:var(--ink)}
 .cgroup button:hover{border-color:var(--ink)}.cgroup button.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
@@ -596,6 +603,7 @@ body.making #making{display:flex}
  <div class="rdiv" id="railtools" hidden></div>
  <button class="ritem rtool" id="railtext" type="button" hidden title="Text on the video"><i><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg></i>Text</button>
  <button class="ritem rtool" id="railcap" type="button" hidden title="Captions: words at a time and the look"><i><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 15h4M13 15h4M7 11h10"/></svg></i>Captions</button>
+ <button class="ritem rtool" id="railsnd" type="button" hidden title="Sounds: pick which sound plays where"><i><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h4l5 4V6L8 10z"/><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"/></svg></i>Sounds</button>
  <div class="rflex"></div>
  <a class="ritem rjob" id="railjobs" data-home data-view="videos" href="#" hidden><i><span id="jobn">0</span><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="var(--line)" stroke-width="2.5"/><path d="M12 2a10 10 0 0 1 9.5 13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></i>Making</a>
  <button class="ritem rupd" id="railupd" type="button" hidden><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></i><span id="railupdt">Update</span></button>
@@ -616,7 +624,7 @@ body.making #making{display:flex}
 </ol><div id="keys"></div></section>
 
 <main>
-<section id="tside" aria-label="Text"><div class="tsh"><b id="tsht">Text</b><button id="tplus" title="Add text (the default look)" aria-label="add text">+</button><button id="tclose" title="Close" aria-label="close the text panel">×</button></div><div id="tbody"></div><div id="cbody" hidden></div></section>
+<section id="tside" aria-label="Text"><div class="tsh"><b id="tsht">Text</b><button id="tplus" title="Add text (the default look)" aria-label="add text">+</button><button id="tclose" title="Close" aria-label="close the text panel">×</button></div><div id="tbody"></div><div id="cbody" hidden></div><div id="sbody" hidden></div></section><input type="file" id="sndfile" accept="audio/*,.wav,.mp3,.m4a,.aac,.flac,.ogg,.opus" hidden>
 <div class="left">
  <div class="stagewrap">
  <div id="stagebar" role="status"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="4" cy="4.5" r="2.2"/><circle cx="4" cy="11.5" r="2.2"/><path d="M5.8 5.6L14 11.5M5.8 10.4L14 4.5"/></svg><span id="stagetext"></span></div>
@@ -1672,8 +1680,10 @@ const tword=()=>{const w=$('tword');return w?w.value.trim():tx?tx.word||'':''};
 const editable=c=>!(S.sent&&!c.queued)&&c.round>=S.round;
 let tool=null;   // the left panel's tool: 'text', 'captions' or none
 function openTool(n){if(n!=='text'&&tx)setText(null);tool=n;tpanel=n==='text';document.body.classList.toggle('tside',!!n);
-  $('railtext').classList.toggle('on',n==='text');$('railcap').classList.toggle('on',n==='captions');$('tsht').textContent=n==='captions'?'Captions':'Text';
-  $('tplus').hidden=n!=='text';$('tbody').hidden=n!=='text';$('cbody').hidden=n!=='captions';if(n==='text')renderTextPanel();if(n==='captions')renderCapPanel()}
+  $('railtext').classList.toggle('on',n==='text');$('railcap').classList.toggle('on',n==='captions');$('railsnd').classList.toggle('on',n==='sounds');
+  $('tsht').textContent={captions:'Captions',sounds:'Sounds'}[n]||'Text';
+  $('tplus').hidden=n!=='text';$('tbody').hidden=n!=='text';$('cbody').hidden=n!=='captions';$('sbody').hidden=n!=='sounds';
+  if(n==='text')renderTextPanel();if(n==='captions')renderCapPanel();if(n==='sounds')renderSndPanel()}
 function openPanel(on){openTool(on?'text':null)}
 function setText(style,edit){
   if(!style){tx=null}
@@ -1710,7 +1720,7 @@ function editText(id,fresh){const x=textItems().find(x=>String(x.id)===String(id
   inT=outT=null;renderBar();setText(x.style,{id:x.id,fresh:x.fresh,text:x.text,x_pct:x.x_pct??50,y_pct:x.y_pct??40,start:x.start,end:x.end})}
 async function delText(id,fresh){const r=fresh?await post('/delete',{id:+id}):await post('/text/delete',{id});
   if(tx&&tx.edit&&String(tx.edit.id)===String(id))setText(null);toast(fresh?'Text deleted':r.error||'Text deleted. The next draft drops it.');await load()}
-$('railtext').onclick=()=>openTool(tool==='text'?null:'text');$('railcap').onclick=()=>openTool(tool==='captions'?null:'captions');$('tclose').onclick=()=>openTool(null);$('tplus').onclick=()=>setText('outline');
+$('railtext').onclick=()=>openTool(tool==='text'?null:'text');$('railcap').onclick=()=>openTool(tool==='captions'?null:'captions');$('railsnd').onclick=()=>openTool(tool==='sounds'?null:'sounds');$('tclose').onclick=()=>openTool(null);$('tplus').onclick=()=>setText('outline');
 $('tbody').addEventListener('click',async e=>{
   const st=e.target.closest('#ttiles [data-ts]');if(st){if(tx){tx.style=st.dataset.ts;tsig=null;renderTextPanel();renderTexts()}else setText(st.dataset.ts);return}
   if(e.target.id==='tcancel'){setText(null);return}
@@ -1741,6 +1751,29 @@ $('cbody').addEventListener('click',async e=>{const w=e.target.closest('[data-cw
   const r=await post('/captions',w?{words:w.dataset.cw}:{look:l.dataset.cl});if(!r.id)return toast(r.error||'That did not save.');
   toast(w?`Captions: ${w.dataset.cw==='sentence'?'a sentence':w.dataset.cw+' word'+(w.dataset.cw==='1'?'':'s')} at a time. Submit feedback to send it.`:`Captions: the ${l.dataset.cl} look. Submit feedback to send it.`);
   $('cbody')._s=null;await load()});
+// the Sounds panel (the sound library): each moment that can have a sound, and what plays there. Play hears a pick,
+// Default is the built-in sound, Off leaves the moment silent, and + Your own adds a sound file (it stays in the library
+// for every video). Picks are for every video (custom/sounds/choices.json, sfx.py builds the kit from them), with a note.
+const PLAY='<svg width="14" height="14" viewBox="0 0 14 14"><path d="M4 2.5v9l7.5-4.5z" fill="currentColor"/></svg>';
+let sndAudio=null,sndFor=null;
+function sndPlay(cue,c){if(sndAudio)sndAudio.pause();if(c==='none')return;sndAudio=new Audio(`/sound-preview?cue=${encodeURIComponent(cue)}&c=${encodeURIComponent(c)}`);sndAudio.play().catch(()=>toast('Could not play that sound'))}
+function renderSndPanel(){const b=$('sbody'),u=(S&&S.sounds_ui)||{cues:[],own:[]},sig=JSON.stringify(u);if(b._s===sig)return;b._s=sig;
+  const nm=f=>f.replace(/\.[a-z0-9]+$/i,'');
+  b.innerHTML=`<p class="tsub">Pick the sound for each moment. Your picks are for every video. Play hears it.</p>`+u.cues.map(x=>`<div class="srow"><div class="sh"><div><b>${esc(x.label)}</b><small>When ${esc(x.when)}</small></div>
+    <button class="splay" data-sp="${esc(x.cue)}" title="Play what is picked"${x.choice==='none'?' disabled':''}>${PLAY}</button></div>
+    <div class="sopts">${[['default','Default'],['none','Off'],...u.own.map(f=>[f,nm(f)])].map(([v,n])=>`<button data-sc="${esc(x.cue)}" data-sv="${esc(v)}"${x.choice===v?' class="on"':''} title="${esc(v==='default'?'The built-in sound':v==='none'?'No sound here':v)}">${esc(n)}</button>`).join('')}
+    <button class="sadd" data-sa="${esc(x.cue)}" title="Add a sound file for this moment">+ Your own</button></div></div>`).join('')}
+$('sbody').addEventListener('click',async e=>{const pl=e.target.closest('[data-sp]'),pk=e.target.closest('[data-sv]'),ad=e.target.closest('[data-sa]');
+  if(pl){const x=((S.sounds_ui||{}).cues||[]).find(c=>c.cue===pl.dataset.sp);if(x)sndPlay(x.cue,x.choice);return}
+  if(ad){sndFor=ad.dataset.sa;$('sndfile').click();return}
+  if(!pk)return;const cue=pk.dataset.sc,v=pk.dataset.sv;sndPlay(cue,v);
+  const r=await post('/sound',{cue,choice:v});if(!r.ok&&!r.id)return toast(r.error||'That did not save.');
+  toast(`${(((S.sounds_ui||{}).cues||[]).find(c=>c.cue===cue)||{}).label||'Sound'}: ${v==='default'?'the built-in sound':v==='none'?'off':v.replace(/\.[a-z0-9]+$/i,'')}. Submit feedback so this video gets it.`);
+  $('sbody')._s=null;await load()});
+$('sndfile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f||!sndFor)return;
+  if(f.size>10*1024*1024)return toast('Sounds under 10 MB only.');
+  const rd=new FileReader();rd.onload=async()=>{const r=await post('/sound/add',{cue:sndFor,name:f.name,data:rd.result});
+    if(!r.ok&&!r.id)return toast(r.error||'That did not save.');toast(`Added ${f.name}. It plays for that moment now.`);$('sbody')._s=null;await load();sndPlay(sndFor,f.name.replace(/[^A-Za-z0-9._ -]/g,'').trim())};rd.readAsDataURL(f)};
 async function saveText(){const text=tword();if(!tx||!text)return;
   const look={style:tx.style,x_pct:tx.x,y_pct:tx.y},ed=tx.edit,t={start:Math.round(tx.start*100)/100,end:Math.round(tx.end*100)/100};
   let r;
@@ -1751,8 +1784,8 @@ async function saveText(){const text=tword();if(!tx||!text)return;
   inT=outT=null;renderBar();setText(null);toast(!ed?'Text added. Submit feedback to send it to Claude.':ed.fresh?'Text changed. Submit feedback to send it.':'Text changed. Submit feedback and the next draft shows it.');await load()}
 function renderTexts(){
   const L=$('tlayer'),fs=Math.min(L.offsetWidth,L.offsetHeight)*TEXT_SIZE/100,t=v.currentTime,edit=!!(S&&view&&view.stage==='edit');
-  $('railtext').hidden=$('railcap').hidden=$('railtools').hidden=!edit;if(!edit&&tool)openTool(null);
-  if(tpanel)renderTextPanel();if(tool==='captions')renderCapPanel();
+  $('railtext').hidden=$('railcap').hidden=$('railsnd').hidden=$('railtools').hidden=!edit;if(!edit&&tool)openTool(null);
+  if(tpanel)renderTextPanel();if(tool==='captions')renderCapPanel();if(tool==='sounds')renderSndPanel();
   const one=(a,text,id,k)=>`<div class="tl"${id?` id="${id}"`:''}${k?` data-tclick="${esc(k)}"`:''} style="left:${a.x_pct}%;top:${a.y_pct}%;font-size:${fs}px"><span class="ts-${a.style}">${esc(text)}</span></div>`;
   const editing=tx&&tx.edit&&tx.edit.fresh?tx.edit.id:null;
   const html=(edit&&!cmp?S.comments.filter(c=>c.add_text&&c.id!==editing&&c.stage===view.stage&&c.round===view.round&&c.t<=t&&t<c.t_end&&onAlt(c)):[]).map(c=>one(c.add_text,c.text,'','f'+c.id)).join('')

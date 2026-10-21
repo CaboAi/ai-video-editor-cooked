@@ -4,6 +4,7 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+- Text has its own panel on the left, like Tella: the Text tool in the menu opens it, Notes stay on the right. Pick a look (Plain, Outline, Box), type, drag it on the video. Click any text, in the list or on the video, to change its words, look, place or time (Start here, End here), or Delete it. Sent texts change too.
 - The left menu has Check for updates, always, on the video page and the home window. It turns into Update to <version> when one is out, and says when you are up to date.
 ## ai-editor 2.7.23, creator-teardown 2.7.23 (2026-10-21)
 - Sending notes with no Claude listening goes to the Claude that worked on the video first: still open in Terminal, the notes are typed into it; closed, its conversation opens again. A new Claude only when there is neither.

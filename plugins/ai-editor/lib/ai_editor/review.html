@@ -708,7 +708,7 @@ body.making #making{display:flex}
  <div class="mhead2"><div><b>Notes</b><span id="mcount"></span></div><button id="msend"></button></div>
  <div id="list"></div>
  <div class="pfoot">
-  <div id="adds"></div><input type="file" id="addfile" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
+  <div id="adds"></div><input type="file" id="addfile" accept="video/mp4,video/quicktime,video/webm,.m4v,image/png,image/jpeg,image/gif,image/webp" multiple hidden>
   <div id="box"><textarea id="ta" rows="1" aria-label="note"></textarea><div id="pics"></div>
    <input type="file" id="picin" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
    <input type="file" id="editpic" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
@@ -1744,26 +1744,38 @@ function closeBox(){noteOn=null;pics=[];showPics();ta.value='';grow();ta.blur();
 const grow=()=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px'};
 ta.addEventListener('input',()=>{grow();boxTime()});
 ta.addEventListener('focus',()=>v.pause());
-// Anything to add?: links (pages, X posts, YouTube, GitHub, docs) and images for this video, saved at once into
-// assets.json (POST /assets). Claude puts them in first, on the "Show when I say..." words.
+// Anything to add?: links (pages, X posts, YouTube, GitHub, docs), videos and images for this video, saved at once
+// into assets.json (POST /assets for links, POST /assets/upload one file at a time). Claude puts them in first, on
+// the "Show when I say..." words.
 const LINKIC='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>';
 const CLIPIC='<svg width="16" height="16" viewBox="0 0 16 16"><path d="M13 7.5l-5.3 5.3a3.2 3.2 0 01-4.5-4.5l5.6-5.6a2.1 2.1 0 013 3l-5.5 5.5a1 1 0 01-1.5-1.5L9.9 4.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
-let addOpen=false,addMsg='',addSig='';
+let addOpen=false,addMsg='',addSig='',addBusy='';
 function renderAdds(){
-  const it=(S&&S.assets)||[],sig=JSON.stringify(it)+addOpen+addMsg;if(sig===addSig)return;addSig=sig;   // never redrawn under the typing
-  const rows=it.map((a,i)=>`<div class="arow"><span class="ath"${a.kind==='image'?` style="background-image:url('/${esc(a.src)}')"`:''}>${a.kind==='image'?'':LINKIC}</span><span class="an" title="${esc(a.kind==='image'?a.name:a.url)}">${esc(a.kind==='image'?a.name:a.url.replace(/^https?:\/\/(www\.)?/,''))}${a.say?`<i> · ${esc(a.say)}</i>`:''}</span><button data-arm="${i}" aria-label="remove" title="Remove">×</button></div>`).join('');
-  $('adds').innerHTML=rows+(addOpen?`<div class="addin"><input id="addurl" placeholder="Paste a link or an image" aria-label="a link or an image"><button id="addpic" aria-label="add an image" title="Add an image">${CLIPIC}</button><button id="addgo">Add</button></div>
+  const it=(S&&S.assets)||[],sig=JSON.stringify(it)+addOpen+addMsg+addBusy;if(sig===addSig)return;addSig=sig;   // never redrawn under the typing
+  const pic=a=>a.kind==='image'?` style="background-image:url('/${esc(a.src)}')"`:a.kind==='video'?` style="background-image:url('/${esc(a.src)}?thumb=1')"`:'';
+  const rows=it.map((a,i)=>`<div class="arow"><span class="ath"${pic(a)}>${a.kind==='link'?LINKIC:''}</span><span class="an" title="${esc(a.kind==='link'?a.url:a.name)}">${esc(a.kind==='link'?a.url.replace(/^https?:\/\/(www\.)?/,''):a.name)}${a.say?`<i> · ${esc(a.say)}</i>`:''}</span><button data-arm="${i}" aria-label="remove" title="Remove">×</button></div>`).join('');
+  $('adds').innerHTML=rows+(addBusy?`<div class="amsg">${esc(addBusy)}</div>`:'')+(addOpen?`<div class="addin"><input id="addurl" placeholder="Paste a link, a video or an image" aria-label="a link, a video or an image"><button id="addpic" aria-label="add a video or an image" title="Add a video or an image">${CLIPIC}</button><button id="addgo">Add</button></div>
     <input id="addsay" placeholder="Show when I say... (optional)" aria-label="show it when you say these words">${addMsg?`<div class="amsg">${esc(addMsg)}</div>`:''}`
-    :`<button class="obtn" id="addopen"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Anything to add? Images or links</button>`);
+    :`<button class="obtn" id="addopen"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Anything to add? Videos, images or links</button>`);
 }
-async function addAssets(items){const r=await post('/assets',{add:items});const n=(S.assets||[]).length;if(r.items){S.assets=r.items;addMsg=r.items.length>n?'':'That one was not added. You can add up to 12 images and 20 links. Images must be under 15 MB.'}
+async function addAssets(items){const r=await post('/assets',{add:items});const n=(S.assets||[]).length;if(r.items){S.assets=r.items;addMsg=r.items.length>n?'':'That one was not added. You can add up to 50 videos, images or links.'}
   const say=$('addsay');if(say&&!addMsg)say.value='';renderAdds();const u=$('addurl');if(u)u.focus()}
+// one file at a time, streamed (a video can be 2 GB): its progress shows above the box until it is in
+async function upAssets(fs,say){
+  for(const f of fs){
+    const r=await new Promise(res=>{const x=new XMLHttpRequest();x.open('POST','/assets/upload?name='+encodeURIComponent(f.name)+'&say='+encodeURIComponent(say));
+      x.upload.onprogress=e=>{if(e.lengthComputable){addBusy=`Adding ${f.name}... ${Math.round(e.loaded/e.total*100)}%`;renderAdds()}};
+      x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}res(j)};x.onerror=()=>res({error:'The upload stopped. Add it again.'});x.send(f)});
+    addBusy='';if(r.items)S.assets=r.items;else addMsg=r.error||'That file was not added.';renderAdds();
+  }
+  const s2=$('addsay');if(s2&&!addMsg)s2.value='';
+}
 function addUrl(){const u=$('addurl'),us=(u?u.value:'').split(/\s+/).filter(Boolean).map(x=>/^https?:\/\//i.test(x)?x:'https://'+x);if(!us.length)return;
   if(us.some(x=>!/^https?:\/\/[^\s\/]+\.[^\s]+$/i.test(x))){addMsg='That is not a link. Paste a web address, like github.com/name/repo.';addSig='';return renderAdds()}
   const say=($('addsay')||{}).value||'';u.value='';addAssets(us.map(url=>({url,say})))}
-function addImgs(fs){const say=($('addsay')||{}).value||'',ok=[...fs].filter(f=>/^image\/(png|jpeg|gif|webp)$/.test(f.type));
-  if(ok.some(f=>f.size>15*1024*1024)){addMsg='Images under 15 MB only.';addSig='';renderAdds()}
-  Promise.all(ok.filter(f=>f.size<=15*1024*1024).map(f=>new Promise(r=>{const rd=new FileReader();rd.onload=()=>r({image:rd.result,name:f.name,say});rd.readAsDataURL(f)}))).then(xs=>xs.length&&addAssets(xs))}
+function addImgs(fs){addMsg='';const say=($('addsay')||{}).value||'',ok=[...fs].filter(f=>/^image\/(png|jpeg|gif|webp)$/.test(f.type)||/\.(mp4|mov|m4v|webm)$/i.test(f.name));
+  if(ok.length<fs.length){addMsg='Add a video (.mp4, .mov, .m4v, .webm) or an image (.png, .jpg, .gif, .webp).';addSig='';renderAdds()}
+  if(ok.length)upAssets(ok,say)}
 $('adds').onclick=e=>{const rm=e.target.closest('[data-arm]');if(rm){post('/assets',{remove:+rm.dataset.arm}).then(r=>{if(r.items){S.assets=r.items;renderAdds()}});return}
   if(e.target.closest('#addopen')){addOpen=true;renderAdds();$('addurl').focus();return}
   if(e.target.closest('#addgo'))return addUrl();if(e.target.closest('#addpic'))$('addfile').click()};

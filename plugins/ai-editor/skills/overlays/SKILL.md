@@ -18,8 +18,8 @@ An edit folder that style-edit already rendered in. The same edit out, with only
 changed: re-planned, checked, and re-rendered where they changed. Everything else stays exactly as
 the user approved it. This skill writes no renderer code: it changes visuals.json and images.json,
 and style-edit's scripts and Remotion templates do the rest. A new card for a moment uses what the user added
-first (`edits/<name>/assets.json`: an image from `assets/`, or a link by its `site`, the same way style-edit's
-step 1 does), before searching for anything.
+first (`edits/<name>/assets.json`: an image or a video from `assets/`, or a link by its `site`, the same way
+style-edit's step 1 does), before searching for anything.
 
 Run the scripts with `python3` on Mac and Linux, `py` on Windows. Paths are relative to the library
 (PRINCIPLES.md "Where"). `S="${CLAUDE_PLUGIN_ROOT}/skills/style-edit/scripts"`,

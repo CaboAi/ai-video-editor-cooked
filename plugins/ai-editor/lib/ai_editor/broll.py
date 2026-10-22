@@ -24,9 +24,13 @@ the sheets while the folder's files are unchanged. Needs ffmpeg and ffprobe. Std
 
 The editor's New video page (home.py) lists the libraries (listing), browses Drive (drives, browse), adds one
 (add) and sends the ones the user ticked with the job: brief() writes EDIT/broll.json
-({"auto", "libraries": [{"name", "folder"}]}: the ticked ones, or with "Claude decides" every library and
-auto true, so Claude picks the ones that fit) and EDIT/instructions.md ("Additional instructions
-for Claude"). The job line carries both paths (broll=, instructions=).
+({"auto", "libraries": [{"name", "folder"}], "clips": [{"path", "name"}]}: the ticked ones, or with "Claude
+decides" every library and auto true, so Claude picks the ones that fit) and EDIT/instructions.md ("Additional
+instructions for Claude"). The job line carries both paths (broll=, instructions=).
+
+"clips" are the Specific clips: picked one by one from a library (folder_clips, the page's Pick from folders) or
+dropped on the page (uploaded to a staging folder, linked into EDIT/broll/). Every one of them goes in the video,
+on the line it fits best; the libraries fill the rest.
 """
 import hashlib
 import json
@@ -116,20 +120,53 @@ def add(name, folder):
     return ""
 
 
-def brief(edit, names, note, auto=False):
+def brief(edit, names, note, auto=False, picks=(), staged=None):
     """The job's b-roll picks and instructions, in the edit folder. auto ("Claude decides"): every library, and
-    Claude picks which fit. Returns the job-line args written."""
+    Claude picks which fit. picks: the Specific clips' paths (staged: the upload folder dropped ones are in).
+    Returns the job-line args written."""
     edit, libs, args = Path(edit), libraries(), {}
     picked = [{"name": n, "folder": f} for n, f in libs.items()] if auto else \
         [{"name": n, "folder": libs[n]} for n in dict.fromkeys(names or []) if n in libs]
-    if picked:
-        (edit / "broll.json").write_text(json.dumps({"auto": bool(auto), "libraries": picked}, indent=1), encoding="utf-8")
+    one = _picks(edit, picks, staged)
+    if picked or one:
+        (edit / "broll.json").write_text(json.dumps({"auto": bool(auto), "libraries": picked, **({"clips": one} if one else {})},
+                                                    indent=1), encoding="utf-8")
         args["broll"] = str(edit / "broll.json")
     note = str(note or "").strip()[:NOTE_MAX]
     if note:
         (edit / "instructions.md").write_text(note + "\n", encoding="utf-8")
         args["instructions"] = str(edit / "instructions.md")
     return args
+
+
+def folder_clips(name):
+    """One library's clips for Pick from folders: [{"path", "name"}], or None when there is no such library."""
+    folder = libraries().get(str(name or ""))
+    if folder is None:
+        return None
+    return [{"path": str(c), "name": c.name} for c in clips(folder)] if Path(folder).is_dir() else []
+
+
+def _picks(edit, paths, staged):
+    """The Specific clips that may go in: files in a library folder, or staged uploads (linked into EDIT/broll/)."""
+    roots = [Path(f).resolve() for f in libraries().values()]
+    out = []
+    for p in dict.fromkeys(str(x) for x in paths or []):
+        f = Path(p).resolve()
+        if f.suffix.lower() not in EXTS or not f.is_file():
+            continue
+        if staged and Path(staged).resolve() in f.parents:
+            dst = Path(edit) / "broll" / f.name
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if not dst.exists():
+                try:
+                    os.link(f, dst)
+                except OSError:
+                    shutil.copyfile(f, dst)
+            out.append({"path": str(dst), "name": f.name})
+        elif any(r in f.parents for r in roots):
+            out.append({"path": str(f), "name": f.name})
+    return out[:MAX_CLIPS]
 
 
 def clips(folder):
@@ -218,6 +255,22 @@ def demo():
             assert [x["name"] for x in json.loads((e / "broll.json").read_text(encoding="utf-8"))["libraries"]] == ["Desk", "Screen"]
             assert (e / "instructions.md").read_text(encoding="utf-8") == "Desk for the intro.\n" and set(got) == {"broll", "instructions"}
             assert slug("Me on camera") == "me-on-camera"
+            # Specific clips: one from a library, one dropped (staged, linked in), and ones that may not go in
+            fc = folder_clips("Desk")
+            assert len(fc) == 14 and fc[0] == {"path": str(src / "a.mp4"), "name": "a.mp4"} and folder_clips("Nope") is None
+            stg = Path(t, "staged")
+            stg.mkdir()
+            shutil.copyfile(src / "c1.mp4", stg / "dropped.mp4")
+            stray = Path(t, "stray.mp4")
+            shutil.copyfile(src / "c2.mp4", stray)
+            e2 = Path(t, "edit2")
+            e2.mkdir()
+            assert brief(e2, [], "", picks=[str(src / "sub" / "b.MOV"), str(stg / "dropped.mp4"), str(stray), str(src / "notes.txt")],
+                         staged=stg) == {"broll": str(e2 / "broll.json")}
+            bj = json.loads((e2 / "broll.json").read_text(encoding="utf-8"))
+            assert bj == {"auto": False, "libraries": [], "clips": [{"path": str((src / "sub" / "b.MOV").resolve()), "name": "b.MOV"},
+                                                                   {"path": str(e2 / "broll" / "dropped.mp4"), "name": "dropped.mp4"}]}, bj
+            assert (e2 / "broll" / "dropped.mp4").is_file()
         finally:
             if old is None:
                 os.environ.pop("AI_EDITOR_HOME")

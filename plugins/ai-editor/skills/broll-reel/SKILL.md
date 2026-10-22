@@ -48,7 +48,9 @@ words, a caption added or removed, a different end line. Without it the words st
 
 ## 3. Pick the b-roll
 
-`EDIT/broll.json` lists the folders (`"auto": true`: Claude decides, use the ones that fit; `false`: only those).
+`EDIT/broll.json` lists the folders (`"auto": true`: Claude decides, use the ones that fit; `false`: only those)
+and, when the user picked or dropped some, `"clips"` (`[{"path", "name"}]`): use every one of those first, on the
+shots they fit best, before picking from the folders.
 For each folder `python3 "$L/broll.py" sheet <name>`, then look at every sheet it prints (clip paths in its `index.json`).
 For every reel shot pick one clip that shows what that shot shows or what its caption says, following the instructions.
 Prefer clips at least as long as the shot (a shorter one loops), never the same clip twice in a row, and the reel's own

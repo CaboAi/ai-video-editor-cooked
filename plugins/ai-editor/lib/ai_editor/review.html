@@ -151,6 +151,20 @@ body.compare #p1 .player{outline:2px solid var(--ink);outline-offset:3px}
 video{width:100%;height:100%;display:block;object-fit:contain;background:var(--film);cursor:pointer}
 #oldbadge{display:none;position:absolute;top:12px;left:12px;padding:5px 10px;border-radius:8px;background:var(--panel);font-size:13px;z-index:2}
 .player:fullscreen video{object-fit:contain}
+/* full screen: a bar over the foot of the picture to scrub, play and step; it hides after 2 s with no mouse while playing */
+.fsbar{display:none}
+.player:fullscreen .fsbar{display:flex;flex-direction:column;gap:12px;position:absolute;left:0;right:0;bottom:0;z-index:5;padding:40px 28px 20px;background:linear-gradient(transparent,rgba(12,10,9,.72));color:#FFFFFF;transition:opacity .25s}
+.player:fullscreen.fsidle .fsbar{opacity:0;pointer-events:none}.player:fullscreen.fsidle,.player:fullscreen.fsidle video{cursor:none}
+.fsscrub{position:relative;height:16px;cursor:pointer;touch-action:none}
+.fsscrub::before{content:'';position:absolute;left:0;right:0;top:6px;height:4px;border-radius:2px;background:rgba(255,255,255,.3)}
+.fsscrub i{position:absolute;left:0;top:6px;height:4px;border-radius:2px;background:#FFFFFF}
+.fsscrub:hover::before,.fsscrub:hover i{top:5px;height:6px}
+.fsscrub b{position:absolute;top:2px;width:12px;height:12px;margin-left:-6px;border-radius:6px;background:#FFFFFF}
+.fsscrub span{display:none;position:absolute;bottom:22px;padding:3px 8px;border-radius:6px;background:rgba(12,10,9,.8);font-size:12px;line-height:16px;transform:translateX(-50%);white-space:nowrap;pointer-events:none}
+.fsrow{display:flex;align-items:center;gap:8px}
+.fsrow button{display:inline-flex;align-items:center;justify-content:center;height:32px;min-width:32px;padding:0 10px;border-radius:8px;color:#FFFFFF;font-size:13px;font-weight:600;white-space:nowrap}
+.fsrow button:hover{background:rgba(255,255,255,.14)}
+#fstime{padding-left:6px;font-size:14px;color:rgba(255,255,255,.72)}#fstime b{font-weight:600;color:#FFFFFF}
 .sz{display:none}
 .player.safe .sz{display:block;position:absolute;pointer-events:none}
 .sz i{position:absolute;background:var(--shade)}
@@ -260,6 +274,16 @@ body.preview #pins,body.preview #cmprow{visibility:hidden}
 #ticks span.cur{color:var(--ink)}
 #ticks span.end{right:0}
 #tracks{display:none}
+/* zoom: every row is laid out in % of #tinner, so one width (--zm x the view) keeps pins, bar, ticks and marks lined up */
+.tzoom{display:flex;align-items:center;justify-content:flex-end;gap:2px;height:22px;font-size:12px;color:var(--muted)}
+.tzoom button{width:22px;height:22px;border-radius:5px;font-size:14px;line-height:1;color:var(--ink)}.tzoom button:hover{background:var(--hover)}.tzoom button:disabled{opacity:.3}
+.tzoom .tfit{width:auto;padding:0 8px;margin-left:4px;font-size:12px;font-weight:600;border:1px solid var(--line2)}
+#tzr{width:96px;margin:0 4px;accent-color:var(--ink);cursor:pointer}
+#tscroll{overflow-x:auto;overflow-y:hidden;padding:8px 8px 0;margin:-8px -8px 0}   /* the padding keeps the knob, pins and hover time from being clipped */
+#tinner{position:relative;width:calc(var(--zm,1)*100%);display:flex;flex-direction:column;gap:6px}
+#tscroll::-webkit-scrollbar,.escroll::-webkit-scrollbar{height:8px}#tscroll::-webkit-scrollbar-thumb,.escroll::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
+#tscroll::-webkit-scrollbar-thumb:hover,.escroll::-webkit-scrollbar-thumb:hover{background:var(--quiet)}
+.timeline.edon #tscroll{margin:-8px 0 0 84px;padding:8px 0 0}.timeline.edon #tscroll::-webkit-scrollbar{display:none}   /* lined up over the Text and Sounds rows, whose scrollbar it shares */
 .mini{display:none}
 .timeline.tracked .mini{display:block;height:8px;margin-top:10px;border-radius:2px;background:var(--rail)}
 .mini i{position:absolute;top:0;height:8px;border-radius:2px;background:var(--quiet);cursor:pointer}.mini i.z{background:var(--ink)}
@@ -267,16 +291,13 @@ body.preview #pins,body.preview #cmprow{visibility:hidden}
 /* the edit's Text and Sounds rows under the timeline, like CapCut's: clips as long as they last (a sound shows its
    waveform), a ruler and a playhead; - and + zoom in and the rows scroll. Click to change or hear, x takes it out. */
 #edtracks{margin-top:12px}#edtracks:empty{display:none}
-.edwrap{display:flex;gap:8px}
-.edleft{width:84px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;padding-top:4px}
-.edleft .ezoom{position:static;height:20px;justify-content:space-between}
+.edwrap{display:flex}
+.edleft{width:84px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;padding:30px 8px 0 0}
 .edleft button{height:30px;border-radius:7px;border:1px dashed var(--line2);font-size:12px;font-weight:600;color:var(--body);text-align:left;padding:0 8px;white-space:nowrap}
 .edleft button:hover{border-color:var(--ink);color:var(--ink)}
 .edright{flex:1;min-width:0;position:relative}
-.ezoom{position:absolute;right:0;top:-2px;z-index:4;display:flex;align-items:center;gap:2px;font-size:11px;color:var(--muted)}
-.ezoom button{width:22px;height:20px;border-radius:5px;font-size:14px;line-height:1;color:var(--ink)}.ezoom button:hover{background:var(--hover)}.ezoom button:disabled{opacity:.3}
-.escroll{overflow-x:auto;overflow-y:visible;padding-top:8px;scrollbar-width:thin}
-.einner{position:relative;min-width:100%}
+.escroll{overflow-x:auto;overflow-y:visible;padding-top:8px}
+.einner{position:relative;width:calc(var(--zm,1)*100%)}
 .eruler{position:relative;height:16px;font-size:10px;line-height:12px;color:var(--quiet)}.eruler span{position:absolute;top:0;padding-left:3px;border-left:1px solid var(--line2);white-space:nowrap}
 .etrack{position:relative;height:30px;margin-top:6px;border-radius:6px;background:var(--rail);cursor:pointer}
 .eitem{position:absolute;top:3px;height:24px;border-radius:5px;border:1px solid var(--line2);display:flex;align-items:center;font-size:11px;line-height:14px;font-weight:600;cursor:pointer;min-width:10px}
@@ -617,6 +638,7 @@ body.making #making{display:flex}
   .grow{justify-content:flex-end}
   .timeline{padding:10px 16px 12px;gap:6px}
   #ticks{display:none}
+  #tzr{display:none}
   .timeline.tracked .mini{margin-top:4px}
   aside{width:auto;flex:1;min-height:0;border:0;border-top:1px solid var(--line);border-radius:16px 16px 0 0;padding-top:8px}
   aside::before{content:'';display:block;width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto}
@@ -677,7 +699,8 @@ body.making #making{display:flex}
   <div id="pair">
    <figure class="pl" id="p2"><figcaption id="cap2"></figcaption><div class="player"><video id="v2" preload="auto" muted playsinline></video><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
    <figure class="pl" id="p1"><figcaption id="cap1"></figcaption><div class="player"><video id="v" preload="auto" playsinline></video>
-    <div class="hits" id="hits"></div><div class="hits" id="tlayer"></div><div class="hits" id="clayer"></div><div id="oldbadge"></div><div id="making" aria-live="polite"></div><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
+    <div class="hits" id="hits"></div><div class="hits" id="tlayer"></div><div class="hits" id="clayer"></div><div id="oldbadge"></div><div id="making" aria-live="polite"></div>
+    <div class="fsbar" id="fsbar"><div class="fsscrub" id="fsscrub"><i id="fsfill"></i><b id="fsknob"></b><span id="fshover"></span></div><div class="fsrow"><button id="fsplay" aria-label="play or pause"></button><button id="fsback" title="j">-5s</button><button id="fsfwd" title="l">+5s</button><span id="fstime" class="num"></span><span class="grow"></span><button id="fsexit" title="esc">Exit full screen</button></div></div><div class="sz"><i class="zt"></i><i class="zb"></i><i class="zl"></i><i class="zr"></i><b></b></div></div></figure>
   </div>
   <div class="rsz" id="rsztx" role="separator" aria-label="drag to resize the video and the transcript" title="drag to resize"></div>
   <div id="tx"><div class="txhead"><b>Transcript</b><span id="txmeta"></span></div><div id="txlines"></div><div class="txtools" id="txtools"></div><div id="txbar" role="toolbar" aria-label="change the selected words"></div></div>
@@ -694,11 +717,14 @@ body.making #making{display:flex}
   <button class="tbtn" id="full" title="f">Full screen</button>
  </div>
  <div class="timeline" id="timeline">
+  <div class="tzoom" role="group" aria-label="timeline zoom"><button data-tz="-" title="Zoom out (⌘-)" aria-label="zoom out">−</button><input type="range" id="tzr" min="0" max="100" step="any" value="0" aria-label="timeline zoom"><button data-tz="+" title="Zoom in (⌘=)" aria-label="zoom in">+</button><button data-tz="fit" class="tfit" title="Show the whole video (shift z)">Fit</button></div>
+  <div id="tscroll"><div id="tinner">
   <div class="trow"><span class="tl"></span><div id="pins"></div></div>
   <div class="trow"><span class="tl"></span><div id="bar"><div id="segs"></div><div id="knob"></div><div id="hover"></div></div></div>
   <div class="trow"><span class="tl"></span><div id="ticks" class="num"></div></div>
   <div class="trow"><div class="mini" id="mini"></div></div>
   <div id="tracks"></div>
+  </div></div>
   <div id="edtracks"></div><div id="sndpick" hidden></div>
  </div>
 </div>
@@ -727,7 +753,7 @@ let themeAt=0;   // a poll already in flight still carries the old theme: ignore
 const $=id=>document.getElementById(id),v=$('v'),v2=$('v2'),bar=$('bar'),ta=$('ta'),box=$('box');
 const SPEEDS=[0.5,1,1.25,1.5,2],FPS=30,STAGE={cut:'The cut',edit:'The edit'};
 const KEYS=[['Play or pause','space'],['Back or forward 5 s','j l'],['Back or forward 1 s','← →'],['One frame',', .'],['Slower or faster','[ ]'],
- ['Write a note','c'],['Mark a range','i o'],['Save note','enter'],['Cancel','esc'],['Full screen','f'],['Mute','m'],['Safe zone (vertical)','z'],['This help','?']];
+ ['Write a note','c'],['Mark a range','i o'],['Save note','enter'],['Cancel','esc'],['Full screen','f'],['Zoom the timeline','⌘= ⌘-'],['Fit the timeline','shift z'],['Mute','m'],['Safe zone (vertical)','z'],['This help','?']];
 $('keys').innerHTML=KEYS.map(([a,k])=>`<div><span>${a}</span><span>${k.split(' ').map(x=>'<kbd>'+x+'</kbd>').join('&nbsp;&nbsp;')}</span></div>`).join('');
 const TICK='<svg width="12" height="12" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const SPIN='<svg width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--line)" stroke-width="3"/><path d="M12 3a9 9 0 0 1 9 9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>';
@@ -1018,45 +1044,65 @@ function renderBar(){
     +(inT!==null?'<div class="range" id="rng"></div>':'');
   const d=data();
   if(d.chapters)$('ticks').innerHTML=d.chapters.map((c,i)=>{const e=(d.chapters[i+1]||[T])[0];return `<span data-s="${c[0]}" style="left:${c[0]/T*100}%;width:calc(${(e-c[0])/T*100}% - 6px)">${esc(c[1])}</span>`}).join('');
-  else{const step=T<=120?15:T<=300?30:T<=900?60:300,ts=[];for(let t=0;t<T-step*.45;t+=step)ts.push(t);
-    $('ticks').innerHTML=ts.map(t=>`<span style="left:${t/T*100}%">${fmt(t)}</span>`).join('')+`<span class="end">${fmt(T)}</span>`}
+  else{const step=tstep(T/zm,8),ts=[];for(let t=0;t<T-step*.45;t+=step)ts.push(t);   // about 8 times across what is in view
+    $('ticks').innerHTML=ts.map(t=>`<span style="left:${t/T*100}%">${step<1?fmtx(t):fmt(t)}</span>`).join('')+`<span class="end">${fmt(T)}</span>`}
   $('pins').innerHTML=shown().map((c,i)=>{const old=c.round!==view.round;
     return `<button class="pin${old?(c.status==='fixed'?' fixed':' todo'):''}" data-pt="${here(c)}" data-old="${old?1:0}" style="left:${Math.min(98.5,Math.max(1.5,here(c)/T*100))}%" title="${esc(fmt(here(c))+'  '+c.text)}">${i+1}</button>`}).join('');
   tick();
 }
+// the timeline's zoom, as CapCut and Premiere do it: 1 is the whole video, the most is about 1 s across. ⌘ or ctrl + wheel
+// and a trackpad pinch zoom around the cursor, a sideways swipe or shift + wheel pans. While playing the view pages along
+// with the playhead; a pan stops that until the next click, seek or play.
+let zm=1,tfol=true,tseek=false,tset=0;
+const zmax=()=>Math.max(1,D()),tstep=(vis,n)=>[.5,1,2,5,10,15,30,60,120,300,600].find(x=>vis/x<=n)||1200;
+function tscrollTo(x){const a=$('tscroll'),b=$('escroll');tset=performance.now();a.scrollLeft=x;if(b)b.scrollLeft=a.scrollLeft}   // both rows scroll as one
+function setZoom(z,cx){const T=D(),sc=$('tscroll'),inn=$('tinner');z=Math.max(1,Math.min(zmax(),z));
+  const r=sc.getBoundingClientRect(),ir=inn.getBoundingClientRect(),ph=ir.left+v.currentTime/T*ir.width;
+  if(cx==null)cx=ph>=r.left&&ph<=r.right?ph:r.left+r.width/2;   // buttons and keys hold the playhead still, else the middle
+  const f=(cx-ir.left)/ir.width,pad=ir.left-r.left+sc.scrollLeft;
+  zm=z;$('timeline').style.setProperty('--zm',z);$('tzr').value=Math.log(z)/Math.log(zmax())*100||0;
+  document.querySelectorAll('[data-tz="-"],[data-tz="fit"]').forEach(b=>b.disabled=z<=1);document.querySelector('[data-tz="+"]').disabled=z>=zmax();
+  renderBar();renderEdTracks();tscrollTo(pad+f*inn.offsetWidth-(cx-r.left))}
+document.querySelector('.tzoom').addEventListener('click',e=>{const b=e.target.closest('[data-tz]');if(!b)return;const k=b.dataset.tz;
+  if(k==='fit'){tfol=true;return setZoom(1)}setZoom(zm*(k==='+'?2:.5))});
+$('tzr').oninput=e=>setZoom(Math.pow(zmax(),e.target.value/100));
+$('timeline').addEventListener('wheel',e=>{
+  if(e.ctrlKey||e.metaKey){e.preventDefault();tfol=false;return setZoom(zm*Math.exp(-Math.max(-60,Math.min(60,e.deltaY))*.01),e.clientX)}
+  const dx=e.deltaX||(e.shiftKey?e.deltaY:0);if(!dx||zm<=1||!e.target.closest('#tscroll,#escroll'))return;
+  e.preventDefault();tfol=false;tscrollTo($('tscroll').scrollLeft+dx)},{passive:false});
+$('timeline').addEventListener('scroll',e=>{if(!/^(tscroll|escroll)$/.test(e.target.id))return;   // a scrollbar drag: the other row follows
+  if(performance.now()-tset>150)tfol=false;const o=$(e.target.id==='tscroll'?'escroll':'tscroll');if(o&&Math.abs(o.scrollLeft-e.target.scrollLeft)>1){tset=performance.now();o.scrollLeft=e.target.scrollLeft}},true);
+v.addEventListener('seeking',()=>{tfol=tseek=true});v.addEventListener('play',()=>tfol=true);
+function tfollow(){if(zm<=1||!tfol||(v.paused&&!tseek))return;tseek=false;
+  const sc=$('tscroll'),r=sc.getBoundingClientRect(),ir=$('tinner').getBoundingClientRect(),x=ir.left+v.currentTime/D()*ir.width;
+  if(x<r.left+8||x>r.right-24)tscrollTo(sc.scrollLeft+x-r.left-r.width*.1)}   // page along: the playhead goes back near the left
 // the edit's Text and Sounds rows: every text (made or changing) and every sound in the draft or put there by the user.
 const NOTE_ICON='<svg width="10" height="10" viewBox="0 0 12 12"><path d="M5 1.5v6.2A1.8 1.8 0 1 0 6.3 9.4V4l3.2-1V1z" fill="currentColor"/></svg>';
-let tzUser=0,tz=1;try{tzUser=Math.max(0,Math.min(32,+localStorage.getItem('review-tz')||0))}catch(e){}   // the rows' zoom: yours, else about 15 s a screen, as CapCut opens
-const autoZ=T=>{let z=1;while(z*2<=Math.min(32,T/15))z*=2;return z};
 function waveSvg(peaks){const n=(peaks||[]).length;if(!n)return '';
   return `<svg class="wv" viewBox="0 0 ${n} 20" preserveAspectRatio="none" aria-hidden="true">${peaks.map((v,i)=>`<rect x="${i+.15}" y="${(10-Math.max(.6,v*9)).toFixed(2)}" width=".7" height="${(Math.max(.6,v*9)*2).toFixed(2)}" fill="rgba(255,255,255,.55)"/>`).join('')}</svg>`}
 // a caption line as it will read: its words with the retyped ones (overrides.json words) in place
 function capText(c){const cw=(S&&S.cap_words)||{};if(!(c.w||[]).some(k=>k in cw))return {text:c.text,edited:false};
   const orig=c.text.split(/\s+/);return {text:c.w.map((k,i)=>k in cw?cw[k]:orig[i]||'').filter(Boolean).join(' '),edited:true}}
 function renderEdTracks(){const E=$('edtracks'),T=D();
-  if(!(S&&view&&view.stage==='edit'&&noteOk()&&!cmp)||!T){E.innerHTML='';E._h='';return}
-  tz=tzUser||autoZ(T);
+  const on=!!(S&&view&&view.stage==='edit'&&noteOk()&&!cmp)&&!!T;$('timeline').classList.toggle('edon',on);
+  if(!on){E.innerHTML='';E._h='';return}
   const pc=t=>Math.max(0,Math.min(100,t/T*100)),it=data().items||{};
   const gone=new Set((S.sfx_removed||[]).map(t=>t.toFixed(2))),inDraft=new Set((it.sfx||[]).map(x=>x.placed).filter(Boolean));
   const sname=src=>String(src).split('/').pop().replace(/\.[a-z0-9]+$/i,'').replace(/^own-(house|skit|simple|swoop|windy|digital)-/,'').replace(/^own-/,'');
-  const vis=T/tz,step=[.5,1,2,5,10,15,30,60,120,300].find(x=>vis/x<=10)||600,ticks=[];for(let t=0;t<T;t+=step)ticks.push(t);
+  const step=tstep(T/zm,10),ticks=[];for(let t=0;t<T;t+=step)ticks.push(t);
   const texts=textItems().map(x=>`<div class="eitem txt${x.fresh?' pend':''}" data-et="${esc(String(x.id))}" data-ef="${x.fresh?1:''}" style="left:${pc(x.start)}%;width:${pc(x.end)-pc(x.start)}%" title="${esc(x.text)} · ${fmtx(x.start)}–${fmtx(x.end)}${x.locked?' · Claude has it':' · click to change'}"><span>${esc(x.text)}</span>${x.locked?'':`<b class="ex" data-ex="1" title="Remove">×</b>`}</div>`).join('');
   const clip=(t0,d,cls,attrs,name,peaks,at)=>`<div class="eitem snd${cls}" ${attrs} style="left:${pc(t0)}%;width:${(d||.3)/T*100}%" title="${esc(name)} · ${fmtx(at)} · ${(d||0).toFixed(1)} s · click to hear it">${waveSvg(peaks)}<span>${esc(name)}</span><b class="ex" data-ex="1" title="Remove">×</b></div>`;
   const snds=(it.sfx||[]).map(x=>clip(x.start??x.t,x.d,gone.has(x.t.toFixed(2))?' gone':'',`data-st="${x.t}" data-ssrc="${esc(x.src)}"${x.placed?` data-sp2="${esc(x.placed)}"`:''}`,sname(x.src),x.peaks,x.t)).join('')
     +(S.placed_sounds||[]).filter(x=>!inDraft.has(x.id)).map(x=>clip(x.t,x.d,' pend',`data-st="${x.t}" data-ssrc="${esc(x.sound)}" data-sp2="${esc(x.id)}"`,x.sound.replace(/\.[a-z0-9]+$/i,''),x.peaks,x.t)).join('');
   const caps=(it.captions||[]).map((c,i)=>{const ct=capText(c);return `<div class="eitem cap${ct.edited?' pend':''}${!ct.text?' gone':''}" data-ec="${i}" style="left:${pc(c.s)}%;width:${pc(c.e)-pc(c.s)}%" title="${esc(ct.text||c.text)} · ${fmtx(c.s)} · click to edit"><span>${esc(ct.text||c.text)}</span><b class="ex" data-ex="1" title="Delete this caption">×</b></div>`}).join('');
-  const h=`<div class="edwrap"><div class="edleft"><div class="ezoom"><button data-z="-" title="Zoom out"${tz<=1?' disabled':''}>−</button><span>${tz}x</span><button data-z="+" title="Zoom in"${tz>=32?' disabled':''}>+</button></div><button id="addtx" title="Add a text at the playhead">+ Text</button><button id="capedit" title="Edit the captions">Captions</button><button id="addsnd" title="Add one of your sounds at the playhead">+ Sound</button></div>
+  const h=`<div class="edwrap"><div class="edleft"><button id="addtx" title="Add a text at the playhead">+ Text</button><button id="capedit" title="Edit the captions">Captions</button><button id="addsnd" title="Add one of your sounds at the playhead">+ Sound</button></div>
     <div class="edright">
-    <div class="escroll" id="escroll"><div class="einner" style="width:${tz*100}%"><div class="eruler">${ticks.map(t=>`<span style="left:${pc(t)}%">${fmt(t)}</span>`).join('')}</div>
+    <div class="escroll" id="escroll"><div class="einner"><div class="eruler">${ticks.map(t=>`<span style="left:${pc(t)}%">${step<1?fmtx(t):fmt(t)}</span>`).join('')}</div>
     <div class="etrack" data-row="text">${texts}</div><div class="etrack" data-row="cap">${caps}</div><div class="etrack" data-row="snd">${snds}</div><b class="eph" id="eph"></b></div></div></div></div>`;
-  if(E._h!==h){const sl=($('escroll')||{}).scrollLeft||0;E._h=h;E.innerHTML=h;$('escroll').scrollLeft=sl;
+  if(E._h!==h){E._h=h;E.innerHTML=h;tscrollTo($('tscroll').scrollLeft);
     E.querySelectorAll('.eitem.snd').forEach(c=>c.classList.toggle('narrow',c.offsetWidth<48))}edPh()}
-function edPh(){const ph=$('eph'),T=D();if(!ph||!T)return;ph.style.left=v.currentTime/T*100+'%';
-  const sc=$('escroll');if(tz>1&&!v.paused&&sc){const x=v.currentTime/T*sc.scrollWidth;if(x<sc.scrollLeft+20||x>sc.scrollLeft+sc.clientWidth-40)sc.scrollLeft=x-sc.clientWidth*.25}}
+function edPh(){const ph=$('eph'),T=D();if(ph&&T)ph.style.left=v.currentTime/T*100+'%'}
 $('edtracks').addEventListener('click',async e=>{
-  const zb=e.target.closest('[data-z]');if(zb){const sc=$('escroll'),mid=sc?(sc.scrollLeft+sc.clientWidth/2)/sc.scrollWidth:0;
-    tzUser=zb.dataset.z==='+'?Math.min(32,tz*2):Math.max(1,tz/2);try{localStorage.setItem('review-tz',tzUser)}catch(x){}renderEdTracks();
-    const s2=$('escroll');if(s2)s2.scrollLeft=mid*s2.scrollWidth-s2.clientWidth/2;return}
   const tk=e.target.closest('.etrack');if(tk&&!e.target.closest('.eitem')){const r=tk.getBoundingClientRect();v.currentTime=Math.max(0,(e.clientX-r.left)/r.width*D());return}   /* click empty track: go there */
   if(e.target.id==='addtx'){if(tool!=='text')openTool('text');setText('outline');return}
   if(e.target.id==='addsnd'){return openSndPick(e.target)}
@@ -1643,14 +1689,25 @@ v.addEventListener('timeupdate',()=>skip(v.currentTime));v.addEventListener('pla
 // player
 const toggle=()=>{v.paused?v.play():v.pause()};
 v.addEventListener('click',toggle);v2.addEventListener('click',toggle);$('play').onclick=toggle;
-const icon=()=>{$('play').innerHTML=v.paused?'<svg width="14" height="14" viewBox="0 0 14 14"><path d="M3.5 1.5v11l9-5.5z" fill="currentColor"/></svg>':'<svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="1" width="3.5" height="12" rx="1" fill="currentColor"/><rect x="8.5" y="1" width="3.5" height="12" rx="1" fill="currentColor"/></svg>';};
+const icon=()=>{$('play').innerHTML=$('fsplay').innerHTML=v.paused?'<svg width="14" height="14" viewBox="0 0 14 14"><path d="M3.5 1.5v11l9-5.5z" fill="currentColor"/></svg>':'<svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="1" width="3.5" height="12" rx="1" fill="currentColor"/><rect x="8.5" y="1" width="3.5" height="12" rx="1" fill="currentColor"/></svg>';};
 v.addEventListener('play',icon);v.addEventListener('pause',icon);icon();
 $('back').onclick=()=>v.currentTime-=5;$('fwd').onclick=()=>v.currentTime+=5;
 function setSpeed(x){speed=x;v.playbackRate=x;try{localStorage.setItem('review-speed',x)}catch(e){}$('speed').textContent=x+'x'}
 $('speed').onclick=()=>setSpeed(SPEEDS[(SPEEDS.indexOf(speed)+1)%SPEEDS.length]);setSpeed(speed);
-v.addEventListener('loadedmetadata',()=>{v.playbackRate=speed;renderBar();renderTracks();renderEdTracks()});
+v.addEventListener('loadedmetadata',()=>{v.playbackRate=speed;setZoom(zm);renderTracks();renderEdTracks()});
 $('mute').onclick=()=>{v.muted=!v.muted;$('mute').textContent=v.muted?'Muted':'Sound'};
-$('full').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.querySelector('#p1 .player').requestFullscreen();
+const PL=document.querySelector('#p1 .player');
+$('full').onclick=()=>document.fullscreenElement?document.exitFullscreen():PL.requestFullscreen();
+// full screen: the player with its own bar; scrub with a time under the cursor, the bar hides after 2 s still while playing
+$('fsplay').onclick=toggle;$('fsback').onclick=()=>v.currentTime-=5;$('fsfwd').onclick=()=>v.currentTime+=5;$('fsexit').onclick=()=>document.exitFullscreen();
+let fsIdle=0,fsDrag=false;
+function fsWake(){PL.classList.remove('fsidle');clearTimeout(fsIdle);fsIdle=setTimeout(()=>{if(!v.paused&&!fsDrag)PL.classList.add('fsidle')},2000)}
+PL.addEventListener('pointermove',fsWake);v.addEventListener('play',fsWake);v.addEventListener('pause',fsWake);document.addEventListener('fullscreenchange',fsWake);
+document.addEventListener('keydown',()=>{if(document.fullscreenElement)fsWake()});
+const fsAt=e=>{const r=$('fsscrub').getBoundingClientRect();return Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))};
+$('fsscrub').addEventListener('pointerdown',e=>{fsDrag=true;$('fsscrub').setPointerCapture(e.pointerId);v.currentTime=fsAt(e)*D()});
+$('fsscrub').addEventListener('pointermove',e=>{const h=$('fshover'),f=fsAt(e);h.style.display='block';h.style.left=f*100+'%';h.textContent=fmtx(f*D());if(fsDrag)v.currentTime=f*D()});
+$('fsscrub').addEventListener('pointerup',()=>{fsDrag=false;fsWake()});$('fsscrub').addEventListener('pointerleave',()=>{if(!fsDrag)$('fshover').style.display='none'});
 $('vsel').onchange=e=>{alt=e.target.value;inT=outT=null;setVideo();render()};
 $('safebtn').onclick=()=>{const on=!document.querySelector('.player').classList.contains('safe');
   document.querySelectorAll('.player').forEach(p=>p.classList.toggle('safe',on));$('safebtn').textContent=on?'Hide safe zone':'Safe zone';placeSafe()};
@@ -1666,12 +1723,13 @@ function tick(){const T=D(),t=v.currentTime,p=Math.min(100,t/T*100);
   document.querySelectorAll('.pin').forEach(el=>el.classList.toggle('cur',el.dataset.old==='0'&&Math.abs(+el.dataset.pt-t)<1));
   document.querySelectorAll('#ticks span[data-s]').forEach((el,i,all)=>el.classList.toggle('cur',t>=+el.dataset.s&&(!all[i+1]||t<+all[i+1].dataset.s)));
   document.querySelectorAll('.track .ph').forEach(el=>el.style.left=p+'%');
-  $('time').innerHTML=`<b>${fmtx(t)}</b><span>/ ${fmt(v.duration||0)}</span>`;tickTx();renderHits();renderTexts();edPh()}
+  $('time').innerHTML=`<b>${fmtx(t)}</b><span>/ ${fmt(v.duration||0)}</span>`;
+  $('fsfill').style.width=$('fsknob').style.left=p+'%';$('fstime').innerHTML=`<b>${fmtx(t)}</b> / ${fmt(v.duration||0)}`;tfollow();tickTx();renderHits();renderTexts();edPh()}
 v.addEventListener('timeupdate',tick);v.addEventListener('seeked',tick);
 const at=e=>{const r=bar.getBoundingClientRect();return Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))*(v.duration||0)};
 bar.addEventListener('pointerdown',e=>{dragging=true;bar.setPointerCapture(e.pointerId);v.currentTime=at(e);tick()});
 bar.addEventListener('pointermove',e=>{const h=$('hover'),t=at(e),r=bar.getBoundingClientRect();
-  h.style.display='block';h.style.left=(e.clientX-r.left)+'px';h.textContent=fmtx(t);if(dragging){v.currentTime=t;tick()}});
+  h.style.display='block';h.style.left=Math.max(26,Math.min(r.width-26,e.clientX-r.left))+'px';h.textContent=fmtx(t);if(dragging){v.currentTime=t;tick()}});
 bar.addEventListener('pointerup',()=>dragging=false);bar.addEventListener('pointerleave',()=>{if(!dragging)$('hover').style.display='none'});
 
 // click-to-note: the card, caption, title or zoom on the frame now (review.py screen_items). Hover outlines each one;
@@ -1961,6 +2019,8 @@ document.addEventListener('keydown',e=>{
   const typing=e.target.tagName==='TEXTAREA'||e.target.tagName==='INPUT'||e.target.tagName==='SELECT';
   if(!typing&&(e.metaKey||e.ctrlKey)&&!e.altKey&&!e.shiftKey&&e.key.toLowerCase()==='z'&&txEditable()&&HIST.length){e.preventDefault();return txUndo()}
   if(!typing&&(e.key==='Backspace'||e.key==='Delete')&&txSel&&txEditable()){e.preventDefault();return txOp('cut')}
+  if(!typing&&(e.metaKey||e.ctrlKey)&&!e.altKey&&/^[=+\-_]$/.test(e.key)){e.preventDefault();return setZoom(zm*(/[=+]/.test(e.key)?2:.5))}   // the timeline, not the page
+  if(!typing&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&e.key==='Z'){tfol=true;return setZoom(1)}
   if(typing||e.target.isContentEditable||e.target.closest?.('#askq')||document.documentElement.dataset.askOpen||e.metaKey||e.ctrlKey||e.altKey)return;const k=e.key;   // never while typing or while Claude's question is up
   if(k===' '){e.preventDefault();toggle()}
   else if(k==='j')v.currentTime-=5;else if(k==='l')v.currentTime+=5;

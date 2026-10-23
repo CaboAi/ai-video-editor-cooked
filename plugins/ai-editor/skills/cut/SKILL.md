@@ -102,8 +102,8 @@ cloud=Claude jiv=Jev` (whole words, kept in `fixes.json` for the captions).
 python3 "$S/build_timeline.py" <source> edits/<name> && python3 "$PY" "$S/mirror.py" <source> edits/<name>
 ```
 
-Every pause (breaths too) over `--max-pause` (0.15 s) becomes 0.10 s; under music only word gaps
-are trimmed. A build `ERROR` writes nothing: fix that span and run it again.
+Pauses over 0.15 s (wide 0.30) shrink to 2/3, not `keep.json`/`beats.json` (editorial-rules.md);
+music: word gaps only. A build `ERROR` writes nothing: fix the span, rerun.
 
 `mirror.py` says `mirrored` when a book, shirt or sign reads backwards (a front-camera take): ask once,
 **Keep it as shot (Recommended)** (most creators post it that way) / **Flip it so the text reads**; on a

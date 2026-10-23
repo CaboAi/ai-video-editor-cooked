@@ -883,7 +883,7 @@ def style_cards(root):
 CONTROLS = {"captions.size_pct": ("captions", float, 2.5, 9), "captions.words_per_caption": ("captions", int, 1, 6),
             "captions.y_pct": ("captions", float, 40, 85), "captions.preset": ("captions", "choice", None, None),
             "zoom.per_min": ("visuals", float, 0, 20), "zoom.preset": ("visuals", "choice", None, None),
-            "cut.max_pause": ("cut", float, 0.05, 3.0), "cards.on": ("visuals", bool, None, None),
+            "cut.max_pause": ("cut", float, 0.05, 3.0), "cut.max_pause_wide": ("cut", float, 0.05, 3.0), "cards.on": ("visuals", bool, None, None),
             "cards.per_min": ("visuals", float, 1, 20),
             "sfx": ("sound", bool, None, None), "music": ("sound", bool, None, None),
             "motion.amount": ("visuals", float, 0, 1), "motion.look": ("visuals", "choice", None, None),

@@ -216,6 +216,20 @@ def home():
     return Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home"
 
 
+def staged():
+    """Where New video's added videos and images and dropped b-roll clips wait for their job: <root>/.staged/<random>/
+    (beside the edits, so linking them in is instant). Folders over a day old go on the next upload."""
+    d = Path(read()["root"]) / ".staged"
+    d.mkdir(parents=True, exist_ok=True)
+    for old in d.iterdir():   # ponytail: swept on upload only; a job made a day after its upload loses the file
+        try:
+            if time.time() - old.stat().st_mtime > 86400:
+                shutil.rmtree(old, ignore_errors=True)
+        except OSError:
+            pass
+    return d
+
+
 def state_path():
     return home() / "state.json"
 
@@ -2078,6 +2092,9 @@ def make_handler(token):
                 rows = broll.listing()
                 return self.send(200, {"libraries": [dict(r, thumb=f"/thumb?p={quote(r['first'])}" if r["first"] else "") for r in rows],
                                        "drives": broll.drives()})
+            if path == "/broll/clips":   # Pick from folders: one library's clips (their pictures come from /thumb)
+                got = broll.folder_clips(q.get("name", [""])[0])
+                return self.send(200, {"clips": got}) if got is not None else self.send(404, {"clips": []})
             if path == "/broll/browse":   # one level of a Drive folder, for Connect a folder
                 f = Path(q.get("p", [""])[0])
                 roots = [Path(x["path"]) for x in broll.drives()]
@@ -2673,9 +2690,10 @@ def make_handler(token):
             script = str(b.get("script") or "").strip()
             if len(script.encode("utf-8")) > SCRIPT_MAX:
                 return self.send(400, {"ok": False, "msg": "That script is over 200 KB. Paste only the lines you film."})
-            adds = [x for x in b.get("assets") or [] if isinstance(x, dict)][:askhook.MAX_IMAGES + assets.MAX_LINKS]
-            if sum(bool(x.get("image")) for x in adds) > askhook.MAX_IMAGES:
-                return self.send(400, {"ok": False, "msg": f"{askhook.MAX_IMAGES} images at most."})
+            adds = [x for x in b.get("assets") or [] if isinstance(x, dict)]
+            if len(adds) > assets.MAX_ITEMS:
+                return self.send(400, {"ok": False, "msg": f"{assets.MAX_ITEMS} videos, images or links at most."})
+            picks = [str(x) for x in b.get("broll_clips") or []][:broll.MAX_CLIPS]   # B-roll's Specific clips
             reel = b.get("mode") == "broll-reel"   # a reel to copy onto the user's b-roll (broll-reel skill)
             if reel and (len(ps) != 1 or not broll.libraries()):
                 return self.send(400, {"ok": False, "msg": "Connect a b-roll folder first." if len(ps) == 1 else "Copy one reel at a time."})
@@ -2699,7 +2717,8 @@ def make_handler(token):
                     ids.append(same["id"])
                     edits.append(same["args"]["edit"])
                     again.append(same["id"])
-                    extra = broll.brief(same["args"]["edit"], [str(x) for x in b.get("broll") or []], b.get("note"), b.get("broll_auto") is True)
+                    extra = broll.brief(same["args"]["edit"], [str(x) for x in b.get("broll") or []], b.get("note"), b.get("broll_auto") is True,
+                                        picks, staged())
                     if extra:   # the B-roll and instructions of this press, not only the first one's
                         update(lambda d, i=same["id"], x=extra: next(j for j in d["jobs"] if j["id"] == i)["args"].update(x))
                     continue
@@ -2714,8 +2733,9 @@ def make_handler(token):
                 if script:   # the text only, in the edit folder; the cut's script_match.py reads it there
                     (edit / "script.md").write_text(script + "\n", encoding="utf-8")
                     args["script"] = str(edit / "script.md")
-                assets.add(edit, adds)   # "Add images or links": edit/assets/ + assets.json, before the job line is read
-                args.update(broll.brief(edit, [str(x) for x in b.get("broll") or []], b.get("note"), b.get("broll_auto") is True))   # B-roll ticks + Additional instructions
+                assets.add(edit, adds, staged())   # "Add videos, images or links": edit/assets/ + assets.json, before the job line is read
+                args.update(broll.brief(edit, [str(x) for x in b.get("broll") or []], b.get("note"), b.get("broll_auto") is True,
+                                        picks, staged()))   # B-roll ticks, Specific clips + Additional instructions
                 if not sample:   # the style the user picked, in the edit before any Claude takes it (the sample ships its own)
                     seed_style(args, d["root"])
                 if sample:   # its transcript, cut, style and visuals, so Claude skips transcribing, deciding and judging
@@ -2790,13 +2810,21 @@ def make_handler(token):
 
         def upload(self):
             """A dropped video: streamed to <root>/videos/<name>, never held in memory. ?ref=1: a file for Analyse a
-            format (a video, picture, PDF or text) to <root>/references/<name>, handed to the teardown as files=."""
+            format (a video, picture, PDF or text) to <root>/references/<name>, handed to the teardown as files=.
+            ?stage=1: a video or image for "Add videos, images or links" or B-roll's Specific clips, to staged(),
+            linked into the edit when the job is made (assets.add, broll.brief)."""
             q = parse_qs(urlsplit(self.path).query)
-            name, ref = Path(unquote(q.get("name", [""])[0])).name, q.get("ref") == ["1"]
+            name, ref, stage = Path(unquote(q.get("name", [""])[0])).name, q.get("ref") == ["1"], q.get("stage") == ["1"]
             n = body_len(self.headers)
-            if not name.lower().endswith(REF_EXT if ref else links.VIDEO_EXT) or n <= 0:
+            if stage:
+                kind = assets.kind_of(name) or ("video" if Path(name).suffix.lower() in broll.EXTS else None)
+                if not kind or n <= 0:
+                    return self.send(400, {"ok": False, "msg": "Add a video (.mp4, .mov, .m4v, .webm) or an image (.png, .jpg, .gif, .webp)."})
+                if n > (askhook.MAX_IMAGE if kind == "image" else assets.MAX_VIDEO):
+                    return self.send(400, {"ok": False, "msg": f"{name} is over {'15 MB' if kind == 'image' else '2 GB'}."})
+            elif not name.lower().endswith(REF_EXT if ref else links.VIDEO_EXT) or n <= 0:
                 return self.send(400, {"ok": False, "msg": "Add a video, picture, PDF or text file." if ref else "Drop a .mov, .mp4 or .mkv video."})
-            out = Path(read()["root"]) / ("references" if ref else "videos") / name
+            out = staged() / secrets.token_hex(6) / name if stage else Path(read()["root"]) / ("references" if ref else "videos") / name
             out.parent.mkdir(parents=True, exist_ok=True)
             k = 1
             while out.exists() and out.stat().st_size != n:   # another file with this name: never overwrite it
@@ -2815,6 +2843,8 @@ def make_handler(token):
                 tmp.unlink(missing_ok=True)
                 return self.send(400, {"ok": False, "msg": "The upload stopped part way. Drop it again."})
             os.replace(tmp, out)
+            if stage:
+                return self.send(200, {"ok": True, "path": str(out), "name": out.name, "kind": kind})
             return self.send(200, {"ok": True, "path": str(out), "name": out.name} if ref else added(probe(str(out))))
     return H
 
@@ -3525,6 +3555,18 @@ def demo():
     assert f" broll={e4 / 'broll.json'} instructions={e4 / 'instructions.md'} " in line, line
     r5 = post("/job", {"type": "video", "path": str(vid), "as": "mine", "broll_auto": True})   # Make again on the waiting job: its new picks
     assert r5["edits"] == r4["edits"] and json.loads((e4 / "broll.json").read_text(encoding="utf-8"))["auto"] is True
+    # Specific clips: one dropped (?stage=1, linked in), one picked from the Desk folder (/broll/clips)
+    sg = json.loads(urllib.request.urlopen(urllib.request.Request(base + "/upload?stage=1&name=extra.mp4&t=" + tok, vid.read_bytes(), method="POST")).read())
+    assert sg["ok"] and sg["kind"] == "video" and staged() in Path(sg["path"]).parents, sg
+    assert vid.name in [c["name"] for c in get("/broll/clips?name=Desk")["clips"]]
+    try:
+        urllib.request.urlopen(urllib.request.Request(base + "/upload?stage=1&name=x.txt&t=" + tok, b"x", method="POST"))
+        raise AssertionError("a text file was staged")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400
+    post("/job", {"type": "video", "path": str(vid), "as": "mine", "broll": ["Desk"], "broll_clips": [sg["path"], str(vid), "/etc/hosts"]})
+    assert [c["name"] for c in json.loads((e4 / "broll.json").read_text(encoding="utf-8"))["clips"]] == ["extra.mp4", vid.name]
+    assert (e4 / "broll" / "extra.mp4").is_file()
     # Copy a reel: the same clip as a b-roll reel is its own job, editor open at the edit stage, mode= on the line
     r6 = post("/job", {"type": "video", "path": str(vid), "as": "mine", "mode": "broll-reel", "broll_auto": True})
     assert r6["edits"] != r4["edits"] and " mode=broll-reel " in job_line(latest(read(), "video"), root)
@@ -3537,8 +3579,8 @@ def demo():
     assert takeable(next(j for j in read()["jobs"] if j["id"] == r2["ids"][0]), "sess-L", read())
     assert not takeable(next(j for j in read()["jobs"] if j["id"] == r2["ids"][1]), "sess-L", read()), "the other Claude's job"
     try:
-        post("/job", {"type": "video", "path": str(vid), "as": "mine", "assets": [{"image": png}] * (askhook.MAX_IMAGES + 1)})
-        raise AssertionError("13 images were taken")
+        post("/job", {"type": "video", "path": str(vid), "as": "mine", "assets": [{"url": f"https://a.co/{i}"} for i in range(assets.MAX_ITEMS + 1)]})
+        raise AssertionError("51 assets were taken")
     except urllib.error.HTTPError as e:
         assert e.code == 400
     (home() / ".listening").unlink()

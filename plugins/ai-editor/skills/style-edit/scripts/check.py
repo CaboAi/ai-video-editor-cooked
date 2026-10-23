@@ -390,24 +390,28 @@ def check_plan(plan, face=None, cuts=(), static_s=STATIC_S, visuals=None, brand=
 
 
 def user_assets(edit, plan, visuals=()):
-    """What the user added on the page (assets.json, lib/ai_editor/assets.py) must be in the edit: an image as a card
-    of the plan (its file name, or the name it was added as, copied into images/), a link as a visuals.json beat (its url, or a github beat's repo)."""
+    """What the user added on the page (assets.json, lib/ai_editor/assets.py) must be in the edit: an image or a video as
+    a card of the plan (its file name, or the name it was added as, copied into images/), a link as a visuals.json beat
+    (its url, or a github beat's repo)."""
     try:
         items = json.loads((Path(edit) / "assets.json").read_text(encoding="utf-8")).get("items") or []
     except (OSError, ValueError, AttributeError):
         return []
-    srcs = {Path(str(c.get("src") or "")).name for c in plan.get("cards") or []}
+    srcs = {Path(str(c.get("src") or ((c.get("anim") or {}).get("props") or {}).get("src") or "")).name
+            for c in plan.get("cards") or []}   # a picture card, or a video_card's clip
     urls = {str(v.get("url") or "").rstrip("/") for v in visuals or []} | \
         {"https://github.com/" + str(v["repo"]) for v in visuals or [] if v.get("repo")}
     out = []
     for x in items:
-        miss = not {Path(x.get("src") or "").name, x.get("name")} & srcs - {"", None} if x.get("kind") == "image" else \
+        file = x.get("kind") in ("image", "video")
+        miss = not {Path(x.get("src") or "").name, x.get("name")} & srcs - {"", None} if file else \
             str(x.get("url") or "").rstrip("/") not in urls
         if miss:
-            what = x.get("name") if x.get("kind") == "image" else x.get("url")
+            what = x.get("name") if file else x.get("url")
             out.append(finding("FAIL", None, f"the user added {what} on the page and it is not in the edit",
                                f"put it in first, on its words ({x.get('say') or 'the line it is about'}): "
-                               + ("copy it into images/ with an images.json entry" if x.get("kind") == "image"
+                               + ("copy it into images/ with an images.json entry" + (" (a video_card)" if x.get("kind") == "video" else "")
+                                  if file
                                   else f"a {x.get('site', 'web')} beat in visuals.json") + ", then plan.py again"))
     return out
 
@@ -847,6 +851,9 @@ def demo():
                                                           {"kind": "link", "url": "https://github.com/o/r", "site": "github"}]}), encoding="utf-8")
     assert [f["what"].split()[3] for f in user_assets(ue, bare)] == ["a.png", "https://github.com/o/r"]
     assert user_assets(ue, {"cards": [{"src": "images/asset-img1.png"}]}, [{"kind": "github", "repo": "o/r"}]) == []
+    (ue / "assets.json").write_text(json.dumps({"items": [{"kind": "video", "src": "assets/asset-vid1.mov", "name": "demo.mov"}]}), encoding="utf-8")
+    assert "a video_card" in user_assets(ue, bare)[0]["fix"]
+    assert user_assets(ue, {"cards": [{"anim": {"type": "video_card", "props": {"src": "images/asset-vid1.mov"}}}]}) == []
     face = {"step_s": 0.5, "heads": [{"t": t / 2, "box": [30, 32, 40, 24]} for t in range(20)]}
     words = [{"text": "a", "start": 0.0, "end": 0.3, "type": "word"}]
     plan = {"width": 1080, "height": 1920, "fps": 30, "durationInFrames": 600, "zooms": [],

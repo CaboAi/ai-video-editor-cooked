@@ -26,11 +26,13 @@ local, so they are made now and made again if the cut changes.
    has one (`"auto": true`: the libraries this transcript fits; `false`: only those listed; none clearly fits or no file:
    skip, never ask), following `EDIT/instructions.md` when it says which folder goes where,
    `broll.py sheet <name>`, look at every sheet and copy the clips that match a line into `EDIT/images/` as `video_card`s.
-   **What the user added comes first:** `EDIT/assets.json` (the page's "Add images or links", `assets.py`) lists
-   images (`src` in `EDIT/assets/`) and links (`url`, `site`), each with optional `say` words. Every item becomes a
+   Its `"clips"` (the page's Specific clips, `[{"path", "name"}]`) all go in first: copy each into `EDIT/images/` as a
+   `video_card` on the line it fits best (look at a frame of it: `ffmpeg -ss 1 -i <path> -frames:v 1`), never left out.
+   **What the user added comes first:** `EDIT/assets.json` (the page's "Add videos, images or links", `assets.py`) lists
+   images and videos (`src` in `EDIT/assets/`) and links (`url`, `site`), each with optional `say` words. Every item becomes a
    card on its `say` words (the first time they are said after the previous card; no `say`: the line it is about,
    from its name or page), before you search for anything else or add any other card: an image is copied into
-   `EDIT/images/` and gets an images.json entry; a link becomes a visuals.json beat in step 4 by its `site`: `x` a
+   `EDIT/images/` and gets an images.json entry; a video is copied into `EDIT/images/` as a `video_card` on those words; a link becomes a visuals.json beat in step 4 by its `site`: `x` a
    `post`, `youtube` a `youtube`, `github` a `github` (`repo` from the url), `web` a `capture` (`shot` with a
    `find` mark on the line's words). Never leave one out: the user chose it. When no line names it, put it on the
    earliest sentence that has no card yet.

@@ -1552,10 +1552,18 @@ def make_handler(folder, token):
                 if folder.resolve() not in p.parents or p.suffix.lower() not in CARD_IMG or not p.is_file():
                     return self.send(404, {})
                 return self.file(p, mimetypes.guess_type(p.name)[0] or "image/png")
-            if path.startswith("/assets/"):   # an image the user added (assets.py)
+            if path.startswith("/assets/"):   # an image or video the user added (assets.py); ?thumb=1: a video's picture
                 p = folder / "assets" / Path(unquote(path)).name
+                if not p.is_file():
+                    return self.send(404, {})
+                if assets.kind_of(p) == "video":
+                    if q.get("thumb") == "1":
+                        import library
+                        t = library.thumb(p)
+                        return self.file(t, "image/jpeg") if t else self.send(404, {})
+                    return self.file(p, mimetypes.guess_type(p.name)[0] or "video/mp4")
                 ct = {".png": "image/png", ".gif": "image/gif", ".webp": "image/webp"}.get(p.suffix, "image/jpeg")
-                return self.file(p, ct) if p.is_file() else self.send(404, {})
+                return self.file(p, ct)
             if path.startswith("/frames/"):
                 p = folder / "review" / Path(unquote(path)).name
                 ct = {".png": "image/png", ".gif": "image/gif", ".webp": "image/webp"}.get(p.suffix, "image/jpeg")
@@ -1570,6 +1578,15 @@ def make_handler(folder, token):
                 return self.send(403, {"error": "open the page with the URL review.py printed"})
             if not askhook.same_origin(self):   # a POST from another site's page, even with the cookie
                 return self.send(403, {"error": "not from this page"})
+            if urlsplit(self.path).path == "/assets/upload":   # "Anything to add?": one video or image, streamed in
+                q = parse_qs(urlsplit(self.path).query)
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                    items = assets.save_stream(folder, unquote(q.get("name", [""])[0]), self.rfile, n, unquote(q.get("say", [""])[0]))
+                except ValueError as e:
+                    self.close_connection = True   # the unread body must not be taken as the next request
+                    return self.send(400, {"error": str(e)})
+                return self.send(200, {"items": items})
             try:
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
             except ValueError:
@@ -2754,9 +2771,10 @@ def cmd_wait(folder, poll=1.0):
               "Never reword, restyle or move them; a later note about one edits its row in texts.json.)")
     added = assets.load(folder)
     if added:   # New video's "Add images or links" and the editor's "Anything to add?": they go in first
-        print(f"assets: {folder / 'assets.json'} ({len(added)} image{'' if len(added) == 1 else 's'} or link{'' if len(added) == 1 else 's'} the user added. "
-              "Each one goes in first, as a card on its say words, before anything searched; one not in images.json or "
-              "visuals.json yet is new.)")
+        print(f"assets: {folder / 'assets.json'} ({len(added)} video{'' if len(added) == 1 else 's'}, image{'' if len(added) == 1 else 's'} "
+              f"or link{'' if len(added) == 1 else 's'} the user added. "
+              "Each one goes in first, as a card on its say words (a video as a video_card), before anything searched; one "
+              "not in images.json or visuals.json yet is new.)")
     if e["type"] == "approve" and d.get("learn"):
         print(learn_prompt(folder, d))
         if d.get("vertical") and not d.get("trials"):   # a finished reel: offer re-cuts for trial reels
@@ -3369,6 +3387,20 @@ def demo():
     assert [x["kind"] for x in ad] == ["link", "image"] and json.loads(get("/state").read())["assets"] == ad
     assert get("/" + ad[1]["src"]).headers["Content-Type"] == "image/png"
     assert post("/assets", {"remove": 1})["items"] == ad[:1] and not (folder / ad[1]["src"]).exists()
+    up = lambda name, data: json.loads(urllib.request.urlopen(urllib.request.Request(
+        f"{base}/assets/upload?name={quote(name)}&say=the%20demo&t={tok}", data, method="POST")).read())["items"]
+    with tempfile.TemporaryDirectory() as vt:   # a video: streamed in, its picture at ?thumb=1
+        clip = Path(vt, "clip.mp4")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=1:s=160x90:r=10", str(clip)], check=True)
+        ad = up("demo clip.mp4", clip.read_bytes())
+    assert ad[-1] == {"kind": "video", "src": "assets/asset-vid1.mp4", "name": "demo clip.mp4", "say": "the demo"}, ad[-1]
+    assert get("/" + ad[-1]["src"] + "?thumb=1").headers["Content-Type"] == "image/jpeg"
+    try:
+        up("notes.txt", b"x")
+        raise AssertionError("a text file was added")
+    except urllib.error.HTTPError as err:
+        assert err.code == 400 and "Add a video" in json.loads(err.read())["error"]
+    post("/assets", {"remove": len(ad) - 1})
     st = json.loads(get("/state").read())
     assert not st["listening"] and f'"{folder.resolve()}" wait' in st["resume"], "Copy for Claude names this edit"
     # the first-edit notice: round 1 of the user's first videos, until dismissed; the theme keeps the count
@@ -3667,7 +3699,7 @@ def demo():
     post("/event", {"type": "approve"})
     out = waited()
     assert out.startswith("APPROVE: demo the edit, round 1, 5 notes.") and f"also wide: {folder / 'review' / 'v-edit1-wide.mp4'}" in out, out
-    assert f"assets: {folder / 'assets.json'} (1 image or link the user added." in out, out
+    assert f"assets: {folder / 'assets.json'} (1 video, image or link the user added." in out, out
     assert f"#{c4['id']} 0:01.0 (1.0s) [all videos]: on all of them" in out, out
     assert f": wait for it! [add text: outline]" in out and f"texts: {folder / 'texts.json'} (1 on-screen text the user typed" in out, out
     assert load(folder / "texts.json")["items"] == [{"id": f"edit1-{c6['id']}", "text": "wait for it!", "style": "outline", "x_pct": 40.0,

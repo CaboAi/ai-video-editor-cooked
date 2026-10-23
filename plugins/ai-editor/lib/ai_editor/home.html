@@ -238,6 +238,32 @@ body.dragging #dropov{display:flex}
 .asay::placeholder{color:var(--t3)}.asay:focus{outline:none;border-bottom:1px solid var(--ink)}
 .ax{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--t2);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer}
 .ax:hover{color:var(--ink);border-color:var(--ink)}
+.ath.vid{position:relative;background-color:#222}.ath .tdur,.ctile .tdur{position:absolute;right:3px;bottom:3px;padding:0 4px;border-radius:4px;background:rgba(0,0,0,.65);color:#fff;font:600 10px/14px system-ui,sans-serif}
+.aup{height:3px;border-radius:2px;background:var(--soft);margin-top:5px;overflow:hidden}.aup>div{height:100%;background:var(--ink)}
+.arow.bad .an{color:var(--t2)}.arow .abad{font-size:12px;line-height:16px;color:var(--t2);margin-top:3px;white-space:normal}
+.ains{display:flex;gap:8px;flex-wrap:wrap}.ains .input{flex:1 1 180px;min-width:0}
+/* B-roll's Specific clips: a drop zone, the picked clips as chips, and Pick from folders */
+.bdrop{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 10px;min-height:56px;padding:8px 8px 8px 14px;border:1.5px dashed var(--line);border-radius:12px;color:var(--t2);font-size:13px}
+.bdrop.over{border-color:var(--ink);background:var(--soft);color:var(--ink)}
+body.dz #dropov{display:none!important}
+.bhd{flex-wrap:wrap;gap:8px}.bhd>.row{flex-wrap:wrap;min-width:0}
+@media (max-width:560px){.sec .bgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.pstrip{display:flex;gap:8px;flex-wrap:wrap;min-width:0}
+.pchip{display:flex;align-items:center;gap:8px;min-width:0;max-width:100%;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:13px}
+.pchip .t{position:relative;width:44px;height:26px;border-radius:6px;background:var(--soft) center/cover;flex-shrink:0;overflow:hidden}
+.pchip .t .aup{position:absolute;left:0;right:0;bottom:0;margin:0;border-radius:0}
+.pchip b{font-weight:500;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pchip em{font-style:normal;font-size:11px;color:var(--t3);flex-shrink:0}
+.pchip button{width:22px;height:22px;border:0;background:none;color:var(--t3);display:grid;place-items:center;flex-shrink:0;cursor:pointer}.pchip button:hover{color:var(--ink)}
+.cpick{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.cpick .bseg{overflow-x:auto}.cpick .bseg button{flex:1 0 auto;padding:0 12px;white-space:nowrap}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(104px,100%),1fr));gap:8px;max-height:320px;overflow:auto}
+.ctile{position:relative;min-width:0;padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel);text-align:left;color:var(--ink);cursor:pointer}
+.ctile.on{border:1.5px solid var(--ink)}
+.ctile .cp{display:block;position:relative;aspect-ratio:16/9;background:#222 center/cover}
+.ctile .cn{display:block;padding:6px 8px 7px;font-size:12px;line-height:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctile .ck{position:absolute;top:6px;right:6px;width:18px;height:18px;border-radius:5px;border:1.5px solid #fff;background:rgba(0,0,0,.25);display:grid;place-items:center;color:#fff}
+.ctile.on .ck{background:var(--ink);border-color:var(--ink);color:var(--onink)}
 .scr{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 12px;font-size:13px;line-height:18px;color:var(--t2)}
 .scr div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sec{display:flex;flex-direction:column;gap:12px;padding:20px 24px;border-top:1px solid var(--line)}
@@ -1147,7 +1173,7 @@ const HASHV=['home','videos','mystyle','skills','settings','new'];
 let L=null, R=null, rv=null;
 {const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('style/')){rv='stylepage';ui.sp=h.slice(6)}else if(HASHV.includes(h))rv=h}
 function setHash(){const h=rv==='stylepage'&&ui.sp?'#style/'+encodeURIComponent(ui.sp):HASHV.includes(rv)&&rv!=='home'?'#'+rv:'';if(location.hash!==h)history.replaceState(null,'',location.pathname+location.search+h)}
-const nv={sel:[],clips:{},join:true,aspect:'9:16',style:'mine',filter:'all',up:[],script:'',scriptName:'',scriptMsg:'',draft:null,assets:[],assetMsg:'',broll:[],brollAuto:true,brollAll:false,brollQ:'',note:'',reel:null,reelMsg:'',reelBusy:false,reelLogin:false};
+const nv={sel:[],clips:{},join:true,aspect:'9:16',style:'mine',filter:'all',up:[],script:'',scriptName:'',scriptMsg:'',draft:null,assets:[],assetMsg:'',bclips:[],bmsg:'',bpick:null,bq:'',broll:[],brollAuto:true,brollAll:false,brollQ:'',note:'',reel:null,reelMsg:'',reelBusy:false,reelLogin:false};
 let BR={libraries:null,drives:[]};
 const CMD='nextwork-editor';
 const UP='<svg width="22" height="22" viewBox="0 0 22 22"><path d="M11 15V5M7 9l4-4 4 4M4 15v2a1 1 0 001 1h12a1 1 0 001-1v-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -1257,42 +1283,60 @@ async function scriptFile(f){
   if(j.ok)Object.assign(nv,{script:j.text,scriptName:f.name,scriptMsg:'',draft:null});else nv.scriptMsg=j.msg||'Could not read that file. Paste the script instead.';
   render();
 }
-// Add images or links: pasted links (pages, X posts, YouTube, GitHub, docs) and dropped, pasted or chosen images,
-// each with optional "Show when I say..." words. They go with the job into edits/<name>/assets.json (assets.py).
-const IMG_MAX=15*1024*1024,IMG_N=12,LINK_N=20,isImg=f=>/^image\/(png|jpeg|gif|webp)$/.test(f.type);
+// Add videos, images or links: pasted links (pages, X posts, YouTube, GitHub, docs) and dropped, pasted or chosen
+// videos and images, each with optional "Show when I say..." words. A file uploads on its own the moment it is added
+// (/upload?stage=1, one at a time) and goes with the job as {file}: into edits/<name>/assets.json (assets.py).
+const IMG_MAX=15*1024*1024,VID_MAX=2*1024*1024*1024,ASSET_N=50,isImg=f=>/^image\/(png|jpeg|gif|webp)$/.test(f.type);
+const isVid=f=>/\.(mp4|mov|m4v|webm)$/i.test(f.name),isClip=f=>/\.(mp4|mov|m4v|webm|mkv)$/i.test(f.name);
+let stageQ=Promise.resolve();
+// one file to the staging folder; it.pct moves the bar in place (no redraw), it.path once in, it.bad in words if not
+function stage(it,f){
+  it.pct=0;it.busy=true;
+  stageQ=stageQ.then(()=>new Promise(res=>{const x=new XMLHttpRequest();x.open('POST','/upload?stage=1&name='+encodeURIComponent(f.name));
+    x.upload.onprogress=e=>{if(e.lengthComputable){it.pct=Math.round(e.loaded/e.total*100);document.querySelectorAll(`[data-up="${it.id}"]`).forEach(b=>b.style.width=it.pct+'%')}};
+    x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}it.busy=false;if(j.ok){it.path=j.path;if(!it.pv)it.pv='/thumb?p='+encodeURIComponent(j.path)}else it.bad=j.msg||'That file could not be added.';render();res()};
+    x.onerror=()=>{it.busy=false;it.bad='The upload stopped. Remove it and add it again.';render();res()};x.send(f)}));
+}
+const busyUp=()=>nv.assets.some(a=>a.busy)||nv.bclips.some(c=>c.busy);
+const upBar=it=>it.busy?`<div class="aup"><div data-up="${it.id}" style="width:${it.pct||0}%"></div></div>`:'';
 function assetRow(a,i){
-  const pic=a.kind==='image'?`<span class="ath" style="background-image:url('${esc(a.data)}')"></span>`:`<span class="ath lk">${ic('link',16,1.8)}</span>`;
-  const t=a.kind==='image'?a.name:a.url.replace(/^https?:\/\/(www\.)?/,'');
-  return `<div class="arow">${pic}<div class="grow" style="min-width:0"><div class="an" title="${esc(a.kind==='image'?a.name:a.url)}">${esc(t)}</div>
-    <input class="asay" placeholder="Show when I say..." value="${esc(a.say||'')}" aria-label="Show it when you say these words" oninput="nv.assets[${i}].say=this.value"></div>
+  const pic=a.kind==='link'?`<span class="ath lk">${ic('link',16,1.8)}</span>`:a.kind==='video'?`<span class="ath vid" style="${a.pv&&!a.busy?`background-image:url('${esc(a.pv)}')`:''}">${a.busy||!a.pv?ic('play',14,1.8):''}</span>`
+    :`<span class="ath" style="background-image:url('${esc(a.pv||'')}')"></span>`;
+  const t=a.kind==='link'?a.url.replace(/^https?:\/\/(www\.)?/,''):a.name;
+  return `<div class="arow${a.bad?' bad':''}">${pic}<div class="grow" style="min-width:0"><div class="an" title="${esc(a.kind==='link'?a.url:a.name)}">${esc(t)}</div>
+    ${a.bad?`<div class="abad">${esc(a.bad)}</div>`:`<input class="asay" placeholder="Show when I say..." value="${esc(a.say||'')}" aria-label="Show it when you say these words" oninput="nv.assets[${i}].say=this.value">`}${upBar(a)}</div>
     <button class="ax" aria-label="Remove" title="Remove" onclick="nv.assets.splice(${i},1);nv.assetMsg='';render()">${CROSS}</button></div>`;
 }
 function assetSec(){
   const n=nv.assets.length;
-  return `<div class="sec"><span class="h">Add images or links</span>
-    <div class="row" style="gap:8px"><input id="assetin" class="input" style="height:38px;font-family:inherit" placeholder="Paste a link or an image" onkeydown="if(event.key==='Enter')addLink()" onpaste="assetPaste(event)"><button class="btn quiet sm" onclick="addLink()">Add</button><label class="choose" style="height:38px" title="Choose images">${ic('image',15,1.8)}Images...<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple class="hide" onchange="addImages(this.files);this.value=''"></label></div>
+  return `<div class="sec" ondragover="if(hasFiles(event)){event.preventDefault();event.stopPropagation();document.body.classList.add('dz')}" ondragleave="document.body.classList.remove('dz')" ondrop="event.preventDefault();event.stopPropagation();document.body.classList.remove('dz');addFiles(event.dataTransfer.files)">
+    <div class="between"><span class="h">Add videos, images or links</span>${n?`<span class="muted" style="font-size:13px">${n} of ${ASSET_N}</span>`:''}</div>
+    <div class="ains"><input id="assetin" class="input" style="height:38px;font-family:inherit" placeholder="Paste a link, or drop videos and images" onkeydown="if(event.key==='Enter')addLink()" onpaste="assetPaste(event)"><button class="btn quiet sm" onclick="addLink()">Add</button><label class="choose" style="height:38px" title="Choose videos or images">${ic('image',15,1.8)}Files...<input type="file" accept="video/mp4,video/quicktime,video/webm,.m4v,image/png,image/jpeg,image/gif,image/webp" multiple class="hide" onchange="addFiles(this.files);this.value=''"></label></div>
     ${n?`<div class="alist">${nv.assets.map(assetRow).join('')}</div>`:''}
-    ${nv.assetMsg?`<div class="msg bad">${CROSS}<span>${esc(nv.assetMsg)}</span></div>`:'<div class="muted">Optional. Web pages, X posts, YouTube, GitHub, docs or your own pictures. Claude uses these before looking for anything else.</div>'}</div>`;
+    ${nv.assetMsg?`<div class="msg bad">${CROSS}<span>${esc(nv.assetMsg)}</span></div>`:'<div class="muted">Optional. Your own clips, pictures, web pages, X posts, YouTube or GitHub. Videos up to 2 GB each. Claude puts these in first.</div>'}</div>`;
 }
 function addLink(){
   const e=$('#assetin'),us=(e?e.value:'').split(/\s+/).filter(Boolean);if(!us.length)return;
   for(let u of us){if(!/^https?:\/\//i.test(u))u='https://'+u;
     if(!/^https?:\/\/[^\s\/]+\.[^\s]+$/i.test(u)){nv.assetMsg='That is not a link. Paste a web address, like github.com/name/repo.';return render()}
-    if(nv.assets.filter(a=>a.kind==='link').length>=LINK_N){nv.assetMsg=`${LINK_N} links at most.`;return render()}
+    if(nv.assets.length>=ASSET_N){nv.assetMsg=`${ASSET_N} at most. Take one out first.`;return render()}
     if(!nv.assets.some(a=>a.url===u))nv.assets.push({kind:'link',url:u,say:''})}
-  nv.assetMsg='';render();const f=$('#assetin');if(f)f.focus();
+  nv.assetMsg='';render();const f=$('#assetin');if(f){f.value='';f.focus()}
 }
-function assetPaste(ev){const fs=[...(ev.clipboardData||{}).files||[]].filter(isImg);if(fs.length){ev.preventDefault();addImages(fs)}}
-async function addImages(files){
+function assetPaste(ev){const fs=[...(ev.clipboardData||{}).files||[]].filter(f=>isImg(f)||isVid(f));if(fs.length){ev.preventDefault();addFiles(fs)}}
+function addFiles(files){
+  nv.assetMsg='';
   for(const f of [...files]){
-    if(!isImg(f)){nv.assetMsg='Add a .png, .jpg, .gif or .webp image.';continue}
-    if(f.size>IMG_MAX){nv.assetMsg=f.name+' is over 15 MB.';continue}
-    if(nv.assets.filter(a=>a.kind==='image').length>=IMG_N){nv.assetMsg=`${IMG_N} images at most.`;break}
-    const data=await new Promise(r=>{const rd=new FileReader();rd.onload=()=>r(rd.result);rd.onerror=()=>r('');rd.readAsDataURL(f)});
-    if(data){nv.assets.push({kind:'image',data,name:f.name||'image.png',say:''});nv.assetMsg=''}
+    const kind=isImg(f)?'image':isVid(f)?'video':null;
+    if(!kind){nv.assetMsg='Add a video (.mp4, .mov, .m4v, .webm) or an image (.png, .jpg, .gif, .webp).';continue}
+    if(f.size>(kind==='image'?IMG_MAX:VID_MAX)){nv.assetMsg=`${f.name} is over ${kind==='image'?'15 MB':'2 GB'}.`;continue}
+    if(nv.assets.length>=ASSET_N){nv.assetMsg=`${ASSET_N} at most. Take one out first.`;break}
+    const it={id:++upN,kind,name:f.name,say:'',pv:kind==='image'?URL.createObjectURL(f):''};
+    nv.assets.push(it);stage(it,f);
   }
   render();
 }
+
 // B-roll: the user's own clip folders (broll.py libraries, often Google Drive through the Drive app). "Claude decides"
 // (the default) lets Claude pick from every folder; ticking folders limits it to those; nothing at all: no b-roll.
 // They go with the job as edits/<name>/broll.json. Additional instructions for Claude go as edits/<name>/instructions.md.
@@ -1307,24 +1351,64 @@ function bTile(l){const on=!nv.brollAuto&&nv.broll.includes(l.name);
 function brollSec(){
   const libs=BR.libraries;if(!libs)return '';
   const conn=`<button class="btn quiet sm" style="height:30px;padding:0 12px;font-size:13px" onclick="openBconn()">${ic('plus',12,2)}Connect a folder</button>`;
-  if(!libs.length)return `<div class="sec"><div class="between"><span class="h">B-roll</span>${conn}</div><div class="muted">Optional. Connect a folder of your own clips, like one in Google Drive. Claude puts them on the lines they fit.</div></div>`;
+  if(!libs.length)return `<div class="sec"><div class="between bhd"><span class="h">B-roll</span>${conn}</div><div class="muted">Optional. Drop your own clips below, or connect a folder of them, like one in Google Drive. Claude puts them on the lines they fit.</div>${clipsBlk()}</div>`;
   const auto=`<button class="btile ${nv.brollAuto?'on':''}" aria-pressed="${nv.brollAuto}" onclick="bAuto()"><span class="bp">${SPARK}</span><span class="bt"><b>Claude decides</b><span>From all ${libs.length}</span></span><span class="ck">${nv.brollAuto?ic('check',12,2.6):''}</span></button>`;
   const count=`<span class="muted" style="font-size:13px">${nv.brollAuto?'Claude decides':nv.broll.length?`${nv.broll.length} of ${libs.length} picked`:'No b-roll'}</span>`;
   if(nv.brollAll){
     const q=nv.brollQ.trim().toLowerCase(),shown=libs.filter(l=>!q||l.name.toLowerCase().includes(q));
-    return `<div class="sec"><div class="between"><div class="row" style="gap:8px;align-items:baseline"><span class="h">B-roll</span>${count}</div><div class="row" style="gap:8px"><button class="btn quiet sm" style="height:30px;padding:0 12px;font-size:13px" onclick="nv.brollAll=false;nv.brollQ='';render()">Show less</button>${conn}</div></div>
+    return `<div class="sec"><div class="between bhd"><div class="row" style="gap:8px;align-items:baseline"><span class="h">B-roll</span>${count}</div><div class="row" style="gap:8px"><button class="btn quiet sm" style="height:30px;padding:0 12px;font-size:13px" onclick="nv.brollAll=false;nv.brollQ='';render()">Show less</button>${conn}</div></div>
       <div class="row" style="gap:8px"><label class="bsrch">${SRCH}<input id="brq" placeholder="Search folders" value="${esc(nv.brollQ)}" oninput="nv.brollQ=this.value;render()" aria-label="Search folders"></label>
         <button class="btn quiet sm" style="height:36px;padding:0 12px;font-size:13px" onclick="nv.brollAuto=false;nv.broll=libs_names();render()">Select all</button><button class="btn quiet sm" style="height:36px;padding:0 12px;font-size:13px" onclick="nv.brollAuto=false;nv.broll=[];render()">Clear</button></div>
       <div class="bgrid">${q?'':auto}${shown.map(bTile).join('')}<button class="btile add" onclick="openBconn()">${ic('plus',16,2)}Connect a folder</button></div>
       ${q&&!shown.length?'<div class="muted">No folder has that name.</div>':''}
-      <div class="muted">Optional. Tick the folders Claude can pull from. None ticked: no b-roll.</div></div>`;
+      <div class="muted">Optional. Tick the folders Claude can pull from. None ticked: no b-roll.</div>${clipsBlk()}</div>`;
   }
   const order=[...libs].sort((a,b)=>(nv.broll.includes(b.name)-nv.broll.includes(a.name))),more=libs.length>2,lead=order.slice(0,more?1:2);
   const rest=order.slice(more?1:2),seeAll=more?`<button class="btile" onclick="nv.brollAll=true;render()"><span class="bp ph" style="${rest[0].thumb?`background-image:url('${esc(rest[0].thumb)}')`:''}">${rest[0].thumb?'':ic('folder',20)}</span><span class="bt"><b>See all ${libs.length}</b><span>${rest.length} more folder${rest.length===1?'':'s'}</span></span></button>`:'';
-  return `<div class="sec"><div class="between"><div class="row" style="gap:8px;align-items:baseline"><span class="h">B-roll</span>${count}</div>${conn}</div>
-    <div class="bgrid">${auto}${lead.map(bTile).join('')}${seeAll}</div></div>`;
+  return `<div class="sec"><div class="between bhd"><div class="row" style="gap:8px;align-items:baseline"><span class="h">B-roll</span>${count}</div>${conn}</div>
+    <div class="bgrid">${auto}${lead.map(bTile).join('')}${seeAll}</div>${clipsBlk()}</div>`;
 }
 const libs_names=()=>(BR.libraries||[]).map(l=>l.name);
+// Specific clips: ones the user wants in for sure. Dropped or chosen files upload to the staging folder (stage());
+// Pick from folders ticks clips inside a connected library (/broll/clips). Both go with the job as broll_clips,
+// into broll.json's "clips" (broll.py brief); the ticked folders still fill the rest.
+const BC={};
+const bcName=n=>n.replace(/\.[^.]+$/,'');
+function bcDrop(e){e.preventDefault();e.stopPropagation();document.body.classList.remove('dz');e.currentTarget.classList.remove('over');addClipFiles(e.dataTransfer.files)}
+function bcOver(e){if(!hasFiles(e))return;e.preventDefault();e.stopPropagation();document.body.classList.add('dz');e.currentTarget.classList.add('over')}
+function bcLeave(e){if(e.currentTarget.contains(e.relatedTarget))return;document.body.classList.remove('dz');e.currentTarget.classList.remove('over')}
+function addClipFiles(files){
+  nv.bmsg='';
+  for(const f of [...files]){
+    if(!isClip(f)){nv.bmsg='Add a video: .mp4, .mov, .m4v, .webm or .mkv.';continue}
+    if(f.size>VID_MAX){nv.bmsg=f.name+' is over 2 GB.';continue}
+    const it={id:++upN,name:f.name,up:true,pv:''};nv.bclips.push(it);stage(it,f);
+  }
+  render();
+}
+async function openPick(){const libs=BR.libraries||[];if(!libs.length)return;nv.bpick=nv.bpick&&libs.some(l=>l.name===nv.bpick)?nv.bpick:libs[0].name;nv.bq='';render();loadPick(nv.bpick)}
+async function loadPick(n){nv.bpick=n;render();if(BC[n])return;try{const r=await fetch('/broll/clips?name='+encodeURIComponent(n));BC[n]=r.ok?(await r.json()).clips:[]}catch(e){BC[n]=[]}render()}
+function pickTick(path,name){const i=nv.bclips.findIndex(c=>c.path===path);if(i>=0)nv.bclips.splice(i,1);else nv.bclips.push({id:++upN,path,name,pv:'/thumb?p='+encodeURIComponent(path)});render()}
+function pickerSec(){
+  const libs=BR.libraries||[],n=nv.bpick,cs=BC[n],q=nv.bq.trim().toLowerCase(),shown=(cs||[]).filter(c=>!q||c.name.toLowerCase().includes(q));
+  const tile=c=>{const on=nv.bclips.some(x=>x.path===c.path);return `<button class="ctile ${on?'on':''}" aria-pressed="${on}" title="${esc(c.name)}" onclick="pickTick(${J(c.path)},${J(c.name)})"><span class="cp" style="background-image:url('/thumb?p=${encodeURIComponent(c.path)}')"></span><span class="ck">${on?ic('check',11,2.6):''}</span><span class="cn">${esc(bcName(c.name))}</span></button>`};
+  return `<div class="cpick"><div class="between"><b style="font-size:14px">Pick clips</b><button class="btn quiet sm" style="height:30px;padding:0 12px;font-size:13px" onclick="nv.bpick=null;render()">Done</button></div>
+    ${libs.length>1?`<div class="bseg" role="tablist">${libs.map(l=>`<button role="tab" aria-selected="${l.name===n}" class="${l.name===n?'on':''}" onclick="loadPick(${J(l.name)})">${esc(l.name)}</button>`).join('')}</div>`:''}
+    <label class="bsrch">${SRCH}<input id="bcq" placeholder="Search clips" value="${esc(nv.bq)}" oninput="nv.bq=this.value;render()" aria-label="Search clips"></label>
+    ${!cs?'<div class="muted">Loading...</div>':shown.length?`<div class="cgrid">${shown.map(tile).join('')}</div>`:`<div class="muted">${q?'No clip has that name.':'No clips in this folder.'}</div>`}
+    <div class="muted" style="font-size:13px">Ticked clips go in for sure. Claude still picks the rest from the folders above.</div></div>`;
+}
+function clipsBlk(){
+  const libs=(BR.libraries||[]).length,k=nv.bclips.length;
+  const chip=(c,i)=>`<span class="pchip" title="${esc(c.bad||c.name)}"><span class="t" style="${c.pv&&!c.busy?`background-image:url('${esc(c.pv)}')`:''}">${upBar(c)}</span><b>${esc(bcName(c.name))}</b>${c.bad?'<em>not added</em>':c.up?'<em>added</em>':''}<button aria-label="Remove ${esc(c.name)}" title="Remove" onclick="nv.bclips.splice(${i},1);nv.bmsg='';render()">${CROSS}</button></span>`;
+  return `<div class="col" style="gap:10px;min-width:0">
+    <div class="row" style="gap:8px;align-items:baseline"><span style="font-size:14px;font-weight:600">Specific clips</span>${k?`<span class="muted" style="font-size:13px">${k} picked</span>`:''}</div>
+    <div class="bdrop" ondragenter="bcOver(event)" ondragover="bcOver(event)" ondragleave="bcLeave(event)" ondrop="bcDrop(event)"><span>Drag clips here, or</span>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><label class="choose" style="height:32px;font-size:13px;padding:0 12px">${FOLDER}Choose files...<input type="file" multiple accept="video/*,.mov,.mkv,.mp4,.m4v,.webm" class="hide" onchange="addClipFiles(this.files);this.value=''"></label>${libs&&!nv.bpick?'<button class="btn quiet sm" style="height:32px;padding:0 12px;font-size:13px" onclick="openPick()">Pick from folders</button>':''}</div></div>
+    ${nv.bmsg?`<div class="msg bad">${CROSS}<span>${esc(nv.bmsg)}</span></div>`:''}
+    ${k?`<div class="pstrip">${nv.bclips.map(chip).join('')}</div>`:''}
+    ${nv.bpick?pickerSec():''}</div>`;
+}
 function instrSec(){
   return `<div class="sec"><span class="h">Additional instructions for Claude</span>
     <textarea class="binstr" id="instrin" maxlength="4000" placeholder="Anything about this video: which b-roll where, captions, length, what to cut." oninput="nv.note=this.value">${esc(nv.note)}</textarea></div>`;
@@ -1811,10 +1895,11 @@ function vStyle(){
       <button class="b1" id="make" onclick="makeVideo()">Make my video</button></div></div>`;
 }
 async function makeVideo(){
-  const assets=nv.assets.map(a=>a.kind==='link'?{url:a.url,say:a.say}:{image:a.data,name:a.name,say:a.say});
+  if(busyUp()){toast('Adding your files first...');const b=$('#make');if(b)b.disabled=true;await stageQ;if(b)b.disabled=false}
+  const assets=nv.assets.filter(a=>a.kind==='link'||a.path).map(a=>a.kind==='link'?{url:a.url,say:a.say}:{file:a.path,name:a.name,say:a.say});
   const r=await queue({type:'video',paths:nv.sel,join:nv.join,as:nv.style,aspect:aspectOf(),script:nv.script,assets,
-    broll:nv.brollAuto?[]:nv.broll,broll_auto:nv.brollAuto&&!!(BR.libraries||[]).length,note:nv.note,...(nv.reel?{mode:'broll-reel'}:{})});
-  if(!r._ok)return;nv.sel=[];nv.script='';nv.scriptName='';nv.assets=[];nv.assetMsg='';nv.note='';nv.brollAll=false;nv.brollQ='';nv.reel=null;
+    broll:nv.brollAuto?[]:nv.broll,broll_auto:nv.brollAuto&&!!(BR.libraries||[]).length,broll_clips:nv.bclips.filter(c=>c.path).map(c=>c.path),note:nv.note,...(nv.reel?{mode:'broll-reel'}:{})});
+  if(!r._ok)return;nv.sel=[];nv.script='';nv.scriptName='';nv.assets=[];nv.assetMsg='';nv.bclips=[];nv.bmsg='';nv.bpick=null;nv.note='';nv.brollAll=false;nv.brollQ='';nv.reel=null;
   toEditor(r);
 }
 
@@ -2206,7 +2291,8 @@ const IC={file:'<path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1
  pencil:'<path d="M15.5 4.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/>',
  lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
- moon:'<path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/>'};
+ moon:'<path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/>',
+  play:'<path d="M8 5.5v13l10.5-6.5z"/>'};
 IC.skill='<path d="M13 3 5 13.5h6l-1 7.5 8-10.5h-6z"/>';
 Object.assign(IC,IC2);
 const ic=(k,px=18,sw=1.8)=>`<svg width="${px}" height="${px}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k]}</svg>`;
@@ -2562,16 +2648,17 @@ function rrender(){
     el.ondragstart=e=>{e.dataTransfer.setData('text/plain',el.dataset.i)};el.ondragover=e=>e.preventDefault();
     el.ondrop=e=>{e.preventDefault();e.stopPropagation();const a=+e.dataTransfer.getData('text/plain'),b=+el.dataset.i;if(isNaN(a)||a===b)return;const [x]=nv.sel.splice(a,1);nv.sel.splice(b,0,x);render()}});
 }
-window.addEventListener('drop',e=>{if(inApp()&&!ui.create&&e.dataTransfer.files.length){const fs=[...e.dataTransfer.files],sc=fs.filter(f=>SCRIPT_EXT.test(f.name)),im=fs.filter(isImg),vs=fs.filter(f=>!SCRIPT_EXT.test(f.name)&&!isImg(f));if(rv!=='new')rgo('new');if(sc.length)scriptFile(sc[0]);if(im.length)addImages(im);if(vs.length)chooseFiles(vs)}});   // a script file dropped anywhere is the script, an image goes to Add images or links
+window.addEventListener('drop',e=>{if(inApp()&&!ui.create&&e.dataTransfer.files.length){const fs=[...e.dataTransfer.files],sc=fs.filter(f=>SCRIPT_EXT.test(f.name)),im=fs.filter(isImg),vs=fs.filter(f=>!SCRIPT_EXT.test(f.name)&&!isImg(f));if(rv!=='new')rgo('new');if(sc.length)scriptFile(sc[0]);if(im.length)addFiles(im);if(vs.length)chooseFiles(vs)}});   // a script file dropped anywhere is the script, an image goes to Add videos, images or links (a video there or on B-roll: their own boxes)
 // while files are dragged over the window: one overlay, so it is clear where they go
 let dragN=0;const hasFiles=e=>[...((e.dataTransfer||{}).types||[])].includes('Files');
 // The overlay lives only while files are being dragged over the window: every dragover renews a short timer,
 // so a lost dragleave (the page re-renders while you drag) can never leave it stuck. Esc, drop or a click clears it.
-let dragT=null;const dragOff=()=>{dragN=0;clearTimeout(dragT);document.body.classList.remove('dragging')};
+let dragT=null;const dragOff=()=>{dragN=0;clearTimeout(dragT);document.body.classList.remove('dragging','dz')};
 window.addEventListener('dragenter',e=>{if(hasFiles(e)&&inApp()&&!ui.create){dragN++;document.body.classList.add('dragging');clearTimeout(dragT);dragT=setTimeout(dragOff,400)}});
 window.addEventListener('dragover',e=>{if(document.body.classList.contains('dragging')){clearTimeout(dragT);dragT=setTimeout(dragOff,400)}});
 window.addEventListener('dragleave',e=>{if(!e.relatedTarget||(dragN&&--dragN===0))dragOff()});
 for(const ev of ['drop','dragend','blur','mousedown'])window.addEventListener(ev,dragOff,true);
+window.addEventListener('dragleave',e=>{if(!e.relatedTarget)document.body.classList.remove('dz')});
 window.addEventListener('keydown',e=>{if(e.key==='Escape')dragOff()});
 window.addEventListener('drop',()=>{dragN=0;document.body.classList.remove('dragging')},true);
 

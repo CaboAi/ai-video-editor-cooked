@@ -534,6 +534,29 @@ body.staged #stagebar{display:flex}
 .learn b{font-size:14px;line-height:18px;font-weight:600;color:var(--strong)}
 .learn p{margin:0;font-size:13px;line-height:18px;color:var(--body)}
 .learn p.wait{display:flex;align-items:center;gap:8px}.learn p.wait i{width:7px;height:7px;border-radius:4px;background:var(--ink);animation:pulse 1.2s ease-in-out infinite}
+.learn .lsave{display:flex;flex-direction:column;gap:8px}
+.learn .lsave>span{font-size:12px;line-height:16px;color:var(--quiet)}
+.ldd{display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:0 12px;border:1px solid var(--line2);border-radius:10px;background:var(--panel);color:var(--strong);text-align:left;font:inherit;cursor:pointer}
+.ldd:hover{border-color:var(--quiet)}
+.ldd .nm{flex:1;min-width:0;font-size:14px;line-height:18px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ldd .sub{font-size:12px;color:var(--quiet);white-space:nowrap;flex-shrink:0}
+.ldd svg{flex-shrink:0;color:var(--quiet)}
+.lmenu{max-height:320px;overflow:auto;padding:6px;border:1px solid var(--line2);border-radius:12px;background:var(--raise);box-shadow:0 12px 32px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:2px}
+.lmenu button{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:6px 10px;border:0;border-radius:8px;background:none;color:var(--strong);text-align:left;font:inherit;cursor:pointer}
+.lmenu button:hover,.lmenu button.cur{background:var(--hover)}
+.lmenu .t{flex:1;min-width:0;display:flex;flex-direction:column}
+.lmenu .t b{font-size:14px;line-height:18px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lmenu .t i{font-style:normal;font-size:12px;line-height:16px;color:var(--quiet)}
+.lmenu .ck{width:16px;flex-shrink:0;display:grid;place-items:center}
+.lmenu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+.lname{height:44px;border:1px solid var(--line2);border-radius:10px;background:var(--panel);padding:0 12px;font:inherit;font-size:14px;color:var(--strong);outline:none;width:100%}
+.lname:focus{border-color:var(--ink)}
+.lact{display:flex;flex-direction:column;gap:6px}
+.learn .lact .go{width:100%;height:44px;border-radius:10px;border:1px solid var(--ink);background:var(--ink);color:var(--onink);font:inherit;font-size:14px;font-weight:600;padding:0 14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.learn .lact .go:disabled{opacity:.45}
+.learn .lact .skip{height:32px;border:0;background:none;color:var(--quiet);font:inherit;font-size:13px;font-weight:500;cursor:pointer}
+.learn .lact .skip:hover{color:var(--strong)}
+.learn .lerr{font-size:12px;line-height:16px;color:var(--quiet)}
 .learn p.ok{display:flex;align-items:center;gap:8px;color:var(--strong);font-weight:600}.learn p.ok svg{color:var(--ok);flex-shrink:0}
 .lrules{display:flex;flex-direction:column;gap:10px}
 .lrule{display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:18px;color:var(--strong);cursor:pointer}
@@ -1208,7 +1231,7 @@ function rcptHtml(id){
   return `<div class="rcpt">${TICK}<span>${r.status==='added'?'Saved to':'Already in'} ${esc(r.style)}: ${esc(r.rule)}.${r.status==='added'?` <button data-undo="${r.id}">Undo</button>`:''}</span></div>`;
 }
 // the final approve: Claude's rules from this video's notes, each ticked, into the style on Update
-let untick=new Set(),introOff=false,sureBack=null;
+let lTo=null,lOpen=false,lName='',lErr='',untick=new Set(),introOff=false,sureBack=null;
 // a moment on one round at the same words on another (both cut transcripts list the same words), else the same time
 function mapT(t,from,to){
   const flat=k=>(((DATA[k]||{}).transcript||{}).lines||[]).flatMap(l=>l.tokens.filter(x=>'w' in x)),a=flat(from),b=flat(to);
@@ -1223,9 +1246,19 @@ function learnHtml(){
   if(L.state==='reading')return `<div class="learn">${head}<p class="wait"><i></i>Claude is reading your notes...</p></div>`;
   const open=L.state==='proposed',rs=(L.rules||[]).map((r,i)=>[r,i]).filter(([,i])=>open||L.chosen.includes(i));
   const rows='<div class="lrules">'+rs.map(([r,i])=>`<label class="lrule${open&&untick.has(i)?' off':''}"><input type="checkbox" data-li="${i}"${open&&untick.has(i)?'':' checked'}${open?'':' disabled'}><span>${esc(r.rule)}.</span></label>`).join('')+'</div>';
-  if(open)return `<div class="learn"><div>${head}<p>From your notes. Untick anything it should not keep.</p></div>${rows}
-    <div class="erow"><button class="go" data-lsave${rs.every(([,i])=>untick.has(i))?' disabled':''}>Update my style</button><button data-lskip>Not now</button></div></div>`;
-  if(L.state==='chosen')return `<div class="learn">${head}${rows}<p class="wait"><i></i>Saving to ${esc(L.style)}...</p></div>`;
+  if(open){
+    const st=L.styles&&L.styles.length?L.styles:[{id:'',name:L.style||'My style',rules:0,here:true}],to=lTo==null?st.find(x=>x.here)||st[0]:lTo==='new'?null:st.find(x=>x.id===lTo)||st[0];
+    const sub=x=>[x.here?'This video\u2019s style':x.mine?'Every video':'',x.rules?plural(x.rules,'rule'):''].filter(Boolean).join(' · ')||'No rules yet';
+    const CHK='<svg width="14" height="14" viewBox="0 0 14 14"><path d="M2.5 7.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const menu=lOpen?`<div class="lmenu" role="listbox">${st.map(x=>`<button role="option" aria-selected="${to===x}" class="${to===x?'cur':''}" data-lto="${esc(x.id)}"><span class="ck">${to===x?CHK:''}</span><span class="t"><b>${esc(x.name)}</b><i>${esc(sub(x))}</i></span></button>`).join('')}<hr>
+      <button role="option" aria-selected="${!to}" class="${to?'':'cur'}" data-lto="+new"><span class="ck"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 2.5v9M2.5 7h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><span class="t"><b>New style from this video</b><i>A copy of ${esc((st.find(x=>x.here)||st[0]).name)} with these rules</i></span></button></div>`:'';
+    const none=rs.every(([,i])=>untick.has(i)),noName=!to&&!lName.trim();
+    return `<div class="learn"><div>${head}<p>From your notes. Untick anything it should not keep.</p></div>${rows}
+    <div class="lsave"><span>Save to</span><button class="ldd" data-ldd aria-haspopup="listbox" aria-expanded="${lOpen}"><span class="nm">${to?esc(to.name):'New style from this video'}</span>${to&&to.rules?`<span class="sub">${plural(to.rules,'rule')}</span>`:''}<svg width="14" height="14" viewBox="0 0 14 14"><path d="M3.5 5.5l3.5 3.5 3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${menu}
+      ${to?'':`<input class="lname" maxlength="40" placeholder="Name it, like Podcast clips" value="${esc(lName)}" aria-label="name the new style">`}${lErr?`<span class="lerr">${esc(lErr)}</span>`:''}</div>
+    <div class="lact"><button class="go" data-lsave${none||noName?' disabled':''}>${to?'Save to '+esc(to.name):'Save new style'}</button><button class="skip" data-lskip>Not now</button></div></div>`;
+  }
+  if(L.state==='chosen')return `<div class="learn">${head}${rows}<p class="wait"><i></i>Saving to ${esc((L.to&&L.to.name)||L.style)}...</p></div>`;
   if(L.receipts&&L.receipts.length){const kept=(S.receipts||[]).filter(r=>L.receipts.includes(r.id)&&!r.undone).length;
     return `<div class="learn">${head}<div class="lrules">${L.receipts.map(rcptHtml).join('')}</div><p>${kept?`Your next video uses ${kept>1?'them':'it'}. Every rule is listed on the style's page.`:'Your style stays as it was.'}</p></div>`}
   return `<div class="learn">${head}${rows}<p class="ok">${TICK}${esc(L.summary||'Saved.')}</p></div>`;
@@ -1304,9 +1337,12 @@ function renderList(){
   if(queued.length)h+=`<p class="sub">${S.raw?'For the cut':'For the next draft'}</p>`+queued.map(noteHtml).join('');
   const l=$('list'),keepScroll=l.scrollTop,atEnd=l.scrollHeight-keepScroll-l.clientHeight<40,hadFocus=document.activeElement&&document.activeElement.classList.contains('edta');
   const hadLearn=!!l.querySelector('.learn'),newP=p!==renderList.p;renderList.p=p;
+  const ln=document.activeElement&&document.activeElement.classList.contains('lname')?document.activeElement.selectionStart:null;
   // with Claude: open at the work panel at the bottom, then stay where the user scrolled (status lines re-render this)
   l.innerHTML=h;l.scrollTop=isCur()&&p&&!editing&&(atEnd||newP)?l.scrollHeight:keepScroll;
   const lp=l.querySelector('.learn');if(lp&&!hadLearn)lp.scrollIntoView({block:'end'});
+  const lnm=l.querySelector('.lname');if(lnm){lnm.oninput=()=>{lName=lnm.value;lErr='';const b=l.querySelector('[data-lsave]');if(b)b.disabled=!lName.trim()||(S.learn.rules||[]).every((r,i)=>untick.has(i))};
+    lnm.onkeydown=ev=>{if(ev.key==='Enter'&&lName.trim()){ev.preventDefault();l.querySelector('[data-lsave]').click()}};if(ln!=null){lnm.focus();lnm.setSelectionRange(ln,ln)}}
   const ea=$('list').querySelector('.edta');
   if(ea){ea.oninput=()=>editing.text=ea.value;ea.onkeydown=ev=>{if(ev.key==='Enter'&&!ev.shiftKey){ev.preventDefault();saveEdit()}if(ev.key==='Escape'){ev.preventDefault();editing=null;renderList()}};
     ea.onpaste=ev=>{const fs=[...(ev.clipboardData?.files||[])];if(fs.length){ev.preventDefault();editFiles(fs)}};
@@ -1415,8 +1451,15 @@ $('introx').onclick=()=>{introOff=true;document.body.classList.remove('intro');p
 $('list').addEventListener('click',async e=>{
   const ub=e.target.closest('[data-undo]');
   if(ub){ub.disabled=true;const r=await fetch('/undo',{method:'POST',body:JSON.stringify({id:+ub.dataset.undo})});if(!r.ok)alert('That rule was already taken out.');return load(true)}
-  if(e.target.closest('[data-lsave],[data-lskip]')){const L=S.learn,save=!!e.target.closest('[data-lsave]');
-    await post('/learn',save?{chosen:L.rules.map((r,i)=>i).filter(i=>!untick.has(i))}:{skip:true});return load(true)}
+  if(e.target.closest('[data-ldd]')){lOpen=!lOpen;return renderList()}
+  const lt=e.target.closest('[data-lto]');
+  if(lt){lTo=lt.dataset.lto==='+new'?'new':lt.dataset.lto;lOpen=false;lErr='';renderList();const n=$('list').querySelector('.lname');if(n)n.focus();return}
+  if(lOpen&&!e.target.closest('.lsave')){lOpen=false;renderList()}
+  if(e.target.closest('[data-lsave],[data-lskip]')){const L=S.learn,save=!!e.target.closest('[data-lsave]'),chosen=L.rules.map((r,i)=>i).filter(i=>!untick.has(i));
+    const body=!save?{skip:true}:lTo==='new'?{chosen,new:lName}:lTo!=null?{chosen,to:lTo}:{chosen};
+    const r=await fetch('/learn',{method:'POST',body:JSON.stringify(body)});
+    if(!r.ok){let j={};try{j=await r.json()}catch(x){}lErr=j.error||'That did not save. Try again.';return renderList()}
+    lErr='';return load(true)}
   if(e.target.closest('.editing')){
     if(e.target.closest('[data-save]'))return saveEdit();
     if(e.target.closest('[data-cancel]')){editing=null;return renderList()}
@@ -1814,7 +1857,7 @@ function renderAdds(){
   const rows=it.map((a,i)=>`<div class="arow"><span class="ath"${pic(a)}>${a.kind==='link'?LINKIC:''}</span><span class="an" title="${esc(a.kind==='link'?a.url:a.name)}">${esc(a.kind==='link'?a.url.replace(/^https?:\/\/(www\.)?/,''):a.name)}${a.say?`<i> · ${esc(a.say)}</i>`:''}</span><button data-arm="${i}" aria-label="remove" title="Remove">×</button></div>`).join('');
   $('adds').innerHTML=rows+(addBusy?`<div class="amsg">${esc(addBusy)}</div>`:'')+(addOpen?`<div class="addin"><input id="addurl" placeholder="Paste a link, a video or an image" aria-label="a link, a video or an image"><button id="addpic" aria-label="add a video or an image" title="Add a video or an image">${CLIPIC}</button><button id="addgo">Add</button></div>
     <input id="addsay" placeholder="Show when I say... (optional)" aria-label="show it when you say these words">${addMsg?`<div class="amsg">${esc(addMsg)}</div>`:''}`
-    :`<button class="obtn" id="addopen"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Anything to add? Videos, images or links</button>`);
+    :`<button class="obtn" id="addopen"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 2v8M2 6h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Anything to add?</button>`);
 }
 async function addAssets(items){const r=await post('/assets',{add:items});const n=(S.assets||[]).length;if(r.items){S.assets=r.items;addMsg=r.items.length>n?'':'That one was not added. You can add up to 50 videos, images or links.'}
   const say=$('addsay');if(say&&!addMsg)say.value='';renderAdds();const u=$('addurl');if(u)u.focus()}

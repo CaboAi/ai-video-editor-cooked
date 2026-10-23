@@ -4,6 +4,13 @@ What changed for every user, newest first.
 
 ## Unreleased
 
+## ai-editor 2.7.26, creator-teardown 2.7.26 (2026-10-23)
+- New video: "Add images or links" is now "Add videos, images or links". Choose, drop or paste videos (up to 2 GB each) as well as pictures and links, up to 50 in all. Each file uploads on its own with a progress bar; a video shows a frame from it. Claude puts each one in first, on its "Show when I say..." words.
+- B-roll has Specific clips: drag clips in, choose files, or Pick from folders to tick clips inside a connected folder. Every specific clip goes in the video; the ticked folders fill the rest.
+- The video page's "Anything to add?" takes videos too, uploaded one at a time with progress.
+- The timeline zooms and pans like CapCut: Cmd + scroll or pinch zooms where the pointer is, a sideways swipe or Shift + scroll moves along, and -, a slider, + and Fit sit above it (Cmd = and Cmd - zoom, Shift Z fits). While playing it follows the playhead. Text, Captions and Sounds rows zoom with it.
+- Full screen has controls: a scrub bar that shows the time where you point, play, -5s and +5s, the time, and Exit full screen. They hide while playing and come back when you move the mouse.
+
 ## ai-editor 2.7.25, creator-teardown 2.7.25 (2026-10-21)
 - Text and Sounds rows under the timeline on the edit, like CapCut's: each clip is as long as it lasts, a sound shows its waveform, with a ruler, a playhead and - / + zoom (it opens at about 15 s a screen). A Captions row shows every caption line; click one on the timeline or on the video to retype it in the Captions panel's Lines (Enter saves and goes to the next line), x takes a line out. + Text and + Sound add one at the playhead (+ Sound picks from your sound library, each with Play). Click a text to change it, click a sound to hear it in place, and x on any of them takes it out.
 

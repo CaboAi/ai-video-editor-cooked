@@ -273,6 +273,7 @@ Your styles, skills and settings live in your library folder, not in the plugin,
 | `skill-maker` | "make a skill", "create a skill", "turn this into a skill", "help me write a skill" | |
 | `skill-improver` | "teach my style from this video", "turn my notes into rules", "make this feedback stick" | |
 | `clips` | "clip this video", "make shorts from my podcast" | a long video, a YouTube link, a podcast episode (Apple Podcasts, RSS, YouTube) |
+| `trial-reels` | "make trial reels of this", "test other hooks on this reel", "post the trial reels" | an approved reel, or its raw take |
 | `product-video` | "make a launch video for my site" | a website URL |
 | `update` | "update the editor", "get the latest version", "sync my fork" | |
 | `improve` | "improve the editor", "process suggestions" (for people working on this repo) | |

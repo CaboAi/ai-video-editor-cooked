@@ -3,7 +3,9 @@
 
     python3 post.py accounts                    every connected account, as JSON (id, platform, username)
     python3 post.py connect <platform>          a sign-in link that adds one more account (run again for another)
-    python3 post.py send <video> --to <id,id> --caption "..." [--title "..."] [--at 2026-10-20T09:00 --tz America/Chicago] [--trial]
+    python3 post.py send <video> --to <id,id> --caption "..." [--title "..."] [--at 2026-10-20T09:00 --tz America/Chicago]
+                         [--trial [--graduate auto|manual]]
+    python3 post.py scheduled                   posts waiting to go out: id, time, accounts, caption (to space new ones)
     python3 post.py status <post id> [--wait]   each account's state and live link
     python3 post.py demo                        self-check (no network)
 
@@ -110,7 +112,10 @@ def upload(video):
     return pre["publicUrl"]
 
 
-def body(media_url, to, caption, title=None, at=None, tz=None, trial=False):
+GRADUATE = {"auto": "SS_PERFORMANCE", "manual": "MANUAL"}   # a Trial Reel reaches followers when it performs, or when the user says
+
+
+def body(media_url, to, caption, title=None, at=None, tz=None, trial=False, graduate="auto"):
     """The POST /posts body: one platforms entry per account id, so two accounts on one platform both post."""
     by_id = {a["id"]: a for a in accounts()}
     missing = [i for i in to if i not in by_id]
@@ -122,7 +127,7 @@ def body(media_url, to, caption, title=None, at=None, tz=None, trial=False):
         if p["platform"] == "youtube":
             p["platformSpecificData"] = {"title": (title or caption.splitlines()[0])[:100], "visibility": "public", "madeForKids": False}
         if p["platform"] == "instagram" and trial:
-            p["platformSpecificData"] = {"trialParams": {"graduationStrategy": "SS_PERFORMANCE"}}
+            p["platformSpecificData"] = {"trialParams": {"graduationStrategy": GRADUATE[graduate]}}
         plats.append(p)
     b = {"content": caption, "mediaItems": [{"type": "video", "url": media_url}], "platforms": plats}
     if any(p["platform"] == "tiktok" for p in plats):
@@ -139,6 +144,15 @@ def send(video, to, caption, **kw):
     # the same video, accounts and words: a retry returns the first post, never a second one
     idem = hashlib.sha256(json.dumps([str(Path(video).resolve()), to, caption, kw.get("at")]).encode()).hexdigest()[:32]
     return _req("POST", "/posts", b, {"Idempotency-Key": idem})["post"]
+
+
+def scheduled():
+    """Posts waiting to go out, soonest first: [{"id", "at", "accounts", "caption"}]."""
+    ps = _req("GET", "/posts?status=scheduled").get("posts") or []
+    out = [{"id": p.get("_id"), "at": p.get("scheduledFor") or "", "caption": (p.get("content") or "")[:80],
+            "accounts": [x.get("accountId") if isinstance(x.get("accountId"), str) else (x.get("accountId") or {}).get("_id")
+                         for x in p.get("platforms") or []]} for p in ps]
+    return sorted(out, key=lambda x: x["at"])
 
 
 def status(pid):
@@ -178,6 +192,9 @@ def demo():
             return {"authUrl": "https://example.com/auth"}
         if path == "/posts":
             return {"post": {"_id": "post1"}}
+        if path == "/posts?status=scheduled":
+            return {"posts": [{"_id": "s2", "scheduledFor": "2026-10-21T20:13:00Z", "content": "b", "platforms": [{"accountId": {"_id": "a4"}}]},
+                              {"_id": "s1", "scheduledFor": "2026-10-21T08:06:00Z", "content": "a", "platforms": [{"accountId": "a4"}]}]}
         if path == "/posts/post1":
             return {"post": {"status": "published", "platforms": [{"platform": "tiktok", "status": "published", "platformPostUrl": "u"}]}}
         raise AssertionError(path)
@@ -200,7 +217,9 @@ def demo():
         assert b["scheduledFor"] == "2026-10-20T09:00" and b["timezone"] == "America/Chicago"
         b = body("https://m/x.mp4", ["a3"], "c", title="T")
         assert b["publishNow"] and "tiktokSettings" not in b and b["platforms"][0]["platformSpecificData"]["title"] == "T"
-        assert body("u", ["a4"], "c", trial=True)["platforms"][0]["platformSpecificData"]["trialParams"]
+        assert body("u", ["a4"], "c", trial=True)["platforms"][0]["platformSpecificData"]["trialParams"] == {"graduationStrategy": "SS_PERFORMANCE"}
+        assert body("u", ["a4"], "c", trial=True, graduate="manual")["platforms"][0]["platformSpecificData"]["trialParams"]["graduationStrategy"] == "MANUAL"
+        assert [(x["id"], x["accounts"]) for x in scheduled()] == [("s1", ["a4"]), ("s2", ["a4"])]
         try:
             body("u", ["nope"], "c")
             raise AssertionError("an unknown account id was posted to")
@@ -248,9 +267,11 @@ def main():
     s.add_argument("--at", help="local time to post, 2026-10-20T09:00 (default: now)")
     s.add_argument("--tz", help="time zone for --at, e.g. America/Chicago")
     s.add_argument("--trial", action="store_true", help="Instagram: a Trial Reel")
+    s.add_argument("--graduate", choices=GRADUATE, default="auto", help="a Trial Reel reaches followers when it performs (auto) or when you say (manual)")
     st = sub.add_parser("status")
     st.add_argument("id")
     st.add_argument("--wait", action="store_true")
+    sub.add_parser("scheduled")
     sub.add_parser("demo")
     a = ap.parse_args()
     if a.cmd == "demo":
@@ -258,11 +279,13 @@ def main():
     try:
         if a.cmd == "accounts":
             out = accounts()
+        elif a.cmd == "scheduled":
+            out = scheduled()
         elif a.cmd == "connect":
             out = {"url": connect_url(a.platform)}
         elif a.cmd == "send":
             p = send(a.video, [x.strip() for x in a.to.split(",") if x.strip()], a.caption,
-                     title=a.title, at=a.at, tz=a.tz, trial=a.trial)
+                     title=a.title, at=a.at, tz=a.tz, trial=a.trial, graduate=a.graduate)
             out = wait(p["_id"]) if not a.at else status(p["_id"])
         else:
             out = wait(a.id) if a.wait else status(a.id)

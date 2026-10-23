@@ -2778,7 +2778,7 @@ def cmd_wait(folder, poll=1.0):
     if e["type"] == "approve" and d.get("learn"):
         print(learn_prompt(folder, d))
         if d.get("vertical") and not d.get("trials"):   # a finished reel: offer re-cuts for trial reels
-            print(f"TRIALS: a reel. Offer trial reels on the page's Trial reels tab: find spare hooks (a retake of the "
+            print(f"TRIALS: a reel. Offer trial reels on the page's Trial reels tab (the trial-reels skill): find spare hooks (a retake of the "
                   f"opener, a strong later line), plan 2-4 versions that each look like a different video, then\n"
                   f"  python3 {Path(__file__).resolve()} {folder} trials --propose '<json>'   and `wait` for the pick.")
     elif cs:
@@ -3057,7 +3057,8 @@ def trials_chosen(folder, d):
         hs = [t["hooks"][i]["text"] for i in pk["hooks"] if i < len(t["hooks"])]
         if hs:
             print("  spare hooks to use: " + "; ".join(f'"{h}"' for h in hs))
-        print(f"You pick the lines, sections, hooks and overlays. Put each render on the page as it lands:\n"
+        print(f"Follow the trial-reels skill (the type first, then versions that look different). You pick the lines, "
+              f"sections, hooks and overlays. Put each render on the page as it lands:\n"
               f"  {me} alt t1 --video <t1.mp4> --trial")
     return "trials"
 

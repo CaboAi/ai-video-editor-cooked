@@ -122,7 +122,13 @@ IMAGE_TYPES = ("png", "jpeg", "gif", "webp")
 
 
 def load(path):
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    for i in range(20):   # Windows refuses a read for the instant another thread's os.replace swaps the file in
+        try:
+            return json.loads(Path(path).read_text(encoding="utf-8"))
+        except PermissionError:
+            if i == 19:
+                raise
+            time.sleep(0.02)
 
 
 def save(path, d):
@@ -1926,9 +1932,8 @@ def make_handler(folder, token):
                             c.update(text=text, lines=lines, edited=now())
                 update(rj, put)
                 return self.send(200, {**old, "text": text, "lines": lines})
-            self.comment({"t": 0.0, "text": text, "on": {"k": k, "text": title.lower()}})
-            update(rj, lambda x: [c.update(lines=lines) for c in x["comments"] if (c.get("on") or {}).get("k") == k
-                                  and c["text"] == text])
+            # lines go in with the note: set after the reply, a change sent right after it read a note without them
+            self.comment({"t": 0.0, "text": text, "on": {"k": k, "text": title.lower()}, "lines": lines})
 
         def comment(self, body):
             text = str(body.get("text", "")).strip()
@@ -1974,6 +1979,8 @@ def make_handler(folder, token):
                 c["add_text"] = add
             if on:
                 c["on"] = {"k": str(on.get("k") or ""), "text": str(on.get("text") or "")[:300]}
+                if isinstance(body.get("lines"), list):   # a timeline note's running lines, saved with it before the reply
+                    c["lines"] = [str(x) for x in body["lines"]]
             update(rj, lambda d: d["comments"].append(c))
             return self.send(200, c)
 

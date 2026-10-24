@@ -238,6 +238,22 @@ body.dragging #dropov{display:flex}
 .asay::placeholder{color:var(--t3)}.asay:focus{outline:none;border-bottom:1px solid var(--ink)}
 .ax{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--t2);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer}
 .ax:hover{color:var(--ink);border-color:var(--ink)}
+/* the Claude page */
+.clp{display:flex;flex-direction:column;gap:20px;padding:12px 14px 0;max-width:860px;min-width:0}
+.clp .lede{margin:6px 0 0;color:var(--t2);font-size:15px;line-height:22px}
+.cll{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}
+.clr{display:flex;align-items:center;gap:14px;padding:14px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
+.clr:first-child{border-top:0}
+.clr .th{width:36px;height:64px;border-radius:6px;background:#45403C center/cover;flex-shrink:0}
+.clr .nm{flex:1 1 200px;min-width:0}.clr .nm b{display:block;font-size:15px;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clr .st{display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px;color:var(--t2);margin-top:3px}
+.clr .st i{width:8px;height:8px;border-radius:50%;background:var(--t4);flex-shrink:0}
+.clr .st.working i,.clr .st.waiting i,.clr .st.open i{background:#2E9E5B}.clr .st.working i{animation:pulse 1.2s ease-in-out infinite}
+.clr .acts{display:flex;gap:8px;flex-shrink:0;margin-left:auto}
+.clr .acts button{height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:13px;font-weight:500;cursor:pointer}
+.clr .acts button.go{background:var(--ink);border-color:var(--ink);color:var(--onink)}
+.clr .acts button:disabled{opacity:.5}
+.clh{font-size:13px;line-height:18px;color:var(--t3);margin:0}
 .ath.vid{position:relative;background-color:#222}.ath .tdur,.ctile .tdur{position:absolute;right:3px;bottom:3px;padding:0 4px;border-radius:4px;background:rgba(0,0,0,.65);color:#fff;font:600 10px/14px system-ui,sans-serif}
 .aup{height:3px;border-radius:2px;background:var(--soft);margin-top:5px;overflow:hidden}.aup>div{height:100%;background:var(--ink)}
 .arow.bad .an{color:var(--t2)}.arow .abad{font-size:12px;line-height:16px;color:var(--t2);margin-top:3px;white-space:normal}
@@ -1169,7 +1185,7 @@ function toEditor(r){const e=(r.edits||[])[0];if(e){location.href='/review?dir='
 // ---------------------------------------------------------------- returning user (Paper "J launcher + pick")
 // New video (pick clips) -> Pick a style -> Making your video; Home (welcome back), Your videos, My style, Settings.
 // the view lives in the address (#videos, #style/@sample-50-50), so a reload stays on it; the review page's rail opens one
-const HASHV=['home','videos','mystyle','skills','settings','new'];
+const HASHV=['home','videos','mystyle','skills','claude','settings','new'];
 let L=null, R=null, rv=null;
 {const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('style/')){rv='stylepage';ui.sp=h.slice(6)}else if(HASHV.includes(h))rv=h}
 function setHash(){const h=rv==='stylepage'&&ui.sp?'#style/'+encodeURIComponent(ui.sp):HASHV.includes(rv)&&rv!=='home'?'#'+rv:'';if(location.hash!==h)history.replaceState(null,'',location.pathname+location.search+h)}
@@ -1186,7 +1202,7 @@ const clipOf=p=>nv.clips[p]||(R&&R.videos.find(v=>v.path===p))||{path:p,name:p.s
 const aspectOf=()=>{if(nv.aspectSet||!nv.sel.length)return nv.aspect;const c=clipOf(nv.sel[0]);return c.vertical===false?'16:9':c.vertical?'9:16':nv.aspect};
 const total=()=>nv.sel.reduce((a,p)=>a+(clipOf(p).duration||0),0);
 const styleName=id=>((L&&L.styles||[]).find(c=>c.id===id)||{}).name||(id==='mine'?'My style':id==='defaults'?'the default style':/^@links-/.test(id)?'New format':id);
-function rgo(v){rv=v;setHash();ui.forceR=true;ui.cmenu=null;if(v==='new'||v==='home')loadRecent();if(v==='new')loadBroll();if(v==='skills')loadSkills();render();window.scrollTo(0,0)}
+function rgo(v){rv=v;setHash();ui.forceR=true;ui.cmenu=null;if(v==='new'||v==='home')loadRecent();if(v==='new')loadBroll();if(v==='skills')loadSkills();if(v==='claude')loadClaudes(true);render();window.scrollTo(0,0)}
 const SMP=/^@sample-/;   // a sample keeps its id after the user changes it, so it stays a sample on every page
 let PH=null;   // each video's phase at the last read: a video that leaves Claude's work chimes once (none on the first read)
 function watchDone(){const A=window.aveAlert;if(!A)return;const now=Object.fromEntries(L.videos.map(v=>[v.dir,vPh(v)]));if(!PH){PH=now;return}
@@ -1696,6 +1712,24 @@ function chatBox(id,ph,send,j,btn){
   return `<div class="chat">${said&&live?`<div class="cmine">${esc(said)}</div><div class="cclaude">${jobText(j)}</div>`:''}
     <div class="cbox"><textarea id="${id}" rows="2" placeholder="${esc(ph)}" aria-label="${esc(ph)}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,200)+'px'" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();${send}}"></textarea>
       <button class="csend" onclick="${send}" aria-label="${esc(btn||'Send')}">${ic('up',16,2.2)}</button></div></div>`;
+}
+// The Claude page: each video's Claude (home.py claudes, review.claude_state) with Show, Start and Stop. Read every
+// 5 s at most (a ps per video), sooner after a press.
+let CL=null,clAt=0;
+async function loadClaudes(now){if(!now&&Date.now()-clAt<5000)return;clAt=Date.now();try{const r=await fetch('/claudes');if(r.ok)CL=(await r.json()).claudes}catch(e){}if(now)render()}
+const clRunning=()=>(CL||[]).filter(c=>c.state!=='off').length;
+const CLS={working:'Working on your notes',waiting:'Waiting for your notes',open:'Open',off:'Not running'};
+function clWhen(t){if(!t)return '';const d=(Date.now()/1000-t)/86400;return d<1?'today':d<2?'yesterday':new Date(t*1000).toLocaleDateString(undefined,{month:'short',day:'numeric'})}
+async function clAct(dir,act){ui.clBusy=dir;render();const r=await post('/claudes/act',{edit:dir,act});ui.clBusy=null;if(r.msg)toast(r.msg);await loadClaudes(true)}
+function vClaude(){
+  if(CL==null)loadClaudes(true);
+  const row=c=>{const on=c.state!=='off',b=ui.clBusy===c.dir?'disabled':'',d=J(c.dir);
+    return `<div class="clr"><span class="th" style="${c.video?`background-image:url('/thumb?p=${encodeURIComponent(c.video)}')`:''}"></span>
+      <div class="nm"><b title="${esc(c.name)}">${esc(c.name)}</b><div class="st ${c.state}"><i></i>${CLS[c.state]||''}${!on&&c.last?' · last used '+clWhen(c.last):''}</div></div>
+      <div class="acts">${on?`${c.show?`<button ${b} onclick="clAct(${d},'show')">Show Claude</button>`:''}<button ${b} onclick="clAct(${d},'stop')">Stop</button>`:`<button class="go" ${b} onclick="clAct(${d},'start')">Start Claude</button>`}</div></div>`};
+  return `<div class="clp"><div><h1>Claude</h1><p class="lede">Each video has its own Claude in a Terminal window. Show brings it to the front. Start opens it again, carrying on where it left off.</p></div>
+    ${CL==null?'<p class="muted">Loading...</p>':CL.length?`<div class="cll">${CL.map(row).join('')}</div>`:'<p class="muted">No video has had a Claude yet. One starts with each new video.</p>'}
+    ${CL&&CL.length?'<p class="clh">Stopping closes that Claude. Your video, notes and drafts stay. Start carries on from them.</p>':''}</div>`;
 }
 function vSkills(){
   if(ui.skills==null&&!ui.skLoading){ui.skLoading=1;loadSkills().finally(()=>ui.skLoading=0)}   // opened from a link (#skills), not the sidebar
@@ -2292,7 +2326,8 @@ const IC={file:'<path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1
  lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
  moon:'<path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/>',
-  play:'<path d="M8 5.5v13l10.5-6.5z"/>'};
+  play:'<path d="M8 5.5v13l10.5-6.5z"/>',
+  term:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/>'};
 IC.skill='<path d="M13 3 5 13.5h6l-1 7.5 8-10.5h-6z"/>';
 Object.assign(IC,IC2);
 const ic=(k,px=18,sw=1.8)=>`<svg width="${px}" height="${px}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k]}</svg>`;
@@ -2362,7 +2397,7 @@ function sideHTML(){
     const it=(k,label,on,js,extra='')=>`<button class="rl-it ${on?'on':''}" onclick="${js}" ${extra}><span class="ic">${ic(k,20,1.9)}</span>${label}</button>`;
     return `<button class="rl-pan" data-home onclick="goHome()" title="Home" aria-label="cooked. home">${PAN(24)}</button>${tog}
       <button class="rl-it rl-new" onclick="rgo('new')"><span class="ic">${ic('plus',20,2.2)}</span>New</button><div style="height:10px;flex-shrink:0"></div>
-      ${it('home','Home',cur==='home','goHome()')}${it('videos','Videos',cur==='videos',vgo,dropAttrs('videos',null))}${it('styles','Styles',onS,"rgo('mystyle')")}${it('skill','Skills',cur==='skills',"rgo('skills')")}
+      ${it('home','Home',cur==='home','goHome()')}${it('videos','Videos',cur==='videos',vgo,dropAttrs('videos',null))}${it('styles','Styles',onS,"rgo('mystyle')")}${it('skill','Skills',cur==='skills',"rgo('skills')")}${it('term','Claude',cur==='claude',"rgo('claude')")}
       <div class="sb-sp"></div>
       ${ji?`<button class="rl-it rl-job" onclick="${ji.go}" title="${esc(ji.label+': '+ji.text)}"><span class="ic">${ringSvg(ji.frac)}${ji.n}</span>${ji.short}</button>`:''}
       ${it('upload',updLabel(true),false,"sbUpd()",updBusy()?'disabled':'')}${it('gear','Settings',cur==='settings',"rgo('settings')")}${thm}`;
@@ -2380,7 +2415,8 @@ function sideHTML(){
     <nav class="sb-nav"><button class="sb-row ${cur==='home'?'on':''}" onclick="goHome()">${ic('home')}<span class="lb">Home</span></button>
       <button class="sb-row ${cur==='videos'&&!ui.fold.videos?'on':''}" onclick="${vgo}" ${dropAttrs('videos',null)}>${ic('videos')}<span class="lb">Your videos</span><span class="n">${vids.filter(v=>!inFold('videos',v.dir)).length}</span></button>
       <button class="sb-row ${onS?'on':''}" onclick="rgo('mystyle')">${ic('styles')}<span class="lb">Styles</span><span class="n">${st.filter(c=>!inFold('styles',c.id)).length}</span></button>
-      <button class="sb-row ${cur==='skills'?'on':''}" onclick="rgo('skills')">${ic('skill')}<span class="lb">Skills</span></button></nav>
+      <button class="sb-row ${cur==='skills'?'on':''}" onclick="rgo('skills')">${ic('skill')}<span class="lb">Skills</span></button>
+      <button class="sb-row ${cur==='claude'?'on':''}" onclick="rgo('claude')">${ic('term')}<span class="lb">Claude</span>${clRunning()?`<span class="n">${clRunning()} running</span>`:''}</button></nav>
     <div class="sb-fold"><div class="sb-fh">Folders<button class="sb-add" title="New folder" aria-label="New folder" onclick="newFolder(null,null,rv==='mystyle'||rv==='stylepage'?'styles':'videos')">${ic('plus',12,2.4)}</button></div>
       <div class="sb-flist">${fd('videos').folders.map(f=>frow('videos',f)).join('')}${fd('styles').folders.map(f=>frow('styles',f)).join('')}${nf}</div></div>
     <div class="sb-sp"></div>
@@ -2638,7 +2674,7 @@ const ZOOMILL={none:'<i class="zb"></i>',smooth:'<i class="zb dash"></i><i class
 const CUTILL={relaxed:[22,16,26,14,18],natural:[24,7,28,6,20],tight:[26,0,30,0,22]};
 function rrender(){
   if(rv==='settings'&&!(ui.diskAt>Date.now()-10000)){ui.diskAt=Date.now();loadDisk()}   // free space is live: read again every 10 s
-  let h=(rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='skills'?vSkills():rv==='settings'?vSettings():vHome());
+  let h=(rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='skills'?vSkills():rv==='claude'?vClaude():rv==='settings'?vSettings():vHome());
   if(rv==='home'&&askRow())h=h.replace(/^\s*(<div class="pgc[^"]*">)/,'$1'+askRow());   // Home's first row
   $('#main').classList.toggle('pg',['home','videos','settings','mystyle','style','stylepage','skills'].includes(rv));
   paint($('#main'),h,rv+'|'+ui.sp);$('#main').classList.toggle('spwrap',rv==='stylepage');
@@ -2742,6 +2778,7 @@ async function load(){
   if(a&&a.type==='range'||ui.spdrag||DRAG)return;   // dragging a slider, the caption or a card: do not redraw under the hand   // dragging a slider or the caption: do not redraw under the hand
   if(!L)await loadLib();
   if(rv==='stylepage')await loadStyle();
+  await loadClaudes();
   render();
   if(keepY!=null){window.scrollTo(0,keepY);keepY=null}
 }

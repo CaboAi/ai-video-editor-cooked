@@ -1090,6 +1090,43 @@ def claude_alive(w):
     return Path(comm).name == "claude"
 
 
+def claude_state(folder):
+    """The page's Claude control: {"state": "working" | "waiting" | "open" | "off", "show": its Terminal tab can come
+    to the front, "last": when it last ran a command here}. waiting: a `wait` listens for notes; working: its process
+    runs and it ran a command lately (no process info, as on Windows: a command lately); open: running, idle."""
+    w, lis = last_claude(folder), listening(folder)
+    alive = bool(w.get("pid")) and claude_alive(w)
+    b = busy(folder)
+    st = "waiting" if lis else ("working" if b else "open") if alive else "working" if b and not w.get("pid") else "off"
+    try:
+        last = (folder / "review" / ".claude").stat().st_mtime
+    except OSError:
+        last = None
+    return {"state": st, "show": bool(alive and w.get("app") == "Terminal" and w.get("tty")), "last": last}
+
+
+def show_claude(folder):
+    """Show Claude: its Terminal tab to the front. True when it was found."""
+    import launcher
+    w = last_claude(folder)
+    return bool(claude_alive(w) and w.get("app") == "Terminal" and launcher.show_tab(w.get("tty")))
+
+
+def stop_claude(folder):
+    """Stop: end this video's Claude Code (SIGTERM to its process). The video, notes and drafts stay; Start
+    carries on from them. True when one was running."""
+    import signal
+    w = last_claude(folder)
+    if not claude_alive(w):
+        return False
+    try:
+        os.kill(int(w["pid"]), signal.SIGTERM)
+    except (OSError, ValueError, KeyError):
+        return False
+    (folder / "review" / ".listening").unlink(missing_ok=True)
+    return True
+
+
 def resume_cmd(w):
     """What to paste into a terminal to open that Claude's conversation again."""
     return f"cd {shlex.quote(w['cwd'])} && claude --resume {w['session']}" if w.get("session") and w.get("cwd") else ""
@@ -1482,7 +1519,8 @@ def make_handler(folder, token):
                 d["sounds_ui"] = sounds_info() if d.get("stage") == "edit" else None   # the Sounds panel
                 d["captions_ui"] = captions_info(folder) if d.get("stage") == "edit" else None   # the Captions panel
                 d["texts"] = (load(folder / "texts.json").get("items") or []) if (folder / "texts.json").exists() else []   # the Text tab
-                d["session_cmd"] = resume_cmd(last_claude(folder)) or (d.get("claude") or {}).get("resume") or ""   # Copy session
+                d["session_cmd"] = resume_cmd(last_claude(folder)) or (d.get("claude") or {}).get("resume") or ""   # Start's fallback
+                d["claude_ui"] = claude_state(folder)   # the Claude control: working, waiting, open or off
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
                 d["cutcheck"] = (folder / "cut-check.html").exists()
                 d["rawvideo"] = raw_video(folder, d) is not None   # the transcript editor's preview plays the raw take
@@ -1914,8 +1952,10 @@ def make_handler(folder, token):
                 with contextlib.suppress(Exception):   # the notes are saved either way
                     reopen(folder, rj)   # no Claude on this edit any more: a new one takes the notes
                 return self.send(200, {})
-            if path == "/claude":   # "Open a new Claude": the one working here stopped
+            if path == "/claude":   # Start Claude: carry on in the Claude that worked here, else a new one
                 return self.send(200, reopen(folder, rj, force=True) or {})
+            if path == "/claude/show":   # Show Claude: its Terminal tab to the front
+                return self.send(200, {"shown": show_claude(folder)})
             self.send(404, {})
 
         def timeline_note(self, k, title, line, tail):
@@ -3997,7 +4037,7 @@ def demo():
         o = subprocess.run(["node", "-e", nc + alive.group(0) + js.group(0) + "for(const s of " + json.dumps(
                             [ev("approve", 0), {**ev("send", 1), "busy": True}, mid, fresh, ev("send", 1)])
                             + ")console.log(listenText(s))"], capture_output=True, text=True, check=True).stdout
-        assert o.splitlines() == ["Approved", "Claude is working on the next draft", "Claude is working.",
+        assert o.splitlines() == ["Approved", "Claude is working on the next draft", "",   # mid-round: the Claude control says it
                                   "A new Claude is starting in its own Terminal window", "Claude stopped. Your notes are saved."], o
     # approve on the cut: the style-edit's scripts fill the page's "Making the edit" steps, in place, never twice
     sf = tmp / "edits" / "steps"
@@ -4358,6 +4398,23 @@ def demo():
     srv2.server_close()
     srv.shutdown()
     srv.server_close()
+    if os.name != "nt":   # the Claude control: a running `claude` here is working, Stop ends it, then it is off
+        cf = tmp / "clc"
+        (cf / "review").mkdir(parents=True)
+        fake = tmp / "claude"
+        fake.symlink_to(shutil.which("sleep") or "/bin/sleep")   # a copy of a system binary is killed on macOS: a link
+        proc = subprocess.Popen([str(fake), "30"])
+        try:
+            assert claude_state(cf)["state"] == "off" and not stop_claude(cf), "no Claude ever ran here"
+            (cf / "review" / ".claude").write_text(json.dumps({"pid": proc.pid, "tty": "/dev/ttys-x", "app": "Terminal"}), encoding="utf-8")
+            st = claude_state(cf)
+            assert st["state"] == "working" and st["show"] and st["last"], st
+            (cf / "review" / ".listening").touch()
+            assert claude_state(cf)["state"] == "waiting"
+            assert stop_claude(cf) and proc.wait(5) is not None and not (cf / "review" / ".listening").exists()
+            assert claude_state(cf) == {**st, "state": "off", "show": False}, claude_state(cf)
+        finally:
+            proc.kill()
     shutil.rmtree(tmp, ignore_errors=True)
     print("review demo ok")
 

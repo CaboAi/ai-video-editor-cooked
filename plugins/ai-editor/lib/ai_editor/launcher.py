@@ -202,6 +202,22 @@ def type_into(tty, text, os_name=None, run=None):
     return "typed" in (out or "")
 
 
+def show_tab(tty, os_name=None, run=None):
+    """Bring the Terminal tab on that tty to the front (the page's Show Claude). True when a Terminal tab had it.
+    Terminal.app only, like type_into."""
+    if (os_name or platform.system()) != "Darwin" or not tty:
+        return False
+    q = lambda x: str(x).replace("\\", "\\\\").replace('"', '\\"')
+    script = (f'tell application "Terminal"\nrepeat with w in windows\nrepeat with t in tabs of w\n'
+              f'if tty of t is "{q(tty)}" then\nset selected of t to true\nset index of w to 1\nactivate\nreturn "shown"\nend if\n'
+              f'end repeat\nend repeat\nend tell\nreturn ""')
+    try:
+        out = (run or (lambda a: subprocess.run(a, capture_output=True, text=True, timeout=20).stdout))(["osascript", "-e", script])
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return "shown" in (out or "")
+
+
 def connect(folder, now=None):
     """The page's "Connect Claude" and nextwork-editor: a new terminal running Claude with LISTEN, one at a time.
     (status, command to copy): "listening" (one already is), "pending" (one opened under CONNECT_S ago),

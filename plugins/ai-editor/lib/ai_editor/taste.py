@@ -298,7 +298,7 @@ def guess_edit(argv):
 
 
 # Which settings each caller acts on, so a plan.py run does not count the cut's pause rule.
-CALLERS = {"build_timeline.py": lambda k: k == "cut.max_pause", "retakes.py": lambda k: k == "cut.keep_fillers",
+CALLERS = {"build_timeline.py": lambda k: k in ("cut.max_pause", "cut.max_pause_wide"), "retakes.py": lambda k: k == "cut.keep_fillers",
            "plan.py": lambda k: not k.startswith("cut.")}
 
 

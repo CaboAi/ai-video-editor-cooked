@@ -56,7 +56,7 @@ python3 "$S/taste.py" add captions "Captions smaller" --set captions.size_pct=4.
 
 | they say | `--set` |
 |---|---|
-| cut is too slow / too rushed / too tight | `cut.max_pause=` (default 0.15 s; slower 0.25, faster 0.12) |
+| cut is too slow / too rushed / too tight | `cut.max_pause=` (default 0.15 s; slower 0.25, faster 0.12); on a 16:9 YouTube video `cut.max_pause_wide=` (default 0.30 s) |
 | captions too small / too big | `captions.size_pct=` (cap height, % of frame height) |
 | more / fewer words on screen | `captions.words_per_caption=` |
 | captions higher / lower | `captions.y_pct=` |

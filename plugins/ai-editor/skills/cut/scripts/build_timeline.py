@@ -8,6 +8,7 @@ Reads   <edit_dir>/words.raw.json   the transcript of the source
         <edit_dir>/lead.json        optional, one quoted range that plays first (an alternate
                                     hook recorded after the body; retakes.py hook writes it)
         <edit_dir>/keep.json        optional, [{"start": s, "end": e}] raw-take seconds no pause trim
+        <edit_dir>/beats.json       optional, [{"text": "<words before the beat>"}]: that pause is kept as said
                                     may remove (words or pauses the user put back on the review page)
 Writes  <edit_dir>/decisions.json   kept spans in source seconds (docs/CONTRACTS.md)
         <edit_dir>/report.json      every cut with its kind, evidence and note
@@ -40,7 +41,9 @@ The mechanical jobs this does so nobody types a timestamp:
      0.6 s late and a pause cut took "a hun-"). Any kept edge with speech on both
      sides moves out to the nearest quiet frame, never into a removed word.
 
-Pause target: --max-pause (default 0.15 s), tightened to two thirds of it (0.10 s).
+Pause target: --max-pause (default 0.15 s, tightened to two thirds of it: 0.10 s). A wide take (16:9, a
+YouTube video) defaults to 0.30 s (left at 0.20 s): long-form needs air between lines, and a joke its beat.
+The user's taste sets either one (cut.max_pause, cut.max_pause_wide); keep.json ranges are never trimmed.
 Exit codes: 0 ok, 1 error
 """
 import argparse
@@ -58,6 +61,7 @@ from textnorm import load_words, locate  # noqa: E402
 KINDS = {"alt_hook", "retake", "false_start", "filler", "meta", "audio_event", "redundant", "manual"}
 CONF = {"high", "medium", "low"}
 DEFAULT_MAX_PAUSE = 0.15
+WIDE_MAX_PAUSE = 0.30   # a 16:9 take: the YouTube long-form cut breathes (Max, 2026-10-23: "a bit too fast ... too jumpy")
 GAP_QUIET_DB = 12.0   # a word gap counts as a pause only if it stays this far under speech
 
 
@@ -66,6 +70,31 @@ def run(cmd):
     if r.returncode:
         sys.exit("FAIL: " + " ".join(cmd) + "\n" + r.stderr)
     return r.stdout.strip()
+
+
+def is_wide(src):
+    """True for a landscape take (16:9): width over height once the phone's rotation is applied."""
+    out = run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+               "stream=width,height:stream_tags=rotate:stream_side_data=rotation", "-of", "json", str(src)])
+    try:
+        st = json.loads(out)["streams"][0]
+    except (ValueError, KeyError, IndexError):
+        return False
+    rot = st.get("tags", {}).get("rotate") or next((x.get("rotation") for x in st.get("side_data_list") or [] if "rotation" in x), 0)
+    w, h = st.get("width") or 0, st.get("height") or 0
+    if abs(int(float(rot or 0))) % 180 == 90:
+        w, h = h, w
+    return w > h
+
+
+def pause_target(explicit, cut, wide):
+    """The pause target: --max-pause, else the taste's (cut.max_pause_wide for a wide take, never under the wide
+    default unless set; cut.max_pause for a tall one), else the default for the shape."""
+    if explicit:
+        return explicit
+    if wide:
+        return cut.get("max_pause_wide") or max(WIDE_MAX_PAUSE, cut.get("max_pause") or 0)
+    return cut.get("max_pause") or DEFAULT_MAX_PAUSE
 
 
 def probe(src):
@@ -577,6 +606,40 @@ def fix_splices(frames, fps, lvl, quiet_db, total, removed=(), reach_s=SPLICE_RE
 KEEP_PAD_S = 0.05   # room either side of a kept range, so its first and last word are not clipped
 
 
+BEAT_MAX_S = 1.2   # a held beat: the pause after a setup or a punchline, kept as said up to this long
+
+
+def beat_ranges(d, toks):
+    """beats.json (Claude's, quoted like spans.json) as keep ranges: the pause after each quoted line, from its last
+    word's end to the next word (at most BEAT_MAX_S). Exits listing every beat that does not resolve."""
+    f = Path(d) / "beats.json"
+    if not f.exists():
+        return []
+    out, errs = [], []
+    words = [i for i, t in enumerate(toks) if t.get("type") == "word"]
+    for i, bt in enumerate(json.loads(f.read_text(encoding="utf-8"))):
+        text = str(bt.get("text", ""))
+        hits = locate(text, toks)
+        if "from" in bt:
+            hits = [h for h in hits if toks[h[0]]["start"] >= float(bt["from"])]
+        if "occurrence" in bt:
+            k = int(bt["occurrence"]) - 1
+            hits = [hits[k]] if 0 <= k < len(hits) else []
+        if len(hits) != 1:
+            errs.append(f"beat[{i}] {text[:50]!r}: " + ("no match. Quote it from the transcript." if not hits else
+                        f"appears {len(hits)}x. Add \"occurrence\": N or \"from\": <seconds>."))
+            continue
+        b = hits[0][1]
+        nxt = next((toks[j]["start"] for j in words if j > b), None)
+        if nxt is not None and nxt > toks[b]["end"]:
+            out.append((toks[b]["end"], min(nxt, toks[b]["end"] + BEAT_MAX_S)))
+    if errs:
+        for e in errs:
+            print("ERROR: " + e, file=sys.stderr)
+        sys.exit(1)
+    return out
+
+
 def keep_ranges(d):
     """keep.json as [(start, end)] sorted, [] when there is none."""
     k = Path(d) / "keep.json"
@@ -651,7 +714,7 @@ def main():
     ap.add_argument("source")
     ap.add_argument("edit_dir")
     ap.add_argument("--max-pause", type=float, default=None,
-                    help=f"longest pause left between phrases (default {DEFAULT_MAX_PAUSE})")
+                    help=f"longest pause left between phrases (default {DEFAULT_MAX_PAUSE}; a wide take {WIDE_MAX_PAUSE})")
     ap.add_argument("--pad", type=float, default=0.10, help="kept round each cut (s)")
     ap.add_argument("--noise", type=float, default=None,
                     help="silence threshold in dB. Default: derived from the take.")
@@ -667,10 +730,12 @@ def main():
     sp = d / "spans.json"
     spans_in = json.loads(sp.read_text(encoding="utf-8")) if sp.exists() else []
     resolve_spans(spans_in, toks)   # a bad quote fails before the audio is read
+    beats = beat_ranges(d, toks)
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
     from ai_editor import taste    # the user's own pause setting (taste skill) beats the default
-    max_pause = a.max_pause or taste.load_json().get("cut", {}).get("max_pause") or DEFAULT_MAX_PAUSE
+    wide = is_wide(a.source)
+    max_pause = pause_target(a.max_pause, taste.load_json().get("cut", {}), wide)
     gap_max, gap_keep, splice_max = max_pause, round(2 / 3 * max_pause, 3), max_pause
 
     fps, dur, nframes = probe(a.source)
@@ -709,10 +774,13 @@ def main():
                     + lead_trail_cuts(kept_words, dur, gap_keep))
     allcuts = enforce_splice_budget(allcuts, words, model_cuts, splice_max, lvl, splice_noise)
     keeps = keep_ranges(d)
+    if keeps or beats:
+        allcuts = carve(allcuts, sorted(keeps + beats))
     if keeps:
-        allcuts = carve(allcuts, keeps)
         print(f"keep       {len(keeps)} range(s) from keep.json left in: "
               + ", ".join(f"{a:.2f}-{b:.2f}s" for a, b in keeps[:5]))
+    if beats:
+        print(f"beats      {len(beats)} held from beats.json: " + ", ".join(f"{a:.2f}s +{b - a:.2f}s" for a, b in beats[:5]))
     if kept_words and allcuts and allcuts[-1]["end"] >= dur:   # let the last word ring out
         last = max(w["end"] for w in kept_words)
         allcuts[-1]["start"] = max(allcuts[-1]["start"], min(dur, last + END_TAIL_S))
@@ -732,7 +800,7 @@ def main():
     final = sum(s["end"] - s["start"] for s in spans)
 
     gaps = sorted(splice_gaps(allcuts, words, model_cuts, lvl, splice_noise))
-    print(f"pause      target {max_pause:.2f}s (tighten over {gap_max:.2f}s to {gap_keep:.2f}s)")
+    print(f"pause      target {max_pause:.2f}s (tighten over {gap_max:.2f}s to {gap_keep:.2f}s){' wide take' if wide else ''}")
     print(f"source     {dur:.2f}s at {fps:.3f} fps")
     print(f"cuts       {len(model_cuts)} from spans.json, {len(allcuts)} after merging with pauses")
     print(f"result     {final:.2f}s  ({dur - final:.2f}s removed, {len(spans)} kept spans)")
@@ -757,7 +825,7 @@ def main():
     (d / "report.json").write_text(json.dumps(
         {"source": str(Path(a.source).resolve()), "fps": fps, "duration": dur, "final_s": final,
          "max_pause_s": max_pause, "frames": frames, "model_cuts": model_cuts, "cuts": allcuts,
-         "labels": {str(i): v for i, v in labels.items()}, "splices_in_speech": left, "keep": keeps},
+         "labels": {str(i): v for i, v in labels.items()}, "splices_in_speech": left, "keep": keeps, "beats": beats},
         indent=1), encoding="utf-8")
     (d / "words.json").write_text(json.dumps(retime(words, spans), indent=1), encoding="utf-8")
     import preview_cut

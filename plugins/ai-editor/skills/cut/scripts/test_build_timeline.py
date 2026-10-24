@@ -27,6 +27,15 @@ def test_derive():
     assert B.derive_noise_db(levels(-11, -38))[0] == -32.0      # never under floor + 6
 
 
+def test_pause_target():
+    assert B.pause_target(None, {}, False) == 0.15 and B.pause_target(None, {}, True) == 0.30   # a reel vs a YouTube take
+    assert B.pause_target(0.4, {"max_pause": 0.1}, True) == 0.4                                  # --max-pause wins
+    assert B.pause_target(None, {"max_pause": 0.12}, False) == 0.12
+    assert B.pause_target(None, {"max_pause": 0.12}, True) == 0.30, "a reel's tight taste never tightens a YouTube cut"
+    assert B.pause_target(None, {"max_pause": 0.5}, True) == 0.5
+    assert B.pause_target(None, {"max_pause": 0.12, "max_pause_wide": 0.22}, True) == 0.22
+
+
 def test_audible_end():
     lvl = [-20.0] * 10 + [-60.0] * 10
     assert abs(B.audible_end(lvl, -40.0, 0.34) - 0.20) < 1e-9
@@ -215,6 +224,32 @@ def test_keep_ranges_survive_the_pause_trim():
     assert B.carve(cuts, [(0.4, 2.0)]) == [] and B.carve(cuts, [(3.0, 3.2)]) == cuts
 
 
+def test_beats_hold_the_pause_after_a_line():
+    """beats.json quotes the line before a joke's beat; that pause stays as said (up to BEAT_MAX_S), the rest is trimmed."""
+    import json
+    import tempfile
+    ws = [{"text": "and", "start": 0.0, "end": 0.3, "type": "word"}, {"text": "then", "start": 0.3, "end": 0.6, "type": "word"},
+          {"text": "nothing.", "start": 0.7, "end": 1.1, "type": "word"},
+          {"text": "Nothing", "start": 2.0, "end": 2.4, "type": "word"}, {"text": "happened.", "start": 2.4, "end": 2.9, "type": "word"},
+          {"text": "nothing.", "start": 5.0, "end": 5.4, "type": "word"}, {"text": "ok", "start": 8.0, "end": 8.3, "type": "word"}]
+    with tempfile.TemporaryDirectory() as d:
+        assert B.beat_ranges(d, ws) == []
+        (Path(d) / "beats.json").write_text(json.dumps([{"text": "and then nothing"}, {"text": "nothing", "from": 4}]), encoding="utf-8")
+        beats = B.beat_ranges(d, ws)
+        assert beats == [(1.1, 2.0), (5.4, 5.4 + B.BEAT_MAX_S)], beats   # the whole 0.9 s beat; a 2.6 s gap held to 1.2 s
+        cuts = B.merge(B.silence_cuts(ws, 0.15, 0.1, [(1.15, 1.95), (5.45, 7.95)]))
+        got = B.carve(cuts, beats)
+        assert not any(c["start"] < 1.95 and c["end"] > 1.15 for c in got), got    # the beat plays whole
+        assert any(c["start"] >= 6.6 and c["end"] <= 8.0 for c in got), got         # past 1.2 s it is trimmed
+        (Path(d) / "beats.json").write_text(json.dumps([{"text": "nothing"}]), encoding="utf-8")
+        try:
+            with contextlib.redirect_stderr(io.StringIO()):
+                B.beat_ranges(d, ws)
+            raise AssertionError("an ambiguous beat")
+        except SystemExit:
+            pass
+
+
 def test_zero_length_word_inside_a_cut_is_removed():
     """Scribe labels some quick words with no length ("who" at 49.30-49.30). One inside a cut must not count as
     kept: it showed in paper-edit.md, words.json and the captions, and verify called it MISSING."""
@@ -237,4 +272,6 @@ if __name__ == "__main__":
     test_splice_never_reaches_a_removed_word()
     test_keep_ranges_survive_the_pause_trim()
     test_zero_length_word_inside_a_cut_is_removed()
+    test_pause_target()
+    test_beats_hold_the_pause_after_a_line()
     print("all ok")

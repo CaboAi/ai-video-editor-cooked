@@ -34,6 +34,18 @@ pauses the user put back whole, on the review page's transcript. `build_timeline
 0.05 s either side) out of every pause, lead-in, tail and splice cut. A cut the user makes later takes its words
 out of it again. Never write it by hand, never delete it; `keep.prev.json` is the one before the last Apply.
 
+## beats.json (Claude writes it)
+
+```json
+[{"text": "and then nothing happened", "note": "beat before the punchline"},
+ {"text": "it was free", "occurrence": 2, "note": "deadpan after the joke"}]
+```
+
+The pause right after each quoted line plays as said, up to 1.2 s (`build_timeline.py` keeps it out of every
+pause trim). `text` is quoted from the transcript like a span; `occurrence` (1-based) or `from` (seconds, the
+phrase's start in `transcript.txt`) when it appears more than once. A quote that does not resolve is an `ERROR`
+and the build writes nothing. Rules for where beats go: `editorial-rules.md`, "Pauses are not only dead air".
+
 ## lead.json (hook variants only)
 
 `retakes.py hook <edit_dir> <n>` writes it into `<edit_dir>-hook<n>/`: one quoted range, the same

@@ -35,11 +35,16 @@ question. Keep whichever line does the job; cut the one that only points at it.
 
 ## Pauses are not only dead air
 
-The pause target comes from `style.json` (`pace.max_pause_s`) or the default 0.30 s. Two cases
-where a pause is doing work:
+`build_timeline.py` sets the pause target by the take's shape. A tall take (a reel) uses 0.15 s,
+left at 0.10 s. A wide take (16:9, a YouTube video) uses 0.30 s, left at 0.20 s, because long-form
+cut at reel speed reads as jumpy. The user's taste sets either one (`cut.max_pause`,
+`cut.max_pause_wide`); `--max-pause` overrides both. Cases where a pause is doing work:
 
-- **Before a number or a reveal.** A short beat before a figure lets it land. If the cut feels
-  rushed there, rebuild with a higher `--max-pause`.
+- **A joke's beat.** The pause after a setup, before a punchline, after a punchline (the look at
+  camera, the deadpan), or before a reaction is the joke. Cut it and the line dies. Quote the words
+  just before each one in `beats.json` (`shapes.md`) and that pause plays as said, up to 1.2 s. On a
+  wide take, read every bit of comedy, sarcasm, a callback or an aside for these before you build.
+- **Before a number or a reveal.** A short beat before a figure lets it land. Add it to `beats.json`.
 - **Inside a spoken list.** Very tight pauses between list items make them run together.
 
 Very short function words ("so", "I", "you") right after a join need a little lead-in or they

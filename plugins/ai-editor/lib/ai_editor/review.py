@@ -40,6 +40,7 @@ product video). Notes save with the edit, never in the plugin:
                                      style's rules go into its SKILL.md, skillrules.py) and
                                      show "Saved to <style>. Next video uses it."
     python3 review.py <folder> trials --propose '<json>'   after a reel's final approve: the Trial reels tab
+    python3 review.py <folder> trials --reply "..."        answer the user's notes on the made trial reels (TRIALS NOTE)
                                      {"message", "hooks": [{"text", "from"}], "versions": [{"kinds": "claude" |
                                      ["hooks"|"same"|"rewind"|"section"|"animations", ...], "line"}], "idea"?, "reply"?}.
                                      `wait` prints the user's Make (TRIALS), Skip, or question (TRIALS ASK);
@@ -1697,6 +1698,7 @@ def make_handler(folder, token):
                         return self.send(400, {"error": "pick a style from the list"})
                 return self.send(200, {}) if update(rj, lc) else self.send(409, {"error": "nothing to choose"})
             if path == "/trials":   # the Trial reels tab: {"action": "make", versions, hooks} | "skip" | "ask" + text
+                # | "note" + text, "for" (t1.., or all), "t" (seconds on that version): feedback once they are made
                 act = body.get("action")
                 try:
                     picks = {"versions": [{"kinds": trial_kinds(v.get("kinds")), "line": str(v.get("line") or "")}
@@ -1705,11 +1707,24 @@ def make_handler(folder, token):
                 except (ValueError, AttributeError) as e:
                     return self.send(400, {"error": str(e)})
                 text = str(body.get("text") or "").strip()
-                if act not in ("make", "skip", "ask") or act == "make" and not picks["versions"] or act == "ask" and not text:
-                    return self.send(400, {"error": "make takes versions, ask takes text"})
+                if act not in ("make", "skip", "ask", "note") or act == "make" and not picks["versions"] or act in ("ask", "note") and not text:
+                    return self.send(400, {"error": "make takes versions, ask and note take text"})
 
                 def tc(d):
                     t = d.get("trials") or {}
+                    if act == "note":   # once made: notes queue up, Claude takes them all on its next `wait`
+                        if t.get("state") != "chosen":
+                            return False
+                        n = len((t.get("picks") or {}).get("versions") or [])
+                        who = str(body.get("for") or "all")
+                        try:
+                            at = round(float(body["t"]), 1) if body.get("t") is not None and who != "all" else None
+                        except (TypeError, ValueError):
+                            at = None
+                        t.setdefault("notes", []).append({"text": text[:2000], "for": who if who in [f"t{i + 1}" for i in range(n)] else "all",
+                                                          "t": at, "at": now()})
+                        t["handled"] = False
+                        return True
                     if t.get("state") != "proposed" or t.get("handled") is False:   # nothing to pick, or Claude has it
                         return False
                     if act == "ask":
@@ -3148,11 +3163,37 @@ def trials_propose(folder, raw):
     print(f"{len(vs)} trial reel{'s' if len(vs) != 1 else ''} on the page; run `wait` for the user's pick")
 
 
+def trials_reply(folder, text):
+    """Claude's answer to the notes on the made trial reels: on every note not answered yet, shown under them."""
+    text = str(text or "").strip()
+    if not text:
+        sys.exit("--reply takes the words to show")
+
+    def f(d):
+        ns = [x for x in (d.get("trials") or {}).get("notes") or [] if "reply" not in x]
+        if not ns:
+            sys.exit("no trial reel notes to answer")
+        for x in ns:
+            x["reply"] = ""
+        ns[-1]["reply"] = text
+    update(folder / "review.json", f)
+    print("reply on the Trial reels tab")
+
+
 def trials_chosen(folder, d):
     """What `wait` prints for the Trial reels tab: Make, Skip, or a question for Claude."""
     t, me = d["trials"], f"python3 {Path(__file__).resolve()} {folder}"
     if t["state"] == "skipped":
         print("TRIALS: the user pressed Skip trial reels. Make none; say nothing more about it.")
+    elif t["state"] == "chosen" and any("reply" not in x for x in t.get("notes") or []):   # notes on the made trials
+        print("TRIALS NOTE: the user's notes on the trial reels:")
+        for x in (x for x in t["notes"] if "reply" not in x):
+            print(f"  {'all of them' if x['for'] == 'all' else x['for']}" + (f" at {x['t']:.1f}s" if x.get("t") is not None else "")
+                  + f": {x['text']}")
+        print(f"Change those versions (the trial-reels skill), render each again and put it back under the same name:\n"
+              f"  {me} alt t1 --video <t1.mp4> --trial\nThen answer on the tab, one or two lines on what changed:\n"
+              f"  {me} trials --reply \"...\"   and `wait` again. A note about how every trial reel should be is taste "
+              f"(the taste skill) too.")
     elif t["state"] == "proposed":   # a question from the Ask Claude box
         print(f"TRIALS ASK: {t['asks'][-1]['text']}\nAnswer on the page: {me} trials --propose '<json>' with the "
               f"updated plan and \"reply\": one or two lines on what you changed. Then `wait` again.")
@@ -3963,6 +4004,11 @@ def demo():
         assert e.code == 409
     out = waited()
     assert out.startswith("TRIALS ASK: make t2 the motion graphics bit") and "trials --propose" in out, out
+    try:   # a note before anything is made: the tab's own Ask box is for that
+        post("/trials", {"action": "note", "text": "x"})
+        raise AssertionError("a note before Make")
+    except urllib.error.HTTPError as e:
+        assert e.code == 409
     trials({**plan, "versions": [plan["versions"][0], {"kinds": ["section"], "line": "0:06 to 0:15"}], "reply": "Done. t2 is 0:06 to 0:15."})
     t = load(folder / "review.json")["trials"]
     assert t["asks"][0]["reply"] == "Done. t2 is 0:06 to 0:15." and t["v"] == 2 and t["handled"] is None, t
@@ -3974,6 +4020,21 @@ def demo():
         cmd_alt(ns(name="t1", video=str(vid), transcript=None, trial=True), folder)
     d = load(folder / "review.json")
     assert d["trials"]["state"] == "chosen" and next(a for a in d["alts"] if a["name"] == "t1")["trial"] is True, d["alts"]
+    # feedback once they are made: notes for one version (with its time) or all, Claude's reply under them
+    post("/trials", {"action": "note", "text": "the hook is too long", "for": "t1", "t": 2.34})
+    post("/trials", {"action": "note", "text": "titles bigger", "for": "t9"})   # not a version: all of them
+    out = waited()
+    assert out.startswith("TRIALS NOTE:") and "t1 at 2.3s: the hook is too long" in out and "all of them: titles bigger" in out, out
+    assert "trials --reply" in out and "alt t1 --video" in out, out
+    with contextlib.redirect_stdout(io.StringIO()):
+        trials_reply(folder, "t1 opens on the short hook now; titles are bigger on all three.")
+    tn = load(folder / "review.json")["trials"]["notes"]
+    assert [x["reply"] for x in tn] == ["", "t1 opens on the short hook now; titles are bigger on all three."], tn
+    try:
+        trials_reply(folder, "again")
+        raise AssertionError("a reply with nothing to answer")
+    except SystemExit as e:
+        assert "no trial reel notes" in str(e)
     update(folder / "review.json", lambda d: (d.pop("trials"), d.update(alts=[a for a in d["alts"] if a["name"] != "t1"])))
     # a skill style ("skill" in its style.json): the ticked rules go into that skill's own SKILL.md (skillrules.py)
     sk_md = tmp / "skills" / "alice-edit" / "SKILL.md"
@@ -4474,8 +4535,10 @@ def main():
     s.add_argument("--propose", metavar="JSON", help="after the final approve: candidate rules for the page's learn panel")
     s.add_argument("--done", nargs="?", const="", metavar="SUMMARY", help="save the rules the user ticked into the style")
     s = sp.add_parser("trials", help="the Trial reels tab: Claude's plan for re-cuts of an approved reel")
-    s.add_argument("--propose", required=True, metavar="JSON",
+    g = s.add_mutually_exclusive_group(required=True)
+    g.add_argument("--propose", metavar="JSON",
                    help='{"message", "hooks": [{"text", "from"}], "versions": [{"kinds", "line"}], "idea"?, "reply"?}')
+    g.add_argument("--reply", metavar="TEXT", help="answer the notes on the made trial reels (TRIALS NOTE)")
     a = ap.parse_args()
     folder = Path(a.folder).resolve()
     if getattr(a, "stage", None) == "edit":  # an edit round reads the edit folder's own files
@@ -4529,7 +4592,7 @@ def main():
     elif a.cmd == "learn":
         cmd_learn(a, folder)
     elif a.cmd == "trials":
-        trials_propose(folder, a.propose)
+        trials_reply(folder, a.reply) if a.reply else trials_propose(folder, a.propose)
 
 
 if __name__ == "__main__":

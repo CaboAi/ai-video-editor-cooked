@@ -605,6 +605,9 @@ body.trtab #box,body.trtab #adds{display:none}body.trtab .pfoot{padding-top:0;bo
 .tradd{align-self:flex-start;margin-left:28px;padding:0;border:0;background:none;font-size:13px;line-height:16px;font-weight:600;color:var(--body)}
 .tradd:hover{color:var(--strong)}
 .trq{align-self:flex-end;max-width:85%;padding:10px 12px;border-radius:12px;background:var(--raise);font-size:14px;line-height:20px;color:var(--strong)}
+.trq small{display:block;font-size:12px;line-height:16px;color:var(--muted);margin-bottom:2px}
+.trforl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.trfor{height:28px;border:1px solid var(--line2);border-radius:8px;background:var(--panel);color:var(--strong);font:inherit;font-size:13px;padding:0 8px}
 .trwait{display:flex;align-items:center;gap:8px;margin:0;font-size:13px;line-height:18px;color:var(--body)}.trwait i{width:7px;height:7px;border-radius:4px;background:var(--ink);animation:pulse 1.2s ease-in-out infinite}
 .trrows{display:flex;flex-direction:column}
 .trr{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px;line-height:18px;color:var(--strong)}
@@ -1372,7 +1375,7 @@ const TRK={hooks:['New hooks','A different first line.'],same:['Same order','Fro
   rewind:['Rewind','Opens on a later line, then cuts back to the start.'],section:['One section','One part, with its own hook and ending.'],
   animations:['New animations','New motion graphics and cards.']};
 const DOWN='<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-let TR=null,trV=-1,trMenu=null,trAsk='',trOpened=-1;
+let TR=null,trV=-1,trMenu=null,trAsk='',trOpened=-1,trFor=null;
 const kindLab=ks=>ks[0]==='claude'?'Let Claude decide':ks.map(k=>TRK[k][0]).join(' + ');
 function trSync(){const t=S.trials;if(t.v===trV)return;trV=t.v;trMenu=null;
   TR={versions:t.versions.map(v=>({kinds:[...v.kinds],k0:v.kinds.join(),line:v.line})),hooks:new Set(t.hooks.map((h,i)=>i)),idea:!!t.idea}}
@@ -1386,9 +1389,10 @@ function trialsHtml(){
   if(t.state==='skipped')return h+'<p class="empty2">Skipped. No trial reels for this one.</p>';
   if(t.state==='chosen'){
     const have=new Set((S.alts||[]).filter(a=>a.trial).map(a=>a.name)),vs=t.picks.versions;
-    return h+`<div class="tr"><div class="trh">Making ${plural(vs.length,'trial reel')}</div><div class="trrows">${vs.map((v,i)=>{const n='t'+(i+1),ok=have.has(n);
+    return h+`<div class="tr"><div class="trh">${vs.every((v,i)=>have.has('t'+(i+1)))?'Your '+plural(vs.length,'trial reel'):'Making '+plural(vs.length,'trial reel')}</div><div class="trrows">${vs.map((v,i)=>{const n='t'+(i+1),ok=have.has(n);
       return `<div class="trr"><b>${n}</b><div>${esc(kindLab(v.kinds))}${v.line?`<small>${esc(v.line)}</small>`:''}</div><em class="${ok?'ok':''}">${ok?'Ready':'Making'}</em></div>`}).join('')}</div>
-      <p class="empty2">Each one lands in the Version menu above the video as it renders.</p></div>`;
+      <p class="empty2">Each one lands in the Version menu above the video as it renders.</p></div>`
+      +trNotesHtml(vs.length);
   }
   const off=!isCur()||t.handled===false;
   if(t.handled===false)h+='<p class="trwait"><i></i>Claude is reading your question...</p>';
@@ -1406,6 +1410,16 @@ function trialsHtml(){
     <button class="go" data-trmake${off||!n?' disabled':''}>Make ${plural(n,'trial reel')}</button><button class="skip" data-trskip${off?' disabled':''}>Skip trial reels</button></div>`;
   return h;
 }
+// once made: notes on the trial reels. "For" is the version on screen (with the playhead's time) unless picked;
+// Claude changes that version, puts it back under the same name, and answers here (trials --reply).
+function trNotesHtml(n){
+  const t=S.trials,ns=t.notes||[],names=Array.from({length:n},(_,i)=>'t'+(i+1)),def=names.includes(alt)?alt:'all',who=trFor||def;
+  const lab=x=>(x.for==='all'?'All trial reels':x.for)+(x.t!=null?' · '+fmt(x.t):'');
+  let h=ns.map(x=>`<div class="trq"><small>${esc(lab(x))}</small>${esc(x.text)}</div>`+(x.reply?`<div class="claude"><div><b>Claude</b><p>${esc(x.reply)}</p></div></div>`:'')).join('');
+  if(ns.some(x=>!('reply' in x)))h+='<p class="trwait"><i></i>Claude has your notes and is changing the trial reels...</p>';
+  return h+`<div class="trfoot"><label class="trforl">For <select class="trfor" aria-label="which trial reel the note is for"><option value="all"${who==='all'?' selected':''}>All trial reels</option>${names.map(x=>`<option value="${x}"${who===x?' selected':''}>${x}${x===alt?' (on screen)':''}</option>`).join('')}</select></label>
+    <div class="trask"><textarea class="trta" rows="2" placeholder="Feedback on the trial reels: a different hook, cut this bit, a new title..."></textarea><button data-trsend aria-label="send to Claude">${'<svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 12V2M3 6l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'}</button></div></div>`;
+}
 function trMenuHtml(v,i){
   const c=v.kinds[0]==='claude',on=k=>v.kinds.includes(k),dis=k=>k==='same'&&on('rewind')||k==='rewind'&&on('same');
   return `<div class="trmenu" role="menu"><button class="${c?'on':''}" data-trpick="claude"><i class="rd"></i><span><b>Let Claude decide</b><small>Claude picks the mix that makes this one look most different.</small></span></button><hr><div class="lab">Or pick one or more</div>`
@@ -1418,7 +1432,11 @@ function trPlace(){   // the open menu flips up when the panel has no room under
   if(m.getBoundingClientRect().bottom>floor-8&&m.parentElement.getBoundingClientRect().top-l.getBoundingClientRect().top>m.offsetHeight)m.classList.add('up');
 }
 async function trPost(b){const r=await fetch('/trials',{method:'POST',body:JSON.stringify(b)});if(!r.ok)alert((await r.json().catch(()=>({}))).error||'Could not send it');await load(true)}
-function trSend(){const text=trAsk.trim();if(!text)return;trAsk='';trPost({action:'ask',text})}
+function trSend(){const text=trAsk.trim();if(!text)return;trAsk='';
+  if(S.trials.state!=='chosen')return trPost({action:'ask',text});
+  const n=(S.trials.picks.versions||[]).length,names=Array.from({length:n},(_,i)=>'t'+(i+1)),who=trFor||(names.includes(alt)?alt:'all');
+  trFor=null;trPost({action:'note',text,for:who,...(who!=='all'&&who===alt?{t:+v.currentTime.toFixed(1)}:{})})}
+$('list').addEventListener('change',e=>{if(e.target.classList.contains('trfor'))trFor=e.target.value});
 $('list').addEventListener('input',e=>{if(e.target.classList.contains('trta'))trAsk=e.target.value});
 $('list').addEventListener('keydown',e=>{if(e.target.classList.contains('trta')&&e.key==='Enter'&&!e.shiftKey){e.preventDefault();trSend()}});
 $('list').addEventListener('change',e=>{const i=e.target.dataset.trhook;if(i==null)return;TR.hooks[e.target.checked?'add':'delete'](+i)});

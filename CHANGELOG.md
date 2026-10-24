@@ -7,6 +7,7 @@ What changed for every user, newest first.
 ## ai-editor 2.7.28, creator-teardown 2.7.28 (2026-10-24)
 - One Claude control on the video page: a dot and what Claude is doing (working on your notes, waiting for your notes, open, or not running), with one button. Show Claude brings its Terminal window to the front; Start Claude carries on in the Claude that worked on the video. Copy for Claude, Copy session and Open a new Claude are gone.
 - A Claude page in the editor window lists every video's Claude with Show, Stop and Start, and the sidebar says how many are running. Stop closes that Claude; the video, notes and drafts stay.
+- Feedback on trial reels once they are made: a box under them on the Trial reels tab, for the trial on screen (at the moment you are on) or all of them. Claude changes those trials, puts each back in the Version menu, and answers under your note.
 
 ## ai-editor 2.7.27, creator-teardown 2.7.27 (2026-10-24)
 - Teach your style from this video says where the rules go: a Save to list with this video's style first, your other styles, and New style from this video (a named copy of the style with these rules).

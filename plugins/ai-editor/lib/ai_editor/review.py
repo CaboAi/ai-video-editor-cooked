@@ -1638,7 +1638,19 @@ def make_handler(folder, token):
                         return False
                     ids = sorted({i for i in body.get("chosen") or [] if isinstance(i, int) and 0 <= i < len(lr["rules"])})
                     lr.update(state="chosen" if ids and not body.get("skip") else "skipped", chosen=ids, handled=False)
+                    if to and lr["state"] == "chosen":
+                        lr["to"] = to
                     return True
+                to, lr0 = None, load(rj).get("learn") or {}
+                if body.get("new") and not body.get("skip") and lr0.get("state") == "proposed":   # "New style from this video"
+                    try:
+                        to = new_style_from(folder, body["new"])
+                    except ValueError as e:
+                        return self.send(409, {"error": str(e) or "That name is taken. Pick another."})
+                elif body.get("to") is not None:   # "Save to": one of the styles the approve listed
+                    to = next((dict(x) for x in lr0.get("styles") or [] if x["id"] == str(body["to"])), None)
+                    if to is None:
+                        return self.send(400, {"error": "pick a style from the list"})
                 return self.send(200, {}) if update(rj, lc) else self.send(409, {"error": "nothing to choose"})
             if path == "/trials":   # the Trial reels tab: {"action": "make", versions, hooks} | "skip" | "ask" + text
                 act = body.get("action")
@@ -1875,6 +1887,7 @@ def make_handler(folder, token):
                     err = stop_round(folder)
                     return self.send(409, {"error": err}) if err else self.send(200, {})
                 style = style_label(folder) if body["type"] == "approve" else None
+                choices = style_choices(folder) if body["type"] == "approve" else None
 
                 def ev(d):
                     if d.get("sent") and d["events"] and d["events"][-1]["type"] == "edits":
@@ -1884,7 +1897,7 @@ def make_handler(folder, token):
                     d["sent"] = True
                     d.pop("stopped", None)
                     if body["type"] == "approve" and (d["stage"] == "edit" and not d.get("stills") or d.get("final")):   # the finished video
-                        d["learn"] = {"state": "reading" if session_notes(d) else "none", "style": style}
+                        d["learn"] = {"state": "reading" if session_notes(d) else "none", "style": style, "styles": choices}
                     elif body["type"] == "approve" and d["stage"] == "cut":
                         prepared_steps(folder, d)
                     return True
@@ -2824,6 +2837,48 @@ def shown_style(sp):
     return "New format" if n.startswith("@links-") else n
 
 
+def style_choices(folder):
+    """The learn panel's Save to list: this video's style first, then every saved style, each with its rule count.
+    id is the style.json path ("" = My style)."""
+    try:
+        from ai_editor import styleskill
+        here = edit_style(folder)
+        key = lambda sp: str(Path(sp).resolve()) if sp else ""
+        out, seen = [], set()
+        for sp in [here] + [x for x, _ in styleskill.saved()]:
+            if key(sp) in seen:
+                continue
+            seen.add(key(sp))
+            try:
+                n = len(styleskill.learned(styleskill.scope(sp)))
+            except Exception:
+                n = 0
+            out.append({"id": key(sp), "name": shown_style(sp), "rules": n, "here": sp is here, "mine": sp is None})
+        return out
+    except Exception:
+        return [{"id": "", "name": "My style", "rules": 0, "here": True, "mine": True}]
+
+
+def new_style_from(folder, name):
+    """"New style from this video": a copy of the style the edit used (home.new_own_style, own: true), named.
+    Returns the Save to entry for it. ValueError when the name is empty or taken."""
+    import library
+    from home import new_own_style
+    name = " ".join(str(name or "").split())[:40]
+    if not name:
+        raise ValueError("Give the new style a name.")
+    sp = edit_style(folder)
+    try:
+        start = json.loads(Path(sp).read_text(encoding="utf-8")) if sp else None
+    except (OSError, ValueError):
+        start = None
+    if start:
+        start = {k: v for k, v in start.items() if k not in ("handle", "own", "name")}
+    sid = new_own_style(library.path(), name, start=start)
+    p = library.path() / "creator-teardowns" / sid.lstrip("@") / "style.json"
+    return {"id": str(p.resolve()), "name": name, "rules": 0, "here": False, "mine": False, "new": True}
+
+
 def style_label(folder):
     """What the learn panel calls the style the edit used: its name on the home page, else My style."""
     try:
@@ -2890,6 +2945,9 @@ def learn_chosen(folder, d):
         print("LEARN: the user pressed Not now. Nothing is saved; say nothing more about it.")
         return "learn"
     rules = [lr["rules"][i] for i in lr["chosen"]]
+    to = lr.get("to")
+    if to and not to.get("here"):   # Save to: learn --done saves them there
+        lr = {**lr, "style": to["name"] + (f" (a new style, a copy of {lr['style']})" if to.get("new") else "")}
     print(f"LEARN: the user ticked {len(rules)} rule{'s' if len(rules) != 1 else ''} for {lr['style']}:")
     for r in rules:
         print(f"  - [{r['section']}] {r['rule']}" + (f" ({r['set']})" if r.get("set") else ""))
@@ -2941,6 +2999,10 @@ def learn_done(folder, summary):
     style = shown_style(sp)
     from ai_editor import skillrules
     tg = skillrules.target(folder)
+    to = lr.get("to")
+    if to and not to.get("here"):   # Save to: another saved style, or a new one made from this video's style
+        sp = Path(to["id"]) if to["id"] else None
+        style, tg = to["name"], {"kind": "settings"}
     saved = []   # (rule, status, kind, ref) for the receipts
     if tg["kind"] == "skill":   # a skill style: its skill made the edit, so the rules go into its SKILL.md
         if not tg["path"]:
@@ -3707,7 +3769,9 @@ def demo():
     assert f"#{c3['id']} 0:05.1 (5.1s) [wide] [card 0 image 'later']: louder here" in out, out
     # the final approve: LEARN asks Claude for rules from every note of the session, the page waits for them
     assert "LEARN: the video is approved" in out and "#1 the cut r1: cut the hello, please -> reply: cut it" in out, out
-    assert json.loads(get("/state").read())["learn"] == {"state": "reading", "style": "My style"}
+    lr0 = json.loads(get("/state").read())["learn"]
+    assert {k: lr0[k] for k in ("state", "style")} == {"state": "reading", "style": "My style"}, lr0
+    assert lr0["styles"][0]["here"] and lr0["styles"][0]["name"] == "My style", lr0["styles"]   # Save to: this video's style first
     try:
         post("/comment", {"t": 2, "text": "after approve"})
         raise AssertionError("a note after approve")
@@ -3775,7 +3839,13 @@ def demo():
         raise AssertionError("done before the user ticked")
     except SystemExit as e:
         assert "nothing ticked" in str(e)
-    post("/learn", {"chosen": [0, 2, 9]})
+    for bad, code in (({"chosen": [0], "to": "/no/such/style.json"}, 400), ({"chosen": [0], "new": " "}, 409)):
+        try:   # Save to takes only a listed style; a new style needs a name
+            post("/learn", bad)
+            raise AssertionError(bad)
+        except urllib.error.HTTPError as e:
+            assert e.code == code, (bad, e.code)
+    post("/learn", {"chosen": [0, 2, 9], "to": lr["styles"][0]["id"]})
     out = waited()
     assert out.startswith("LEARN: the user ticked 2 rules for My style:") and "Captions one size smaller (captions.size_pct=4)" in out, out
     assert "Fewer zooms" not in out and "learn --done" in out, out
@@ -3785,6 +3855,25 @@ def demo():
     assert lr["state"] == "done" and lr["summary"] == "Saved to @alice. Next video uses it.", lr
     sk = (tmp / "skills" / "edit-like-alice" / "SKILL.md").read_text(encoding="utf-8")
     assert "- Keep the pauses short." in sk and "Fewer zooms" not in sk, sk
+    old_lib = os.environ.get("AI_EDITOR_LIBRARY")
+    os.environ["AI_EDITOR_LIBRARY"] = str(tmp / "lib")   # New style from this video: a named copy of @alice
+    try:
+        ns_ = new_style_from(folder, "  Podcast   clips ")
+        nsp = Path(ns_["id"])
+        assert ns_["name"] == "Podcast clips" and ns_["new"] and nsp.is_file() and nsp.parent.name == "own-podcast-clips", ns_
+        cp = json.loads(nsp.read_text(encoding="utf-8"))
+        assert cp["own"] and cp["handle"] == "own-podcast-clips" and shown_style(nsp) == "Podcast clips", cp
+        assert any(x["name"] == "Podcast clips" for x in style_choices(folder)), "the new style is listed next time"
+        try:
+            new_style_from(folder, "")
+            raise AssertionError("a nameless style")
+        except ValueError:
+            pass
+    finally:
+        if old_lib is None:
+            os.environ.pop("AI_EDITOR_LIBRARY", None)
+        else:
+            os.environ["AI_EDITOR_LIBRARY"] = old_lib
     assert json.loads((sp.parent / "style.overrides.json").read_text(encoding="utf-8"))["captions"]["size_pct"] == 4
     try:
         post("/learn", {"chosen": [1]})

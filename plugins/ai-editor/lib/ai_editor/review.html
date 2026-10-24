@@ -90,11 +90,17 @@ header{position:relative;height:56px;flex-shrink:0;display:flex;align-items:cent
 .status.work i{display:inline-flex;color:var(--ink);animation:spin .9s linear infinite}
 .status .stp{font-weight:400;color:var(--body)}
 .status span{overflow:hidden;text-overflow:ellipsis}
-#newclaude{flex-shrink:0;white-space:nowrap;margin:0;padding:0;border:0;background:none;color:var(--ink);font:inherit;text-decoration:underline 1px;text-underline-offset:3px;cursor:pointer}
+/* the Claude control: one dot, its state in words, one button (Show Claude or Start Claude) */
+.clc{display:flex;align-items:center;gap:10px;height:36px;padding:0 4px 0 12px;border:1px solid var(--line2);border-radius:10px;font-size:13px;color:var(--body);white-space:nowrap;flex-shrink:0}
+.clc[hidden]{display:none}
+.status .clc>i{display:block;width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--muted);animation:none}
+.status .clc.waiting>i,.status .clc.open>i,.status .clc.working>i{background:var(--ok)}
+.status .clc.working>i{animation:pulse 1.2s ease-in-out infinite}
+.clc button{height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--line2);background:var(--raise);color:var(--strong);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.clc button.go{background:var(--ink);border-color:var(--ink);color:var(--onink)}
+.clc button:disabled{opacity:.5}
 #howbtn{width:32px;height:32px;border-radius:8px;border:1px solid var(--line2);display:grid;place-items:center;color:var(--ink);flex-shrink:0}
 #howbtn:hover{border-color:var(--ink)}
-#resumebtn{height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line2);color:var(--ink);font-size:13px;flex-shrink:0}
-#resumebtn:hover{border-color:var(--ink)}
 .mtheme{display:none}
 .mhead{display:none}
 /* Approve sits in the header, top right (the notes panel keeps Submit feedback, Stop and Undo approve) */
@@ -701,7 +707,7 @@ body.making #making{display:flex}
 <header>
  <div class="brand"><button id="homebtn" class="homebtn" title="Back to your videos"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Your videos</button><span class="sl">/</span><span id="name"></span><span id="homemsg" class="homemsg" hidden></span></div>
  <div class="seg" id="stages"><button id="st1" data-go="cut"></button><svg class="chev" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><button id="st2" data-go="edit"></button></div>
- <div class="status" id="statusbox"><i></i><span id="listen"></span><button id="newclaude" hidden title="start a Claude that carries on with this video">Stopped? Open a new Claude</button><button id="resumebtn" hidden title="Paste it into a new Claude Code session to pick this edit up">Copy for Claude</button><button id="howbtn" aria-label="how this works and shortcuts" title="how this works (?)"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="10" r="8.3"/><path d="M7.7 7.6a2.4 2.4 0 1 1 3.3 2.2c-.6.3-1 .8-1 1.5v.4"/><circle cx="10" cy="14.4" r=".4" fill="currentColor"/></svg></button></div>
+ <div class="status" id="statusbox"><i></i><span id="listen"></span><span class="clc" id="clc" hidden><i></i><span id="clct"></span><button id="clcbtn"></button></span><button id="howbtn" aria-label="how this works and shortcuts" title="how this works (?)"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="10" r="8.3"/><path d="M7.7 7.6a2.4 2.4 0 1 1 3.3 2.2c-.6.3-1 .8-1 1.5v.4"/><circle cx="10" cy="14.4" r=".4" fill="currentColor"/></svg></button></div>
  <div class="mhead"><b id="mstage"></b><span id="msub"></span></div><button class="themebtn mtheme"></button><button id="mapprove"></button>
 </header>
 <section id="how" aria-label="how this works"><ol>
@@ -852,7 +858,20 @@ $('railupd').onclick=async()=>{const u=(S&&S.update)||{};
   updating=true;renderRail();setTimeout(()=>{updating=false;if(S)renderRail()},15000);try{const r=await fetch('/update',{method:'POST',body:'{}'});if(!r.ok){updating=false;alert('The window is not open, so it cannot update. Open cooked. and press Update in Settings.')}}catch(e){updating=false}renderRail()};
 let railx=false;try{railx=localStorage.getItem('review-railx')==='1'}catch(e){}
 document.body.classList.toggle('railx',railx);
-$('newclaude').onclick=async()=>{$('newclaude').disabled=true;await post('/claude',{});await load(true);$('newclaude').disabled=false};
+// the Claude control: Show Claude brings its Terminal tab to the front; Start Claude carries on in the Claude that worked
+// here (typed into it, or its conversation opened again), else a new one. Where no terminal opens, the command is copied.
+const CLC={working:'Claude is working on your notes',waiting:'Claude is waiting for your notes',open:'Claude is open',off:'Claude isn\u2019t running for this video'};
+function renderClaude(asking){
+  const c=S.claude_ui||{},st=c.state==='off'&&alive(S)?'working':c.state||'off',el=$('clc'),b=$('clcbtn'),start=st==='off';
+  el.hidden=asking||!!S.raw&&!c.last;el.className='clc '+st;$('clct').textContent=CLC[st];
+  b.textContent=start?'Start Claude':'Show Claude';b.className=start?'go':'';b.hidden=!start&&!c.show;b.dataset.act=start?'start':'show';
+}
+$('clcbtn').onclick=async()=>{const b=$('clcbtn');b.disabled=true;
+  try{if(b.dataset.act==='show'){const r=await post('/claude/show',{});if(!r.shown)toast('Its Terminal window was not found. Start Claude opens it again.')}
+    else{const r=await post('/claude',{});if(r.opened)toast(r.how==='typed'?'Sent to the Claude open in Terminal':'Claude is opening in Terminal');
+      else if(r.command){try{await navigator.clipboard.writeText(r.command);toast('Terminal did not open. The command is copied: paste it into a terminal.')}catch(x){toast('Run this in a terminal: '+r.command)}}
+      else if(!r.how)toast('Claude is already on this video.')}}
+  finally{b.disabled=false;await load(true)}};
 $('railtog').onclick=()=>{railx=!railx;document.body.classList.toggle('railx',railx);try{localStorage.setItem('review-railx',railx?'1':'0')}catch(e){}
   $('railtog').title=$('railtog').ariaLabel=railx?'Collapse the sidebar':'Expand the sidebar'};
 let PV=null,followNew=false;   // followNew: Go back was pressed, so show the round it opens wherever the page was
@@ -899,10 +918,7 @@ $('dl').addEventListener('click',async e=>{
       if(i===1)toast('Saving the video. It downloads in a moment.');await new Promise(r=>setTimeout(r,1000))}
     toast('The video did not download. Try again.')}finally{delete a.dataset.busy}
 });
-$('resumebtn').onclick=async()=>{try{await navigator.clipboard.writeText(S.resume);toast('Copied. Paste it into Claude Code.')}catch(e){toast('Could not copy')}};
-// Copy session: `cd <folder> && claude --resume <id>` for the Claude on this video, to open it yourself
-const sessBtn=()=>S&&S.session_cmd?'<button class="sesscp" data-sess title="Paste it into a terminal to open this Claude">Copy session</button>':'';
-document.addEventListener('click',async e=>{if(!e.target.closest('[data-sess]'))return;try{await navigator.clipboard.writeText(S.session_cmd);toast('Copied. Paste it into a terminal.')}catch(x){toast('Could not copy')}});
+const sessBtn=()=>'';   // Copy session moved into the Claude control (Show Claude / Start Claude)
 function toast(t){const e=$('toast');e.innerHTML=TICK+esc(t);e.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>e.classList.remove('show'),3500)}
 function cmpOptions(){   // what can play beside this round: its other versions, then earlier rounds of this stage
   const r=viewRound(),o=['',...(r.alts||[]).map(a=>a.name)].filter(x=>x!==alt).map(x=>({k:key(view),alt:x,label:lab(x)}));
@@ -977,9 +993,8 @@ function listenText(S){
   if(S.sent&&newClaude(S))return newClaude(S);
   if(S.sent)return e&&e.type==='edits'?'Changes sent':e&&e.type==='approve'?(e.stills?'Preview approved':e.stage==='cut'?'Cut approved':'Approved'):'Notes sent';
   const first=!(S.rounds||[]).some(r=>r.stage===S.stage&&r.round>=1&&r.round<S.round&&!r.stills);   // the first video of the cut or the edit (the stills before it are not one)
-  if(S.listening)return S.round>1&&!S.comments.some(c=>c.stage===S.stage&&c.round===S.round)?(first?(S.stage==='edit'?(S.stills?'The preview is ready':'The edit is ready'):'The cut is ready'):cap(dn(S))+' is ready'):'Claude is listening';
-  if(S.busy)return 'Claude is working.';   // notes sent now are next; #newclaude beside it if it stopped
-  return 'Claude is not listening. Submitting opens a new Claude.';
+  if(S.listening)return S.round>1&&!S.comments.some(c=>c.stage===S.stage&&c.round===S.round)?(first?(S.stage==='edit'?(S.stills?'The preview is ready':'The edit is ready'):'The cut is ready'):cap(dn(S))+' is ready'):'';   // waiting for notes: the Claude control says it
+  return '';   // working, waiting or not running: the Claude control says it (submitting with none starts one)
 }
 function render(){
   if(!S)return;
@@ -990,8 +1005,7 @@ function render(){
   const nowAct=busyNow&&(S.activity||[]).filter(x=>x.round===S.round&&!x.done).pop();
   const asking=!!document.documentElement.dataset.ask;   // ask.js: Claude's question box is open on this page
   $('listen').innerHTML=asking?'<b>Claude is asking you something</b>':esc(approving?(S.stills?'Preview approved':'Cut approved'):idleEdit?'Claude is not working on the edit':listenText(S))+(!asking&&nowAct&&nowAct.text?` <span class="stp">· ${esc(nowAct.text)}</span>`:'');
-  $('newclaude').hidden=asking||!S.busy||S.listening||picked||!!newClaude(S);   // the Claude working here may have stopped
-  $('resumebtn').hidden=alive(S)||asking;   // the Claude that made this is gone: a new session picks it up from this
+  renderClaude(asking);
   $('statusbox').classList.toggle('work',busyNow&&!asking);$('statusbox').querySelector('i').innerHTML=busyNow&&!asking?SPIN:'';
   $('mstage').textContent=STAGE[view.stage];$('msub').textContent=S.name+' · '+rn(view).toLowerCase();
   const mine=S.comments.filter(c=>c.stage===S.stage&&c.round===S.round).length,live=isCur()&&!p;
@@ -1274,7 +1288,7 @@ function makeState(){   // the edit's steps from Claude's status reports (review
   const pct=!land&&last&&!last.done&&last.step==='render'&&last.pct!=null?last.pct:null;
   const frac=cur<0?0:Math.min(1,(cur+(closed?1:pct!=null?pct/100:.5))/keys.length);
   const left='';   // no time estimates on a step
-  const idle=!alive(S)?'No word from Claude for a while. If it stopped, press Copy for Claude at the top and paste it into Claude Code.':'';
+  const idle=!alive(S)?'No word from Claude for a while. If it stopped, press Start Claude at the top.':'';
   return {steps,keys,cur,closed,pct,frac,at,left,idle,style:(S.making&&S.making.style)||'',
     now:open?open.text:cur>=0?steps[keys[cur]]:'Starting',extra:open&&!open.step?open.text:''};
 }

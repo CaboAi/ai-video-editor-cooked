@@ -216,6 +216,37 @@ def home():
     return Path(os.environ.get("AI_EDITOR_HOME", "").strip() or Path.home() / ".ai-video-editor") / "home"
 
 
+def claudes():
+    """The Claude page: one row per video that has had a Claude (review/.claude) or has one listening, running ones
+    first, then the latest: {"dir", "name", "video", **review.claude_state}."""
+    import review
+    out = []
+    for e in library.entries():
+        d = Path(e["dir"])
+        if not (d / "review" / ".claude").exists() and not review.listening(d):
+            continue
+        out.append({"dir": e["dir"], "name": e["name"], "video": e.get("video"), **review.claude_state(d)})
+    return sorted(out, key=lambda x: (x["state"] == "off", -(x["last"] or 0)))
+
+
+def claude_act(edit, act):
+    """Show, Start or Stop the Claude of one video in the library. (ok, what the page says)."""
+    import review
+    d = Path(str(edit or "")).resolve()
+    if not any(d == Path(x).resolve() for x in library.edit_dirs()):
+        return False, "That video is not in your library."
+    if act == "show":
+        return (True, "") if review.show_claude(d) else (False, "Its Terminal window was not found. Start Claude opens it again.")
+    if act == "stop":
+        return (True, "Stopped. Your video, notes and drafts stay.") if review.stop_claude(d) else (False, "That Claude was not running.")
+    if act == "start":
+        r = review.reopen(d, d / "review.json", force=True) or {}
+        if r.get("opened"):
+            return True, "Claude is opening in Terminal."
+        return False, ("Terminal did not open. Run this in a terminal: " + r["command"]) if r.get("command") else "Claude did not start."
+    return False, "show, start or stop"
+
+
 def staged():
     """Where New video's added videos and images and dropped b-roll clips wait for their job: <root>/.staged/<random>/
     (beside the edits, so linking them in is instant). Folders over a day old go on the next upload."""
@@ -2088,6 +2119,8 @@ def make_handler(token):
                     dict(r, duration=m["duration"], vertical=bool(m["h"] and m["w"] and m["h"] > m["w"]),
                          raw=not is_output(Path(r["path"]).resolve(), eds),
                          thumb=f"/thumb?p={quote(r['path'])}&m={int(r['mtime'])}") for r, m in zip(rs, ms)]})
+            if path == "/claudes":   # the Claude page: every video's Claude and its state
+                return self.send(200, {"claudes": claudes()})
             if path == "/broll":   # New video's B-roll: the saved libraries and the Drive app's mounts
                 rows = broll.listing()
                 return self.send(200, {"libraries": [dict(r, thumb=f"/thumb?p={quote(r['first'])}" if r["first"] else "") for r in rows],
@@ -2504,6 +2537,9 @@ def make_handler(token):
                 m = library.meta(msg)
                 return self.send(200, {"ok": True, "path": msg, "name": d.name, "duration": m["duration"],
                                        "thumb": f"/thumb?p={quote(msg)}"})
+            if path == "/claudes/act":   # the Claude page's Show, Start and Stop
+                ok, msg = claude_act(body.get("edit"), body.get("act"))
+                return self.send(200 if ok else 409, {"ok": ok, "msg": msg})
             if path == "/broll/add":   # Connect a folder: a Drive folder picked in the browser, or a path typed in
                 err = broll.add(body.get("name"), body.get("folder"))
                 return self.send(400 if err else 200, {"ok": not err, "msg": err})
@@ -4431,6 +4467,14 @@ def demo():
     if os.name != "nt":
         assert (home() / "token").stat().st_mode & 0o777 == 0o600
     s2.server_close()
+    # the Claude page: only videos that had a Claude; an edit outside the library is refused
+    assert claude_act(str(tmp / "elsewhere"), "stop") == (False, "That video is not in your library.")
+    ed = Path(library.entries()[0]["dir"])
+    (ed / "review").mkdir(exist_ok=True)
+    (ed / "review" / ".claude").write_text(json.dumps({"pid": 999999}), encoding="utf-8")
+    cl = [c for c in claudes() if c["dir"] == str(ed)]
+    assert cl and cl[0]["state"] == "off" and cl[0]["last"], cl
+    assert claude_act(str(ed), "stop") == (False, "That Claude was not running.") and claude_act(str(ed), "jump")[0] is False
     shutil.rmtree(tmp, ignore_errors=True)
     print("home demo ok")
 

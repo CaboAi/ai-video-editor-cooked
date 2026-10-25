@@ -1050,10 +1050,10 @@ function render(){
   meta();
   $('oldbadge').style.display=isCur()&&!previewOn?'none':'block';$('oldbadge').textContent=previewOn?'Playing your changes':'Older draft, read only';
   // the composer: open until approve. While Claude works, a note waits for the next round
-  const canNote=noteOk();
+  const onTr=onTrial(),canNote=noteOk()||onTr;
   ta.disabled=!canNote;box.classList.toggle('off',!canNote);
-  ta.placeholder=previewOn?'Back to the cut to leave a note':p==='send'?(S.raw?'Note for the cut...':'Note for the next draft...'):!isCur()?'Older draft, read only':p==='approve'?(S.stills?'The preview is approved':S.stage==='cut'&&!S.final?'The cut is approved':'Approved'):view.round>1?'Feedback on '+dn(viewRound())+' at this moment...':'Type feedback for this moment...';
-  const sc=$('scope');sc.style.display=nv&&canNote?'block':'none';
+  ta.placeholder=onTr?`Note on ${alt} at this moment...`:previewOn?'Back to the cut to leave a note':p==='send'?(S.raw?'Note for the cut...':'Note for the next draft...'):!isCur()?'Older draft, read only':p==='approve'?(S.stills?'The preview is approved':S.stage==='cut'&&!S.final?'The cut is approved':'Approved'):view.round>1?'Feedback on '+dn(viewRound())+' at this moment...':'Type feedback for this moment...';
+  const sc=$('scope');sc.style.display=nv&&canNote&&!onTr?'block':'none';
   if(nv)sc.innerHTML=`<option value="">${esc(lab(alt))} only</option><option value="*">${nv===1?'Both':'All'} versions</option>`;
   renderVer();renderTx();renderBar();renderTracks();renderEdTracks();renderList();renderAdds();boxTime();hitSig='~';renderHits();
 }
@@ -2079,7 +2079,12 @@ $('tlayer').addEventListener('pointerdown',e=>{
     tx.x=cl((ev.clientX-r.left)/r.width*100,vert?20:12,vert?73:88);tx.y=cl((ev.clientY-r.top)/r.height*100,vert?16:8,vert?72:92);   // reels: inside the safe zone
     el.style.left=tx.x+'%';el.style.top=tx.y+'%'};
   el.onpointermove=mv;el.onpointerup=()=>{el.onpointermove=null;tsig=null;const w=$('tword');if(w)w.focus()}});
+// a trial reel on screen (its version picked, after Make): the note goes to that trial on the Trial reels tab, at this moment
+const onTrial=()=>!!(S&&isCur()&&!previewOn&&alt&&S.trials&&S.trials.state==='chosen'&&(viewRound().alts||[]).some(a=>a.name===alt&&a.trial));
 async function save(){const text=ta.value.trim();if(ta.disabled||(!text&&!pics.length))return;
+  if(onTrial()){if(!text)return;const[t]=noteSpan();
+    const r=await fetch('/trials',{method:'POST',body:JSON.stringify({action:'note',text,for:alt,t})});
+    toast(r.ok?`Sent to Claude for ${alt}. Its reply shows on the Trial reels tab.`:'That did not send. Try again.');closeBox();return load(true)}
   const[t,te]=noteSpan(),nv=(viewRound().alts||[]).length;
   await post('/comment',{t,t_end:te,text,images:pics,alt:nv&&$('scope').value==='*'?'*':alt||null,on:noteOn});
   closeBox();await load()}

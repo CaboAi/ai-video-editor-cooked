@@ -239,7 +239,7 @@ body.dragging #dropov{display:flex}
 .ax{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--t2);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer}
 .ax:hover{color:var(--ink);border-color:var(--ink)}
 /* the Claude page */
-.clp{display:flex;flex-direction:column;gap:20px;padding:12px 14px 0;max-width:860px;min-width:0}
+.clp{display:flex;flex-direction:column;gap:20px;max-width:860px;min-width:0}
 .clp .lede{margin:6px 0 0;color:var(--t2);font-size:15px;line-height:22px}
 .cll{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}
 .clr{display:flex;align-items:center;gap:14px;padding:14px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
@@ -249,7 +249,7 @@ body.dragging #dropov{display:flex}
 .clr .st{display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px;color:var(--t2);margin-top:3px}
 .clr .st i{width:8px;height:8px;border-radius:50%;background:var(--t4);flex-shrink:0}
 .clr .st.working i,.clr .st.waiting i,.clr .st.open i{background:#2E9E5B}.clr .st.working i{animation:pulse 1.2s ease-in-out infinite}
-.clr .acts{display:flex;gap:8px;flex-shrink:0;margin-left:auto}
+.clr .acts{display:flex;gap:8px;flex-shrink:0;margin-left:auto}.clr .acts button{white-space:nowrap}
 .clr .acts button{height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:13px;font-weight:500;cursor:pointer}
 .clr .acts button.go{background:var(--ink);border-color:var(--ink);color:var(--onink)}
 .clr .acts button:disabled{opacity:.5}
@@ -1726,8 +1726,8 @@ function vClaude(){
   const row=c=>{const on=c.state!=='off',b=ui.clBusy===c.dir?'disabled':'',d=J(c.dir);
     return `<div class="clr"><span class="th" style="${c.video?`background-image:url('/thumb?p=${encodeURIComponent(c.video)}')`:''}"></span>
       <div class="nm"><b title="${esc(c.name)}">${esc(c.name)}</b><div class="st ${c.state}"><i></i>${CLS[c.state]||''}${!on&&c.last?' · last used '+clWhen(c.last):''}</div></div>
-      <div class="acts">${on?`${c.show?`<button ${b} onclick="clAct(${d},'show')">Show Claude</button>`:''}<button ${b} onclick="clAct(${d},'stop')">Stop</button>`:`<button class="go" ${b} onclick="clAct(${d},'start')">Start Claude</button>`}</div></div>`};
-  return `<div class="clp"><div><h1>Claude</h1><p class="lede">Each video has its own Claude in a Terminal window. Show brings it to the front. Start opens it again, carrying on where it left off.</p></div>
+      <div class="acts">${c.resume?`<button title="${esc(c.resume)}" onclick="copyText(${esc(JSON.stringify(c.resume))},this)">Copy command</button>`:''}${on?`${c.show?`<button ${b} onclick="clAct(${d},'show')">Show Claude</button>`:''}<button ${b} onclick="clAct(${d},'stop')">Stop</button>`:`<button class="go" ${b} onclick="clAct(${d},'start')">Start Claude</button>`}</div></div>`};
+  return `<div class="clp"><div><h1>Claude</h1><p class="lede">Each video has its own Claude in a Terminal window. Show brings it to the front. Start opens it again, carrying on where it left off. Copy command gives you the line to open it yourself in any terminal.</p></div>
     ${CL==null?'<p class="muted">Loading...</p>':CL.length?`<div class="cll">${CL.map(row).join('')}</div>`:'<p class="muted">No video has had a Claude yet. One starts with each new video.</p>'}
     ${CL&&CL.length?'<p class="clh">Stopping closes that Claude. Your video, notes and drafts stay. Start carries on from them.</p>':''}</div>`;
 }
@@ -2676,7 +2676,7 @@ function rrender(){
   if(rv==='settings'&&!(ui.diskAt>Date.now()-10000)){ui.diskAt=Date.now();loadDisk()}   // free space is live: read again every 10 s
   let h=(rv==='stylepage'?vStylePage():rv==='new'?vNew():rv==='style'?vStyle():rv==='videos'?vVideos():rv==='mystyle'?vMyStyle():rv==='skills'?vSkills():rv==='claude'?vClaude():rv==='settings'?vSettings():vHome());
   if(rv==='home'&&askRow())h=h.replace(/^\s*(<div class="pgc[^"]*">)/,'$1'+askRow());   // Home's first row
-  $('#main').classList.toggle('pg',['home','videos','settings','mystyle','style','stylepage','skills'].includes(rv));
+  $('#main').classList.toggle('pg',['home','videos','settings','mystyle','style','stylepage','skills','claude'].includes(rv));
   paint($('#main'),h,rv+'|'+ui.sp);$('#main').classList.toggle('spwrap',rv==='stylepage');
   const md=ui.skdel?skDelModal():ui.del?delModal():ui.create?createModal():ui.bconn?bconnModal():'';paint($('#modal'),md,'m');document.documentElement.style.overflow=md?'hidden':'';$('#main').classList.toggle('hmain',rv==='home');
   if(rv==='mystyle'||rv==='style')flashBuilt();

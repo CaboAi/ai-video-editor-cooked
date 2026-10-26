@@ -1093,7 +1093,7 @@ def claude_alive(w):
 
 def claude_state(folder):
     """The page's Claude control: {"state": "working" | "waiting" | "open" | "off", "show": its Terminal tab can come
-    to the front, "last": when it last ran a command here}. waiting: a `wait` listens for notes; working: its process
+    to the front, "last": when it last ran a command here, "resume": the line that opens it again in any terminal}. waiting: a `wait` listens for notes; working: its process
     runs and it ran a command lately (no process info, as on Windows: a command lately); open: running, idle."""
     w, lis = last_claude(folder), listening(folder)
     alive = bool(w.get("pid")) and claude_alive(w)
@@ -1103,7 +1103,8 @@ def claude_state(folder):
         last = (folder / "review" / ".claude").stat().st_mtime
     except OSError:
         last = None
-    return {"state": st, "show": bool(alive and w.get("app") == "Terminal" and w.get("tty")), "last": last}
+    return {"state": st, "show": bool(alive and w.get("app") == "Terminal" and w.get("tty")), "last": last,
+            "resume": resume_cmd(w)}
 
 
 def show_claude(folder):
@@ -4467,9 +4468,9 @@ def demo():
         proc = subprocess.Popen([str(fake), "30"])
         try:
             assert claude_state(cf)["state"] == "off" and not stop_claude(cf), "no Claude ever ran here"
-            (cf / "review" / ".claude").write_text(json.dumps({"pid": proc.pid, "tty": "/dev/ttys-x", "app": "Terminal"}), encoding="utf-8")
+            (cf / "review" / ".claude").write_text(json.dumps({"pid": proc.pid, "tty": "/dev/ttys-x", "app": "Terminal", "session": "s1", "cwd": "/a b"}), encoding="utf-8")
             st = claude_state(cf)
-            assert st["state"] == "working" and st["show"] and st["last"], st
+            assert st["state"] == "working" and st["show"] and st["last"] and st["resume"] == "cd '/a b' && claude --resume s1", st
             (cf / "review" / ".listening").touch()
             assert claude_state(cf)["state"] == "waiting"
             assert stop_claude(cf) and proc.wait(5) is not None and not (cf / "review" / ".listening").exists()

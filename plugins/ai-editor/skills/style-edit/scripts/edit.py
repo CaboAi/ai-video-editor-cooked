@@ -957,7 +957,7 @@ def at_labels(plan, frames):
 PATCH_PAD_S = 0.5        # each changed span grows this much both ways: an exit or a cue tail
 PATCH_MAX_SHARE = 0.6    # more of the video than this changed: a full render is as quick
 SFX_TAIL_S = 1.5         # ponytail: the longest cue in the sfx.py kit; read each cue's length if the kit grows
-RANGED = ("cards", "zooms", "sfx", "cutouts")
+RANGED = ("cards", "zooms", "sfx", "cutouts", "texts")
 
 
 def changed_ranges(old, new):
@@ -1025,6 +1025,13 @@ def splice(old, pieces, out, fps, frames):
     pcm.unlink()
 
 
+def stamp(out):
+    """render.stamp.json beside a render this script made from its plan alone: the review page's text bake patches
+    only a render that still matches it (one finished by hand afterwards, an ffmpeg overlay, is not the plan's)."""
+    st = Path(out).stat()
+    Path(out).with_suffix(".stamp.json").write_text(json.dumps({"size": st.st_size, "mtime_ns": st.st_mtime_ns}), encoding="utf-8")
+
+
 def probe_render(path):
     r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,nb_frames",
                         "-of", "json", str(path)], capture_output=True, text=True, check=True)
@@ -1061,6 +1068,7 @@ def patch(edit, plan_path, plan, pub, tag, ranges=None, run=None, bundle_to=None
         print("most of the video changed: rendering in full instead", flush=True)
         render_laptop(edit, plan_path, pub, out, False, run=run)
         shutil.copy2(plan_path, snap)
+        stamp(out)
         return
     t0, tmp = time.time(), edit / f".patch{tag}"
     shutil.rmtree(tmp, ignore_errors=True)
@@ -1080,6 +1088,7 @@ def patch(edit, plan_path, plan, pub, tag, ranges=None, run=None, bundle_to=None
     os.replace(tmp / "render.mp4", out)
     shutil.rmtree(tmp, ignore_errors=True)
     shutil.copy2(plan_path, snap)
+    stamp(out)
     print(f"patched {out} in {time.time() - t0:.0f} s ({len(pieces)} piece{'s' * (len(pieces) > 1)})")
 
 
@@ -1103,6 +1112,7 @@ def demo_patch():
     new["sfx"] = [{"t": 8.0, "src": ".sfx/pop.wav"}]
     new["zooms"] = [{"start": 9.0, "end": 9.4}]
     assert changed_ranges(plan, new)[0] == [[1.5, 4.5], [7.5, 10.0]], changed_ranges(plan, new)
+    assert changed_ranges(plan, {**plan, "texts": [{"kind": "label", "text": "hi", "start": 5, "end": 6}]}) == ([[4.5, 6.5]], None)
     assert changed_ranges(plan, {**new, "look": {"preset": "mono"}}) == (None, "look")
     assert changed_ranges(plan, {**new, "captions": {"style": {"size_pct": 7}, "chunks": []}}) == (None, "captions style")
     with tempfile.TemporaryDirectory() as t:
@@ -1134,6 +1144,7 @@ def demo_patch():
         patch(t, t / "plan.json", moved, t, "", run=fake, bundle_to=lambda a, b: None)
         assert asked == [(44, 135)], asked          # 1.5-4.5 s at 29.97 fps
         assert json.loads((t / "render.plan.json").read_text(encoding="utf-8")) == moved
+        assert json.loads((t / "render.stamp.json").read_text(encoding="utf-8"))["size"] == (t / "render.mp4").stat().st_size
         n = subprocess.run(["ffprobe", "-v", "error", "-count_frames", "-select_streams", "v:0", "-show_entries",
                             "stream=nb_read_frames", "-of", "csv=p=0", str(t / "render.mp4")], capture_output=True, text=True).stdout
         assert int(n) == 300, n
@@ -1486,6 +1497,7 @@ def main():
         sync_renderer(edit)
         return speculate(edit, plan_path, plan, prepare_public(edit, plan, tag), tag)
     if laptop and adopt(edit, plan_path, plan, tag):
+        stamp(edit / f"render{tag}.mp4")
         return shutil.copy2(plan_path, edit / f"render{tag}.plan.json")
     if a.cmd in ("stills", "render", "patch"):   # the plan or the target changed: the background render is not this one
         review.drop_spec(edit)
@@ -1533,6 +1545,7 @@ def main():
         render_laptop(edit, plan_path, pub, edit / f"render{tag}{'-draft' if a.draft else ''}.mp4", a.draft)
     if a.cmd == "render" and not (a.draft or a.github):   # the plan this render was made from: patch diffs against it
         shutil.copy2(plan_path, edit / f"render{tag}.plan.json")
+        stamp(edit / f"render{tag}.mp4")
 
 
 if __name__ == "__main__":

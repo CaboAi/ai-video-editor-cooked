@@ -87,6 +87,7 @@ import argparse
 import base64
 import contextlib
 import difflib
+import filecmp
 import hashlib
 import hmac
 import io
@@ -761,6 +762,118 @@ def put_texts(folder, notes):
         ids = {r["id"] for r in rows}
         f.write_text(json.dumps({"items": [x for x in old if x.get("id") not in ids] + rows}, indent=1), encoding="utf-8")
     return len(rows)
+
+
+def typed_labels(folder):
+    """texts.json as plan.json's "label" texts (plan.py typed_texts does the same when Claude plans)."""
+    f = Path(folder) / "texts.json"
+    keep = ("text", "style", "start", "end", "x_pct", "y_pct", "size_pct")
+    return [{"kind": "label", "size_pct": TEXT_SIZE, **{k: x[k] for k in keep if k in x}}
+            for x in ((load(f).get("items") or []) if f.exists() else [])]
+
+
+def label_key(x):
+    return (str(x.get("text")), x.get("style"), *(round(float(x.get(k) or 0), 2) for k in ("start", "end", "x_pct", "y_pct")),
+            round(float(x.get("size_pct") or TEXT_SIZE), 1))
+
+
+def baked_texts(folder, d):
+    """The texts.json rows already in the video on the page (its plan, as the round snapshot or the last bake kept it):
+    the page draws the others live over the video until they are baked in."""
+    try:
+        plan = load(Path(folder) / "review" / Path(d["snap"]).name / Path(d["plan"]).name)
+    except (KeyError, TypeError, OSError, ValueError):
+        return []
+    have = {label_key(x) for x in plan.get("texts") or [] if x.get("kind") == "label"}
+    f = Path(folder) / "texts.json"
+    return [x["id"] for x in ((load(f).get("items") or []) if f.exists() else [])
+            if label_key({"size_pct": TEXT_SIZE, **x}) in have]
+
+
+def bake_ready(folder, d):
+    """Why the typed texts cannot go into this draft by themselves now (None: they can). A patch render needs the
+    edit's final render and the plan it was made from; while Claude has the round it plans them in itself."""
+    plan = Path(d.get("plan") or "-")
+    src = plan.with_name("render" + plan.stem[len("plan"):] + ".mp4")
+    return ("not the edit" if d.get("stage") != "edit" or d.get("stills") or d.get("raw") else
+            "Claude has this draft" if d.get("sent") or busy(folder) and not listening(folder) else   # waiting for notes: idle
+            "no plan" if not plan.is_file() or not plan.stem.startswith("plan") else
+            "no render to patch" if not src.is_file() or not src.with_suffix(".plan.json").is_file() else
+            "the render was finished by hand" if not render_stamped(src) else
+            "the draft is not the render" if not Path(d.get("video") or "-").is_file()
+            or Path(d["video"]).stat().st_size != src.stat().st_size else None)
+
+
+def render_stamped(src):
+    """render.mp4 is still the render edit.py made from the plan (its render.stamp.json): a patch keeps it whole. One
+    changed after (finish.sh overlays) would lose what was laid on it."""
+    try:
+        st, s = src.stat(), load(src.with_suffix(".stamp.json"))
+        return (s["size"], s["mtime_ns"]) == (st.st_size, st.st_mtime_ns)
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+BAKE = {}   # folder -> {"state": "waiting" | "working" | "done" | "failed" | "off", "why", "timer", "again"}
+BAKE_LOCK, BAKE_WAIT_S = threading.Lock(), 2.5   # seconds after the last text change before the render starts
+
+
+def bake_soon(folder):
+    """A text changed: bake the typed texts into the draft shortly (one patch render at a time per edit; a change made
+    while one runs starts another after it)."""
+    with BAKE_LOCK:
+        b = BAKE.setdefault(str(folder), {})
+        if b.get("state") == "working":
+            b["again"] = True
+            return
+        if b.get("timer"):
+            b["timer"].cancel()
+        b.update(state="waiting", why=None, timer=threading.Timer(BAKE_WAIT_S, bake, (folder,)))
+        b["timer"].daemon = True
+        b["timer"].start()
+
+
+def bake(folder, run=subprocess.run):
+    """The texts in texts.json into the draft the page shows, with no Claude: plan.json's label texts swapped for
+    them, `edit.py patch` re-renders those seconds into render.mp4, and the round's video and snapshot take it."""
+    folder, rj = Path(folder), Path(folder) / "review.json"
+    b = BAKE.setdefault(str(folder), {})
+    with BAKE_LOCK:
+        b.update(state="working", why=None, timer=None, again=False)
+    d = load(rj)
+    why = bake_ready(folder, d)
+    if why:
+        b.update(state="off", why=why)
+        return why
+    plan_f = Path(d["plan"])
+    p = load(plan_f)
+    p["texts"] = [x for x in p.get("texts") or [] if x.get("kind") != "label"] + typed_labels(folder)
+    plan_f.write_text(json.dumps(p, indent=1), encoding="utf-8")
+    r = run([sys.executable, str(EDIT_PY), "patch", str(folder), "--plan", plan_f.name], capture_output=True, text=True)
+    if r.returncode:
+        b.update(state="failed", why=((r.stderr or r.stdout).strip().splitlines() or ["the render stopped"])[-1])
+        return b["why"]
+    src = plan_f.with_name("render" + plan_f.stem[len("plan"):] + ".mp4")
+
+    def swap(d):
+        if d.get("sent") or d["stage"] != "edit" or Path(d.get("plan") or "-") != plan_f:   # Claude took it meanwhile
+            return
+        clone(src, Path(d["video"]))
+        shutil.copy2(plan_f, folder / "review" / Path(d["snap"]).name / plan_f.name)
+        old = data_of(folder, d.get("data"))
+        d["data"] = round_data(folder, d["video"], d["stage"], d["round"], d.get("plan"))
+        if old.get("changes") is not None:   # "Changed in this draft" stays the draft's, not the bake's
+            new = data_of(folder, d["data"])
+            new["changes"] = old["changes"]
+            (folder / "review" / d["data"]).write_text(json.dumps(new), encoding="utf-8")
+        d["baked"] = d.get("baked", 0) + 1
+    update(rj, swap)
+    with BAKE_LOCK:
+        b["state"] = "done"
+        if b.get("again"):
+            b["again"] = False
+            threading.Thread(target=bake_soon, args=(folder,), daemon=True).start()
+    return None
 
 
 def on_screen(plan, t):
@@ -1521,6 +1634,9 @@ def make_handler(folder, token):
                 d["sounds_ui"] = sounds_info() if d.get("stage") == "edit" else None   # the Sounds panel
                 d["captions_ui"] = captions_info(folder) if d.get("stage") == "edit" else None   # the Captions panel
                 d["texts"] = (load(folder / "texts.json").get("items") or []) if (folder / "texts.json").exists() else []   # the Text tab
+                d["texts_baked"] = baked_texts(folder, d) if d.get("stage") == "edit" else []   # the rest the page draws live
+                b = BAKE.get(str(folder)) or {}
+                d["bake"] = {"state": b.get("state"), "why": b.get("why")}   # putting the texts in the video
                 d["session_cmd"] = resume_cmd(last_claude(folder)) or (d.get("claude") or {}).get("resume") or ""   # Start's fallback
                 d["claude_ui"] = claude_state(folder)   # the Claude control: working, waiting, open or off
                 d["page"] = live.page_version(HTML, HTML.with_name("ask.js"))   # the tab reloads when this changes
@@ -1898,31 +2014,44 @@ def make_handler(folder, token):
                 card_override(folder, key, change)
                 return self.comment({"t": t, "t_end": te, "text": f"{what} {label} as shown on the page: overrides.json has it "
                                      f"(card {key}). Plan again so it shows."})
-            if path in ("/text/delete", "/text/edit"):   # the Text tab on a sent text: texts.json changes, and a note tells Claude
+            if path in ("/text/add", "/text/delete", "/text/edit"):   # the Text tool: texts.json changes on the spot and
+                # the page draws it at once; bake_soon puts it in the video with no Claude. Only while Claude has the
+                # round does a note tell it as well (it plans texts.json in itself)
                 d, f = load(rj), folder / "texts.json"
                 last = d["events"][-1]["type"] if d["events"] else None
                 if d.get("sent") and last not in ("send", "edits"):
                     return self.send(409, {"error": "This draft is approved."})
                 items = (load(f).get("items") or []) if f.exists() else []
-                x = next((i for i in items if i.get("id") == body.get("id")), None)
+                x = {"id": "t" + uuid.uuid4().hex[:8], "text": "", "style": "outline", "x_pct": 50, "y_pct": 40,
+                     "start": 0.0, "end": TEXT_HOLD_S} if path == "/text/add" else \
+                    next((i for i in items if i.get("id") == body.get("id")), None)
                 if not x:
                     return self.send(404, {"error": "That text is gone already."})
+                tell = lambda text, r=x: self.comment({"t": r["start"], "t_end": r["end"], "text": text}) if d.get("sent") else \
+                    self.send(200, {"ok": True, "id": r["id"]})
                 if path == "/text/delete":
                     f.write_text(json.dumps({"items": [i for i in items if i is not x]}, indent=1), encoding="utf-8")
-                    return self.comment({"t": x["start"], "t_end": x["end"], "text": f'Remove the on-screen text "{x["text"]}".'})
+                    bake_soon(folder)
+                    return tell(f'Remove the on-screen text "{x["text"]}".')
                 text = str(body.get("text") or x["text"]).strip()[:120]
+                if not text:
+                    return self.send(400, {"error": "Type the text first."})
                 try:
-                    new = {**x, "text": text, **text_look({**x, **{k: body[k] for k in ("style", "x_pct", "y_pct") if k in body}})}
+                    new = {**x, "text": text, **text_look({**x, **{k: body[k] for k in ("style", "x_pct", "y_pct", "size_pct") if k in body}})}
                     if body.get("start") is not None:
                         new["start"] = round(max(0.0, float(body["start"])), 2)
                         new["end"] = round(max(new["start"] + 0.1, float(body.get("end") or new["start"] + TEXT_HOLD_S)), 2)
                 except (ValueError, TypeError) as e:
                     return self.send(400, {"error": str(e) or "no time"})
-                f.write_text(json.dumps({"items": [new if i is x else i for i in items]}, indent=1), encoding="utf-8")
-                what = [w for w, k in (("words", "text"), ("look", "style"), ("place", "x_pct"), ("place", "y_pct"), ("time", "start")) if new[k] != x[k]]
-                return self.comment({"t": new["start"], "t_end": new["end"],
-                                  "text": f'Change the on-screen text "{x["text"]}" ({", ".join(dict.fromkeys(what)) or "no change"}): '
-                                          f'texts.json has it now as "{text}". Plan again so it shows.'})
+                f.write_text(json.dumps({"items": [new if i is x else i for i in items] + ([new] if path == "/text/add" else [])},
+                                        indent=1), encoding="utf-8")
+                bake_soon(folder)
+                if path == "/text/add":
+                    return tell(f'Add the on-screen text "{text}": texts.json has it. Plan again so it shows.', new)
+                what = [w for w, k in (("words", "text"), ("look", "style"), ("place", "x_pct"), ("place", "y_pct"),
+                                       ("size", "size_pct"), ("time", "start")) if new.get(k) != x.get(k)]
+                return tell(f'Change the on-screen text "{x["text"]}" ({", ".join(dict.fromkeys(what)) or "no change"}): '
+                            f'texts.json has it now as "{text}". Plan again so it shows.', new)
             if path == "/delete":
                 def rm(d):
                     d["comments"] = [c for c in d["comments"] if not (c["id"] == body.get("id") and editable(d, c))]
@@ -3339,6 +3468,46 @@ def demo_timings(tmp):
     assert not list(f.glob("render.spec*")), "drop_spec leaves nothing behind"
 
 
+def demo_bake(tmp):
+    """bake: the typed texts go into plan.json and the draft by a patch render (faked here), with no Claude."""
+    f = tmp / "bake"
+    (f / "review" / "snap-edit1").mkdir(parents=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=64x36:r=30:d=2", "-c:v", "libx264",
+                    "-pix_fmt", "yuv420p", str(f / "render.mp4")], check=True)
+    plan = {"fps": 30, "durationInFrames": 60, "width": 64, "height": 36, "texts": [{"kind": "title", "text": "T", "start": 0, "end": 1}]}
+    for p in (f / "plan.json", f / "render.plan.json", f / "review" / "snap-edit1" / "plan.json"):
+        p.write_text(json.dumps(plan), encoding="utf-8")
+    clone(f / "render.mp4", f / "review" / "v-edit1.mp4")
+    save(f / "review.json", {"stage": "edit", "round": 1, "sent": False, "stills": False, "events": [], "comments": [],
+                             "plan": str(f / "plan.json"), "snap": "snap-edit1", "video": str(f / "review" / "v-edit1.mp4")})
+    (f / "texts.json").write_text(json.dumps({"items": [{"id": "t1", "text": "hi", "style": "box", "start": 0.5, "end": 1.5,
+                                                         "x_pct": 50, "y_pct": 30, "size_pct": 8}]}), encoding="utf-8")
+    d = load(f / "review.json")
+    stamp = lambda: (f / "render.stamp.json").write_text(json.dumps({"size": (f / "render.mp4").stat().st_size,
+                                                                     "mtime_ns": (f / "render.mp4").stat().st_mtime_ns}))
+    assert bake_ready(f, d) == "the render was finished by hand", "no stamp: never patched over"
+    assert bake(f) == "the render was finished by hand" and BAKE[str(f)]["state"] == "off"
+    stamp()
+    assert baked_texts(f, d) == [] and bake_ready(f, d) is None, bake_ready(f, d)
+    ran = []
+
+    def fake(cmd, **k):   # the patch render: blue frames
+        ran.append(cmd[2:])
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:s=64x36:r=30:d=2", "-c:v", "libx264",
+                        "-pix_fmt", "yuv420p", str(f / "render.mp4")], check=True)
+        shutil.copy2(f / "plan.json", f / "render.plan.json")
+        stamp()
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+    assert bake(f, run=fake) is None and ran == [["patch", str(f), "--plan", "plan.json"]], ran
+    p = load(f / "plan.json")
+    assert [x["kind"] for x in p["texts"]] == ["title", "label"] and p["texts"][1]["size_pct"] == 8, p["texts"]
+    d = load(f / "review.json")
+    assert d["baked"] == 1 and baked_texts(f, d) == ["t1"] and BAKE[str(f)]["state"] == "done", d
+    assert filecmp.cmp(f / "render.mp4", d["video"], shallow=False), "the round's video is the patched render"
+    update(f / "review.json", lambda d: d.update(sent=True))
+    assert bake(f, run=fake) == "Claude has this draft" and len(ran) == 1
+
+
 def demo():
     import contextlib
     import io
@@ -3346,6 +3515,7 @@ def demo():
     tmp = Path(tempfile.mkdtemp(prefix="review_demo_"))
     os.environ["AI_EDITOR_HOME"] = str(tmp / "home")   # start records the folder in the library index there
     demo_timings(tmp)
+    demo_bake(tmp)
     # notes sent with no Claude on the edit: a new one opens in the library to carry on; never twice, never over a listener
     import launcher
     opened = []
@@ -3705,14 +3875,20 @@ def demo():
     # the Text tab: a text not sent yet changes in place (words, look, place, time)
     c6 = post("/edit", {"id": c6["id"], "text": "wait for it!", "add_text": {"style": "outline", "x_pct": 40, "y_pct": 30}, "t": 2.5, "t_end": 6})
     assert (c6["text"], c6["add_text"]["style"], c6["add_text"]["x_pct"], c6["t"], c6["t_end"]) == ("wait for it!", "outline", 40.0, 2.5, 6.0), c6
-    # a sent one (texts.json): Edit changes its row and leaves a note, Delete takes it out and leaves a note
+    # a typed one (texts.json): Add, Edit and Delete change it on the spot, with no note (Claude does not have the round)
     (folder / "texts.json").write_text(json.dumps({"items": [{"id": "edit1-99", "text": "hi there", "style": "plain", "start": 1.0,
                                                               "end": 4.0, "x_pct": 50, "y_pct": 40, "size_pct": 6}]}), encoding="utf-8")
     assert [x["id"] for x in json.loads(get("/state").read())["texts"]] == ["edit1-99"]
     ch = post("/text/edit", {"id": "edit1-99", "text": "hello there", "style": "box", "x_pct": 30, "start": 2, "end": 5})
     row = load(folder / "texts.json")["items"][0]
     assert (row["text"], row["style"], row["x_pct"], row["y_pct"], row["start"], row["end"]) == ("hello there", "box", 30.0, 40.0, 2.0, 5.0), row
-    assert ch["text"].startswith('Change the on-screen text "hi there" (words, look, place, time)') and ch["t"] == 2.0, ch
+    assert ch == {"ok": True, "id": "edit1-99"} and not any("on-screen text" in c["text"] for c in load(folder / "review.json")["comments"]), ch
+    nt = post("/text/add", {"text": "new one", "style": "plain", "x_pct": 50, "y_pct": 60, "size_pct": 9, "start": 3, "end": 4})
+    row = load(folder / "texts.json")["items"][-1]
+    assert row["id"] == nt["id"] and (row["text"], row["size_pct"], row["start"], row["end"]) == ("new one", 9.0, 3.0, 4.0), row
+    st = json.loads(get("/state").read())
+    assert st["bake"]["state"] in ("waiting", "working", "off") and st["texts_baked"] == [], st["bake"]
+    post("/text/delete", {"id": nt["id"]})
     # the Captions panel: words at a time and the look, saved for this video only, with a note each
     from ai_editor import taste as _taste
     cc1 = post("/captions", {"words": "sentence"})
@@ -3823,9 +3999,7 @@ def demo():
         except urllib.error.HTTPError as e:
             assert e.code == 404, bad
     gone = post("/text/delete", {"id": "edit1-99"})
-    assert not load(folder / "texts.json")["items"] and gone["text"] == 'Remove the on-screen text "hello there".', gone
-    for x in (ch, gone):
-        post("/delete", {"id": x["id"]})
+    assert not load(folder / "texts.json")["items"] and gone == {"ok": True, "id": "edit1-99"}, gone
     # a note that reads as a lasting preference is offered as a rule, ticked; the user can untick it
     assert looks_like_rule("Too many zooms") and looks_like_rule("I prefer bigger captions") and not looks_like_rule("cut the um at 0:12")
     c5 = post("/comment", {"t": 2.0, "text": "always use fewer zooms"})

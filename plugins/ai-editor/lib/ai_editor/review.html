@@ -933,8 +933,8 @@ function setVideo(){
   if(previewOn&&!canPreview())previewOn=false;
   if(previewOn){mode='watch'}
   document.body.classList.toggle('preview',previewOn);
-  const k=previewOn?'raw':key(view)+'|'+alt;if(k!==loaded){const t=seekTo??(loaded.split('|')[0]===key(view)?v.currentTime:0);seekTo=null;loaded=k;
-    v.src=previewOn?'/video?k=raw':'/video?k='+key(view)+'&alt='+encodeURIComponent(alt);v.playbackRate=speed;if(t)v.addEventListener('loadedmetadata',()=>v.currentTime=Math.min(t,v.duration||t),{once:true})}
+  const k=previewOn?'raw':key(view)+'|'+alt+'|'+(S.baked||0);if(k!==loaded){const t=seekTo??(loaded.split('|')[0]===key(view)?v.currentTime:0);seekTo=null;loaded=k;
+    v.src=previewOn?'/video?k=raw':'/video?k='+key(view)+'&alt='+encodeURIComponent(alt)+'&b='+(S.baked||0);v.playbackRate=speed;if(t)v.addEventListener('loadedmetadata',()=>v.currentTime=Math.min(t,v.duration||t),{once:true})}
   const opts=cmpOptions();
   if(mode==='compare'&&!opts.length)mode='watch';
   if(mode==='compare'&&(!cmp||!opts.some(o=>o.k===cmp.k&&o.alt===cmp.alt)))cmp=opts.find(o=>o.k!==key(view))||opts[0];
@@ -1942,7 +1942,7 @@ function openPanel(on){openTool(on?'text':null)}
 function setText(style,edit){
   if(!style){tx=null}
   else{const[a,b]=noteSpan(),t0=edit?edit.start:a;
-    tx={style,x:edit?edit.x_pct:(tx&&tx.x)||50,y:edit?edit.y_pct:(tx&&tx.y)||40,word:edit?edit.text:tword(),
+    tx={style,x:edit?edit.x_pct:(tx&&tx.x)||50,y:edit?edit.y_pct:(tx&&tx.y)||40,size:edit?edit.size_pct:(tx&&tx.size)||TEXT_SIZE,word:edit?edit.text:tword(),
         start:t0,end:edit?edit.end:(b??Math.min(t0+3,v.duration||t0+3)),edit:edit||(tx&&tx.edit)||null};
     if(!tpanel)openPanel(true);
     if(!(v.currentTime>=tx.start&&v.currentTime<tx.end))v.currentTime=tx.start+.05}
@@ -1960,6 +1960,7 @@ function renderTextPanel(){
   const f=$('tform'),sig=tx?(tx.edit?'e'+tx.edit.id:'n'):'';
   if(l._tf!==sig){l._tf=sig;f.innerHTML=tx?`<div class="tnew">${tx.edit?'<b>Change this text</b>':'<b>New text</b>'}<input id="tword" placeholder="Type your text" maxlength="120" aria-label="the text" value="${esc(tx.word||'')}">
     <div class="ttime"><b id="tspan"></b><button id="tstart" title="Start at the playhead">Start here</button><button id="tend" title="End at the playhead">End here</button></div>
+    <div class="ttime"><b>Size</b><input type="range" id="tsize" min="2" max="20" step="0.5" value="${tx.size}" aria-label="text size"></div>
     <div class="row"><span>Drag it on the video</span></div>
     <div class="row">${tx.edit?'<button id="tdel">Delete</button>':'<span></span>'}<button id="tcancel">Cancel</button><button id="tadd" ${tword()?'':'disabled'}>${tx.edit?'Save':'Add text'}</button></div></div>`:''}
   if(tx&&$('tspan'))$('tspan').textContent=fmtx(tx.start)+' – '+fmtx(tx.end);
@@ -1968,12 +1969,17 @@ function renderTextPanel(){
     :`<div class="titem${on(x)?' on':''}" data-tedit="${esc(String(x.id))}" data-fresh="${x.fresh?1:''}" title="Click to change it"><div><b>${esc(x.text)}</b><span>${TSTY[x.style]||x.style} · ${fmtx(x.start)}–${fmtx(x.end)}</span></div><button data-tdel="${esc(String(x.id))}" data-fresh="${x.fresh?1:''}">Delete</button></div>`;
   const nw=all.filter(x=>x.fresh),old=all.filter(x=>!x.fresh);
   const h=(nw.length?`<h4>Not sent yet</h4>${nw.map(row).join('')}`:'')+(old.length?`<h4>On the video</h4>${old.map(row).join('')}`:'')
-    +(all.length||tx?'':'<p class="tsub">No text yet. Pick a look to add one. Click any text on the video to change it.</p>');
+    +(all.length||tx?'':'<p class="tsub">No text yet. Pick a look to add one. Click any text on the video to change it.</p>')+bakeLine();
   if($('trows')._h!==h){$('trows')._h=h;$('trows').innerHTML=h}}
+// where the typed texts are: drawn on the page at once, then put into the video file by a patch render (review.py bake)
+function bakeLine(){const b=(S&&S.bake)||{},live=(S.texts||[]).some(x=>!(S.texts_baked||[]).includes(x.id));
+  const m=b.state==='waiting'||b.state==='working'?'Putting your text into the video...':b.state==='failed'?`It shows here but did not go into the video: ${b.why}. Claude adds it with the next draft.`
+    :live&&b.state==='off'?(b.why==='Claude has this draft'?'Claude adds it to the draft it is making.':'It goes into the video with the next render.'):'';
+  return m?`<p class="tsub">${esc(m)}</p>`:''}
 function editText(id,fresh){const x=textItems().find(x=>String(x.id)===String(id)&&!!x.fresh===!!fresh);if(!x)return;
-  inT=outT=null;renderBar();setText(x.style,{id:x.id,fresh:x.fresh,text:x.text,x_pct:x.x_pct??50,y_pct:x.y_pct??40,start:x.start,end:x.end})}
+  inT=outT=null;renderBar();setText(x.style,{id:x.id,fresh:x.fresh,text:x.text,x_pct:x.x_pct??50,y_pct:x.y_pct??40,size_pct:x.size_pct??TEXT_SIZE,start:x.start,end:x.end})}
 async function delText(id,fresh){const r=fresh?await post('/delete',{id:+id}):await post('/text/delete',{id});
-  if(tx&&tx.edit&&String(tx.edit.id)===String(id))setText(null);toast(fresh?'Text deleted':r.error||'Text deleted. The next draft drops it.');await load()}
+  if(tx&&tx.edit&&String(tx.edit.id)===String(id))setText(null);toast(r.error||'Text deleted');await load()}
 $('railtext').onclick=()=>openTool(tool==='text'?null:'text');$('railcap').onclick=()=>openTool(tool==='captions'?null:'captions');$('railsnd').onclick=()=>openTool(tool==='sounds'?null:'sounds');$('tclose').onclick=()=>openTool(null);$('tplus').onclick=()=>setText('outline');
 $('tbody').addEventListener('click',async e=>{
   const st=e.target.closest('#ttiles [data-ts]');if(st){if(tx){tx.style=st.dataset.ts;tsig=null;renderTextPanel();renderTexts()}else setText(st.dataset.ts);return}
@@ -1986,7 +1992,8 @@ $('tbody').addEventListener('click',async e=>{
   const d=e.target.closest('[data-tdel]');if(d){e.stopPropagation();d.disabled=true;return delText(d.dataset.tdel,!!d.dataset.fresh)}
   const ed=e.target.closest('[data-tedit]');if(ed)return editText(ed.dataset.tedit,ed.dataset.fresh);
   const sk=e.target.closest('[data-tseek]');if(sk){v.currentTime=+sk.dataset.tseek;v.pause()}});
-$('tbody').addEventListener('input',e=>{if(e.target.id==='tword'){tx.word=e.target.value;$('tadd').disabled=!tword();renderTexts()}});
+$('tbody').addEventListener('input',e=>{if(e.target.id==='tword'){tx.word=e.target.value;$('tadd').disabled=!tword();renderTexts()}
+  if(e.target.id==='tsize'){tx.size=+e.target.value;renderTexts()}});
 $('tbody').addEventListener('keydown',e=>{if(e.target.id!=='tword')return;e.stopPropagation();if(e.key==='Enter'){e.preventDefault();saveText()}if(e.key==='Escape')setText(null)});
 // the Captions panel: how many words show at a time (1, 3, 5 or a sentence) and the look (the caption presets, drawn in
 // their own look). A choice is saved for this video (POST /captions, taste "this video only", which plan.py reads) with a
@@ -2055,25 +2062,26 @@ $('sndfile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f||!sn
   const rd=new FileReader();rd.onload=async()=>{const r=await post('/sound/add',{cue:sndFor,name:f.name,data:rd.result});
     if(!r.ok&&!r.id)return toast(r.error||'That did not save.');toast(`Added ${f.name}. It plays for that moment now.`);$('sbody')._s=null;await load();sndPlay(sndFor,f.name.replace(/[^A-Za-z0-9._ -]/g,'').trim())};rd.readAsDataURL(f)};
 async function saveText(){const text=tword();if(!tx||!text)return;
-  const look={style:tx.style,x_pct:tx.x,y_pct:tx.y},ed=tx.edit,t={start:Math.round(tx.start*100)/100,end:Math.round(tx.end*100)/100};
+  const look={style:tx.style,x_pct:tx.x,y_pct:tx.y,size_pct:tx.size},ed=tx.edit,t={start:Math.round(tx.start*100)/100,end:Math.round(tx.end*100)/100};
   let r;
-  if(!ed)r=await post('/comment',{t:t.start,t_end:t.end,text,images:[],alt:alt||null,add_text:look});
+  if(!ed)r=await post('/text/add',{text,...look,...t});
   else if(ed.fresh)r=await post('/edit',{id:ed.id,text,add_text:look,t:t.start,t_end:t.end});
   else r=await post('/text/edit',{id:ed.id,text,...look,...t});
   if(!r||!(r.id||r.ok))return toast((r&&r.error)||'That did not save.');
-  inT=outT=null;renderBar();setText(null);toast(!ed?'Text added. Submit feedback to send it to Claude.':ed.fresh?'Text changed. Submit feedback to send it.':'Text changed. Submit feedback and the next draft shows it.');await load()}
+  inT=outT=null;renderBar();setText(null);toast(ed&&ed.fresh?'Text changed. Submit feedback to send it.':ed?'Text changed.':'Text added.');await load()}
 function renderTexts(){
-  const L=$('tlayer'),fs=Math.min(L.offsetWidth,L.offsetHeight)*TEXT_SIZE/100,t=v.currentTime,edit=!!(S&&view&&view.stage==='edit');
+  const L=$('tlayer'),fs=sz=>Math.min(L.offsetWidth,L.offsetHeight)*(sz||TEXT_SIZE)/100,t=v.currentTime,edit=!!(S&&view&&view.stage==='edit');
   $('railtext').hidden=$('railcap').hidden=$('railsnd').hidden=$('railtools').hidden=!edit;if(!edit&&tool)openTool(null);
   if(tpanel)renderTextPanel();if(tool==='captions')renderCapPanel();if(tool==='sounds')renderSndPanel();
-  const one=(a,text,id,k)=>`<div class="tl"${id?` id="${id}"`:''}${k?` data-tclick="${esc(k)}"`:''} style="left:${a.x_pct}%;top:${a.y_pct}%;font-size:${fs}px"><span class="ts-${a.style}">${esc(text)}</span></div>`;
-  const editing=tx&&tx.edit&&tx.edit.fresh?tx.edit.id:null;
+  const one=(a,text,id,k)=>`<div class="tl"${id?` id="${id}"`:''}${k?` data-tclick="${esc(k)}"`:''} style="left:${a.x_pct}%;top:${a.y_pct}%;font-size:${fs(a.size_pct)}px"><span class="ts-${a.style}">${esc(text)}</span></div>`;
+  const editing=tx&&tx.edit&&tx.edit.fresh?tx.edit.id:null,moving=tx&&tx.edit&&!tx.edit.fresh?String(tx.edit.id):null,baked=S&&S.texts_baked||[];
   const html=(edit&&!cmp?S.comments.filter(c=>c.add_text&&c.id!==editing&&c.stage===view.stage&&c.round===view.round&&c.t<=t&&t<c.t_end&&onAlt(c)):[]).map(c=>one(c.add_text,c.text,'','f'+c.id)).join('')
-    +(tx?one({style:tx.style,x_pct:tx.x,y_pct:tx.y},tword()||'Type your text','tprev'):'');
+    +(edit&&!cmp&&isCur()?(S.texts||[]).filter(x=>x.start<=t&&t<x.end&&!baked.includes(x.id)&&String(x.id)!==moving).map(x=>one(x,x.text,'','s'+x.id)).join(''):'')   // typed, not in the video yet
+    +(tx?one({style:tx.style,x_pct:tx.x,y_pct:tx.y,size_pct:tx.size},tword()||'Type your text','tprev'):'');
   if(html!==tsig){tsig=html;L.innerHTML=html}}
 new ResizeObserver(()=>{tsig=null;renderTexts()}).observe($('tlayer'));
 $('tlayer').addEventListener('pointerdown',e=>{
-  const k=e.target.closest('[data-tclick]');if(k&&!tx){e.preventDefault();editText(k.dataset.tclick.slice(1),true);return}   // a text not sent yet: click it to change it
+  const k=e.target.closest('[data-tclick]');if(k&&!tx){e.preventDefault();editText(k.dataset.tclick.slice(1),k.dataset.tclick[0]==='f');return}   // a text drawn live: click it to change it
   const el=e.target.closest('#tprev');if(!el||!tx)return;e.preventDefault();el.setPointerCapture(e.pointerId);
   const vert=v.videoHeight>v.videoWidth,mv=ev=>{const r=$('tlayer').getBoundingClientRect(),cl=(n,a,b)=>Math.round(Math.min(b,Math.max(a,n))*10)/10;
     tx.x=cl((ev.clientX-r.left)/r.width*100,vert?20:12,vert?73:88);tx.y=cl((ev.clientY-r.top)/r.height*100,vert?16:8,vert?72:92);   // reels: inside the safe zone

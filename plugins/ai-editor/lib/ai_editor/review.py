@@ -3484,7 +3484,7 @@ def demo_bake(tmp):
                                                          "x_pct": 50, "y_pct": 30, "size_pct": 8}]}), encoding="utf-8")
     d = load(f / "review.json")
     stamp = lambda: (f / "render.stamp.json").write_text(json.dumps({"size": (f / "render.mp4").stat().st_size,
-                                                                     "mtime_ns": (f / "render.mp4").stat().st_mtime_ns}))
+                                                                     "mtime_ns": (f / "render.mp4").stat().st_mtime_ns}), encoding="utf-8")
     assert bake_ready(f, d) == "the render was finished by hand", "no stamp: never patched over"
     assert bake(f) == "the render was finished by hand" and BAKE[str(f)]["state"] == "off"
     stamp()

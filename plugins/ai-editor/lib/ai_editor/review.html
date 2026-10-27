@@ -182,7 +182,7 @@ video{width:100%;height:100%;display:block;object-fit:contain;background:var(--f
 .hits .hit{position:absolute;pointer-events:auto;cursor:pointer;border-radius:6px;padding:0;background:none}
 .player:hover .hits .hit{outline:1px dashed rgba(255,255,255,.5);outline-offset:-1px}
 .hits .hit:hover,.hits .hit:focus-visible{outline:2px solid #FFFFFF;outline-offset:-1px;box-shadow:inset 0 0 0 3px rgba(0,0,0,.35)}
-.hits .hit span{display:none;position:absolute;left:6px;top:6px;padding:3px 8px;border-radius:6px;background:var(--pill);color:var(--pilltx);font-size:12px;line-height:16px;font-weight:500;white-space:nowrap}
+.hits .hit span{display:none;position:absolute;left:4px;top:4px;max-width:calc(100% - 8px);overflow:hidden;text-overflow:ellipsis;padding:3px 8px;border-radius:6px;background:var(--pill);color:var(--pilltx);font-size:12px;line-height:16px;font-weight:500;white-space:nowrap}
 .hits .hit:hover span,.hits .hit:focus-visible span{display:block}
 .hits .ztag{right:10px;top:10px;height:24px;padding:0 9px;border-radius:6px;background:rgba(12,10,9,.55);color:#FFFFFF;font-size:12px;font-weight:500;opacity:0;transition:opacity .15s}
 .player:hover .hits .ztag,.hits .ztag:focus-visible{opacity:1;outline:0}
@@ -497,10 +497,11 @@ body.tside #tside{display:flex}
 .csel i{position:absolute;width:12px;height:12px;margin:-6px;border-radius:3px;background:#FFFFFF;border:1px solid #0C0A09}
 .csel [data-h=nw]{left:0;top:0;cursor:nwse-resize}.csel [data-h=ne]{right:0;top:0;cursor:nesw-resize}.csel [data-h=sw]{left:0;bottom:0;cursor:nesw-resize}.csel [data-h=se]{right:0;bottom:0;cursor:nwse-resize}
 .cwas{position:absolute;pointer-events:none;outline:1px dashed rgba(255,255,255,.75);background:rgba(12,10,9,.55);display:grid;place-items:center}
-.cwas span{font-size:11px;line-height:14px;color:#FFFFFF;background:rgba(12,10,9,.7);padding:2px 6px;border-radius:5px}
-.cbar{position:absolute;pointer-events:auto;display:flex;gap:4px;margin-top:8px;padding:4px;border-radius:10px;background:var(--pill);box-shadow:var(--pop);white-space:nowrap}
-.cbar.up{transform:translateY(calc(-100% - 16px))}
-.cbar button{height:28px;padding:0 10px;border-radius:7px;font-size:12px;font-weight:600;color:var(--pilltx)}.cbar button:hover{background:rgba(255,255,255,.12)}
+.cwas span{font-size:11px;line-height:14px;color:#FFFFFF;background:rgba(12,10,9,.7);padding:2px 6px;border-radius:5px;white-space:nowrap;max-width:calc(100% - 8px);overflow:hidden;text-overflow:ellipsis}
+.cbar{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);pointer-events:auto;display:flex;gap:2px;padding:3px;border-radius:10px;background:var(--pill);box-shadow:var(--pop);white-space:nowrap;max-width:calc(100% - 12px)}
+#clayer,#hits,#tlayer{-webkit-user-select:none;user-select:none}
+.cnew{position:absolute;pointer-events:none;outline:1px dashed rgba(255,255,255,.8)}.cnew img{width:100%;height:100%;object-fit:contain;display:block}
+.cbar button{height:26px;padding:0 8px;border-radius:7px;font-size:12px;line-height:26px;font-weight:600;color:var(--pilltx)}.cbar button:hover{background:rgba(255,255,255,.12)}
 .cbar button.go{background:#FFFFFF;color:#0C0A09}.cbar button:disabled{opacity:.4}
 .tl[data-tclick]{pointer-events:auto;cursor:pointer}.tl[data-tclick]:hover{outline:1px dashed rgba(255,255,255,.8);outline-offset:4px}
 #tprev{pointer-events:auto;cursor:move;touch-action:none;outline:1px dashed rgba(255,255,255,.8);outline-offset:4px}
@@ -890,6 +891,7 @@ async function load(force){
   if((d.theme==='light'||d.theme==='dark')&&document.documentElement.dataset.theme!==d.theme&&Date.now()-themeAt>3000){document.documentElement.dataset.theme=d.theme;themeIcon()}   // one theme with the window
   if(!view||followNew&&was!==key(cur())||(was&&was!==key(cur())&&key(view)===was)){if(view&&was&&was!==key(cur())&&v.currentTime>0)seekTo=mapT(v.currentTime,key(view),key(cur()));   // the new draft opens where you were, not at 0
     view=cur();followNew=false;if(was&&was!==key(cur()))tab='notes'}   // follow a new round when it lands
+  if(S.baked&&S.baked!==DATA._baked){DATA._baked=S.baked;delete DATA[key(S)]}   // a bake remade this round's data (cards moved)
   for(const r of S.rounds||[])if(!(key(r) in DATA)){DATA[key(r)]=null;fetch('/data?k='+key(r)).then(x=>x.json()).then(j=>{DATA[key(r)]=j;txSig='';render()}).catch(()=>{})}
   setVideo();render();
   if(landing===2){landing=0;toast(S.stills?'The preview is ready':'The edit is ready')}
@@ -1055,7 +1057,7 @@ function render(){
   ta.placeholder=onTr?`Note on ${alt} at this moment...`:previewOn?'Back to the cut to leave a note':p==='send'?(S.raw?'Note for the cut...':'Note for the next draft...'):!isCur()?'Older draft, read only':p==='approve'?(S.stills?'The preview is approved':S.stage==='cut'&&!S.final?'The cut is approved':'Approved'):view.round>1?'Feedback on '+dn(viewRound())+' at this moment...':'Type feedback for this moment...';
   const sc=$('scope');sc.style.display=nv&&canNote&&!onTr?'block':'none';
   if(nv)sc.innerHTML=`<option value="">${esc(lab(alt))} only</option><option value="*">${nv===1?'Both':'All'} versions</option>`;
-  renderVer();renderTx();renderBar();renderTracks();renderEdTracks();renderList();renderAdds();boxTime();hitSig='~';renderHits();
+  renderVer();renderTx();renderBar();renderTracks();renderEdTracks();renderList();renderAdds();boxTime();hitSig='~';renderHits();if(!csel)drawPending();
 }
 const noteOk=()=>!!S&&isCur()&&pending()!=='approve'&&!previewOn;   // the composer is open (while Claude works a note waits)
 function meta(){   // "Round 1 · 31s ago", ticked every few seconds so the age stays true
@@ -1799,7 +1801,7 @@ function tick(){const T=D(),t=v.currentTime,p=Math.min(100,t/T*100);
   document.querySelectorAll('#ticks span[data-s]').forEach((el,i,all)=>el.classList.toggle('cur',t>=+el.dataset.s&&(!all[i+1]||t<+all[i+1].dataset.s)));
   document.querySelectorAll('.track .ph').forEach(el=>el.style.left=p+'%');
   $('time').innerHTML=`<b>${fmtx(t)}</b><span>/ ${fmt(v.duration||0)}</span>`;
-  $('fsfill').style.width=$('fsknob').style.left=p+'%';$('fstime').innerHTML=`<b>${fmtx(t)}</b> / ${fmt(v.duration||0)}`;tfollow();tickTx();renderHits();renderTexts();edPh()}
+  $('fsfill').style.width=$('fsknob').style.left=p+'%';$('fstime').innerHTML=`<b>${fmtx(t)}</b> / ${fmt(v.duration||0)}`;tfollow();tickTx();renderHits();renderTexts();if(!csel)drawPending();edPh()}
 v.addEventListener('timeupdate',tick);v.addEventListener('seeked',tick);
 const at=e=>{const r=bar.getBoundingClientRect();return Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))*(v.duration||0)};
 bar.addEventListener('pointerdown',e=>{dragging=true;bar.setPointerCapture(e.pointerId);v.currentTime=at(e);tick()});
@@ -1820,7 +1822,7 @@ function renderHits(){
     ...(it.zooms||[]).filter(on).map(x=>({k:'zooms',x}))];
   const sig=up.map(u=>u.k+u.x.s).join();if(sig===hitSig)return;hitSig=sig;HITS=up;
   $('hits').innerHTML=up.map((u,i)=>u.k==='zooms'?`<button class="hit ztag" data-hit="${i}" title="${esc(lead(u.k,u.x))}click to leave a note">Zoom</button>`
-    :`<button class="hit" data-hit="${i}" aria-label="${esc(lead(u.k,u.x))}leave a note" style="left:${u.box[0]}%;top:${u.box[1]}%;width:${u.box[2]}%;height:${u.box[3]}%"><span>${u.k==='texts'?TK[u.x.kind]||'Text':HL[u.k]} · click to ${u.k==='cards'?'move, resize or delete':'note'}</span></button>`).join('');
+    :`<button class="hit" data-hit="${i}" aria-label="${esc(lead(u.k,u.x))}leave a note" style="left:${u.box[0]}%;top:${u.box[1]}%;width:${u.box[2]}%;height:${u.box[3]}%"><span>${u.k==='texts'?TK[u.x.kind]||'Text':HL[u.k]}</span></button>`).join('');
 }
 let noteOn=null;   // what the user clicked to start this note: the note is tagged with it, not with whatever else is on screen
 function startNote(text,a,b,on){
@@ -1832,22 +1834,34 @@ $('hits').addEventListener('click',e=>{const b=e.target.closest('[data-hit]');if
  if(u&&u.k==='cards'&&u.x.key)return selectCard(u.x);
  if(u&&u.k==='captions'&&(u.x.w||[]).length)return openCapLine(u.x);   /* a caption: edit its words in the Captions panel */   /* a card: select it to move, resize or delete it */
  if(u)startNote(lead(u.k,u.x),u.x.s,u.x.e,{k:u.k,text:u.x.text||u.x.label||''})});
-// a card on the video: click it to select it. Drag it to move it, a corner to resize it (a picture keeps its shape), then
-// Save; or Delete it, or leave a Note about it. Save and Delete go into overrides.json (POST /card/edit), which plan.py
-// applies, with a note so Claude plans again. The picture shows at its new place until the next draft is made.
+// a card on the video: click it to select it. Drag it to move it, a corner to resize it (a picture keeps its shape): it
+// saves when you let go (POST /card/edit into overrides.json) and review.py bakes it into the video by itself. Reset puts
+// it back, Delete takes it out, Note leaves a note about it. Until the bake, the page draws it at its new place
+// (S.cards_pending) over its old spot.
 let csel=null;   // {x: the card (review.py screen_items), box, orig} in % of the frame
-function selectCard(x){if(!noteOk())return;v.pause();csel={x,box:x.box.slice(),orig:x.box.slice()};drawCard()}
+function selectCard(x){if(!noteOk())return;v.pause();const p=(S.cards_pending||[]).find(p=>p.key===x.key&&p.box),b=p?p.box:x.box;
+  csel={x,box:b.slice(),orig:b.slice(),saved:!!p};drawCard()}
 const cmoved=()=>!!csel&&csel.box.some((q,i)=>Math.abs(q-csel.orig[i])>.2);
-function drawCard(){const L=$('clayer');if(!csel){L.innerHTML='';return}
-  const[x,y,w,h]=csel.box,[ox,oy,ow,oh]=csel.orig,mv=cmoved(),low=y+h>82;
-  L.innerHTML=(mv?`<div class="cwas" style="left:${ox}%;top:${oy}%;width:${ow}%;height:${oh}%"><span>Was here</span></div>`:'')
-    +`<div class="csel" id="csel" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${csel.x.src&&mv?`<img src="/card-img/${csel.x.src.split('/').map(encodeURIComponent).join('/')}" alt="">`:''}${['nw','ne','sw','se'].map(k=>`<i data-h="${k}"></i>`).join('')}</div>
-    <div class="cbar${low?' up':''}" style="left:${x}%;top:${low?y:y+h}%"><button data-c="del">Delete</button><button data-c="note">Note</button><button data-c="cancel">Cancel</button><button data-c="save" class="go"${mv?'':' disabled'}>Save</button></div>`}
-async function cardSave(del){const c=csel;if(!c)return;
-  const r=await post('/card/edit',{key:c.x.key,label:c.x.label,t:c.x.s,t_end:c.x.e,...(del?{deleted:true}:{box:c.box})});
-  if(!r.id)return toast(r.error||'That did not save.');csel=null;drawCard();toast(del?'Card deleted. Submit feedback and the next draft drops it.':'Card moved. Submit feedback and the next draft shows it.');await load()}
+function drawCard(){const L=$('clayer');if(!csel){drawPending();return}
+  const[x,y,w,h]=csel.box,[ox,oy,ow,oh]=csel.x.box,mv=cmoved(),sh=csel.box.some((q,i)=>Math.abs(q-csel.x.box[i])>.2);   // sh: not where the video has it
+  L._s=null;L.innerHTML=(sh?`<div class="cwas" style="left:${ox}%;top:${oy}%;width:${ow}%;height:${oh}%"><span>Was here</span></div>`:'')
+    +`<div class="csel" id="csel" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${csel.x.src&&sh?`<img src="/card-img/${csel.x.src.split('/').map(encodeURIComponent).join('/')}" alt="">`:''}${['nw','ne','sw','se'].map(k=>`<i data-h="${k}"></i>`).join('')}</div>
+    <div class="cbar"><button data-c="reset"${csel.saved||mv?'':' disabled'}>Reset</button><button data-c="note">Note</button><button data-c="del">Delete</button><button data-c="cancel" class="go">Done</button></div>`}
+// cards moved or deleted that the video does not show yet: their old spot dimmed, the picture at its new place
+function drawPending(){const L=$('clayer'),t=v.currentTime,cs=((data().items||{}).cards)||[],baking=S.bake&&/waiting|working/.test(S.bake.state||'');
+  const h=(S.cards_pending||[]).map(p=>{const c=cs.find(c=>c.key===p.key);if(!c||!(c.s<=t&&t<c.e))return '';const[ox,oy,ow,oh]=c.box;
+    return `<div class="cwas" style="left:${ox}%;top:${oy}%;width:${ow}%;height:${oh}%"><span>${p.deleted?'Deleted':baking?'Updating...':'Moved'}</span></div>`
+      +(p.box&&c.src?`<div class="cnew" style="left:${p.box[0]}%;top:${p.box[1]}%;width:${p.box[2]}%;height:${p.box[3]}%"><img src="/card-img/${c.src.split('/').map(encodeURIComponent).join('/')}" alt=""></div>`:'')}).join('');
+  if(L._s!==h){L._s=h;L.innerHTML=h}}
+async function cardSave(del,box){const c=csel;if(!c)return;
+  const r=await post('/card/edit',{key:c.x.key,label:c.x.label,t:c.x.s,t_end:c.x.e,...(del?{deleted:true}:{box:box||c.box})});
+  if(!(r.id||r.ok))return toast(r.error||'That did not save.');
+  if(del){csel=null;toast(r.id?'Card deleted. Claude has this draft: it drops it in the next one.':'Card deleted.')}
+  else{c.orig=c.box.slice();c.saved=true;if(r.id)toast('Saved. Claude has this draft: it moves it in the next one.')}
+  drawCard();await load()}
 $('clayer').addEventListener('click',e=>{const b=e.target.closest('[data-c]');if(!b||!csel)return;e.stopPropagation();const k=b.dataset.c;
-  if(k==='cancel'){csel=null;drawCard()}else if(k==='del')cardSave(true);else if(k==='save')cardSave(false);
+  if(k==='cancel'){csel=null;drawCard()}else if(k==='del')cardSave(true);
+  else if(k==='reset'){csel.box=csel.x.box.slice();csel.saved=false;cardSave(false,csel.x.box)}
   else if(k==='note'){const x=csel.x;csel=null;drawCard();startNote(lead('cards',x),x.s,x.e,{k:'cards',text:x.label})}});
 $('clayer').addEventListener('pointerdown',e=>{const el=e.target.closest('#csel');if(!el||!csel)return;e.preventDefault();el.setPointerCapture(e.pointerId);
   const h=e.target.dataset.h,r=$('clayer').getBoundingClientRect(),b0=csel.box.slice(),x0=e.clientX,y0=e.clientY,keep=!!csel.x.src,ar=b0[3]/b0[2];
@@ -1860,9 +1874,9 @@ $('clayer').addEventListener('pointerdown',e=>{const el=e.target.closest('#csel'
       const X0=5.6,X1=87,Y0=13,Y1=75;if(w>X1-X0){w=X1-X0;if(keep)ht=w*ar}if(ht>Y1-Y0){ht=Y1-Y0;if(keep)w=ht/ar}
       x=Math.round(Math.min(X1-w,Math.max(X0,x))*10)/10;y=Math.round(Math.min(Y1-ht,Math.max(Y0,y))*10)/10}
     csel.box=[x,y,w,ht];const s2=$('csel');Object.assign(s2.style,{left:x+'%',top:y+'%',width:w+'%',height:ht+'%'})};
-  el.onpointerup=()=>{el.onpointermove=null;drawCard()}});
+  el.onpointerup=()=>{el.onpointermove=null;if(cmoved())cardSave(false);else drawCard()}});   // let go: saved
 document.addEventListener('keydown',e=>{if(!csel||/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement||{}).tagName||''))return;
-  if(e.key==='Escape'){csel=null;drawCard()}if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();cardSave(true)}if(e.key==='Enter'&&cmoved()){e.preventDefault();cardSave(false)}});
+  if(e.key==='Escape'){csel=null;drawCard()}if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();cardSave(true)}if(e.key==='Enter'){e.preventDefault();csel=null;drawCard()}});
 $('mini').addEventListener('click',e=>{const m=e.target.closest('[data-mk]');if(!m)return;const x=((data().items||{})[m.dataset.mk]||[])[+m.dataset.i];
   if(x&&noteOk())startNote(lead(m.dataset.mk,x),x.s,x.e,{k:m.dataset.mk,text:x.text||x.label||''});else v.currentTime=+m.dataset.s});
 // notes: the clock is always the playhead (scrub, a transcript word, a pin, a skip, a key, play), typing or not.

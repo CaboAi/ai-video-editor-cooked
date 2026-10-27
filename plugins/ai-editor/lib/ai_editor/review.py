@@ -790,6 +790,19 @@ def baked_texts(folder, d):
             if label_key({"size_pct": TEXT_SIZE, **x}) in have]
 
 
+def cards_pending(folder, d):
+    """The cards moved, resized or deleted on the page (overrides.json) that the video on the page does not show yet:
+    [{"key", "box"} or {"key", "deleted"}]. The page draws them at their new place until the bake puts them in."""
+    f = Path(folder) / "overrides.json"
+    try:
+        ov = (load(f).get("cards") or {}) if f.exists() else {}
+    except (OSError, ValueError):
+        return []
+    shown = {c.get("key"): c for c in (data_of(Path(folder), d.get("data")).get("items") or {}).get("cards") or []}
+    return [{"key": k, **({"deleted": True} if o.get("deleted") else {"box": o["box"]})} for k, o in ov.items()
+            if k in shown and (o.get("deleted") or o.get("box") and [round(float(v), 1) for v in o["box"]] != shown[k]["box"])]
+
+
 def bake_ready(folder, d):
     """Why the typed texts cannot go into this draft by themselves now (None: they can). A patch render needs the
     edit's final render and the plan it was made from; while Claude has the round it plans them in itself."""
@@ -848,6 +861,9 @@ def bake(folder, run=subprocess.run):
     plan_f = Path(d["plan"])
     p = load(plan_f)
     p["texts"] = [x for x in p.get("texts") or [] if x.get("kind") != "label"] + typed_labels(folder)
+    sys.path.insert(0, str(EDIT_PY.parent))
+    from preview import apply_overrides   # the cards moved, resized or deleted on the page (overrides.json), as plan.py does
+    p = apply_overrides(p, folder, plan_f.name)
     plan_f.write_text(json.dumps(p, indent=1), encoding="utf-8")
     r = run([sys.executable, str(EDIT_PY), "patch", str(folder), "--plan", plan_f.name], capture_output=True, text=True)
     if r.returncode:
@@ -1635,6 +1651,7 @@ def make_handler(folder, token):
                 d["captions_ui"] = captions_info(folder) if d.get("stage") == "edit" else None   # the Captions panel
                 d["texts"] = (load(folder / "texts.json").get("items") or []) if (folder / "texts.json").exists() else []   # the Text tab
                 d["texts_baked"] = baked_texts(folder, d) if d.get("stage") == "edit" else []   # the rest the page draws live
+                d["cards_pending"] = cards_pending(folder, d) if d.get("stage") == "edit" else []   # moved, not in the video yet
                 b = BAKE.get(str(folder)) or {}
                 d["bake"] = {"state": b.get("state"), "why": b.get("why")}   # putting the texts in the video
                 d["session_cmd"] = resume_cmd(last_claude(folder)) or (d.get("claude") or {}).get("resume") or ""   # Start's fallback
@@ -1992,7 +2009,8 @@ def make_handler(folder, token):
                 new = " ".join(w for w in words.values() if w)
                 line = f'"{old}" at {fmt(t)} now "{new}"' if new else f'"{old}" at {fmt(t)} taken out'
                 return self.timeline_note("caption-text", "Captions retyped", line, "Plan again so they show (overrides.json words).")
-            if path == "/card/edit":   # the video page: a card moved, resized or deleted; overrides.json and a note for Claude
+            if path == "/card/edit":   # the video page: a card moved, resized or deleted: overrides.json, baked in by itself
+                # (bake_soon); a note for Claude only while it has the round
                 d = load(rj)
                 last = d["events"][-1]["type"] if d["events"] else None
                 if d.get("stage") != "edit" or d.get("sent") and last not in ("send", "edits"):
@@ -2012,6 +2030,9 @@ def make_handler(folder, token):
                 except (KeyError, TypeError, ValueError):
                     return self.send(400, {"error": "card/edit takes key, t, t_end and box [x, y, w, h] or deleted"})
                 card_override(folder, key, change)
+                bake_soon(folder)
+                if not d.get("sent"):
+                    return self.send(200, {"ok": True})
                 return self.comment({"t": t, "t_end": te, "text": f"{what} {label} as shown on the page: overrides.json has it "
                                      f"(card {key}). Plan again so it shows."})
             if path in ("/text/add", "/text/delete", "/text/edit"):   # the Text tool: texts.json changes on the spot and
@@ -3498,7 +3519,12 @@ def demo_bake(tmp):
         shutil.copy2(f / "plan.json", f / "render.plan.json")
         stamp()
         return subprocess.CompletedProcess(cmd, 0, "", "")
+    (f / "overrides.json").write_text(json.dumps({"cards": {"repo@0.500": {"box": [5, 10, 40, 20]}}}), encoding="utf-8")
+    p = load(f / "plan.json")
+    p["cards"] = [{"start": 0.5, "end": 1.5, "trigger_word": "repo", "box": [30, 60, 40, 20]}]
+    (f / "plan.json").write_text(json.dumps(p), encoding="utf-8")
     assert bake(f, run=fake) is None and ran == [["patch", str(f), "--plan", "plan.json"]], ran
+    assert load(f / "plan.json")["cards"][0]["box"] == [5, 10, 40, 20], "the moved card is baked in"
     p = load(f / "plan.json")
     assert [x["kind"] for x in p["texts"]] == ["title", "label"] and p["texts"][1]["size_pct"] == 8, p["texts"]
     d = load(f / "review.json")
@@ -3975,12 +4001,15 @@ def demo():
         assert e.code == 400
     (folder / "overrides.json").unlink()
     post("/delete", {"id": k1["id"]})
-    # a card on the video: moved or resized, then deleted, into overrides.json with a note each; its picture is served
+    # a card on the video: moved or resized, then deleted, into overrides.json with no note (Claude does not have the
+    # round): the page draws it moved until the bake; its picture is served
     trk_items = json.loads(get("/data?k=edit-1").read())["items"]["cards"]
     assert trk_items[0]["key"].startswith("later@"), trk_items
     cm = post("/card/edit", {"key": trk_items[0]["key"], "label": "the picture", "t": 3.5, "t_end": 5.5, "box": [10, 12.34, 50, 30]})
     assert load(folder / "overrides.json")["cards"][trk_items[0]["key"]] == {"box": [10.0, 12.3, 50.0, 30.0]}
-    assert cm["text"].startswith("Move or resize the picture as shown on the page: overrides.json has it"), cm
+    assert cm == {"ok": True}, cm
+    pend = json.loads(get("/state").read())["cards_pending"]
+    assert pend == [{"key": trk_items[0]["key"], "box": [10.0, 12.3, 50.0, 30.0]}], pend
     cd = post("/card/edit", {"key": trk_items[0]["key"], "label": "the picture", "t": 3.5, "t_end": 5.5, "deleted": True})
     assert load(folder / "overrides.json")["cards"][trk_items[0]["key"]] == {"box": [10.0, 12.3, 50.0, 30.0], "deleted": True}
     for bad in ({"key": "x", "t": 1, "t_end": 2, "box": [0, 0, 10, 10]}, {"key": "a@1.0", "t": 1, "t_end": 2, "box": [0, 0, 1, 10]}):
@@ -3989,9 +4018,8 @@ def demo():
             raise AssertionError(bad)
         except urllib.error.HTTPError as e:
             assert e.code == 400, bad
+    assert cd == {"ok": True} and json.loads(get("/state").read())["cards_pending"] == [{"key": trk_items[0]["key"], "deleted": True}]
     (folder / "overrides.json").unlink()
-    for x in (cm, cd):
-        post("/delete", {"id": x["id"]})
     for bad in ("/card-img/../review.json", "/card-img/review.json"):
         try:
             get(bad)
